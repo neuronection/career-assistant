@@ -25,6 +25,24 @@ from app.services.postings.posting_fit_service import (
 from tests.conftest import _make_posting, _uid
 
 
+def _language_overrides(overrides: dict | None) -> dict:
+    """Translate the test shorthand ``languages: [code, …]`` into the v6
+    structured requirement rows (S1.4a); other keys pass through."""
+    payload = dict(overrides or {})
+    languages = payload.pop("languages", None)
+    if languages is not None:
+        payload["language_requirements"] = [
+            {
+                "code": str(code),
+                "level": "intermediate",
+                "evidence_quote": f"{code} required",
+                "confidence": 0.9,
+            }
+            for code in languages
+        ]
+    return payload
+
+
 async def _extracted(db, source, external_id: str, extract_overrides: dict | None = None):
     from app.ai.agents.posting_extractor import (
         ExtractPrerequisite,
@@ -37,7 +55,14 @@ async def _extracted(db, source, external_id: str, extract_overrides: dict | Non
         "title_norm": "Data Analyst",
         "seniority": "junior",
         "education": {"level": "bachelor"},
-        "languages": ["de"],
+        "language_requirements": [
+            {
+                "code": "de",
+                "level": "intermediate",
+                "evidence_quote": "German required",
+                "confidence": 0.9,
+            }
+        ],
         "prerequisites": [
             ExtractPrerequisite(
                 kind="certificate",
@@ -57,7 +82,7 @@ async def _extracted(db, source, external_id: str, extract_overrides: dict | Non
         ],
         "field_confidence": {},
     }
-    payload.update(extract_overrides or {})
+    payload.update(_language_overrides(extract_overrides))
     posting = await _make_posting(db, source, external_id=external_id, title="Data Analyst")
     await apply_extract(db, posting, PostingExtract(**payload))
     await db.commit()
@@ -82,7 +107,6 @@ FLAG_COMBOS = [
     {},
     {"use_skills": False},
     {"use_education": False},
-    {"use_languages": False},
     {"use_location": False},
     {"use_experience": False},
     {"use_lifestyle": False},
@@ -134,18 +158,10 @@ async def test_each_toggle_neutralizes_exactly_its_part(
     result = await compute_posting_fit(
         db, user_id, posting, context=context, overrides=FitOverrides(use_lifestyle=False)
     )
-    assert result["gates"] == []
+    assert result["gates"] == ["language"]
     assert all("disabled" not in entry for entry in result["breakdown"].values()), (
         "lifestyle gates are not a dimension — no disabled marker"
     )
-
-    result = await compute_posting_fit(
-        db, user_id, posting, context=context, overrides=FitOverrides(use_languages=False)
-    )
-    parts = result["breakdown"]["prereqs"]["parts"]
-    assert parts["languages"].get("disabled") is True
-    assert parts["education"].get("disabled") is not True
-    assert parts["certificates"].get("disabled") is not True
 
     result = await compute_posting_fit(
         db, user_id, posting, context=context, overrides=FitOverrides(use_education=False)
@@ -153,7 +169,6 @@ async def test_each_toggle_neutralizes_exactly_its_part(
     parts = result["breakdown"]["prereqs"]["parts"]
     assert parts["education"].get("disabled") is True
     assert parts["certificates"].get("disabled") is True, "certificates ride use_education"
-    assert parts["languages"].get("disabled") is not True
 
 
 async def test_skills_disabled_scores_neutral_not_the_must_have_cap(
@@ -184,7 +199,6 @@ async def test_disabled_prereq_part_never_contributes_a_penalty(
     merged = canonical["breakdown"]["prereqs"]
     assert merged["score"] == 3.0, "education below requirement is the strongest penalty"
     assert merged["parts"]["education"]["cap"] == 3.0
-    assert merged["parts"]["languages"]["cap"] == 5.0
     assert merged["parts"]["certificates"]["cap"] == 6.0
 
     for combo in FLAG_COMBOS:
@@ -206,7 +220,7 @@ async def test_disabled_prereq_part_never_contributes_a_penalty(
         user_id,
         posting,
         context=context,
-        overrides=FitOverrides(use_education=False, use_languages=False),
+        overrides=FitOverrides(use_education=False),
     )
     adjusted = result["breakdown"]["prereqs"]
     assert adjusted["score"] == 7.0 and adjusted.get("neutral"), (
@@ -214,7 +228,6 @@ async def test_disabled_prereq_part_never_contributes_a_penalty(
     )
     assert adjusted["parts"]["education"]["disabled"] is True
     assert adjusted["parts"]["certificates"]["disabled"] is True
-    assert adjusted["parts"]["languages"]["disabled"] is True
 
 
 async def test_prereqs_scored_gate_preserved(
@@ -245,39 +258,19 @@ async def test_prereqs_scored_gate_preserved(
     assert adjusted["breakdown"]["prereqs"]["score"] == 7.0
     assert adjusted["breakdown"]["prereqs"].get("neutral") is True
 
-    posting_languages = await _extracted(
-        db,
-        source,
-        "ovr-scored-gate-lang",
-        extract_overrides={"prerequisites": []},
-    )
-    adjusted = await compute_posting_fit(
-        db,
-        user_id,
-        posting_languages,
-        context=context,
-        overrides=FitOverrides(use_education=False),
-    )
-    entry = adjusted["breakdown"]["prereqs"]
-    assert entry["score"] == 5.0 and not entry.get("neutral"), (
-        "a participating language penalty keeps the dimension non-neutral"
-    )
-
 
 async def test_prereqs_default_matrix_matches_the_pre_plan_baseline(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, frozen_now
 ):
     """Execution-pinned against 009efadf (round-2 B1): a recognized
     education comparison alone never makes the dimension non-neutral —
-    met or below, both read the scored-gate neutral 7.0; a scored
-    language part turns the dimension non-neutral and the education cap
-    shifts the min (below + unmet language → 3.0, met + evidenced → 10.0)
-    — the all-on engine values equal the pre-plan accumulator's."""
+    met or below, both read the scored-gate neutral 7.0 (language is a
+    gate, not a scored part, since plan 212 S1.4c)."""
     from app.models.user_model import Profile
 
     user_id = _user_id(auth_headers)
 
-    async def _scenario(external_id: str, *, level: str, languages: list[str]):
+    async def _scenario(external_id: str, *, level: str):
         profile = (await db.execute(select(Profile))).scalars().first()
         profile.basics = {**(profile.basics or {}), "education_level": level}
         await db.commit()
@@ -285,49 +278,22 @@ async def test_prereqs_default_matrix_matches_the_pre_plan_baseline(
             db,
             source,
             external_id,
-            extract_overrides={"languages": languages, "prerequisites": []},
+            extract_overrides={"prerequisites": []},
         )
         result = await compute_posting_fit(db, user_id, posting)
         entry = result["breakdown"]["prereqs"]
         entry["posting"] = posting
         return entry
 
-    entry = await _scenario("ovr-baseline-met", level="master", languages=[])
+    entry = await _scenario("ovr-baseline-met", level="master")
     assert entry["score"] == 7.0 and entry.get("neutral"), "education met alone stays neutral"
     parts = entry["parts"]
     assert parts["education"]["cap"] == 10.0 and not parts["education"].get("scored")
 
-    entry = await _scenario("ovr-baseline-below", level="high_school", languages=[])
+    entry = await _scenario("ovr-baseline-below", level="high_school")
     assert entry["score"] == 7.0 and entry.get("neutral"), "education below alone stays neutral"
     parts = entry["parts"]
     assert parts["education"]["cap"] == 3.0 and not parts["education"].get("scored")
-
-    entry = await _scenario("ovr-below-lang", level="high_school", languages=["de"])
-    assert entry["score"] == 3.0 and not entry.get("neutral")
-    parts = entry["parts"]
-    assert parts["languages"]["cap"] == 5.0 and parts["languages"].get("scored")
-    adjusted = (
-        await get_posting_fits_batch(
-            db, user_id, [entry["posting"]], fit_overrides=FitOverrides(use_languages=False)
-        )
-    )[entry["posting"].id]
-    assert adjusted["breakdown"]["prereqs"]["score"] == 7.0
-    assert adjusted["breakdown"]["prereqs"].get("neutral") is True, (
-        "the rescore over the stored parts drops the language penalty"
-    )
-
-    entry = await _scenario("ovr-met-lang", level="master", languages=["en"])
-    assert entry["score"] == 10.0 and not entry.get("neutral")
-    parts = entry["parts"]
-    assert parts["languages"]["cap"] == 10.0 and parts["languages"].get("scored")
-    adjusted = (
-        await get_posting_fits_batch(
-            db, user_id, [entry["posting"]], fit_overrides=FitOverrides(use_education=False)
-        )
-    )[entry["posting"].id]
-    assert adjusted["breakdown"]["prereqs"]["score"] == 10.0, (
-        "the rescore over the stored parts keeps the evidenced language at 10.0"
-    )
 
 
 async def test_merges_unchanged_when_all_parts_on(
@@ -345,7 +311,6 @@ async def test_merges_unchanged_when_all_parts_on(
     entry = active_all_on["breakdown"]["prereqs"]
     assert entry["score"] == 3.0
     assert entry["parts"]["education"]["cap"] == 3.0
-    assert entry["parts"]["languages"]["cap"] == 5.0
     assert entry["parts"]["certificates"]["cap"] == 6.0
     assert all("disabled" not in part for part in entry["parts"].values())
 

@@ -17,7 +17,10 @@ const apiMock = vi.hoisted(() => ({
   linkApplicationDocument: vi.fn(),
   snoozeApplicationFollowup: vi.fn(),
   closeApplication: vi.fn(),
+  setApplicationOffer: vi.fn(),
+  clearApplicationOffer: vi.fn(),
   fetchFollowupSurface: vi.fn(),
+  fetchApplicationInsights: vi.fn(),
   updateFollowupRules: vi.fn(),
   fetchCvs: vi.fn(),
 }));
@@ -30,7 +33,10 @@ vi.mock("@/api/applications", () => ({
   linkApplicationDocument: apiMock.linkApplicationDocument,
   snoozeApplicationFollowup: apiMock.snoozeApplicationFollowup,
   closeApplication: apiMock.closeApplication,
+  setApplicationOffer: apiMock.setApplicationOffer,
+  clearApplicationOffer: apiMock.clearApplicationOffer,
   fetchFollowupSurface: apiMock.fetchFollowupSurface,
+  fetchApplicationInsights: apiMock.fetchApplicationInsights,
   updateFollowupRules: apiMock.updateFollowupRules,
 }));
 
@@ -52,7 +58,7 @@ function application(overrides: Partial<ApplicationDetail> = {}): ApplicationDet
     applied_via_url: "",
     deadline_at: null,
     next_followup_at: NOW,
-    contact: {},
+    contact_id: null,
     offer: {},
     outcome: null,
     closed_at: null,
@@ -106,7 +112,17 @@ beforeEach(() => {
   apiMock.fetchApplications.mockResolvedValue(listing([application()]));
   apiMock.fetchApplication.mockResolvedValue(application());
   apiMock.fetchCvs.mockResolvedValue([]);
+  apiMock.setApplicationOffer.mockResolvedValue(application());
+  apiMock.clearApplicationOffer.mockResolvedValue(application());
   apiMock.fetchFollowupSurface.mockResolvedValue({ rules, items: [] });
+  apiMock.fetchApplicationInsights.mockResolvedValue({
+    tailored: { n: 0, responses: 0, rate: null },
+    untailored: { n: 0, responses: 0, rate: null },
+    suppressed: true,
+    floor: 10,
+    caveat: "",
+    next_action: "",
+  });
   apiMock.updateFollowupRules.mockResolvedValue(rules);
   apiMock.transitionApplication.mockResolvedValue(
     application({ stage: "interview" })
@@ -176,6 +192,64 @@ describe("applications tracker (plan 116.4)", () => {
       expect(apiMock.addApplicationNote).toHaveBeenCalledWith("app-1", "Recruiter replied")
     );
     expect(await screen.findByTestId("application-event-note")).toBeInTheDocument();
+  });
+
+  it("saves structured offer details from the drawer", async () => {
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("application-card-app-1"));
+    await screen.findByTestId("application-drawer-body");
+
+    await user.type(screen.getByTestId("application-offer-amount"), "60000");
+    await user.type(screen.getByTestId("application-offer-col"), "1000");
+    await user.type(screen.getByTestId("application-offer-location"), "Berlin");
+    await user.type(screen.getByTestId("application-offer-benefits"), "health, relocation");
+    await user.click(screen.getByTestId("application-offer-save"));
+    await waitFor(() =>
+      expect(apiMock.setApplicationOffer).toHaveBeenCalledWith(
+        "app-1",
+        expect.objectContaining({
+          currency: "EUR",
+          amount: 60000,
+          period: "year",
+          benefits: ["health", "relocation"],
+          location: "Berlin",
+          cost_of_living: 1000,
+        })
+      )
+    );
+  });
+
+  it("prefills and clears an existing offer", async () => {
+    apiMock.fetchApplication.mockResolvedValue(
+      application({
+        offer: {
+          currency: "EUR",
+          amount: 60000,
+          period: "year",
+          benefits: ["health", "relocation"],
+          location: "Berlin",
+          cost_of_living: 1000,
+          deadline: "2026-12-01",
+        },
+      })
+    );
+    mount();
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("application-card-app-1"));
+    await screen.findByTestId("application-drawer-body");
+    expect(screen.getByTestId("application-offer-currency")).toHaveValue("EUR");
+    expect(screen.getByTestId("application-offer-amount")).toHaveValue(60000);
+    expect(screen.getByTestId("application-offer-benefits")).toHaveValue(
+      "health, relocation"
+    );
+    expect(screen.getByTestId("application-offer-deadline")).toHaveValue("2026-12-01");
+
+    await user.click(screen.getByTestId("application-offer-clear"));
+    await waitFor(() =>
+      expect(apiMock.clearApplicationOffer).toHaveBeenCalledWith("app-1")
+    );
+    expect(screen.getByTestId("application-offer-amount")).toHaveValue(null);
   });
 
   it("moves the stage and closes the application", async () => {

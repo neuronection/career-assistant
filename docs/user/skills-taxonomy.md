@@ -272,10 +272,17 @@ catalog content:
   near duplicate title warns and offers "Map to existing" or an explicit
   "Create anyway"; the deterministic naming guard refuses a department-only
   or bare-level title unless you override it deliberately. **Re-decide**
-  queues the background re-run, and the **old proposals** banner regenerates
-  or clears legacy v1 rows. Below the queue, **Catalog hygiene** lists
-  duplicate published types and retires one into a survivor with every
-  posting re-decided and one audit record.
+  queues the background re-run. Below the queue, **Catalog hygiene** lists
+  non-retired duplicate types — exact groups and near groups (trigram
+  similarity ≥ 0.72 or containment). Near groups are informational and
+  labelled **merge exact only**; only an exact normalized-title group can be
+  merged, retiring one type into a survivor with every posting re-decided
+  and one audit record. The same exact-title check guards manual create,
+  publish, AI generation, bulk publish and proposal apply; bulk/generation
+  skip a duplicate and report it rather than failing the whole batch. The
+  index is not unique yet, so a concurrent writer can still race the check
+  (the 0.72 near-duplicate bar and the `title_key` index are deferred
+  follow-ups; the unique-index slice is deferral #7).
 - **Enrichment** lists AI proposals for job attributes that wait for a
   human decision. Known proposal fields render as labeled rows —
   contract type, working hours, schedule cues, travel and benefits as

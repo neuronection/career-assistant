@@ -12,6 +12,7 @@ import { TasksTab } from "@/components/settings/TasksTab";
 import { ProviderModal } from "@/components/settings/ProviderModal";
 import { ProviderSetupModal } from "@/components/settings/ProviderSetupModal";
 import { ReRunSetupDialog } from "@/components/settings/ReRunSetupDialog";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 
 type AITab = "providers" | "models" | "tasks";
 
@@ -74,6 +75,7 @@ export function AIConfig() {
       setCanManageGlobal(summaryData.can_manage_global);
       setMockAllowed(summaryData.mock_allowed);
       setProviders(providerData);
+      resetConfigSummaryCache();
     } catch (err) {
       setError(apiDetail(err));
     } finally {

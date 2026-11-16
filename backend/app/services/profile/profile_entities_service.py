@@ -32,10 +32,13 @@ from app.schemas.profile_entities import (
     ProfileAchievementPatch,
     ReadinessSection,
 )
+from app.services.profile.grades import grade_ordinal
 
 _LEVEL_RANK = {level.value: rank for level, rank in EducationLevelOrder.ORDER.items()}
 
-_EDUCATION_CLEARABLE = frozenset({"university_id", "department_id", "grade_band", "start", "end"})
+_EDUCATION_CLEARABLE = frozenset(
+    {"university_id", "department_id", "grade_scale", "grade_value", "start", "end"}
+)
 
 _CERTIFICATION_CLEARABLE = frozenset({"issued", "expires", "language_code"})
 
@@ -108,11 +111,15 @@ class ProfileEntitiesService:
             raise NotFoundError("University not found")
         return university_id
 
-    async def create_education(self, user_id: uuid.UUID, payload: EducationItemIn) -> EducationItem:
+    async def create_education(
+        self, user_id: uuid.UUID, payload: EducationItemIn, *, commit: bool = True
+    ) -> EducationItem:
         university_id = await self._validate_catalog_refs(
             payload.university_id, payload.department_id
         )
-        item = EducationItem(user_id=user_id, **payload.model_dump())
+        data = payload.model_dump()
+        data["grade_ordinal"] = grade_ordinal(data.get("grade_scale"), data.get("grade_value"))
+        item = EducationItem(user_id=user_id, **data)
         item.university_id = university_id
         self.db.add(item)
         await self.db.commit()
@@ -138,6 +145,11 @@ class ProfileEntitiesService:
             data.get("department_id", item.department_id),
         )
         _apply_patch(item, patch, clearable=_EDUCATION_CLEARABLE)
+        if "grade_scale" in data or "grade_value" in data:
+            item.grade_ordinal = grade_ordinal(
+                item.grade_scale,
+                float(item.grade_value) if item.grade_value is not None else None,
+            )
         if "department_id" in data and "university_id" not in data:
             item.university_id = university_id
         await self.db.commit()

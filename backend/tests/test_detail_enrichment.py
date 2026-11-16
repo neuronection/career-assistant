@@ -124,11 +124,14 @@ async def test_run_detail_enrichment_merges_and_records(db, synthetic_connector,
     monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
     report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
     assert report["enriched"] == 1
+    assert report["extract_requeued"] == 1
 
     await db.refresh(posting)
     assert posting.raw["description"] == "We build things."
     assert posting.detail_fetched_at is not None
     assert posting.detail_attempts == 1
+    assert posting.extract is None
+    assert posting.extract_version is None
 
     runs = (
         (await db.execute(SourceRun.__table__.select().where(SourceRun.source_id == source.id)))
@@ -137,6 +140,48 @@ async def test_run_detail_enrichment_merges_and_records(db, synthetic_connector,
     )
     assert len(runs) == 1
     assert runs[0]["trigger"] == "scheduled"
+
+
+async def test_batch_detail_same_description_salary_change_keeps_the_extract(
+    db, synthetic_connector, monkeypatch
+):
+    from app.extensions.sdk import RawPosting, SalarySpec
+
+    source = _source({"detail_mode": "all", "keywords": "python"})
+    db.add(source)
+    await db.flush()
+    posting = _posting(
+        source,
+        "1",
+        title="Python Developer",
+        raw={"description": "Same description"},
+        extract={"skills": ["sql"]},
+        extract_version=3,
+    )
+    db.add(posting)
+    await db.commit()
+
+    async def fake_fetch(_db, _source, ids):
+        rows = [
+            RawPosting(
+                external_id=external_id,
+                title="Python Developer",
+                org="Acme",
+                raw={"description": "Same description"},
+                salary=SalarySpec(min=50000, max=70000, currency="EUR"),
+            )
+            for external_id in ids
+        ]
+        return rows, [], None, None
+
+    monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
+    report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
+    assert report["extract_requeued"] == 0
+    await db.refresh(posting)
+    assert posting.salary_min == 50000
+    assert posting.extract == {"skills": ["sql"]}
+    assert posting.extract_version == 3
+    assert posting.detail_fetched_at is not None
 
 
 async def test_run_detail_enrichment_gives_up_after_attempts(db, synthetic_connector, monkeypatch):

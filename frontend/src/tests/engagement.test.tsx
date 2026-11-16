@@ -139,13 +139,13 @@ function makeJob(overrides: Partial<Job> = {}): Job {
 
 describe("JobCard engagement state", () => {
   it("shows the education chip, saved marker and seen state", () => {
-    render(<JobCard job={makeJob()} saved seen />);
+    render(<MemoryRouter><JobCard job={makeJob()} saved seen /></MemoryRouter>);
     expect(screen.getByTestId("education-chip")).toHaveTextContent("Bachelor's");
     expect(screen.getByTestId("job-seen")).toHaveAttribute("title", "seen");
   });
 
   it("shows notes and the exploration chip", () => {
-    render(<JobCard job={makeJob()} notes="Great fit for me" exploration />);
+    render(<MemoryRouter><JobCard job={makeJob()} notes="Great fit for me" exploration /></MemoryRouter>);
     expect(screen.getByTestId("job-card-notes")).toHaveTextContent("Great fit for me");
     expect(screen.getByText("explore")).toBeInTheDocument();
   });

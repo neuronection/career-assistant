@@ -435,7 +435,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
         ],
         "responsibilities": extract.get("responsibilities") or [],
         "benefits": extract.get("benefits") or [],
-        "languages": extract.get("languages") or [],
+        "language_requirements": extract.get("language_requirements") or [],
         "provenance": (
             "extracted"
             if posting.extract_version is not None

@@ -10,9 +10,11 @@ import hashlib
 import io
 import shutil
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
@@ -21,6 +23,7 @@ from app.core.errors import NotFoundError
 from app.models.document_model import Document
 from app.models.enums import AITaskType, CvPageTextSource, DocumentStatus
 from app.schemas.cv import CvSourceExtraction, CvSourcePage, OcrPagesResult
+from app.services.profile.document_storage import DocumentStorage, document_storage
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 OCR_BATCH_PAGES = 4
@@ -33,31 +36,8 @@ def content_sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def source_file_path(document: Document) -> Path:
-    """Stored path of the original upload (byte-exact, never rewritten)."""
-    suffix = Path(document.filename).suffix or ".bin"
-    return Path(settings.upload_dir) / f"{document.id}{suffix}"
-
-
-def derived_dir(document_id: uuid.UUID) -> Path:
-    """Directory of derived page images for one source document."""
-    return Path(settings.upload_dir) / "derived" / str(document_id)
-
-
-def page_image_path(document_id: uuid.UUID, index: int) -> Path:
-    return derived_dir(document_id) / f"page-{index}.png"
-
-
-def read_source_bytes(document: Document) -> bytes:
-    path = source_file_path(document)
-    if not path.exists():
-        raise NotFoundError("Stored file missing")
-    return path.read_bytes()
-
-
-def extract_text_layer(document: Document) -> list[CvSourcePage]:
+def extract_text_layer(document: Document, raw: bytes) -> list[CvSourcePage]:
     """Per-page text from the embedded layer (empty pages need OCR)."""
-    raw = read_source_bytes(document)
     suffix = Path(document.filename).suffix.lower()
     if document.mime == "application/pdf" or suffix == ".pdf":
         from pypdf import PdfReader
@@ -92,31 +72,57 @@ def is_image_document(document: Document) -> bool:
     return Path(document.filename).suffix.lower() in IMAGE_SUFFIXES
 
 
-def rasterize_missing_pages(document: Document, pages: list[CvSourcePage]) -> dict[int, Path]:
+def rasterize_missing_pages(
+    document: Document,
+    pages: list[CvSourcePage],
+    storage: DocumentStorage,
+) -> tuple[dict[int, Path], Path | None]:
     """Render pages without recoverable text to PNG (PDF: pypdfium2,
-    image upload: the original bytes itself)."""
+    image upload: the original bytes itself).
+
+    Every page is written through the store; the returned paths are private
+    temp copies for the OCR callers (the caller removes the temp directory).
+    Runs in a worker thread, so store I/O never touches the event loop.
+    """
     targets = {page.index for page in pages if not page.text}
     if not targets:
-        return {}
-    derived_dir(document.id).mkdir(parents=True, exist_ok=True)
-    if is_image_document(document):
-        target = page_image_path(document.id, 0)
-        target.write_bytes(read_source_bytes(document))
-        return {0: target}
-    import pypdfium2 as pdfium
-
-    pdf = pdfium.PdfDocument(read_source_bytes(document))
+        return {}, None
+    work_dir = Path(tempfile.mkdtemp(prefix="career-cv-pages-"))
     rendered: dict[int, Path] = {}
-    for index in targets:
-        if index >= len(pdf):
-            continue
-        bitmap = pdf[index].render(scale=RASTER_SCALE)
-        image = bitmap.to_pil()
-        path = page_image_path(document.id, index)
-        image.save(path, format="PNG")
-        rendered[index] = path
-    pdf.close()
-    return rendered
+    try:
+        if is_image_document(document):
+            data = storage.read(document)
+            if data is None:
+                raise NotFoundError("Stored file missing")
+            storage.put_page(document, 0, data)
+            target = work_dir / "page-0.png"
+            target.write_bytes(data)
+            return {0: target}, work_dir
+        raw = storage.read(document)
+        if raw is None:
+            raise NotFoundError("Stored file missing")
+        import pypdfium2 as pdfium
+
+        pdf = pdfium.PdfDocument(raw)
+        try:
+            for index in sorted(targets):
+                if index >= len(pdf):
+                    continue
+                bitmap = pdf[index].render(scale=RASTER_SCALE)
+                image = bitmap.to_pil()
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                data = buffer.getvalue()
+                storage.put_page(document, index, data)
+                path = work_dir / f"page-{index}.png"
+                path.write_bytes(data)
+                rendered[index] = path
+        finally:
+            pdf.close()
+        return rendered, work_dir
+    except BaseException:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise
 
 
 def tesseract_available() -> bool:
@@ -183,7 +189,6 @@ async def _vision_ocr(
             text=page.text.strip(),
             source=CvPageTextSource.OCR_VISION.value,
             confidence=page.confidence,
-            image_path=str(batch[0][1].parent / f"page-{page.index}.png"),
         )
         for page in result.pages
     ]
@@ -206,7 +211,6 @@ async def run_ocr(
                     text=text,
                     source=CvPageTextSource.OCR_TESSERACT.value,
                     confidence=TESSERACT_CONFIDENCE if text else 0.0,
-                    image_path=str(path),
                 )
             )
         engine = {"ocr": "tesseract"}
@@ -234,9 +238,14 @@ async def process_cv_document(
     document = await _owned_document(db, document_id, user_id)
     document.status = DocumentStatus.PROCESSING.value
     await db.commit()
+    storage = document_storage()
+    work_dir: Path | None = None
+    rendered: set[int] = set()
     try:
-        raw = read_source_bytes(document)
-        pages = extract_text_layer(document)
+        raw = await storage.aread(document)
+        if raw is None:
+            raise NotFoundError("Stored file missing")
+        pages = extract_text_layer(document, raw)
         renderable = document.mime == "application/pdf" or Path(
             document.filename
         ).suffix.lower() in IMAGE_SUFFIXES | {".pdf"}
@@ -244,7 +253,10 @@ async def process_cv_document(
         ocr_used = False
         engine: dict = {"ocr": "none"}
         if needs_ocr:
-            image_paths = rasterize_missing_pages(document, pages)
+            image_paths, work_dir = await anyio.to_thread.run_sync(
+                rasterize_missing_pages, document, pages, storage
+            )
+            rendered = set(image_paths)
             if image_paths:
                 ocr_pages, engine = await run_ocr(db, user_id, image_paths)
                 merged = {page.index: page for page in pages if page.text}
@@ -257,10 +269,9 @@ async def process_cv_document(
                 )
                 pages = [merged[index] for index in sorted(merged)]
         for page in pages:
-            if page.image_path is None and not page.text:
-                path = page_image_path(document.id, page.index)
-                if path.exists():
-                    page.image_path = str(path)
+            page.image_path = (
+                storage.page_key(document, page.index) if page.index in rendered else None
+            )
         extraction = CvSourceExtraction(
             pages=pages,
             full_text="\n\n".join(page.text for page in pages if page.text),
@@ -278,6 +289,9 @@ async def process_cv_document(
     except Exception as exc:
         document.status = DocumentStatus.FAILED.value
         document.error = str(exc)[:500]
+    finally:
+        if work_dir is not None:
+            await anyio.to_thread.run_sync(shutil.rmtree, work_dir, True)
     db.add(document)
     await db.commit()
     await db.refresh(document)

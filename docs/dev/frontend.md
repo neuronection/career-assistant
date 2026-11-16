@@ -11,12 +11,15 @@ app rather than a set of pages.
 frontend/src/
 ├── App.tsx          # BrowserRouter route table (the whole app's map)
 ├── main.tsx         # entry: i18n init, CSS import order, RenderBeacon
-├── pages/           # one component per route (settings/ for admin pages)
-├── components/      # feature components (catalog, chat, cv, profile, …)
+├── features/        # domain packages: <domain>/pages + <domain>/components
+│                    #   catalog, postings, contacts, cv, profile, chat, skills,
+│                    #   integrations, onboarding, growth, interviews
+├── pages/           # app-level pages outside the feature split (settings, about)
+├── components/      # shared components (audit, settings, stats, profile, ui, …)
 ├── components/ui/   # assistant-ui re-export shims — never local implementations
 ├── stores/          # Zustand stores
 ├── api/             # one module per backend area + client.ts (axios) + chatStream.ts
-├── lib/             # helpers (i18n, slug, entityLinks, fitDimensions, …)
+├── lib/             # helpers (i18n, time, money, slug, entityLinks, fitDimensions, …)
 ├── config/          # nav.ts, settingsNav.ts, onboardingPaths.ts, profileScopes.ts
 ├── styles/motion.css
 ├── theme.css        # app identity overrides (--as-* tokens)
@@ -35,12 +38,21 @@ frontend/src/
 | `/onboarding`, `/onboarding/express` | Wizard + express start |
 | `/catalog`, `/catalog/graph`, `/catalog/generate`, `/jobs/:code` | Catalog, graph, AI generation, job detail |
 | `/rankings`, `/compare` | Rankings + compare tray |
-| `/postings` (→ `/postings/search`), `/postings/feed`, `/postings/search` | Postings shell — search default + feed |
-| `/autopilot`, `/interviews`, `/growth` | Autopilot, interview prep, growth |
+| `/postings` (the search default; `/postings/search` and `/postings/feed` redirect here) | Live postings + Explore, the capture dialog and the URL-capture entry point |
+| `/postings/stats` | Market intelligence (stats, benchmarks, pay cells) |
+| `/postings/capture-help` | Bookmarklet + capture help |
+| `/postings/:ref`, `/postings/:ref/kit` | Posting detail and the posting-grounded application kit |
+| `/applications`, `/applications/offers` | Tracker board and the offer comparison page |
+| `/applications/:id` | The application kit for one tracked application |
+| `/contacts` | Contacts, interactions and outreach drafts (beta) |
+| `/autopilot`, `/autopilot/runs/:runId`, `/interviews`, `/growth`, `/paths` | Autopilot (live run page), interview prep, growth toolkit, career paths |
 | `/profile`, `/profile/experience`, `/profile/education`, `/profile/import`, `/profile/assessment` | Profile + workspaces |
+| `/companies`, `/companies/:key`, `/skills/:key` | Companies, company detail, skill pages |
+| `/sources/:sourceId`, `/extensions/:extensionId` | Source detail, extension surface |
 | `/catalog/universities`, `/catalog/universities/:id` | University intake |
+| `/guides/market` | UK/DACH market guide |
 | `/cv`, `/cv/synth`, `/cv/:id`, `/cv/templates/:id` | CV Studio, variant library, builder, template editor |
-| `/settings/*` | AI, taxonomy, users, scheduler, notifications, audit |
+| `/settings/account`, `/settings/ai`, `/settings/tools`, `/settings/taxonomy`, `/settings/companies`, `/settings/users`, `/settings/automations`, `/settings/notifications`, `/settings/audit` | Settings surfaces (`/settings` lands on account) |
 
 `config/nav.ts` and `config/settingsNav.ts` define the sidebar and settings
 navigation — update them with the routes.
@@ -56,7 +68,7 @@ Zustand stores in `stores/`:
 | `catalogStore` | Catalog tree + graph state |
 | `chatStore` | Chat sessions, streaming, turns |
 | `compareStore` | The compare tray |
-| `cvBuilderLinkStore` | Cross-surface CV live-sync (plan 104) |
+| `cvBuilderLinkStore` | Cross-surface CV live-sync |
 | `profileStore`, `profileProposalsStore` | Profile + pending proposal cards |
 | `templatePreviewsStore` | Template gallery previews |
 | `toastStore` | Notices |

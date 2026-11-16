@@ -9,7 +9,11 @@ the **notification funnel** (how you hear about things) and the **scheduler**
 One periodic engine runs everything scheduled:
 
 - **Scheduled saved searches** run on your rhythm and ping you on new matches.
-- A **weekly digest** rolls up postings and near-misses.
+- A **weekly digest** rolls up postings and near-misses, with a
+  **closing-soon** section for saved postings whose deadline falls within
+  seven days; that section also emits its own
+  `posting_closing_soon` notification (in-app, desktop and browser by
+  default, toggleable in Settings → Notifications).
 - A **daily smart digest** (opt-in) notifies you when the smart ranking
   finds fresh, unseen postings — see [postings and
   search](postings-and-search.md) for the ranking it uses. Enable it in

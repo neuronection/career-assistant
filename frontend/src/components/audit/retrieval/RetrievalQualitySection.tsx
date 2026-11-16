@@ -171,10 +171,10 @@ export function RetrievalQualitySection({
             >
               <ScoreBlock
                 title={t("audit.retrieval.quality.baseline", {
-                  id: shortId(compare.old_space_id),
+                  id: shortId(compare.baseline_space_id),
                 })}
-                recall={compare.old_recall_at_k}
-                precision={compare.old_precision_at_k}
+                recall={compare.baseline_recall_at_k}
+                precision={compare.baseline_precision_at_k}
                 floorRecall={compare.floor_recall}
                 floorPrecision={compare.floor_precision}
               />

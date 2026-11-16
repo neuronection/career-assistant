@@ -103,8 +103,11 @@ async def bulk_job_action(
     """Publish or reject (delete) catalog drafts in bulk (admin transcends ownership)."""
     if body.action not in ("publish", "reject"):
         raise ValidationError("action must be 'publish' or 'reject'")
+    from app.core.errors import ConflictError
+    from app.services.catalog.job_service import ensure_job_type_title
+
     service = JobService(db)
-    published, rejected = 0, 0
+    published, rejected, skipped = 0, 0, 0
     for job_id in body.ids:
         job = await service.get_by_code_or_id(job_id)
         if job is None:
@@ -114,6 +117,11 @@ async def bulk_job_action(
             # neither publishing nor deleting it may undo that.
             continue
         if body.action == "publish":
+            try:
+                await ensure_job_type_title(db, job.title, exclude_id=job.id)
+            except ConflictError:
+                skipped += 1
+                continue
             job.status = "published"
             published += 1
             await service._refit_job(job.id)
@@ -122,7 +130,7 @@ async def bulk_job_action(
             await db.delete(job)
             rejected += 1
     await db.commit()
-    return {"published": published, "rejected": rejected}
+    return {"published": published, "rejected": rejected, "skipped": skipped}
 
 
 @router.get("/jobs/duplicate-types")
@@ -1631,9 +1639,7 @@ class JobProposalErrorOut(BaseModel):
 
 
 class JobProposalQueuePage(CursorPage[JobProposalQueueItem]):
-    """Keyset window plus the legacy-v1 banner count (plans 202/206)."""
-
-    legacy_count: int = 0
+    """Keyset window over live v2 job proposals (plans 202/206)."""
 
 
 def _job_proposal_error(exc) -> JSONResponse:
@@ -1653,11 +1659,13 @@ async def job_proposal_queue(
     """Postings whose catalog join ended unmapped with a rich extract —
     the HITL "create the job type" queue (plan 202), keyset-paged since
     plan 206 (the old silent 50-row cap hid every later proposal):
-    provenance, the proposed type, actionable candidates and the
-    legacy-v1 banner count."""
+    provenance, the proposed type, actionable candidates."""
     from app.core.keyset import decode_cursor, encode_cursor
     from app.services.postings.job_proposal_service import JobProposalService
-    from app.services.postings.job_type_candidates import job_type_candidates
+    from app.services.postings.job_type_candidates import (
+        job_type_candidates,
+        load_title_catalog,
+    )
 
     del user
     service = JobProposalService(db)
@@ -1667,14 +1675,21 @@ async def job_proposal_queue(
     )
     page = rows[:limit]
     suggestions = await service.family_suggestions(page)
+    catalog = await load_title_catalog(db)
     items: list[JobProposalQueueItem] = []
     for p in page:
         proposal = (p.posting_facts or {}).get("job_proposal")
-        candidates, _exact = await job_type_candidates(db, p, p.extract or {})
+        candidates, _exact = await job_type_candidates(db, p, p.extract or {}, catalog=catalog)
         existing_job = None
         if isinstance(proposal, dict) and proposal.get("existing_job_code"):
             job = (
-                (await db.execute(select(Job).where(Job.code == proposal["existing_job_code"])))
+                (
+                    await db.execute(
+                        select(Job)
+                        .options(selectinload(Job.family))
+                        .where(Job.code == proposal["existing_job_code"])
+                    )
+                )
                 .scalars()
                 .first()
             )
@@ -1694,7 +1709,9 @@ async def job_proposal_queue(
                 org=p.org,
                 url=p.url,
                 proposal=proposal,
-                proposed_at=proposal.get("proposed_at") if isinstance(proposal, dict) else None,
+                proposed_at=p.proposal_proposed_at.isoformat()
+                if p.proposal_proposed_at is not None
+                else None,
                 suggested_family_key=suggestions.get(p.id),
                 mapping_signals=(p.posting_facts or {}).get("mapping_signals"),
                 extract_version=p.extract_version,
@@ -1713,7 +1730,7 @@ async def job_proposal_queue(
                 ],
                 duplicate_candidates=[
                     JobProposalDuplicateOut(**entry)
-                    for entry in await service.duplicate_candidates(p)
+                    for entry in await service.duplicate_candidates(p, catalog=catalog)
                 ],
             )
         )
@@ -1723,28 +1740,7 @@ async def job_proposal_queue(
             encode_cursor((page[-1].created_at, page[-1].id)) if len(rows) > limit else None
         ),
         total=await service.count_pending() if cursor is None else None,
-        legacy_count=await service.legacy_count(),
     )
-
-
-class JobProposalRegenerateIn(BaseModel):
-    limit: int = Field(default=50, ge=1, le=200)
-    posting_ids: list[uuid.UUID] | None = Field(default=None, max_length=200)
-
-
-@router.post("/postings/job-proposals/regenerate")
-async def regenerate_job_proposals(
-    payload: JobProposalRegenerateIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_admin),
-) -> dict:
-    """Enqueue the bounded v1 → v2 backfill (one queued/running run)."""
-    from app.services.postings.job_proposal_backfill import enqueue_job_proposal_backfill
-
-    job, created = await enqueue_job_proposal_backfill(
-        db, limit=payload.limit, posting_ids=payload.posting_ids
-    )
-    return {"queued": True, "job_id": str(job.id), "created": created}
 
 
 @router.post(

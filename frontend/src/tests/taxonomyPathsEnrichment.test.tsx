@@ -25,7 +25,6 @@ vi.mock("@/api/taxonomy", async (importOriginal) => {
   return {
     ...actual,
     bulkEnrichmentAction: vi.fn(),
-    regenerateJobProposals: vi.fn(),
     fetchDuplicateJobTypes: vi.fn().mockResolvedValue({ groups: [] }),
     mergeJobTypes: vi.fn(),
   };

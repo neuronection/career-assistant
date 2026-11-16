@@ -25,6 +25,9 @@ chips.
   surface — there is no second family navigation list.
 - **Search** sits in the toolbar (at the top of the rail on wide windows)
   and never hides inside the sheet.
+- **Job** filters show the catalog title (the code stays as the tooltip and
+  fallback), include-only and multi-select: adding a second type widens the
+  result set instead of replacing the first.
 - **The filter sheet** opens from **Filters**. Its footer clears every
   filter or returns to the results (**Show N jobs**); toggles still apply
   immediately, so the URL stays shareable while the sheet is open.
@@ -103,6 +106,15 @@ these edges — not guesswork.
 
 ## Job detail
 
+A retired job type stays reachable instead of returning 404: its page shows
+a **retired** banner and links to the successor recorded by the merge
+(the duplicate retire-not-delete rule).
+
+The page shows the live **open-roles count** and a **Browse postings** link
+(`/postings?job=<code>`) for that type. Labels such as education levels and
+link kinds follow the interface language, and the page uses the shared
+`--as-*` design tokens rather than a second palette.
+
 Every job page shows its structured attributes:
 
 - **Interests, skills and work style** — the taxonomy links that drive
@@ -136,8 +148,10 @@ From the detail page you can score the job (see
 The catalog is not fixed. Use **Catalog → Generate** (`/catalog/generate`)
 to add new careers with AI: the generator maps its output onto the existing
 taxonomy, so a new job is connected to real interests and skills rather than
-becoming an orphan of free text. Generated jobs land in the catalog for you
-to review and use.
+becoming an orphan of free text. Generated jobs land as **drafts** — nothing
+enters the working catalog until you review each draft and publish it
+explicitly from the job page; drafts stay invisible to matching, rankings
+and search until then.
 
 ## Career paths as data
 

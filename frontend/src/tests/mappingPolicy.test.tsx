@@ -49,7 +49,6 @@ vi.mock("@/api/mappings", async (importOriginal) => {
         error: null,
       },
       health: {},
-      legacy_outcome_count: 0,
     }),
     fetchMappingsPolicy: vi.fn(),
     saveMappingsPolicy: vi.fn(),

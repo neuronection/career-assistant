@@ -5,6 +5,7 @@ import { api, apiDetail } from "@/api/client";
 export type MappingFunnelState =
   | "mapped"
   | "ignored"
+  | "detail_failed"
   | "no_description"
   | "detail_not_fetched"
   | "extract_failed"
@@ -36,12 +37,12 @@ export interface MappingOverview {
     error: string | null;
   } | null;
   health: unknown;
-  legacy_outcome_count: number;
 }
 
 export interface MappingCandidate {
   job_id: string;
   job_code: string;
+  job_title?: string | null;
   deterministic: number | null;
   semantic: number | null;
   blend: number | null;
@@ -61,6 +62,8 @@ export interface MappingQueueItem {
   extract_version: number | null;
   mapped: boolean;
   catalog_job_id: string | null;
+  mapping_margin: number | null;
+  weak: boolean;
   top_candidate: MappingCandidate | null;
   proposal_state: string | null;
   review: { state: string; reason: string | null; note: string | null } | null;
@@ -79,6 +82,7 @@ export interface MappingQueueFilters {
   source?: string;
   needs_review?: boolean | "";
   detail_state?: "" | "missing" | "fetched";
+  weak?: boolean | "";
   q?: string;
   cursor?: string;
   limit?: number;
@@ -111,10 +115,19 @@ export interface MappingTrace {
     candidates: MappingCandidate[];
   };
   proposal: {
-    status: string | null;
     action: string | null;
     existing_job_code: string | null;
     proposal_version: number | null;
+    needs_edit: boolean;
+    job_type: string | null;
+  } | null;
+  proposal_state: string | null;
+  proposal_failure: { reason: string; at: string | null } | null;
+  last_extract: {
+    status: string;
+    at: string | null;
+    error: string | null;
+    pending: boolean;
   } | null;
   review: {
     state: string;
@@ -137,15 +150,31 @@ export interface MappingTrace {
 }
 
 export interface MappingBulkResult {
-  affected: number;
-  missing: string[];
+  affected?: number;
+  missing?: string[];
   ignored?: string[];
   unignored?: string[];
   unmapped?: string[];
   reviewed?: string[];
+  mapped?: string[];
+  already?: string[];
+  blocked?: Record<string, string>;
   queued?: number;
   skipped?: number;
   requested?: number;
+}
+
+export interface MappingDetailNowResult {
+  posting_id: string;
+  fetched: number;
+  changed: boolean;
+  extract_requeued?: boolean;
+  errors?: Array<Record<string, unknown>>;
+}
+
+export interface MappingReproposeResult {
+  queued: boolean;
+  job_id: string;
 }
 
 export async function fetchMappingsQueue(
@@ -191,6 +220,50 @@ export const mappingsReview = (ids: string[], note: string) =>
 export const mappingsExtract = (ids: string[]) => bulk("/admin/mappings/extract", ids);
 
 export const mappingsRedecide = (ids: string[]) => bulk("/admin/mappings/redecide", ids);
+
+export async function mappingsFetchDetail(id: string): Promise<MappingDetailNowResult> {
+  const { data } = await api.post<MappingDetailNowResult>(
+    `/admin/mappings/postings/${id}/detail`,
+  );
+  return data;
+}
+
+export async function mappingsRepropose(id: string): Promise<MappingReproposeResult> {
+  const { data } = await api.post<MappingReproposeResult>(
+    `/admin/mappings/postings/${id}/repropose`,
+  );
+  return data;
+}
+
+export async function mappingsMapBulk(
+  postingIds: string[],
+  jobId: string,
+): Promise<MappingBulkResult> {
+  const { data } = await api.post<MappingBulkResult>("/admin/mappings/map-bulk", {
+    posting_ids: postingIds,
+    job_id: jobId,
+  });
+  return data;
+}
+
+export type MappingRedecideScope = "stale" | "all";
+
+export async function mappingsRedecideAll(
+  scope: MappingRedecideScope = "stale",
+): Promise<{
+  queued: boolean;
+  job_id: string;
+  scope: MappingRedecideScope;
+  active: number;
+}> {
+  const { data } = await api.post<{
+    queued: boolean;
+    job_id: string;
+    scope: MappingRedecideScope;
+    active: number;
+  }>("/admin/mappings/redecide-all", { scope });
+  return data;
+}
 
 export async function mappingsMap(
   postingId: string,
@@ -271,16 +344,6 @@ export async function fetchMappingsOverview(): Promise<MappingOverviewWithSwitch
   return data;
 }
 
-export async function mappingsBackfill(
-  limit = 200,
-): Promise<{ job_id: string; created: boolean }> {
-  const { data } = await api.post<{ job_id: string; created: boolean }>(
-    "/admin/mappings/backfill",
-    { limit },
-  );
-  return data;
-}
-
 export interface MappingQualityMetrics {
   resolved: number;
   precision: number | null;
@@ -292,6 +355,12 @@ export interface MappingQuality {
   golden: MappingQualityMetrics;
   sample: MappingQualityMetrics;
   confusion: { predicted: string; expected: string; count: number }[];
+  weak: {
+    count: number;
+    margin_floor: number;
+    semantic_floor: number;
+    empty_until_sweep: boolean;
+  };
   gate: {
     min_golden: number;
     precision_floor: number;

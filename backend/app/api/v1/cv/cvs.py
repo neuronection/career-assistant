@@ -39,7 +39,7 @@ from app.schemas.cv import (
     CvVersionOut,
 )
 from app.schemas.cv_assistant import CvOpsOut, CvOpsRequest
-from app.schemas.cv_export import CvExportRequest
+from app.schemas.cv_export import CvExportRequest, CvParseViewOut
 from app.schemas.cv_generate import (
     CvGenerateAccepted,
     CvGeneratePreviewOut,
@@ -803,6 +803,26 @@ async def lint_cv(
     """Deterministic ATS lint over the current state (no version created)."""
     cv, _builder = await _owned_builder(cv_id, user.id, db)
     return await CvExportService(db).lint_report(cv)
+
+
+@router.get("/{cv_id}/parse-view", response_model=CvParseViewOut)
+async def parse_view_cv(
+    cv_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CvParseViewOut:
+    """What our extractor sees (plan 212 S1.2): the current state printed
+    through the export engine (no version created) and read back per page
+    with deterministic findings. 503 with the capability message when no
+    print engine is available — never a simulated answer. No AI, no
+    vendor claims: the UI says "what our extractor sees"."""
+    from app.services.cv.cv_parse_view_service import CvParseViewService
+
+    cv, _builder = await _owned_builder(cv_id, user.id, db)
+    try:
+        return await CvParseViewService(db).build(cv)
+    except PDFEngineUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
 
 @router.post("/{cv_id}/ai/cover_letter", response_model=CoverLetterSuggestionOut)

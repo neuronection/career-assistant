@@ -19,6 +19,7 @@ import {
   type AuditSeries,
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
+import { DataCostCard } from "@/components/audit/DataCostCard";
 import { EmptyState, Spinner } from "@/components/ui";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import {
@@ -294,6 +295,7 @@ export function UsageTab({ range }: { range: AuditRangeQuery }) {
   return (
     <div className="space-y-4" data-testid="audit-usage-tab">
       <ThroughputCards production={production} />
+      <DataCostCard window={range.window ?? "30d"} />
       <TokenTrendCard series={series} />
       <ModelUsageCard rows={models} />
     </div>

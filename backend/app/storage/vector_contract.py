@@ -67,7 +67,7 @@ SQLITE_VEC_RECOMMENDED_ROWS = 100_000
 
 V1_VIEWS = ("summary", "requirements", "responsibilities", "skills", "body")
 
-#: The legacy (character-chunked) space identity. A space that carries no
+#: The v1 (character-chunked) space identity. A space that carries no
 #: tokenizer/chunk configuration keeps exactly this pre-image, forever.
 SPACE_KEY_VERSION = "1"
 #: The token-aware identity (plan 52 T3b): v1 fields plus the pinned tokenizer
@@ -212,7 +212,7 @@ class VectorSpace:
     is never recomputed across tokenizer/chunker version boundaries. When it
     is present, ``key`` returns it verbatim; only an unstored DTO falls back
     to the pre-image. ``tokenizer``/``chunk`` are both present on a
-    token-aware v2 space (plan 52 T3b) and both absent on a legacy v1 space;
+    token-aware v2 space (plan 52 T3b) and both absent on a v1 space;
     a half-configured space is refused. ``space_id``/``index_table`` are the
     persistence handles: ``index_table`` is ``None`` while the linear backend
     is active.
@@ -271,7 +271,7 @@ class VectorSpace:
         if self.stored_key is not None:
             return self.stored_key
         if self.token_aware:
-            return space_key_v2(
+            return space_key_token_aware(
                 self.provider,
                 self.model,
                 self.dim,
@@ -560,7 +560,7 @@ def space_key(
     chunker_version: str,
     composer_version: str,
 ) -> str:
-    """Stable identity (SHA-256 hex) of a **legacy** embedding configuration.
+    """Stable identity (SHA-256 hex) of a **v1** embedding configuration.
 
     The canonical pre-image is the eight fields in this order, each text
     field run through :func:`normalize_text` (so case/whitespace never
@@ -571,7 +571,7 @@ def space_key(
     yields a different key; a cutover compares keys, never prose.
 
     This is the frozen v1 law: a persisted v1 key is never recomputed or
-    rewritten. A token-aware space uses :func:`space_key_v2`.
+    rewritten. A token-aware space uses :func:`space_key_token_aware`.
     """
     return _hash_parts(
         _v1_space_key_parts(
@@ -587,7 +587,7 @@ def space_key(
     )
 
 
-def space_key_v2(
+def space_key_token_aware(
     provider: str,
     model: str,
     dim: int,

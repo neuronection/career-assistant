@@ -138,9 +138,7 @@ export interface JobProposalRow {
   duplicate_candidates: JobProposalDuplicateCandidate[];
 }
 
-export interface JobProposalQueuePage extends TaxonomyQueuePage<JobProposalRow> {
-  legacy_count: number;
-}
+export interface JobProposalQueuePage extends TaxonomyQueuePage<JobProposalRow> {}
 
 export async function fetchJobProposals(
   cursor: string | null = null,
@@ -162,13 +160,6 @@ export async function fetchEnrichmentQueue(
   const { data } = await api.get<TaxonomyQueuePage<EnrichmentRow>>("/admin/jobs/enrichment", {
     params: { cursor: cursor ?? undefined, limit },
   });
-  return data;
-}
-
-export async function regenerateJobProposals(
-  payload: { limit?: number; posting_ids?: string[] } = {},
-): Promise<{ queued: boolean; job_id: string; created: boolean }> {
-  const { data } = await api.post("/admin/postings/job-proposals/regenerate", payload);
   return data;
 }
 
@@ -232,13 +223,16 @@ export interface DuplicateJobTypeJob {
   id: string;
   code: string;
   title: string;
+  status: string;
   family_key: string;
   created_at: string | null;
   posting_count: number;
 }
 
 export interface DuplicateJobTypeGroup {
+  kind: "exact" | "near";
   normalized_title: string;
+  similarity: number;
   jobs: DuplicateJobTypeJob[];
 }
 

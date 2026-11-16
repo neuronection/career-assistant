@@ -133,6 +133,7 @@ export interface EffectiveAssignment {
   provider_type: string;
   model_name: string;
   api_base: string;
+  tier?: string | null;
 }
 
 export interface ConfigSummary {

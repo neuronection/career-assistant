@@ -8,6 +8,7 @@ import {
   History,
   Redo2,
   Save,
+  ScanText,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -88,6 +89,7 @@ interface BuilderToolbarProps {
   onOpenPalette: () => void;
   onOpenAssistant: () => void;
   onCreateLetter: (() => void) | null;
+  onOpenParseView?: () => void;
   letterBusy?: boolean;
   aiCluster?: React.ReactNode;
   onUndo: () => void;
@@ -116,6 +118,7 @@ export function BuilderToolbar({
   onOpenPalette,
   onOpenAssistant,
   onCreateLetter,
+  onOpenParseView,
   letterBusy = false,
   aiCluster,
   onUndo,
@@ -162,6 +165,19 @@ export function BuilderToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {onOpenParseView && (
+          <button
+            type="button"
+            onClick={onOpenParseView}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-[var(--as-muted)] px-2 py-1 text-xs font-medium text-[var(--as-fg)] transition-colors duration-150 hover:brightness-95"
+            title={t("cvBuilder.parseView.buttonTitle")}
+            aria-label={t("cvBuilder.parseView.buttonAria")}
+            data-testid="parse-view-button"
+          >
+            <ScanText className="h-3.5 w-3.5" aria-hidden />
+            {t("cvBuilder.parseView.buttonLabel")}
+          </button>
+        )}
         {lint && (
           <Popover>
             <PopoverTrigger asChild>

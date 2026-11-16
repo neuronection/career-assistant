@@ -10,6 +10,7 @@ import {
   skipCheckin,
 } from "@/api/growth";
 import { EmptyState } from "@/components/ui";
+import { CompetencyEvidenceCard } from "@/features/growth/components/CompetencyEvidenceCard";
 import type { CheckinStatus, GrowthPlanItem, RadarEntry } from "@/types/wire";
 
 export function Growth() {
@@ -66,6 +67,8 @@ export function Growth() {
           </button>
         </div>
       )}
+
+      <CompetencyEvidenceCard />
 
       <section>
         <h2 className="font-semibold text-slate-900 mb-3">{t("growth.roadmapsTitle")}</h2>

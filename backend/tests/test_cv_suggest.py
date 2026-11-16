@@ -255,3 +255,61 @@ async def test_translate_action_targets_cv_language(
         assert refs <= await _context_refs(client, auth_headers, cv["id"])
         assert entry["verified"] is True
         assert "[DE]" in entry["proposal"]["text"]
+
+
+def test_bullet_reviews_are_deterministic():
+    from app.services.cv.cv_suggestion_service import bullet_reviews
+
+    reviews = bullet_reviews(
+        [
+            "Responsible for reports",
+            "Built 3 dashboards for the finance team",
+            "Built 4 more dashboards",
+            "",
+        ]
+    )
+    by_index = {row.index: {check.id for check in row.checks} for row in reviews}
+    assert "duty_opening" in by_index[0]
+    assert "no_number" not in by_index[1]
+    assert "duplicate_opening" in by_index[2]
+    assert "empty" in by_index[3]
+
+
+def test_bullet_reviews_cover_length_and_voice_rules():
+    from app.services.cv.cv_suggestion_service import bullet_reviews
+
+    reviews = bullet_reviews(
+        [
+            "x" * 200,
+            "Short line",
+            "Reports were written by the team for the quarterly review",
+            "",
+        ]
+    )
+    by_index = {row.index: {check.id for check in row.checks} for row in reviews}
+    assert "long" in by_index[0]
+    assert "short" in by_index[1]
+    assert "passive" in by_index[2]
+    assert "empty" in by_index[3]
+
+
+async def test_bullet_review_endpoint_and_bounds(
+    client, auth_headers, profile_ready, seeded_catalog
+):
+    cv = await _make_cv(client, auth_headers)
+    response = await client.post(
+        f"/api/v1/cv/{cv['id']}/ai/bullet_review",
+        json={"bullets": ["Responsible for reports", "Built 3 dashboards"]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    checks = response.json()["bullet_checks"]
+    assert {row["index"] for row in checks} == {0, 1}
+    assert "duty_opening" in {c["id"] for c in checks[0]["checks"]}
+
+    too_long = await client.post(
+        f"/api/v1/cv/{cv['id']}/ai/bullet_review",
+        json={"bullets": ["x" * 501]},
+        headers=auth_headers,
+    )
+    assert too_long.status_code == 422

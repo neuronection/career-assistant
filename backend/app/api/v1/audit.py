@@ -29,11 +29,17 @@ class AIGenerationOut(BaseModel):
     id: uuid.UUID
     task_type: str
     provider: str
+    provider_key: str | None = None
     model: str
     prompt: str
     output: dict | None
     tokens_in: int | None
     tokens_out: int | None
+    cost_micros: int | None = None
+    usage_source: str = "unknown"
+    estimate_method: str | None = None
+    price_source: str = "unknown"
+    price_version: str | None = None
     latency_ms: float | None
     status: str
     error: str

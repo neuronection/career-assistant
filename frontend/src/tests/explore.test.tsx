@@ -156,6 +156,7 @@ function posting(overrides: Partial<PostingOut> = {}): PostingOut {
     notes: "",
     source_key: "synth",
     mapping_reason: "",
+    repost_count: 0,
     needs_review: false,
     ...overrides,
   };
@@ -173,6 +174,14 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
       education: { bachelor: 2 },
       posted: { "7d": 1, older: 2 },
       skills: { programming: 2, sql: 1 },
+      job: { "software-engineer": 1, "data-analyst": 2 },
+      opportunity_type: { internship: 2, graduate_scheme: 1 },
+      work_authorization: { none: 1, sponsors: 2 },
+      closing: { "7d": 1, "30d": 0, "90d": 0 },
+    },
+    job_titles: {
+      "software-engineer": "Software Engineer",
+      "data-analyst": "Data Analyst",
     },
     ...overrides,
   };
@@ -460,6 +469,28 @@ describe("Explore page", () => {
     expect(screen.getByTestId("explore-q")).toHaveValue("");
   });
 
+  it("labels the job facet with titles and supports multi-select include-only", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    openSection("Job");
+    const software = await screen.findByTestId("job-software-engineer");
+    expect(software).toHaveTextContent("Software Engineer");
+    expect(software.getAttribute("title")).toContain("software-engineer");
+    fireEvent.click(software);
+    fireEvent.click(await screen.findByTestId("job-data-analyst"));
+    await waitFor(() => {
+      const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(String(call.job).split(",")).toEqual([
+        "software-engineer",
+        "data-analyst",
+      ]);
+    });
+  });
+
   it("excludes seen postings from the filter rail", async () => {
     render(
       <MemoryRouter>
@@ -681,6 +712,90 @@ describe("Explore page", () => {
       expect(screen.getByTestId("location-search").textContent).toBe("")
     );
     expect(screen.getByTestId("seen-exclude")).not.toBeChecked();
+  });
+
+  it("filters by opportunity type, work authorization and closing window", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    openSection("Opportunity type");
+    fireEvent.click(screen.getByTestId("opportunity-internship"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain(
+        "opportunity_type=internship"
+      )
+    );
+    expect(screen.getByTestId("opportunity-internship")).toHaveTextContent("2");
+
+    openSection("Work authorization");
+    fireEvent.click(screen.getByTestId("work-auth-sponsors"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain(
+        "work_authorization=sponsors"
+      )
+    );
+
+    openSection("Closing");
+    fireEvent.click(screen.getByTestId("closing-7d"));
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).toContain("opportunity_type=internship");
+      expect(search).toContain("work_authorization=sponsors");
+      expect(search).toContain("closing_within=7d");
+    });
+    expect(mockExplore).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        opportunity_type: "internship",
+        work_authorization: "sponsors",
+        closing_within: "7d",
+      })
+    );
+  });
+
+  it("keeps the capture URL through canonicalization and prefills the dialog", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/postings?capture=https%3A%2F%2Fjobs.example%2Froles%2F7%3Futm_source%3Dboard",
+        ]}
+      >
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("capture-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("capture-url")).toHaveValue(
+      "https://jobs.example/roles/7?utm_source=board"
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain(
+        "capture=https%3A%2F%2Fjobs.example%2Froles%2F7%3Futm_source%3Dboard"
+      )
+    );
+  });
+
+  it("toggles the hide-likely-duplicates filter into the URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    fireEvent.click(screen.getByTestId("hide-duplicates"));
+    await waitFor(() => {
+      expect(screen.getByTestId("location-search").textContent).toContain(
+        "hide_duplicates=true"
+      );
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hide_duplicates: true })
+      );
+    });
   });
 
   it("excludes from the card entity menu, refetches and offers undo", async () => {

@@ -17,11 +17,15 @@ from app.models.identity_model import AuditEvent
 MAPPING_AUDIT_ACTIONS = {
     "admin.mapping.extract",
     "admin.mapping.redecide",
+    "admin.mapping.redecide_all",
     "admin.mapping.ignore",
     "admin.mapping.unignore",
     "admin.mapping.unmap",
     "admin.mapping.review",
     "admin.mapping.map",
+    "admin.mapping.bulk_map",
+    "admin.mapping.detail",
+    "admin.mapping.repropose",
     "admin.mapping.policy",
     "admin.mapping.alerts",
 }

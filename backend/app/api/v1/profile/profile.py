@@ -1,8 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import AINotConfiguredError, DomainError
+from app.schemas.competency import (
+    CompetenciesOut,
+    CompetencyEvidenceOut,
+    CompetencyOut,
+)
+from app.schemas.discipline import DegreeRoleMatchOut, DegreeRolesOut
 from app.schemas.profile import ProfileSectionUpdate
 from app.services.deps import get_current_user, get_profile_id
 from app.services.profile.profile_service import ProfileService
@@ -120,3 +127,88 @@ async def ai_analyze(user=Depends(get_current_user), db: AsyncSession = Depends(
             required=await _required_sections(db, profile),
         ),
     }
+
+
+class JsonResumeImportIn(BaseModel):
+    resume: dict
+    apply: bool = False
+
+    @field_validator("resume")
+    @classmethod
+    def _bounded_resume(cls, value: dict) -> dict:
+        import json as _json
+
+        from app.services.profile.json_resume_service import MAX_IMPORT_BYTES
+
+        if len(_json.dumps(value)) > MAX_IMPORT_BYTES:
+            raise ValueError(f"resume exceeds the {MAX_IMPORT_BYTES}-byte import cap")
+        return value
+
+
+@router.get("/degree-roles", response_model=DegreeRolesOut)
+async def degree_roles(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> DegreeRolesOut:
+    """Deterministic programme/focus-subject -> family suggestions."""
+    from app.services.profile.discipline_service import degree_matches
+
+    matches = await degree_matches(db, user.id)
+    return DegreeRolesOut(
+        matches=[
+            DegreeRoleMatchOut(
+                family_key=match.family_key,
+                family_title=match.family_title,
+                matched_terms=list(match.matched_terms),
+                reason=match.reason,
+                depth=match.depth,
+            )
+            for match in matches
+        ]
+    )
+
+
+@router.get("/competencies", response_model=CompetenciesOut)
+async def competencies(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> CompetenciesOut:
+    """Evidence-derived NACE competencies; no self-rating or score."""
+    from app.services.profile.competency_service import user_competencies
+
+    rows = await user_competencies(db, user.id)
+    return CompetenciesOut(
+        competencies=[
+            CompetencyOut(
+                key=row["key"],
+                evidence=[
+                    CompetencyEvidenceOut(
+                        id=item["id"],
+                        kind=item["kind"],
+                        label=item["label"],
+                        quote=item["quote"],
+                    )
+                    for item in row["evidence"]
+                ],
+            )
+            for row in rows
+        ]
+    )
+
+
+@router.get("/export/jsonresume")
+async def export_json_resume(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> dict:
+    from app.services.profile.json_resume_service import export_resume
+
+    return await export_resume(db, user.id)
+
+
+@router.post("/import/jsonresume")
+async def import_json_resume(
+    payload: JsonResumeImportIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.services.profile.json_resume_service import import_resume
+
+    return await import_resume(db, user.id, payload.resume, apply=payload.apply)

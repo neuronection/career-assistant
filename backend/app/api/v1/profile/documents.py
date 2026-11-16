@@ -1,7 +1,8 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -11,6 +12,14 @@ from app.schemas.university import DocumentOut
 from app.services.deps import get_current_user
 from app.services.job_worker import enqueue
 from app.services.profile.document_service import DocumentService
+from app.services.profile.document_storage import chain_first, document_storage
+from app.storage.object_storage import (
+    ObjectNotFound,
+    StorageError,
+    safe_download_filename,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -26,6 +35,16 @@ CV_ALLOWED_MIME = {
     "image/png",
     "image/jpeg",
 }
+
+
+def _attachment(filename: str) -> dict[str, str]:
+    """Download headers: attachment, no-store, nosniff (contract defaults)."""
+    safe = safe_download_filename(filename)
+    return {
+        "Content-Disposition": f'attachment; filename="{safe}"',
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
@@ -68,7 +87,7 @@ async def upload_document(
             user_id=user.id,
         )
     return {
-        "document": DocumentOut.model_validate(document),
+        "document": DocumentOut.model_validate(document, context={"user_id": document.user_id}),
         "job_id": str(job.id),
     }
 
@@ -81,7 +100,7 @@ async def list_documents(
 ) -> list[DocumentOut]:
     """The caller's uploaded documents (optionally filtered by kind)."""
     rows = await DocumentService(db).list_documents(user.id, kind=kind)
-    return [DocumentOut.model_validate(d) for d in rows]
+    return [DocumentOut.model_validate(d, context={"user_id": d.user_id}) for d in rows]
 
 
 @router.get("/{document_id}", response_model=DocumentOut)
@@ -92,7 +111,7 @@ async def get_document(
 ) -> DocumentOut:
     """Document status + extraction (for review)."""
     document = await DocumentService(db).get_owned(document_id, user.id)
-    return DocumentOut.model_validate(document)
+    return DocumentOut.model_validate(document, context={"user_id": document.user_id})
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -102,17 +121,14 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Delete a document, its stored original, and derived page images."""
-    import shutil
-
-    from app.services.cv.cv_source_service import derived_dir, source_file_path
-
     document = await DocumentService(db).get_owned(document_id, user.id)
-    original = source_file_path(document)
-    if original.exists():
-        original.unlink()
-    derived = derived_dir(document.id)
-    if derived.exists():
-        shutil.rmtree(derived, ignore_errors=True)
+    try:
+        await document_storage().adelete(document, db=db)
+    except (StorageError, OSError):
+        # The row goes either way; a provider/permissions failure leaves an
+        # orphan the lifecycle rules / a later purge can collect (never a
+        # 500 that keeps the row alive with no working file).
+        logger.warning("document %s bytes could not be deleted", document.id, exc_info=True)
     await db.delete(document)
     await db.commit()
 
@@ -122,15 +138,29 @@ async def download_document(
     document_id: uuid.UUID,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> FileResponse:
-    """The original upload, byte-exact."""
-    from app.services.cv.cv_source_service import source_file_path
-
+) -> Response:
+    """The original upload, byte-exact, streamed through the store."""
     document = await DocumentService(db).get_owned(document_id, user.id)
-    path = source_file_path(document)
-    if not path.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Stored file missing")
-    return FileResponse(path, filename=document.filename, media_type=document.mime)
+    storage = document_storage()
+    stream = storage.astream(document)
+    try:
+        # Prefetch one chunk before the response starts so a TOCTOU delete
+        # (row present, object gone) is a 404, not a mid-stream 500.
+        first = await anext(stream)
+    except ObjectNotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Stored file missing") from exc
+    except StopAsyncIteration:
+        # A present but zero-byte object is a valid empty download.
+        return Response(
+            content=b"",
+            media_type=document.mime or "application/octet-stream",
+            headers=_attachment(document.filename),
+        )
+    return StreamingResponse(
+        chain_first(first, stream),
+        media_type=document.mime or "application/octet-stream",
+        headers=_attachment(document.filename),
+    )
 
 
 @router.get("/{document_id}/pages/{page_index}/image")
@@ -139,20 +169,22 @@ async def get_page_image(
     page_index: int,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> FileResponse:
+) -> Response:
     """A derived page image (evidence thumbnails,/46)."""
-    from app.services.cv.cv_source_service import page_image_path
-
     document = await DocumentService(db).get_owned(document_id, user.id)
     if document.status not in (
         DocumentStatus.READY.value,
         DocumentStatus.PROCESSING.value,
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No processed page images")
-    path = page_image_path(document.id, page_index)
-    if not path.exists():
+    raw = await document_storage().aread_page(document, page_index)
+    if raw is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Page image not found")
-    return FileResponse(path, media_type="image/png")
+    return Response(
+        content=raw,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.post("/{document_id}/apply")

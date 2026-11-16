@@ -1,18 +1,21 @@
-"""Deterministic offline calibration sweep for the plan-164 rerank policy.
+"""Deterministic offline calibration sweep for the plan-164/210 rerank policy.
 
 This module is the P2c.2 sweep runner: it reads the committed golden corpus
 (``tests/fixtures/posting_mapping_golden.json``), rebuilds the catalog and the
-posting skill sets in memory using exactly the production candidate formula
-(importance weight x required-level factor, ``hit / total``), and walks the
-requested policy matrix through the same decision branches as
-``decide_catalog``. It never touches the database or a provider, so the full
-27-point matrix runs in well under a second and is safe as a PR gate. The
-fixture is a synthetic/public corpus (no private-integration data).
+posting skill sets in memory using exactly the production score core
+(independent per-side normalization + harmonic mean + the additive title
+term), and walks the requested policy matrix through the same decision
+branches as ``decide_catalog``. It never touches the database or a provider,
+so the full 180-point matrix runs in well under a second and is safe as a PR
+gate. The fixture is a synthetic/public corpus (no private-integration data).
 
 Held fixed: ``K = 25``, the published-only rerank candidate filter, the
-shared-skill gate and the manual/terminal rules. The plan-185 rescue is held
-OFF so the matrix isolates the rerank policy; the golden benchmark test
-proves the in-memory model against the real DB path for the shipped policy.
+shared-skill candidate gate and the manual/terminal rules. The plan-185 rescue
+is held OFF so the matrix isolates the rerank policy; the golden benchmark
+test proves the in-memory model against the real DB path for the shipped
+policy. A separate rerank OFF/ON comparison is measured on the same corpus at
+the shipped policy — the owner's default-flip decision reads that pair, not
+the matrix.
 
 Regenerate the committed report with::
 
@@ -20,31 +23,45 @@ Regenerate the committed report with::
 
 The report is committed at ``tests/fixtures/posting_mapping_calibration.json``
 and ``test_posting_mapping_calibration.py`` fails when it drifts from the
-fixture. The live constants stay at 0.34 / 0.08 / 0.75-0.25 until the owner
+fixture. The live constants stay at the shipped point until the owner
 ratifies the recommendation; this module only measures.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.services.postings.fit.dimensions import IMPORTANCE_WEIGHT
+from app.services.postings.mapping_score import (
+    TITLE_LAMBDA,
+    candidate_order,
+    job_skill_weight,
+    posting_skill_weight,
+    score_breakdown,
+    title_signal,
+)
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "posting_mapping_golden.json"
+FIXTURE_DELTA_PATH = Path(__file__).parent / "fixtures" / "posting_mapping_fixture_delta.json"
 REPORT_PATH = Path(__file__).parent / "fixtures" / "posting_mapping_calibration.json"
 
-TAU_JOB_GRID = (0.34, 0.40, 0.45)
+#: The matrix is the rerank-ON counterfactual; the runtime default is OFF.
+RUNTIME_RERANK_DEFAULT = "off"
+MATRIX_RERANK = "on"
+
+TAU_JOB_GRID = (0.24, 0.28, 0.32, 0.34, 0.40)
 DELTA_GRID = (0.05, 0.08, 0.10)
 BLEND_GRID = ((0.75, 0.25), (0.70, 0.30), (0.80, 0.20))
+TAU_LAMBDA_GRID = (0.05, 0.10, 0.15, 0.20)
 K = 25
 CANDIDATE_RECALL_FLOOR = 0.99
 #: The shipped policy; the sweep must never change it, only measure it.
-PRODUCTION_POLICY = (0.34, 0.08, 0.75, 0.25)
+PRODUCTION_POLICY = (0.34, 0.08, 0.75, 0.25, TITLE_LAMBDA)
 
 
 @dataclass(frozen=True)
@@ -53,6 +70,7 @@ class Policy:
     delta: float
     blend_deterministic: float
     blend_semantic: float
+    title_lambda: float
     k: int = K
 
 
@@ -61,12 +79,15 @@ class Candidate:
     code: str
     family: str
     status: str
+    skill: float
+    title: float
     score: float
 
 
 @dataclass(frozen=True)
 class JobDef:
     code: str
+    title: str
     family: str
     status: str
     weights: dict[str, float]
@@ -78,11 +99,11 @@ class Corpus:
     cases: list[dict[str, Any]]
     family_count: int
     skill_count: int
+    skill_keys: frozenset[str]
 
 
 def _link_weight(level: Any, importance: Any) -> float:
-    weight = IMPORTANCE_WEIGHT.get(str(importance or "core"), 1.0)
-    return weight * (min(int(level or 0), 10) / 10.0)
+    return job_skill_weight(str(importance or "core"), int(level or 0))
 
 
 def _job_weights(row: dict[str, Any]) -> dict[str, float]:
@@ -114,11 +135,23 @@ def _job_weights(row: dict[str, Any]) -> dict[str, float]:
     return weights
 
 
+def _posting_weights(case: dict[str, Any], skill_keys: frozenset[str]) -> dict[str, float]:
+    meta = case.get("skill_meta") or {}
+    weights: dict[str, float] = {}
+    for key in case.get("skills") or []:
+        if str(key) not in skill_keys:
+            continue
+        entry = meta.get(str(key)) or {}
+        weights[str(key)] = posting_skill_weight(entry.get("priority"), entry.get("level"))
+    return weights
+
+
 def load_corpus(path: Path = FIXTURE_PATH) -> Corpus:
     fixture = json.loads(path.read_text(encoding="utf-8"))
     jobs = {
         str(row["code"]): JobDef(
             code=str(row["code"]),
+            title=str(row["title"]),
             family=str(row["family"]),
             status=str(row.get("status") or "published"),
             weights=_job_weights(row),
@@ -130,26 +163,33 @@ def load_corpus(path: Path = FIXTURE_PATH) -> Corpus:
         cases=list(fixture["cases"]),
         family_count=len(fixture["families"]),
         skill_count=len(fixture["skills"]),
+        skill_keys=frozenset(str(row["key"]) for row in fixture["skills"]),
     )
 
 
-def deterministic_candidates(corpus: Corpus, skill_keys: Iterable[str]) -> list[Candidate]:
-    posting = {str(key) for key in skill_keys}
+def deterministic_candidates(
+    corpus: Corpus,
+    case: dict[str, Any],
+    title_lambda: float = TITLE_LAMBDA,
+) -> list[Candidate]:
+    posting_weights = _posting_weights(case, corpus.skill_keys)
     candidates: list[Candidate] = []
     for job in corpus.jobs.values():
-        total = sum(job.weights.values())
-        if total <= 0:
+        breakdown = score_breakdown(job.weights, posting_weights)
+        if breakdown.skill <= 0:
             continue
-        hit = sum(weight for key, weight in job.weights.items() if key in posting)
+        title = title_signal(job.title, case.get("title"))
         candidates.append(
             Candidate(
                 code=job.code,
                 family=job.family,
                 status=job.status,
-                score=hit / total,
+                skill=breakdown.skill,
+                title=title,
+                score=candidate_order(breakdown.skill, title, title_lambda),
             )
         )
-    candidates.sort(key=lambda item: (-item.score, item.code))
+    candidates.sort(key=lambda item: (-item.score, -item.skill, item.code))
     return candidates
 
 
@@ -165,7 +205,7 @@ def _rerank(
     case: dict[str, Any],
     policy: Policy,
 ) -> dict[str, Any] | None:
-    """The published-only rerank over the deterministic set (production parity)."""
+    """The published-only rerank over the skill-ranked deterministic set."""
     published = [candidate for candidate in candidates if candidate.status == "published"]
     if not published:
         return None
@@ -174,15 +214,16 @@ def _rerank(
         {
             "code": candidate.code,
             "family": candidate.family,
-            "deterministic": round(candidate.score, 4),
+            "deterministic": round(candidate.skill, 4),
             "semantic": round(semantic.get(candidate.code, 0.0), 4),
-            "blend": _blend(candidate.score, semantic.get(candidate.code, 0.0), policy),
+            "blend": _blend(candidate.skill, semantic.get(candidate.code, 0.0), policy),
+            "title": round(candidate.title, 4),
         }
         for candidate in published
     ]
     scored.sort(key=lambda row: (-row["blend"], -row["deterministic"], row["code"]))
     deterministic_top = published[0].code
-    deterministic_cleared = published[0].score >= policy.tau_job
+    deterministic_cleared = published[0].skill >= policy.tau_job
     top = scored[0]
     runner_up = scored[1]["blend"] if len(scored) > 1 else 0.0
     accepted = (
@@ -200,7 +241,13 @@ def _rerank(
     }
 
 
-def simulate_case(corpus: Corpus, case: dict[str, Any], policy: Policy) -> dict[str, Any]:
+def simulate_case(
+    corpus: Corpus,
+    case: dict[str, Any],
+    policy: Policy,
+    *,
+    rerank: bool = True,
+) -> dict[str, Any]:
     """One case through the production decision branches (rescue OFF)."""
     if case.get("expected_outcome") == "manual":
         return {
@@ -220,32 +267,35 @@ def simulate_case(corpus: Corpus, case: dict[str, Any], policy: Policy) -> dict[
             "rerank_accepted": False,
         }
 
-    candidates = deterministic_candidates(corpus, case.get("skills") or [])
-    overlap_job = candidates[0] if candidates else None
-    overlap_score = overlap_job.score if overlap_job is not None else None
-    runner_up = candidates[1].score if len(candidates) > 1 else None
-    overlap_cleared = overlap_score is not None and overlap_score >= policy.tau_job
+    candidates = deterministic_candidates(corpus, case, policy.title_lambda)
+    skill_ranked = sorted(candidates, key=lambda item: (-item.skill, -item.score, item.code))
+    skill_top = skill_ranked[0] if skill_ranked else None
+    runner_up = skill_ranked[1].skill if len(skill_ranked) > 1 else 0.0
+    winner = next(
+        (candidate for candidate in candidates if candidate.skill >= policy.tau_job),
+        None,
+    )
     ambiguous = (
         bool(candidates)
-        and overlap_score is not None
-        and (overlap_score < policy.tau_job or (overlap_score - (runner_up or 0.0)) < policy.delta)
+        and skill_top is not None
+        and (skill_top.skill < policy.tau_job or (skill_top.skill - runner_up) < policy.delta)
     )
-    rerank = _rerank(candidates, case, policy) if ambiguous else None
-    rerank_accepted = bool(rerank and rerank["accepted"])
+    rerank_result = _rerank(skill_ranked, case, policy) if (rerank and ambiguous) else None
+    rerank_accepted = bool(rerank_result and rerank_result["accepted"])
 
     mapped_job: str | None = None
     method: str | None = None
     if case.get("expected_outcome") == "terminal":
         pass
-    elif overlap_cleared and overlap_job is not None:
-        if rerank_accepted and rerank is not None and rerank["top"] != overlap_job.code:
-            mapped_job = rerank["top"]
+    elif winner is not None:
+        if rerank_accepted and rerank_result is not None and rerank_result["top"] != winner.code:
+            mapped_job = rerank_result["top"]
             method = "semantic_rerank"
         else:
-            mapped_job = overlap_job.code
+            mapped_job = winner.code
             method = "skill_overlap"
-    elif rerank_accepted and rerank is not None:
-        mapped_job = rerank["top"]
+    elif rerank_accepted and rerank_result is not None:
+        mapped_job = rerank_result["top"]
         method = "semantic_rerank"
 
     expected = case.get("expected_job")
@@ -263,9 +313,9 @@ def simulate_case(corpus: Corpus, case: dict[str, Any], policy: Policy) -> dict[
         "mapped_job": mapped_job,
         "mapped_family": corpus.jobs[mapped_job].family if mapped_job in corpus.jobs else None,
         "method": method,
-        "deterministic_top": overlap_job.code if overlap_job is not None else None,
+        "deterministic_top": winner.code if winner is not None else None,
         "candidate_rank": rank,
-        "rerank_ran": rerank is not None,
+        "rerank_ran": rerank_result is not None,
         "rerank_accepted": rerank_accepted,
     }
 
@@ -329,6 +379,17 @@ def evaluate(outcomes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _policy_row(policy: Policy, metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "tau_job": policy.tau_job,
+        "delta": policy.delta,
+        "blend_deterministic": policy.blend_deterministic,
+        "blend_semantic": policy.blend_semantic,
+        "title_lambda": policy.title_lambda,
+        **metrics,
+    }
+
+
 def _recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
     eligible = [row for row in results if row["candidate_recall@25"] >= CANDIDATE_RECALL_FLOOR]
     if not eligible:  # pragma: no cover - the corpus always clears the floor
@@ -342,6 +403,7 @@ def _recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
             -abs(row["tau_job"] - PRODUCTION_POLICY[0]),
             -abs(row["delta"] - PRODUCTION_POLICY[1]),
             -abs(row["blend_deterministic"] - PRODUCTION_POLICY[2]),
+            -abs(row["title_lambda"] - PRODUCTION_POLICY[4]),
         ),
     )
     same_as_production = (
@@ -349,26 +411,63 @@ def _recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
         best["delta"],
         best["blend_deterministic"],
         best["blend_semantic"],
+        best["title_lambda"],
     ) == PRODUCTION_POLICY
     return {
         "tau_job": best["tau_job"],
         "delta": best["delta"],
         "blend_deterministic": best["blend_deterministic"],
         "blend_semantic": best["blend_semantic"],
+        "title_lambda": best["title_lambda"],
         "k": K,
+        "runtime_default": RUNTIME_RERANK_DEFAULT,
         "matches_production": same_as_production,
         "production_policy": {
             "tau_job": PRODUCTION_POLICY[0],
             "delta": PRODUCTION_POLICY[1],
             "blend_deterministic": PRODUCTION_POLICY[2],
             "blend_semantic": PRODUCTION_POLICY[3],
+            "title_lambda": PRODUCTION_POLICY[4],
         },
         "rationale": (
             "Highest intent accuracy, then precision@1, then the lowest abstention, "
             "among policies that keep candidate_recall@25 at or above the 0.99 floor; "
-            "exact ties prefer the shipped tau/delta/blend point. The owner ratifies or "
-            "rejects this recommendation; the live constants are unchanged in this slice."
+            "exact ties prefer the shipped tau/delta/blend/lambda point. The owner "
+            "ratifies or rejects the rerank default flip; the runtime default stays "
+            "OFF in this batch and the ON matrix is a measured counterfactual."
         ),
+    }
+
+
+def _compare_rerank(
+    corpus: Corpus,
+    policy: Policy,
+) -> dict[str, Any]:
+    """The measured rerank OFF/ON pair at one policy point (same corpus)."""
+    rows = []
+    for enabled in (False, True):
+        outcomes = [simulate_case(corpus, case, policy, rerank=enabled) for case in corpus.cases]
+        rows.append({"rerank": "on" if enabled else "off", **evaluate(outcomes)})
+    return {
+        "policy": {
+            "tau_job": policy.tau_job,
+            "delta": policy.delta,
+            "blend_deterministic": policy.blend_deterministic,
+            "blend_semantic": policy.blend_semantic,
+            "title_lambda": policy.title_lambda,
+            "k": K,
+        },
+        "runtime_default": RUNTIME_RERANK_DEFAULT,
+        "held_fixed": {
+            "k": K,
+            "published_only_rerank": True,
+            "shared_skill_gate": True,
+            "rerank": MATRIX_RERANK,
+            "rescue": "off (isolates the rerank policy)",
+            "manual_rules": "manual rows are never overwritten",
+            "terminal_rules": "terminal rows stay outside the remap domain",
+        },
+        "rows": rows,
     }
 
 
@@ -378,31 +477,35 @@ def run_matrix(
     tau_grid: Iterable[float] = TAU_JOB_GRID,
     delta_grid: Iterable[float] = DELTA_GRID,
     blend_grid: Iterable[tuple[float, float]] = BLEND_GRID,
+    lambda_grid: Iterable[float] = TAU_LAMBDA_GRID,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for tau in tau_grid:
         for delta in delta_grid:
             for blend_deterministic, blend_semantic in blend_grid:
-                policy = Policy(
-                    tau_job=float(tau),
-                    delta=float(delta),
-                    blend_deterministic=float(blend_deterministic),
-                    blend_semantic=float(blend_semantic),
-                )
-                outcomes = [simulate_case(corpus, case, policy) for case in corpus.cases]
-                metrics = evaluate(outcomes)
-                results.append(
-                    {
-                        "tau_job": policy.tau_job,
-                        "delta": policy.delta,
-                        "blend_deterministic": policy.blend_deterministic,
-                        "blend_semantic": policy.blend_semantic,
-                        **metrics,
-                    }
-                )
+                for title_lambda in lambda_grid:
+                    policy = Policy(
+                        tau_job=float(tau),
+                        delta=float(delta),
+                        blend_deterministic=float(blend_deterministic),
+                        blend_semantic=float(blend_semantic),
+                        title_lambda=float(title_lambda),
+                    )
+                    outcomes = [simulate_case(corpus, case, policy) for case in corpus.cases]
+                    metrics = evaluate(outcomes)
+                    results.append(_policy_row(policy, metrics))
+    production = Policy(
+        tau_job=PRODUCTION_POLICY[0],
+        delta=PRODUCTION_POLICY[1],
+        blend_deterministic=PRODUCTION_POLICY[2],
+        blend_semantic=PRODUCTION_POLICY[3],
+        title_lambda=PRODUCTION_POLICY[4],
+    )
+    delta = json.loads(FIXTURE_DELTA_PATH.read_text(encoding="utf-8"))
     return {
-        "schema_version": 1,
-        "generated": "2026-11-03",
+        "schema_version": 2,
+        "generated": "2026-11-10",
+        "runtime_default": RUNTIME_RERANK_DEFAULT,
         "fixture": {
             "path": "backend/tests/fixtures/posting_mapping_golden.json",
             "cases": len(corpus.cases),
@@ -410,10 +513,18 @@ def run_matrix(
             "families": corpus.family_count,
             "skills": corpus.skill_count,
         },
+        "fixture_retuning": {
+            "delta_path": "backend/tests/fixtures/posting_mapping_fixture_delta.json",
+            "delta_sha256": hashlib.sha256(FIXTURE_DELTA_PATH.read_bytes()).hexdigest(),
+            "summary": delta["summary"],
+            "untouched_corpus": delta["untouched_corpus"],
+            "changed_jobs": len(delta["changed_jobs"]),
+        },
         "matrix": {
-            "tau_job": list(TAU_JOB_GRID),
-            "delta": list(DELTA_GRID),
-            "blend": [list(pair) for pair in BLEND_GRID],
+            "tau_job": list(tau_grid),
+            "delta": list(delta_grid),
+            "blend": [list(pair) for pair in blend_grid],
+            "title_lambda": list(lambda_grid),
             "k": K,
             "points": len(results),
         },
@@ -421,12 +532,14 @@ def run_matrix(
             "k": K,
             "published_only_rerank": True,
             "shared_skill_gate": True,
+            "rerank": MATRIX_RERANK,
             "rescue": "off (isolates the rerank policy)",
             "manual_rules": "manual rows are never overwritten",
             "terminal_rules": "terminal rows stay outside the remap domain",
         },
         "results": results,
         "recommendation": _recommend(results),
+        "rerank_comparison": _compare_rerank(corpus, production),
     }
 
 
@@ -457,6 +570,7 @@ __all__ = [
     "DELTA_GRID",
     "PRODUCTION_POLICY",
     "TAU_JOB_GRID",
+    "TAU_LAMBDA_GRID",
     "Candidate",
     "Corpus",
     "K",

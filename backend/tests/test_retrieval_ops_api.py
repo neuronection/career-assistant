@@ -443,7 +443,7 @@ async def test_coverage_reads_the_latest_snapshot_per_kind(client, db, auth_head
     ops.assert_no_raw_text(body)
 
 
-async def test_coverage_cold_space_is_never_reconciled(client, db, auth_headers):
+async def test_coverage_cbaseline_space_is_never_reconciled(client, db, auth_headers):
     space = await _space(db)
     await db.commit()
     body = (
@@ -1096,7 +1096,7 @@ async def test_document_status_requires_auth_and_admin(client, db, auth_headers)
     assert response.status_code == 403
 
 
-async def test_document_status_cold_space_is_off_never_zero(client, db, auth_headers):
+async def test_document_status_cbaseline_space_is_off_never_zero(client, db, auth_headers):
     await db.commit()
     ids = [str(uuid.uuid4()), str(uuid.uuid4())]
     response = await _status(client, auth_headers, ids)

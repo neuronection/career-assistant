@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import generate_jobs
-from app.core.errors import DomainError
+from app.core.errors import ConflictError, DomainError
 from app.models.enums import JobSkillImportance, JobSource
 from app.models.job_model import JobRelation
 from app.schemas.job import JobCreate, JobOut
@@ -85,6 +85,7 @@ async def run_generation(
     active_interests = {i.key for i in interests}
     active_skills = {s.key for s in skills}
     created_jobs = []
+    skipped: list[dict] = []
     seen_codes = set(existing_codes)
     for draft in draft_set.drafts:
         if await cancelled():
@@ -94,27 +95,31 @@ async def run_generation(
         family = next((f for f in families if f.key == draft.family_key), None)
         if family is None:
             continue
-        job = await service.create(
-            JobCreate(
-                code=draft.code,
-                title=draft.title,
-                family_key=draft.family_key,
-                short_description=draft.short_description,
-                attributes=draft.attributes,
-                interest_keys=[k for k in draft.interest_keys if k in active_interests],
-                skills=[
-                    JobSkillIn(
-                        skill_key=s.skill_key,
-                        required_level=s.required_level,
-                        importance=JobSkillImportance(s.importance),
-                    )
-                    for s in draft.skills
-                    if s.skill_key in active_skills
-                ],
-            ),
-            user,
-            source=JobSource.AI.value,
-        )
+        try:
+            job = await service.create(
+                JobCreate(
+                    code=draft.code,
+                    title=draft.title,
+                    family_key=draft.family_key,
+                    short_description=draft.short_description,
+                    attributes=draft.attributes,
+                    interest_keys=[k for k in draft.interest_keys if k in active_interests],
+                    skills=[
+                        JobSkillIn(
+                            skill_key=s.skill_key,
+                            required_level=s.required_level,
+                            importance=JobSkillImportance(s.importance),
+                        )
+                        for s in draft.skills
+                        if s.skill_key in active_skills
+                    ],
+                ),
+                user,
+                source=JobSource.AI.value,
+            )
+        except ConflictError:
+            skipped.append({"code": draft.code, "title": draft.title, "reason": "duplicate_title"})
+            continue
         job.ai_metadata = {"rationale_note": draft_set.rationale_note}
         seen_codes.add(job.code)
         created_jobs.append(job)
@@ -155,5 +160,6 @@ async def run_generation(
         "relations": [
             {"from_code": f, "to_code": t, "relation_type": rt} for f, t, rt in created_relations
         ],
+        "skipped": skipped,
         "note": draft_set.rationale_note,
     }

@@ -37,7 +37,6 @@ import { fetchFamilyTree } from "@/api/jobs";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { usePagedQueue } from "@/hooks/usePagedQueue";
 import {
-  Button,
   ConfirmationModal,
   EmptyState,
   SegmentedTabs,
@@ -64,7 +63,6 @@ import {
   TaxonomyJobProposalCards,
 } from "@/components/settings/TaxonomyJobProposalCards";
 import { TaxonomyCatalogHygieneCard } from "@/components/settings/TaxonomyCatalogHygieneCard";
-import { regenerateJobProposals } from "@/api/taxonomy";
 import { categoryIcon, STATUS_GROUP_ICONS } from "@/components/settings/taxonomyIcons";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import {
@@ -202,7 +200,6 @@ export function Taxonomy() {
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [stats, setStats] = useState<TaxonomyStats | null>(null);
   const [paths, setPaths] = useState<PathRow[]>([]);
-  const [legacyProposals, setLegacyProposals] = useState(0);
   const [familyOptions, setFamilyOptions] = useState<
     Array<{ key: string; label: string; depth: number }>
   >([]);
@@ -256,7 +253,6 @@ export function Taxonomy() {
   );
   const fetchProposalPage = useCallback(async (cursor: string | null) => {
     const page = await fetchJobProposals(cursor, PROPOSAL_PAGE_SIZE);
-    if (cursor === null) setLegacyProposals(page.legacy_count);
     return page;
   }, []);
   const enrichment = usePagedQueue<EnrichmentRow>({
@@ -601,22 +597,6 @@ export function Taxonomy() {
     } catch (err) {
       setError(apiDetail(err));
       return false;
-    }
-  };
-
-  const regenerateProposals = async () => {
-    setError("");
-    try {
-      const result = await regenerateJobProposals({});
-      setNote(
-        t("taxonomy.jobProposals.legacyQueued", {
-          count: legacyProposals,
-          jobId: result.job_id,
-        }),
-      );
-      await load();
-    } catch (err) {
-      setError(apiDetail(err));
     }
   };
 
@@ -983,23 +963,6 @@ export function Taxonomy() {
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {t("taxonomy.jobProposals.sectionTitle")}
             </h2>
-            {legacyProposals > 0 ? (
-              <div
-                className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-muted)] p-2.5"
-                data-testid="job-proposals-legacy-banner"
-              >
-                <p className="min-w-0 flex-1 text-xs text-[var(--as-fg)]">
-                  {t("taxonomy.jobProposals.legacyBanner", { count: legacyProposals })}
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => void regenerateProposals()}
-                  data-testid="job-proposals-regenerate"
-                >
-                  {t("taxonomy.jobProposals.legacyRegenerate")}
-                </Button>
-              </div>
-            ) : null}
             {proposals.items.length === 0 ? (
               <p className="text-sm text-slate-400">{t("taxonomy.jobProposals.empty")}</p>
             ) : (

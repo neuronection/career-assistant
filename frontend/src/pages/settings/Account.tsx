@@ -51,6 +51,7 @@ import {
   ConfirmationModal,
 } from "@/components/ui";
 import { Input } from "@neuronection/assistant-ui";
+import { AccountSessionList } from "@neuronection/assistant-ui/account-session-list";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import type { SettingsSaveState } from "@/components/settings/saveState";
@@ -473,17 +474,6 @@ function SessionsCard({ dropToLogin }: { dropToLogin: () => void }) {
       title={t("account.sessionsTitle")}
       description={t("account.sessionsDescription")}
       icon={LogOut}
-      badges={
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => setPendingLogoutAll(true)}
-          data-testid="logout-all"
-        >
-          {t("account.signOutEverywhere")}
-        </Button>
-      }
     >
       {error ? (
         <p className="mb-2 text-xs text-[var(--as-danger)]" role="alert">
@@ -497,52 +487,48 @@ function SessionsCard({ dropToLogin }: { dropToLogin: () => void }) {
       ) : null}
       {loading ? (
         <p className="py-2 text-xs text-[var(--as-muted-fg)]">{t("account.sessionsLoading")}</p>
-      ) : sessions.length === 0 ? (
-        <p className="text-xs text-[var(--as-muted-fg)]">{t("account.sessionsEmpty")}</p>
       ) : (
-        <ul className="divide-y divide-[var(--as-border)]">
-          {sessions.map((session) => {
+        <AccountSessionList
+          rows={sessions.map((session) => {
             const Glyph = deviceIcon(session.client_label);
-            return (
-              <li
-                key={session.id}
-                className="flex flex-wrap items-center gap-2 py-2"
-                data-testid="account-session"
-                data-current={session.current ? "true" : undefined}
-              >
-                <Glyph className="h-4 w-4 shrink-0 text-[var(--as-muted-fg)]" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 text-sm text-[var(--as-fg)]">
-                    <span className="font-medium">{session.client_label || "—"}</span>
-                    {session.current ? (
-                      <Badge variant="success">{t("account.sessionCurrent")}</Badge>
-                    ) : null}
-                    {session.revoked_at ? (
-                      <Badge variant="outline">{t("account.sessionRevoked")}</Badge>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-[var(--as-muted-fg)]">
-                    {session.created_at
-                      ? t("account.sessionCreated", { when: formatDate(session.created_at) })
-                      : "—"}
-                    {" · "}
-                    {t("account.sessionExpires", { when: formatDate(session.expires_at) })}
-                  </p>
-                </div>
-                {!session.revoked_at ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPendingRevoke(session)}
-                    aria-label={`${t("account.revoke")} — ${session.client_label || session.id}`}
-                  >
-                    {t("account.revoke")}
-                  </Button>
-                ) : null}
-              </li>
-            );
+            return {
+              id: session.id,
+              current: session.current,
+              label: session.client_label || "—",
+              details: [
+                session.created_at
+                  ? t("account.sessionCreated", { when: formatDate(session.created_at) })
+                  : "—",
+                t("account.sessionExpires", { when: formatDate(session.expires_at) }),
+              ],
+              icon: <Glyph className="h-4 w-4" aria-hidden />,
+              revoked: Boolean(session.revoked_at),
+            };
           })}
-        </ul>
+          onRevoke={(id) => {
+            const target = sessions.find((session) => session.id === id);
+            if (target) setPendingRevoke(target);
+          }}
+          busyId={busy && pendingRevoke ? pendingRevoke.id : undefined}
+          labels={{
+            current: t("account.sessionCurrent"),
+            revoke: t("account.revoke"),
+            revoking: t("account.revoking"),
+            revoked: t("account.sessionRevoked"),
+            empty: t("account.sessionsEmpty"),
+          }}
+          headerAction={
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setPendingLogoutAll(true)}
+              data-testid="logout-all"
+            >
+              {t("account.signOutEverywhere")}
+            </Button>
+          }
+        />
       )}
 
       <ConfirmationModal

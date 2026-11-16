@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { settingsNav, type SettingsNavItem } from "@/config/settingsNav";
+import { isDesktop } from "@/lib/desktop";
 import { useAuthStore } from "@/stores/authStore";
 import { SettingsShell as LibrarySettingsShell, type SettingsNavItem as LibraryNavItem } from "@neuronection/assistant-ui";
 import { useTranslation } from "react-i18next";
@@ -36,7 +37,12 @@ export function SettingsShell() {
   const user = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const location = useLocation();
-  const visibleNav = settingsNav.filter((item) => !item.adminOnly || user?.is_admin);
+  const desktop = isDesktop();
+  const visibleNav = settingsNav.filter(
+    (item) =>
+      (!item.adminOnly || user?.is_admin) &&
+      !(desktop && item.desktopHidden)
+  );
 
   const items = toLibraryNav(visibleNav, t);
 

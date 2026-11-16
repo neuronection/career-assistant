@@ -95,6 +95,7 @@ function detail(): PostingDetailOut {
     expires_at: ahead(12 * DAY),
     status: "mapped",
     mapping_reason: "",
+    repost_count: 0,
     notes: "",
     seen: false,
     saved: false,

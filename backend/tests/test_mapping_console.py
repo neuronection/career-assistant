@@ -7,7 +7,7 @@ pre-extract precedence (AD2) pinned against fixtures on both dialects.
 
 import json
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
@@ -152,6 +152,14 @@ async def test_manual_map_writes_the_manual_outcome(db, source):
     posting.mapping_method = "manual"
     posting.mapping_confidence = 1.0
     posting.status = "mapped"
+    posting.mapping_margin = 0.02
+    posting.proposal_proposed_at = datetime.now(UTC)
+    posting.posting_facts = {
+        **(posting.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2},
+    }
+    write_mapping_review(posting, reason=MappingReviewReason.OTHER, note="", actor_id=None)
+    await db.flush()
     from app.services.postings.job_proposal_service import JobProposalService
 
     JobProposalService(db)._map_posting(
@@ -160,12 +168,15 @@ async def test_manual_map_writes_the_manual_outcome(db, source):
         user=None,
         reason="manually mapped by a moderator",
         operation={"catalog_job_id": str(job.id)},
-        clear_proposal=False,
     )
     await db.flush()
     assert posting.mapping_outcome_state == MappingOutcomeState.MAPPED.value
     assert posting.mapping_outcome_reason == MappingOutcomeReason.MANUAL.value
     assert posting.posting_facts["mapping_outcome"]["confidence"] == 1.0
+    assert posting.mapping_margin is None
+    assert posting.proposal_proposed_at is None
+    assert posting.posting_facts["job_proposal"] is None
+    assert posting.mapping_review_state is None
 
 
 async def test_deferred_decision_writes_semantic_pending(db, source, monkeypatch):
@@ -173,12 +184,21 @@ async def test_deferred_decision_writes_semantic_pending(db, source, monkeypatch
     python = await _skill(db, "python")
     filler_a = await _skill(db, "outcome-defer-a")
     filler_b = await _skill(db, "outcome-defer-b")
+    filler_c = await _skill(db, "outcome-defer-c")
+    filler_d = await _skill(db, "outcome-defer-d")
     family = await _family(db)
     await _job(
         db,
         "outcome-defer-role",
         family,
-        [(sql, 7, "core"), (python, 1, "bonus"), (filler_a, 10, "core"), (filler_b, 10, "core")],
+        [
+            (sql, 7, "core"),
+            (python, 1, "bonus"),
+            (filler_a, 10, "core"),
+            (filler_b, 10, "core"),
+            (filler_c, 10, "core"),
+            (filler_d, 10, "core"),
+        ],
     )
     posting = await _make_posting(db, source, "outcome-defer", ["sql", "python"])
     posting = (
@@ -338,47 +358,6 @@ async def test_derive_maps_the_legacy_shapes(db, source):
     )
 
 
-async def test_backfill_is_idempotent_and_bounded(db, source):
-    from app.services.postings.mapping_outcome_backfill import (
-        enqueue_mapping_outcome_backfill,
-        legacy_outcome_count,
-        run_mapping_outcome_backfill,
-    )
-
-    sql = await _skill(db, "sql")
-    family = await _family(db)
-    job = await _job(db, "outcome-backfill-role", family, [(sql, 7, "core")])
-    mapped = await _make_posting(db, source, "backfill-mapped", [])
-    mapped.catalog_job_id = job.id
-    mapped.mapping_method = "skill_overlap"
-    _clear_outcome(mapped)
-    unmapped = await _make_posting(db, source, "backfill-unmapped", [])
-    _clear_outcome(unmapped)
-    await db.flush()
-
-    assert await legacy_outcome_count(db) == 2
-    result = await run_mapping_outcome_backfill(db, {"limit": 1})
-    assert result["derived"] == 1
-    assert result["remaining"] == 1
-
-    result = await run_mapping_outcome_backfill(db, {"limit": 10})
-    assert result["remaining"] == 0
-    await db.flush()
-    await db.refresh(mapped)
-    await db.refresh(unmapped)
-    assert mapped.mapping_outcome_state == MappingOutcomeState.MAPPED.value
-    assert unmapped.mapping_outcome_state == MappingOutcomeState.UNMAPPED.value
-
-    again = await run_mapping_outcome_backfill(db, {"limit": 10})
-    assert again["derived"] == 0, "a second run derives nothing (idempotent)"
-
-    job_row, created = await enqueue_mapping_outcome_backfill(db)
-    assert created is True
-    job_row2, created2 = await enqueue_mapping_outcome_backfill(db)
-    assert created2 is False
-    assert job_row.id == job_row2.id
-
-
 # ------------------------------------------------------------------- overview
 
 
@@ -464,37 +443,45 @@ async def test_funnel_counts_follow_the_precedence(db, source):
 
 
 def test_fold_precedence_units():
-    assert fold_funnel_row((True, None, False, False, False, False, False, None)) == "mapped"
-    assert fold_funnel_row((False, "ignored", False, False, False, False, False, None)) == "ignored"
-    assert fold_funnel_row((False, "ignored", True, False, False, False, False, None)) == (
+    assert fold_funnel_row((True, None, False, False, False, False, False, False, None)) == "mapped"
+    assert (
+        fold_funnel_row((False, "ignored", False, False, False, False, False, False, None))
+        == "ignored"
+    )
+    assert fold_funnel_row((False, "ignored", False, True, False, False, False, False, None)) == (
         "ignored"
     ), "the overlay outranks the pre-extract buckets"
-    assert fold_funnel_row((False, None, True, False, False, False, False, None)) == (
+    assert fold_funnel_row((False, None, True, True, True, False, False, False, None)) == (
+        "detail_failed"
+    ), "detail_failed outranks no_description/detail_not_fetched"
+    assert fold_funnel_row((False, None, False, True, False, False, False, False, None)) == (
         "no_description"
     )
-    assert fold_funnel_row((False, None, False, True, False, False, False, None)) == (
+    assert fold_funnel_row((False, None, False, False, True, False, False, False, None)) == (
         "detail_not_fetched"
     )
-    assert fold_funnel_row((False, None, False, False, True, False, False, None)) == (
+    assert fold_funnel_row((False, None, False, False, False, True, False, False, None)) == (
         "extract_failed"
     )
-    assert fold_funnel_row((False, None, False, False, False, True, False, None)) == (
+    assert fold_funnel_row((False, None, False, False, False, False, True, False, None)) == (
         "not_extracted"
     )
-    assert fold_funnel_row((False, None, False, False, False, True, True, None)) == (
+    assert fold_funnel_row((False, None, False, False, False, False, True, True, None)) == (
         "not_extracted"
     ), "not_extracted outranks needs_review"
-    assert fold_funnel_row((False, None, False, False, False, False, True, None)) == (
+    assert fold_funnel_row((False, None, False, False, False, False, False, True, None)) == (
         "needs_review"
     )
     assert (
-        fold_funnel_row((False, None, False, False, False, False, False, "semantic_pending"))
+        fold_funnel_row((False, None, False, False, False, False, False, False, "semantic_pending"))
         == "semantic_pending"
     )
-    assert fold_funnel_row((False, None, False, False, False, False, False, "no_skills")) == (
-        "no_skills"
+    assert fold_funnel_row(
+        (False, None, False, False, False, False, False, False, "no_skills")
+    ) == ("no_skills")
+    assert (
+        fold_funnel_row((False, None, False, False, False, False, False, False, None)) == "unknown"
     )
-    assert fold_funnel_row((False, None, False, False, False, False, False, None)) == "unknown"
 
 
 async def test_overview_accounted_split_and_gate(db, source):
@@ -509,7 +496,6 @@ async def test_overview_accounted_split_and_gate(db, source):
     }
     assert data["gate"]["floor"] == COVERAGE_FLOOR_DEFAULT
     assert data["gate"]["pass"] is False, "3/7 is far below the 0.95 default floor"
-    assert data["legacy_outcome_count"] == 2, "the seed leaves two legacy rows undelivered"
     assert data["health"] is not None
     assert data["methods"] == {"skill_overlap": 1}
 
@@ -558,28 +544,33 @@ async def test_redeciding_a_never_extracted_posting_does_not_change_accounted(db
     )
 
 
-async def test_failed_extract_job_buckets_extract_failed(db, source):
-    from app.models.background_job_model import BackgroundJob
-    from app.models.enums import BackgroundJobStatus, BackgroundJobType
-
+async def test_failed_extract_status_buckets_extract_failed(db, source):
     posting = await _make_posting(
         db, source, "funnel-failedextract", [], description="We need sql."
     )
     posting.detail_fetched_at = datetime.now(UTC) - timedelta(hours=1)
     posting.extract_version = None
+    posting.extract_status = "failed"
     posting.needs_review = False
-    db.add(
-        BackgroundJob(
-            job_type=BackgroundJobType.POSTING_EXTRACT.value,
-            status=BackgroundJobStatus.FAILED.value,
-            payload={"posting_id": str(posting.id)},
-            result={"error": "boom"},
-        )
-    )
     await db.flush()
 
     counts = await funnel(db)
     assert counts["states"].get("extract_failed") == 1
+
+
+async def test_never_fetched_exhausted_buckets_detail_failed(db, source):
+    from app.services.postings.detail_service import MAX_ATTEMPTS
+
+    posting = await _make_posting(db, source, "funnel-detailfailed", [], description="We need sql.")
+    posting.detail_fetched_at = None
+    posting.detail_attempts = MAX_ATTEMPTS
+    posting.extract_version = None
+    posting.needs_review = False
+    await db.flush()
+
+    counts = await funnel(db)
+    assert counts["states"].get("detail_failed") == 1
+    assert counts["states"].get("detail_not_fetched") is None
 
 
 async def test_overview_counts_expired_rows_out(db, source):
@@ -610,20 +601,6 @@ async def test_overview_endpoint_is_admin_only(client, db, auth_headers):
     assert payload["active"] == 0
     assert payload["accounted"]["total"] == 0
     assert payload["gate"]["pass"] is True, "an empty deployment trivially meets the floor"
-
-    backfill = await client.post(
-        "/api/v1/admin/mappings/backfill",
-        json={"limit": 10},
-        headers=reader,
-    )
-    assert backfill.status_code == 403
-    backfill = await client.post(
-        "/api/v1/admin/mappings/backfill",
-        json={"limit": 10},
-        headers=auth_headers,
-    )
-    assert backfill.status_code == 200
-    assert backfill.json()["queued"] is True
 
 
 # -------------------------------------------------------- triage list + trace (S3)
@@ -706,6 +683,50 @@ async def test_trace_exposes_signals_and_never_prompt_text(db, source, client, a
     assert "prompt" not in json.dumps(payload).lower() or payload.get("prompt") is None
 
 
+async def test_trace_tolerates_a_v1_mapping_features_row(db, source, client, auth_headers):
+    from app.services.postings.mapping_features import MappingFeatures
+
+    sql = await _skill(db, "sql")
+    family = await _family(db, "trace-v1-family")
+    await _job(db, "trace-v1-role", family, [(sql, 7, "core")])
+    posting = await _make_posting(db, source, "trace-v1", ["sql"], description="We do things.")
+    v1 = {
+        "schema_version": 1,
+        "mapping_version": 2,
+        "space_key": None,
+        "degraded": None,
+        "policy": {
+            "tau_job": 0.34,
+            "delta": 0.08,
+            "k": 25,
+            "blend_deterministic": 0.75,
+            "blend_semantic": 0.25,
+            "semantic_threshold": 0.6,
+            "semantic_min_shared_skills": 1,
+        },
+        "candidates": [
+            {
+                "job_code": "legacy-role",
+                "job_id": str(uuid4()),
+                "deterministic": 0.5,
+                "shared_skills": ["sql"],
+            }
+        ],
+    }
+    MappingFeatures.model_validate(v1)
+    posting.mapping_features = v1
+    await db.flush()
+
+    response = await client.get(
+        f"/api/v1/admin/mappings/postings/{posting.id}/trace", headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["features"]["mapping_version"] == 2
+    assert payload["features"]["policy"]["tau_job"] == 0.34
+    assert payload["features"]["candidates"][0]["job_code"] == "legacy-role"
+
+
 async def test_trace_404_on_unknown_posting(client, auth_headers):
     response = await client.get(
         f"/api/v1/admin/mappings/postings/{uuid4()}/trace", headers=auth_headers
@@ -786,6 +807,13 @@ async def test_ignore_then_redecide_then_map_then_unmap_clears_the_review(
     await db.refresh(posting)
     assert posting.mapping_review_state == "ignored", "the overlay survives a re-decide"
 
+    posting.mapping_margin = 0.02
+    posting.proposal_proposed_at = datetime.now(UTC)
+    posting.posting_facts = {
+        **(posting.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2},
+    }
+    await db.flush()
     from app.services.postings.job_proposal_service import JobProposalService
 
     JobProposalService(db)._map_posting(
@@ -794,14 +822,24 @@ async def test_ignore_then_redecide_then_map_then_unmap_clears_the_review(
         user=None,
         reason="mapped by the sequence test",
         operation={},
-        clear_proposal=False,
     )
     await db.flush()
+    assert posting.mapping_margin is None
+    assert posting.proposal_proposed_at is None
+    assert posting.posting_facts["job_proposal"] is None
+    assert posting.mapping_review_state is None
 
     states = (await funnel(db))["states"]
     assert states.get("mapped") == 1, "a mapped posting leaves the overlay state"
     assert states.get("ignored") is None
 
+    posting.mapping_margin = 0.03
+    posting.proposal_proposed_at = datetime.now(UTC)
+    posting.posting_facts = {
+        **(posting.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2},
+    }
+    await db.flush()
     unmapped = await client.post(
         "/api/v1/admin/mappings/unmap",
         json={"posting_ids": [str(posting.id)]},
@@ -812,6 +850,10 @@ async def test_ignore_then_redecide_then_map_then_unmap_clears_the_review(
     assert posting.catalog_job_id is None
     assert posting.mapping_outcome_reason == MappingOutcomeReason.UNMAPPED_BY_ADMIN.value
     assert posting.mapping_review_state is None
+    assert posting.mapping_margin is None
+    assert posting.mapping_reason == ""
+    assert posting.proposal_proposed_at is None
+    assert posting.posting_facts["job_proposal"] is None
     assert "mapping_review" not in posting.posting_facts
 
 
@@ -892,6 +934,59 @@ async def test_redecide_action_is_deduped(db, source, client, auth_headers):
     assert second.json()["skipped"] == 1
 
 
+async def test_redecide_all_reports_and_queues_the_selected_scope(db, source, client, auth_headers):
+    from app.models.background_job_model import BackgroundJob
+
+    sql = await _skill(db, "sql")
+    family = await _family(db, "redecide-all-family")
+    job = await _job(db, "redecide-all-role", family, [(sql, 7, "core")])
+    stale = await _make_posting(db, source, "action-redecide-stale", ["sql"])
+    stale.catalog_job_id = job.id
+    stale.mapping_method = "skill_overlap"
+    stale.mapping_version = 2
+    stale.status = "mapped"
+    current = await _make_posting(db, source, "action-redecide-current", ["sql"])
+    current.catalog_job_id = job.id
+    current.mapping_method = "skill_overlap"
+    current.mapping_version = 3
+    current.status = "mapped"
+    await db.flush()
+
+    response = await client.post("/api/v1/admin/mappings/redecide-all", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["queued"] is True
+    assert payload["scope"] == "stale"
+    assert payload["active"] == 1
+    run_id = UUID(payload["job_id"])
+    run = (
+        (await db.execute(select(BackgroundJob).where(BackgroundJob.id == run_id))).scalars().one()
+    )
+    assert run.job_type == "posting_remap"
+    assert run.payload["redecide_scope"] == "stale"
+    assert run.payload["all_postings"] is False
+
+    forced = await client.post(
+        "/api/v1/admin/mappings/redecide-all",
+        json={"scope": "all"},
+        headers=auth_headers,
+    )
+    assert forced.status_code == 200, forced.text
+    forced_payload = forced.json()
+    assert forced_payload["scope"] == "all"
+    assert forced_payload["active"] == 2
+    forced_run = (
+        (
+            await db.execute(
+                select(BackgroundJob).where(BackgroundJob.id == UUID(forced_payload["job_id"]))
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert forced_run.payload["redecide_scope"] == "all"
+
+
 async def test_actions_require_admin(client, auth_headers):
     reader = await register_user(client, "mappings-actions@example.com")
     for path, payload in (
@@ -901,6 +996,7 @@ async def test_actions_require_admin(client, auth_headers):
         ("/api/v1/admin/mappings/review", {"posting_ids": [str(uuid4())]}),
         ("/api/v1/admin/mappings/extract", {"posting_ids": [str(uuid4())]}),
         ("/api/v1/admin/mappings/redecide", {"posting_ids": [str(uuid4())]}),
+        ("/api/v1/admin/mappings/redecide-all", {}),
     ):
         assert (await client.post(path, json=payload, headers=reader)).status_code == 403, path
         assert (await client.post(path, json=payload, headers=auth_headers)).status_code in (
@@ -1727,7 +1823,6 @@ async def test_proposal_apply_writes_the_proposal_outcome(db, source):
         user=None,
         reason="mapped by the proposal",
         operation={"job_proposal": "mapped"},
-        clear_proposal=True,
     )
     await db.flush()
     assert posting.mapping_outcome_reason == MappingOutcomeReason.PROPOSAL.value
@@ -1815,14 +1910,15 @@ async def test_semantic_threshold_reaches_the_signal(db, source, monkeypatch):
 async def test_rerank_margin_changes_ambiguity_at_the_boundary(db, source, monkeypatch):
     """m13: δ is a live gate — a wide margin asks the rerank, a zero margin
     does not."""
-    from app.services.postings.catalog_settings import (
-        SEMANTIC_RERANK_KEY,
-        set_switch,
-    )
     from app.services.postings.mapping_policy import MappingPolicy
     from app.services.postings.semantic_rerank import not_run_rerank
 
-    await set_switch(db, SEMANTIC_RERANK_KEY, True)
+    async def _rerank_on(_db):
+        return True
+
+    monkeypatch.setattr(
+        "app.services.postings.catalog_settings.semantic_rerank_enabled", _rerank_on
+    )
 
     sql = await _skill(db, "sql")
     python = await _skill(db, "python")
@@ -1970,12 +2066,14 @@ async def test_trace_state_agrees_with_the_queue_for_a_failed_extract(
     row = await _make_posting(db, source, "trace-failed-2", [], description="Plain.")
     row.detail_fetched_at = datetime.now(UTC)
     row.extract_version = None
+    row.extract_status = "failed"
     row.needs_review = False
     db.add(
         BackgroundJob(
             job_type=BackgroundJobType.POSTING_EXTRACT.value,
             status=BackgroundJobStatus.FAILED.value,
             payload={"posting_id": str(row.id)},
+            error="provider 503",
         )
     )
     await db.flush()
@@ -1985,7 +2083,159 @@ async def test_trace_state_agrees_with_the_queue_for_a_failed_extract(
         f"/api/v1/admin/mappings/postings/{row.id}/trace", headers=auth_headers
     )
     assert response.status_code == 200, response.text
-    assert response.json()["posting"]["state"] == "extract_failed"
+    payload = response.json()
+    assert payload["posting"]["state"] == "extract_failed"
+    assert payload["last_extract"]["status"] == "failed"
+    assert payload["last_extract"]["error"] == "provider 503"
+
+
+async def test_trace_and_queue_agree_on_detail_failed(db, source, client, auth_headers):
+    from app.services.postings.detail_service import MAX_ATTEMPTS
+
+    posting = await _make_posting(db, source, "trace-detailfailed", [], description="Plain.")
+    posting.detail_fetched_at = None
+    posting.detail_attempts = MAX_ATTEMPTS
+    await db.flush()
+
+    queue = (
+        await client.get(
+            "/api/v1/admin/mappings/unmapped",
+            params={"state": "detail_failed"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["id"] for item in queue["items"]} == {str(posting.id)}
+    trace = (
+        await client.get(
+            f"/api/v1/admin/mappings/postings/{posting.id}/trace", headers=auth_headers
+        )
+    ).json()
+    assert trace["posting"]["state"] == "detail_failed"
+
+
+async def test_trace_reports_pending_extract_and_proposal_failure(db, source, client, auth_headers):
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobStatus, BackgroundJobType
+
+    posting = await _make_posting(db, source, "trace-pending", [], description="Plain.")
+    posting.posting_facts = {
+        **(posting.posting_facts or {}),
+        "job_proposal_failed_reason": "unconfigured",
+        "job_proposal_failed_at": datetime.now(UTC).isoformat(),
+    }
+    db.add(
+        BackgroundJob(
+            job_type=BackgroundJobType.POSTING_EXTRACT.value,
+            status=BackgroundJobStatus.QUEUED.value,
+            payload={"posting_id": str(posting.id)},
+            created_at=datetime.now(UTC),
+        )
+    )
+    db.add(
+        BackgroundJob(
+            job_type=BackgroundJobType.POSTING_EXTRACT.value,
+            status=BackgroundJobStatus.FAILED.value,
+            payload={"posting_id": str(posting.id), "mode": "resolve"},
+            created_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    await db.flush()
+
+    trace = (
+        await client.get(
+            f"/api/v1/admin/mappings/postings/{posting.id}/trace", headers=auth_headers
+        )
+    ).json()
+    assert trace["last_extract"]["status"] == "queued", "resolve jobs are excluded"
+    assert trace["last_extract"]["pending"] is True
+    assert trace["proposal_failure"]["reason"] == "unconfigured"
+
+
+async def test_queue_proposal_state_derives_from_the_v2_object(db, source, client, auth_headers):
+    needs_edit = await _make_posting(db, source, "state-needs-edit", [], description="Plain.")
+    needs_edit.posting_facts = {
+        **(needs_edit.posting_facts or {}),
+        "job_proposal": {
+            "proposal_version": 2,
+            "action": "create",
+            "needs_edit": True,
+        },
+    }
+    create = await _make_posting(db, source, "state-create", [], description="Plain.")
+    create.posting_facts = {
+        **(create.posting_facts or {}),
+        "job_proposal": {
+            "proposal_version": 2,
+            "action": "create",
+            "needs_edit": False,
+        },
+    }
+    failed = await _make_posting(db, source, "state-failed", [], description="Plain.")
+    failed.posting_facts = {
+        **(failed.posting_facts or {}),
+        "job_proposal_failed_reason": "unconfigured",
+    }
+    await db.flush()
+
+    queue = (await client.get("/api/v1/admin/mappings/unmapped", headers=auth_headers)).json()
+    by_id = {item["id"]: item for item in queue["items"]}
+    assert by_id[str(needs_edit.id)]["proposal_state"] == "needs_edit"
+    assert by_id[str(create.id)]["proposal_state"] == "create"
+    assert by_id[str(failed.id)]["proposal_state"] == "failed"
+
+
+async def test_detail_failed_is_not_counted_as_extracted(db, source):
+    from app.services.postings.detail_service import MAX_ATTEMPTS
+    from app.services.postings.mapping_ops import capture_snapshot
+
+    posting = await _make_posting(
+        db, source, "detailfailed-extracted", [], description="We need sql."
+    )
+    posting.detail_fetched_at = None
+    posting.detail_attempts = MAX_ATTEMPTS
+    posting.extract_version = None
+    await db.flush()
+
+    data = await overview(db)
+    assert data["states"]["detail_failed"] == 1
+    assert data["extracted"] == 0, "the exhausted never-fetched row is not extracted"
+
+    snapshot = await capture_snapshot(db, basis="manual")
+    assert snapshot.extracted == 0
+
+
+async def test_proposal_aging_uses_the_typed_time_with_a_created_fallback(db, source):
+    from app.services.postings.mapping_ops import proposal_aging_count
+
+    now = datetime.now(UTC)
+    old_created = now - timedelta(days=30)
+    fresh_proposal = await _make_posting(db, source, "aging-fresh", [], description="Plain.")
+    fresh_proposal.created_at = old_created
+    fresh_proposal.proposal_proposed_at = now
+    fresh_proposal.posting_facts = {
+        **(fresh_proposal.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2, "action": "create"},
+    }
+    fallback = await _make_posting(db, source, "aging-fallback", [], description="Plain.")
+    fallback.created_at = old_created
+    fallback.proposal_proposed_at = None
+    fallback.posting_facts = {
+        **(fallback.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2, "action": "create"},
+    }
+    old_proposal = await _make_posting(db, source, "aging-old", [], description="Plain.")
+    old_proposal.created_at = now
+    old_proposal.proposal_proposed_at = old_created
+    old_proposal.posting_facts = {
+        **(old_proposal.posting_facts or {}),
+        "job_proposal": {"proposal_version": 2, "action": "create"},
+    }
+    await db.flush()
+
+    assert await proposal_aging_count(db, now=now) == 2, (
+        "the fresh typed time suppresses aging; the null time falls back to "
+        "created_at and the old typed time counts"
+    )
 
 
 async def test_alerts_floor_round_trips_through_the_console(db, client, auth_headers):

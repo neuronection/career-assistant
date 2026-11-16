@@ -41,6 +41,7 @@ from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import Profile, User, UserInterest, UserSkill
 from app.schemas.cv_extract import CvExtract
 from app.services.cv.cv_source_service import cv_extraction_of
+from app.services.profile.grades import grade_ordinal
 from app.services.profile.stages_service import max_birth_year
 
 
@@ -845,7 +846,9 @@ class CvIntakeService:
             start=_parse_date(item.get("start") or ""),
             end=_parse_date(item.get("end") or ""),
             in_progress=not item.get("end"),
-            grade_band=item.get("grade_band"),
+            grade_scale=item.get("grade_scale"),
+            grade_value=item.get("grade_value"),
+            grade_ordinal=grade_ordinal(item.get("grade_scale"), item.get("grade_value")),
             source=ExperienceItemSource.CV_PARSE.value,
             status=status,
         )

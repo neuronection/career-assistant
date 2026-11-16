@@ -5,12 +5,16 @@ import { MemoryRouter } from "react-router-dom";
 
 import {
   mappingsExtract,
+  mappingsFetchDetail,
   mappingsIgnore,
   mappingsMap,
+  mappingsMapBulk,
+  mappingsRepropose,
   type MappingCandidate,
   type MappingQueueItem,
   type MappingQueueResponse,
 } from "@/api/mappings";
+import { fetchJobs } from "@/api/jobs";
 import { MappingTriageView } from "@/components/settings/MappingTriageView";
 
 vi.mock("react-i18next", () => ({
@@ -19,6 +23,9 @@ vi.mock("react-i18next", () => ({
       let out = key;
       for (const [name, value] of Object.entries(params ?? {})) {
         out = out.split(`{{${name}}}`).join(String(value));
+      }
+      if (key === "mappingsConsole.triage.bulkDone" && params?.count !== undefined) {
+        out = `${out} ${params.count}`;
       }
       return out;
     },
@@ -39,6 +46,28 @@ vi.mock("@/api/mappings", async (importOriginal) => {
     mappingsReview: vi.fn(),
     mappingsRedecide: vi.fn(),
     mappingsMap: vi.fn(),
+    mappingsFetchDetail: vi.fn(),
+    mappingsRepropose: vi.fn(),
+    mappingsMapBulk: vi.fn(),
+  };
+});
+
+vi.mock("@/api/jobs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/jobs")>();
+  return {
+    ...actual,
+    fetchJobs: vi.fn().mockResolvedValue({
+      items: [
+        {
+          id: "j2",
+          code: "data-engineer",
+          title: "Data Engineer",
+          status: "published",
+        },
+      ],
+      total: 1,
+      facets: {},
+    }),
   };
 });
 
@@ -93,6 +122,8 @@ function row(overrides: Partial<MappingQueueItem> = {}): MappingQueueItem {
     extract_version: null,
     mapped: false,
     catalog_job_id: null,
+    mapping_margin: null,
+    weak: false,
     top_candidate: { job_id: "j1", job_code: "data-analyst", deterministic: 0.4 },
     proposal_state: null,
     review: null,
@@ -145,6 +176,7 @@ beforeEach(() => {
       {
         job_id: "j1",
         job_code: "data-analyst",
+        job_title: "Data Analyst",
         deterministic: 0.4,
         semantic: null,
         blend: null,
@@ -153,6 +185,17 @@ beforeEach(() => {
     ],
     },
     proposal: null,
+    proposal_state: null,
+    proposal_failure: {
+      reason: "unconfigured",
+      at: "2026-11-10T09:00:00Z",
+    },
+    last_extract: {
+      status: "queued",
+      at: "2026-11-10T09:00:00Z",
+      error: null,
+      pending: true,
+    },
     review: null,
     review_row: null,
     extract_version: null,
@@ -165,6 +208,27 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe("mapping triage weak review", () => {
+  it("shows the weak chip and filters the queue by weak", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchMappingsQueue).mockResolvedValue(
+      queueResponse([row({ weak: true, mapping_margin: 0.02 })]),
+    );
+    renderView();
+    await screen.findByText("Analyst");
+    expect(screen.getByTestId("mapping-weak")).toBeTruthy();
+    await user.selectOptions(
+      screen.getByLabelText("mappingsConsole.triage.weakFilter"),
+      "true",
+    );
+    await waitFor(() =>
+      expect(fetchMappingsQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ weak: true, limit: 50 }),
+      ),
+    );
+  });
 });
 
 describe("mapping triage view (plan 205 S3)", () => {
@@ -214,15 +278,34 @@ describe("mapping triage view (plan 205 S3)", () => {
     expect(await screen.findByTestId("mappings-trace-body")).toBeTruthy();
     expect(screen.getByText("best overlap 0.40 below 0.62")).toBeTruthy();
     expect(fetchMappingsTrace).toHaveBeenCalledWith("p-1");
+    const lastExtract = screen.getByTestId("mapping-last-extract").textContent ?? "";
+    expect(lastExtract).toContain("mappingsConsole.triage.lastExtract");
+    expect(lastExtract).toContain("mappingsConsole.triage.extractQueued");
+    expect(
+      screen.getByTestId("mapping-proposal-failure").textContent,
+    ).toContain("mappingsConsole.triage.proposalFailure");
+  });
+
+  it("renders the detail_failed state and the proposal-state badge", async () => {
+    vi.mocked(fetchMappingsQueue).mockResolvedValue(
+      queueResponse([row({ state: "detail_failed", proposal_state: "needs_edit" })]),
+    );
+    renderView();
+    expect(
+      await screen.findByText("mappingsConsole.state.detail_failed"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("mapping-proposal-state").textContent).toContain(
+      "mappingsConsole.triage.proposalState",
+    );
   });
 
   it("runs the bulk extract action on the selection", async () => {
     const user = userEvent.setup();
     vi.mocked(mappingsExtract).mockResolvedValue({
-      affected: 1,
       missing: [],
-      queued: 1,
+      queued: 2,
       skipped: 0,
+      requested: 1,
     });
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderView();
@@ -236,7 +319,63 @@ describe("mapping triage view (plan 205 S3)", () => {
     );
     await user.click(screen.getByTestId("mappings-bulk-extract"));
     await waitFor(() => expect(mappingsExtract).toHaveBeenCalledWith(["p-1"]));
+    expect(screen.getByTestId("mappings-bulk-note").textContent).toContain(
+      "mappingsConsole.triage.bulkDone",
+    );
+    expect(screen.getByTestId("mappings-bulk-note").textContent).toContain("2");
     expect(confirmSpy).toHaveBeenCalled();
+  });
+
+  it("runs the per-row detail, extract and repropose actions", async () => {
+    const user = userEvent.setup();
+    vi.mocked(mappingsFetchDetail).mockResolvedValue({
+      posting_id: "p-1",
+      fetched: 1,
+      changed: true,
+    });
+    vi.mocked(mappingsExtract).mockResolvedValue({
+      missing: [],
+      queued: 1,
+      skipped: 0,
+      requested: 1,
+    });
+    vi.mocked(mappingsRepropose).mockResolvedValue({ queued: true, job_id: "job-1" });
+    renderView();
+    const rows = await screen.findAllByTestId("mappings-queue-row");
+
+    await user.click(within(rows[0]).getByTestId("mappings-detail-now-AAAA1111"));
+    await waitFor(() => expect(mappingsFetchDetail).toHaveBeenCalledWith("p-1"));
+
+    await user.click(within(rows[0]).getByTestId("mappings-retry-extract-AAAA1111"));
+    await waitFor(() => expect(mappingsExtract).toHaveBeenCalledWith(["p-1"]));
+
+    await user.click(within(rows[0]).getByTestId("mappings-repropose-AAAA1111"));
+    await waitFor(() => expect(mappingsRepropose).toHaveBeenCalledWith("p-1"));
+  });
+
+  it("bulk maps the selection through the server-side picker", async () => {
+    const user = userEvent.setup();
+    vi.mocked(mappingsMapBulk).mockResolvedValue({
+      affected: 1,
+      mapped: ["p-1"],
+      already: [],
+      blocked: {},
+      missing: [],
+      requested: 1,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderView();
+    await screen.findAllByTestId("mappings-queue-row");
+    await user.click(screen.getByTestId("mappings-select"));
+    await user.click(await screen.findByRole("checkbox", { name: "selection.selectAll" }));
+    await user.click(await screen.findByTestId("mappings-bulk-map-open"));
+    const select = await screen.findByTestId("job-type-picker-select");
+    await waitFor(() =>
+      expect(within(select).getByRole("option", { name: /data-engineer/ })).toBeTruthy(),
+    );
+    await user.selectOptions(select, "j2");
+    await user.click(screen.getByTestId("mappings-bulk-map-confirm"));
+    await waitFor(() => expect(mappingsMapBulk).toHaveBeenCalledWith(["p-1"], "j2"));
   });
 
   it("runs the ignore action with the reason from the panel", async () => {
@@ -279,13 +418,51 @@ describe("mapping triage picker and detail link (plan 205 AD6)", () => {
         within(select).getByRole("option", { name: /data-engineer/ }),
       ).toBeTruthy(),
     );
+    expect(fetchJobs).toHaveBeenCalledWith({
+      q: undefined,
+      status: "published",
+      page_size: 50,
+      with_facets: false,
+    });
+    expect(
+      within(select).getByRole("option", { name: /data-analyst — Data Analyst/ }),
+    ).toBeTruthy();
     await user.selectOptions(select, "j2");
     await user.click(screen.getByTestId("mappings-map-selected"));
     await waitFor(() => expect(mappingsMap).toHaveBeenCalledWith("p-1", "j2"));
     confirm.mockRestore();
   });
 
+  it("debounces server-side picker searches through fetchJobs", async () => {
+    const user = userEvent.setup();
+    renderView();
+    const rows = await screen.findAllByTestId("mappings-queue-row");
+    await user.click(within(rows[0]).getByTestId("mappings-trace-AAAA1111"));
+    const search = await screen.findByTestId("job-type-picker-search");
+    await user.type(search, "data");
+    await waitFor(() =>
+      expect(fetchJobs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: "data",
+          status: "published",
+          page_size: 50,
+          with_facets: false,
+        }),
+      ),
+    );
+  });
+
   it("links a not-extracted row to the source detail mode", async () => {
+    renderView();
+    const rows = await screen.findAllByTestId("mappings-queue-row");
+    const link = within(rows[0]).getByTestId("mappings-detail-mode-AAAA1111");
+    expect(link.getAttribute("href")).toBe("/settings/tools?section=sources");
+  });
+
+  it("links a detail_failed row to the source detail mode", async () => {
+    vi.mocked(fetchMappingsQueue).mockResolvedValue(
+      queueResponse([row({ state: "detail_failed" })]),
+    );
     renderView();
     const rows = await screen.findAllByTestId("mappings-queue-row");
     const link = within(rows[0]).getByTestId("mappings-detail-mode-AAAA1111");

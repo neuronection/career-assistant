@@ -20,7 +20,7 @@ if [[ -f "$ROOT/docker/.env" ]]; then
 fi
 POSTGRES_DB="${POSTGRES_DB:-neuronection_career}"
 POSTGRES_USER="${POSTGRES_USER:-neuronection_career_owner}"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD (env or docker/.env)}"
+POSTGRES_PASSWORD="${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD (env or docker/.env)}}"
 COMPOSE="docker compose -f $ROOT/docker/docker-compose.prod.yml"
 
 WORK="$(mktemp -d)"

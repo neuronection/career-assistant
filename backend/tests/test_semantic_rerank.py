@@ -17,7 +17,7 @@ deterministic token embedder on the real vector store.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.extensions.sdk import RawPosting
 from app.models.enums import MappingMethod
@@ -29,6 +29,7 @@ from app.services.postings import semantic_rescue as rescue_module
 from app.services.postings.catalog_settings import (
     SEMANTIC_RERANK_KEY,
     SEMANTIC_RESCUE_KEY,
+    semantic_rerank_enabled,
     set_switch,
 )
 from app.services.postings.mapping_candidates import (
@@ -159,6 +160,7 @@ def _candidate(job: Job, score: float = 0.5) -> RerankCandidate:
     return RerankCandidate(
         job_id=str(job.id),
         code=job.code,
+        job_title=job.title,
         deterministic=0.05,
         semantic=0.9,
         blend=score,
@@ -229,12 +231,13 @@ async def test_an_ambiguous_overlap_reranks_and_maps_semantic_rerank(db, source,
     assert "semantic rerank 0.52" in posting.mapping_reason
     assert posting.mapping_version == MAPPING_VERSION
     features = posting.mapping_features
-    assert features["schema_version"] == 1
+    assert features["schema_version"] == 2
     assert features["space_key"] == "space-key"
     assert features["policy"]["tau_job"] == AUTO_MAP_THRESHOLD
     assert features["policy"]["delta"] == RERANK_MARGIN
     assert features["policy"]["k"] == RERANK_CANDIDATE_K
     assert features["candidates"][0]["job_code"] == "weak-overlap-role"
+    assert features["candidates"][0]["job_title"] == "Weak Overlap Role"
     assert features["candidates"][0]["blend"] == pytest.approx(0.52)
 
 
@@ -343,6 +346,14 @@ async def test_manual_is_never_overwritten_by_the_rerank(db, source, stub_rerank
     assert posting.catalog_job_id == job.id
     assert posting.mapping_reason == "manually mapped"
     assert stub_rerank["calls"] == 0
+
+
+async def test_the_live_rerank_default_is_off_on_an_empty_settings_table(db):
+    from app.models.settings_model import AppSetting
+
+    await db.execute(delete(AppSetting).where(AppSetting.key == SEMANTIC_RERANK_KEY))
+    await db.flush()
+    assert await semantic_rerank_enabled(db) is False
 
 
 async def test_the_rerank_switch_defaults_off_and_applies_to_the_next_decision(
@@ -501,11 +512,15 @@ async def test_a_draft_candidate_can_never_win_the_rerank(db, source, monkeypatc
     published_id = uuid_module.uuid4()
     draft = CatalogCandidate(
         job=SimpleNamespace(id=draft_id, code="draft-role", status="draft"),
+        skill=0.90,
+        title=0.0,
         score=0.90,
         shared_skill_ids=(uuid_module.uuid4(),),
     )
     published = CatalogCandidate(
         job=SimpleNamespace(id=published_id, code="published-role", status="published"),
+        skill=0.30,
+        title=0.0,
         score=0.30,
         shared_skill_ids=(uuid_module.uuid4(),),
     )
@@ -533,6 +548,52 @@ async def test_a_draft_candidate_can_never_win_the_rerank(db, source, monkeypatc
     assert signal.accepted is True
 
 
+async def test_the_rerank_deterministic_leg_is_skill_not_the_order_rail(db, source, monkeypatch):
+    import uuid as uuid_module
+    from types import SimpleNamespace
+
+    async def indexed(_db, _posting, *, indexer=None):
+        return None
+
+    monkeypatch.setattr(rescue_module, "_ensure_posting_indexed", indexed)
+    posting = await _posting(db, source, "rerank-leg", ["python"], rerank=False)
+    title_id = uuid_module.uuid4()
+    other_id = uuid_module.uuid4()
+    title_winner = CatalogCandidate(
+        job=SimpleNamespace(id=title_id, code="title-winner", status="published"),
+        skill=0.80,
+        title=1.0,
+        score=0.90,
+        shared_skill_ids=(uuid_module.uuid4(),),
+    )
+    other = CatalogCandidate(
+        job=SimpleNamespace(id=other_id, code="other", status="published"),
+        skill=0.78,
+        title=0.0,
+        score=0.78,
+        shared_skill_ids=(uuid_module.uuid4(),),
+    )
+
+    class Retriever:
+        async def match_documents(self, **_kwargs):
+            return SimpleNamespace(
+                hits=(
+                    SimpleNamespace(source_id=str(title_id), score=0.90, per_view={"summary": 0.9}),
+                    SimpleNamespace(source_id=str(other_id), score=0.90, per_view={"summary": 0.9}),
+                ),
+                space_key="space-key",
+                degraded=None,
+            )
+
+    signal = await semantic_rerank_signal(
+        db, posting, [title_winner, other], threshold=AUTO_MAP_THRESHOLD, retriever=Retriever()
+    )
+    by_code = {candidate.code: candidate for candidate in signal.candidates}
+    assert by_code["title-winner"].deterministic == pytest.approx(0.80)
+    assert by_code["other"].deterministic == pytest.approx(0.78)
+    assert by_code["title-winner"].blend == pytest.approx(0.75 * 0.80 + 0.25 * 0.90, abs=1e-4)
+
+
 async def test_the_candidate_set_is_bounded_and_published_only(db):
     sql = await _skill(db, "sql")
     family = JobFamily(key="rerank-candidates", label="Candidates", path="rerank-candidates")
@@ -549,11 +610,11 @@ async def test_the_candidate_set_is_bounded_and_published_only(db):
         )
         published.append(job)
 
-    all_candidates = await catalog_candidates(db, {sql.id}, k=100)
+    all_candidates = await catalog_candidates(db, {sql.id: 1.0}, k=100)
     assert len(all_candidates) == 30
-    bounded = await catalog_candidates(db, {sql.id}, k=RERANK_CANDIDATE_K)
+    bounded = await catalog_candidates(db, {sql.id: 1.0}, k=RERANK_CANDIDATE_K)
     assert len(bounded) == RERANK_CANDIDATE_K
-    published_only = await catalog_candidates(db, {sql.id}, k=100, published_only=True)
+    published_only = await catalog_candidates(db, {sql.id: 1.0}, k=100, published_only=True)
     assert len(published_only) == 28
     assert all(candidate.job.status == "published" for candidate in published_only)
     assert [candidate.code for candidate in published_only] == sorted(
@@ -576,7 +637,13 @@ async def test_mapping_features_are_bounded(db):
         .all()
     )
     candidates = [
-        CatalogCandidate(job=job, score=1.0 - index * 0.01, shared_skill_ids=shared_ids)
+        CatalogCandidate(
+            job=job,
+            skill=1.0 - index * 0.01,
+            title=0.0,
+            score=1.0 - index * 0.01,
+            shared_skill_ids=shared_ids,
+        )
         for index in range(8)
     ]
 
@@ -595,6 +662,7 @@ async def test_mapping_features_are_bounded(db):
     )
 
     assert len(features["candidates"]) == MAX_FEATURE_CANDIDATES
+    assert all(row["job_title"] == "Features Role" for row in features["candidates"])
     assert all(len(row["shared_skills"]) <= MAX_SHARED_SKILLS for row in features["candidates"])
     assert all(
         row["deterministic"] == round(row["deterministic"], 4) for row in features["candidates"]
@@ -621,11 +689,19 @@ async def test_the_real_match_records_the_space_key_and_per_view_scores(db, sour
     await db.flush()
     filler_a = await _skill(db, "real-filler-a")
     filler_b = await _skill(db, "real-filler-b")
+    filler_c = await _skill(db, "real-filler-c")
+    filler_d = await _skill(db, "real-filler-d")
     job = await _job(
         db,
         "quantum-pipeline-engineer",
         family,
-        [(sql, 10, "core"), (filler_a, 10, "core"), (filler_b, 10, "core")],
+        [
+            (sql, 10, "core"),
+            (filler_a, 10, "core"),
+            (filler_b, 10, "core"),
+            (filler_c, 10, "core"),
+            (filler_d, 10, "core"),
+        ],
         title="Quantum Pipeline Engineer",
         description="Builds quantum pipelines for the fleet.",
     )

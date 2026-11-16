@@ -463,8 +463,49 @@ def test_mcp_options_passthrough_and_secret_guard():
         )
 
 
-# ------------------------------------------------- required options guard (plan 173)
+def test_tool_options_enforce_a_bundle_declared_pattern():
+    """A bundle that pins a field's shape (`pattern`, e.g. a URL-path slug
+    interpolated raw) gets that shape enforced at save time — the form and
+    the gate reject it instead of the value reaching a URL builder. The
+    rule covers declared shapes on OPTIONAL fields too (the rest of the
+    optional knobs stay free-form), and the radar relax still wins because
+    the overlay replaces those values per sync."""
+    from types import SimpleNamespace
 
+    from app.core.errors import ValidationError
+    from app.extensions.builtin.mcp import ensure_source_tool_options
+
+    slug = "^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+    schema = {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string", "pattern": slug},
+            "location": {"type": "string", "pattern": f"^$|{slug}"},
+            "keywords": {"type": "string"},
+        },
+        "required": ["category"],
+    }
+
+    def source(options: dict, mode: str = "static"):
+        return SimpleNamespace(config={"options": json.dumps(options)}, query_mode=mode)
+
+    ensure_source_tool_options(source({"category": "it-jobs"}), schema)
+    ensure_source_tool_options(source({"category": "attiki--athens"}), schema)
+    ensure_source_tool_options(source({"category": "it-jobs", "location": ""}), schema)
+    ensure_source_tool_options(
+        source({"category": "it-jobs", "location": "attiki--athens"}), schema
+    )
+    for bad in ("IT Jobs", "../etc", "it-jobs?x=1", "it_jobs"):
+        with pytest.raises(ValidationError, match="pattern"):
+            ensure_source_tool_options(source({"category": bad}), schema)
+    with pytest.raises(ValidationError, match=r"\$\.location: .*pattern"):
+        ensure_source_tool_options(source({"category": "it-jobs", "location": "Athens"}), schema)
+    ensure_source_tool_options(
+        source({"category": "it-jobs", "location": "Athens"}, mode="radar"), schema
+    )
+
+
+# ------------------------------------------------- required options guard (plan 173)
 GUARD_MANIFEST = {
     "apiVersion": "extension/v1",
     "kind": "connector",

@@ -7,8 +7,7 @@ import { Taxonomy } from "@/pages/settings/Taxonomy";
 import { fetchTaxonomyStats } from "@/api/taxonomy";
 
 vi.mock("@/api/taxonomy", () => ({
-    fetchJobProposals: vi.fn().mockResolvedValue({ items: [], legacy_count: 0, next_cursor: null, total: 0 }),
-    regenerateJobProposals: vi.fn(),
+    fetchJobProposals: vi.fn().mockResolvedValue({ items: [], next_cursor: null, total: 0 }),
     fetchDuplicateJobTypes: vi.fn().mockResolvedValue({ groups: [] }),
     mergeJobTypes: vi.fn(),
   fetchInterests: vi.fn().mockResolvedValue([]),

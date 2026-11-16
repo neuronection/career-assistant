@@ -18,6 +18,23 @@ export const CONTRACT_VALUES = [
 ] as const;
 
 export const TRAVEL_VALUES = ["none", "occasional", "frequent"] as const;
+export const OPPORTUNITY_VALUES = [
+  "internship",
+  "placement_year",
+  "apprenticeship",
+  "graduate_scheme",
+  "insight_programme",
+  "part_time",
+  "full_time",
+  "contract",
+  "unknown",
+] as const;
+export const WORK_AUTH_VALUES = ["none", "sponsors", "case_by_case", "citizens_only"] as const;
+export const CLOSING_WINDOWS = [
+  { value: "7d", labelKey: "explore.closing.d7" },
+  { value: "30d", labelKey: "explore.closing.d30" },
+  { value: "90d", labelKey: "explore.closing.d90" },
+] as const;
 export const SCHEDULE_VALUES = [
   "shift_work",
   "on_call",
@@ -68,11 +85,17 @@ export interface Filters {
   extractedOnly: boolean;
   saved: boolean;
   seenExclude: boolean;
+  hideDuplicates: boolean;
   sort: string;
   contract: string[];
   contractExclude: string[];
   travel: string[];
   travelExclude: string[];
+  opportunityType: string[];
+  opportunityTypeExclude: string[];
+  workAuthorization: string[];
+  workAuthorizationExclude: string[];
+  closingWithin: string;
   schedule: string[];
   scheduleExclude: string[];
   orgs: string[];
@@ -101,11 +124,17 @@ export const DEFAULT_FILTERS: Filters = {
   extractedOnly: false,
   saved: false,
   seenExclude: false,
+  hideDuplicates: false,
   sort: "fit",
   contract: [],
   contractExclude: [],
   travel: [],
   travelExclude: [],
+  opportunityType: [],
+  opportunityTypeExclude: [],
+  workAuthorization: [],
+  workAuthorizationExclude: [],
+  closingWithin: "",
   schedule: [],
   scheduleExclude: [],
   orgs: [],
@@ -117,6 +146,11 @@ const VALUE_SETS: Record<string, ReadonlyArray<string>> = {
   contract_exclude: CONTRACT_VALUES,
   travel: TRAVEL_VALUES,
   travel_exclude: TRAVEL_VALUES,
+  opportunity_type: OPPORTUNITY_VALUES,
+  opportunity_type_exclude: OPPORTUNITY_VALUES,
+  work_authorization: WORK_AUTH_VALUES,
+  work_authorization_exclude: WORK_AUTH_VALUES,
+  closing_within: CLOSING_WINDOWS.map((option) => option.value),
   schedule: SCHEDULE_VALUES,
   schedule_exclude: SCHEDULE_VALUES,
   posted_within: POSTED_WINDOWS.map((option) => option.value),
@@ -186,11 +220,17 @@ export function parseFilters(params: URLSearchParams): Filters {
     extractedOnly: flag(params, "extracted_only"),
     saved: flag(params, "saved"),
     seenExclude: flag(params, "seen_exclude"),
+    hideDuplicates: flag(params, "hide_duplicates"),
     sort: sort === "relevance" && !q.trim() ? "fit" : sort,
     contract: axis(params, "contract"),
     contractExclude: axis(params, "contract_exclude"),
     travel: axis(params, "travel"),
     travelExclude: axis(params, "travel_exclude"),
+    opportunityType: axis(params, "opportunity_type"),
+    opportunityTypeExclude: axis(params, "opportunity_type_exclude"),
+    workAuthorization: axis(params, "work_authorization"),
+    workAuthorizationExclude: axis(params, "work_authorization_exclude"),
+    closingWithin: axis(params, "closing_within")[0] ?? "",
     schedule: axis(params, "schedule"),
     scheduleExclude: axis(params, "schedule_exclude"),
     orgs: params.getAll("org").filter(Boolean).slice(0, MAX_LIST),
@@ -228,6 +268,15 @@ export function toParams(filters: Filters): ExploreParams {
   if (filters.contractExclude.length) params.contract_exclude = filters.contractExclude.join(",");
   if (filters.travel.length) params.travel = filters.travel.join(",");
   if (filters.travelExclude.length) params.travel_exclude = filters.travelExclude.join(",");
+  if (filters.opportunityType.length)
+    params.opportunity_type = filters.opportunityType.join(",");
+  if (filters.opportunityTypeExclude.length)
+    params.opportunity_type_exclude = filters.opportunityTypeExclude.join(",");
+  if (filters.workAuthorization.length)
+    params.work_authorization = filters.workAuthorization.join(",");
+  if (filters.workAuthorizationExclude.length)
+    params.work_authorization_exclude = filters.workAuthorizationExclude.join(",");
+  if (filters.closingWithin) params.closing_within = filters.closingWithin;
   if (filters.schedule.length) params.schedule = filters.schedule.join(",");
   if (filters.scheduleExclude.length) params.schedule_exclude = filters.scheduleExclude.join(",");
   if (filters.orgs.length) params.org = filters.orgs;
@@ -235,6 +284,7 @@ export function toParams(filters: Filters): ExploreParams {
   if (filters.extractedOnly) params.extracted_only = true;
   if (filters.saved) params.saved = true;
   if (filters.seenExclude) params.seen_exclude = true;
+  if (filters.hideDuplicates) params.hide_duplicates = true;
   if (filters.sort !== "fit") params.sort = filters.sort;
   return params;
 }
@@ -282,10 +332,14 @@ export function countActive(filters: Filters): number {
   count += filters.source.length + filters.sourceExclude.length;
   count += filters.contract.length + filters.contractExclude.length;
   count += filters.travel.length + filters.travelExclude.length;
+  count += filters.opportunityType.length + filters.opportunityTypeExclude.length;
+  count += filters.workAuthorization.length + filters.workAuthorizationExclude.length;
+  if (filters.closingWithin) count++;
   count += filters.schedule.length + filters.scheduleExclude.length;
   count += filters.orgs.length + filters.orgsExclude.length;
   if (filters.extractedOnly) count++;
   if (filters.saved) count++;
   if (filters.seenExclude) count++;
+  if (filters.hideDuplicates) count++;
   return count;
 }

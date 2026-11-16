@@ -89,7 +89,7 @@ def test_extract_lists_coerce_suppressed_nulls():
     extract = PostingExtractOut.model_validate(
         {
             "skills": None,
-            "languages": None,
+            "language_requirements": None,
             "benefits": None,
             "responsibilities": None,
             "prerequisites": None,
@@ -99,7 +99,7 @@ def test_extract_lists_coerce_suppressed_nulls():
         }
     )
     assert extract.skills == []
-    assert extract.languages == []
+    assert extract.language_requirements == []
     assert extract.benefits == []
     assert extract.responsibilities == []
     assert extract.prerequisites == []
@@ -123,7 +123,7 @@ async def test_detail_survives_suppressed_extract_fields(
         PostingExtract(
             skills=[],
             field_confidence={
-                "languages": 0.1,
+                "language_requirements": 0.1,
                 "benefits": 0.1,
                 "responsibilities": 0.1,
                 "schedule_cues": 0.1,
@@ -132,17 +132,17 @@ async def test_detail_survives_suppressed_extract_fields(
     )
     await db.commit()
     await db.refresh(posting)
-    assert posting.extract["languages"] is None
+    assert posting.extract["language_requirements"] is None
 
     response = await client.get(f"/api/v1/postings/{posting.id}", headers=auth_headers)
     assert response.status_code == 200, response.text
     extract = response.json()["extract"]
-    assert extract["languages"] == []
+    assert extract["language_requirements"] == []
     assert extract["benefits"] == []
     assert extract["responsibilities"] == []
     assert extract["schedule_cues"] == []
     assert set(extract["_suppressed_fields"]) == {
-        "languages",
+        "language_requirements",
         "benefits",
         "responsibilities",
         "schedule_cues",

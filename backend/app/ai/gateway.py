@@ -27,6 +27,7 @@ from langchain_core.messages import (
 )
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import build_chat_model
@@ -332,6 +333,7 @@ async def _record(
     error: str = "",
     provider_type: str | None = None,
     model_name: str | None = None,
+    resolved: "ResolvedModel | None" = None,
     pack_key: str | None = None,
     pack_version: int | None = None,
     run_id: uuid.UUID | None = None,
@@ -346,14 +348,71 @@ async def _record(
     index) and never invents one. A row without tags keeps the column
     default ``{}``.
     """
+    from app.ai.model_pricing import resolve_price
+    from app.ai.model_pricing_data import MODEL_PRICING_COMPILED, MODEL_PRICING_ROWS
     from app.ai.prompt_versions import prompt_version
     from app.ai.tasks import task_tier
+    from app.models.ai_model import AIPriceOverride
+
+    provider_key = None
+    is_local = False
+    if resolved is not None:
+        provider_type = resolved.provider_type
+        model_name = resolved.model_name or model_name
+        provider_key = resolved.provider_key
+        is_local = resolved.is_local
+    usage_source = (
+        "provider"
+        if tokens_in is not None and tokens_out is not None
+        else "partial"
+        if tokens_in is not None or tokens_out is not None
+        else "unknown"
+    )
+    estimate_method = None
+    cost_micros = None
+    price_source = "unknown"
+    price_version = None
+    overrides = [
+        {
+            "providerRef": str(row.provider_ref) if row.provider_ref else None,
+            "provider": row.provider_key,
+            "model": row.model,
+            "match": row.match,
+            "inputMicrosPerMillion": int(row.input_micros_per_million),
+            "outputMicrosPerMillion": int(row.output_micros_per_million),
+            "metering": row.metering,
+            "id": str(row.id),
+            "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+        }
+        for row in (await db.execute(select(AIPriceOverride))).scalars()
+    ]
+    resolution = resolve_price(
+        rows=MODEL_PRICING_ROWS,
+        compiled=MODEL_PRICING_COMPILED,
+        model=model_name or model,
+        provider_key=provider_key,
+        provider_row_id=getattr(resolved, "provider_id", None) if resolved is not None else None,
+        is_local=is_local,
+        user_rows=overrides,
+        input_tokens=tokens_in,
+        output_tokens=tokens_out,
+    )
+    if resolution is not None:
+        cost_micros = resolution.cost_micros
+        price_source = resolution.source
+        price_version = resolution.price_version
 
     row = AIGeneration(
         user_id=user_id,
         task_type=task.value,
         provider=provider_type or "unknown",
         model=model_name or model,
+        provider_key=provider_key,
+        cost_micros=cost_micros,
+        usage_source=usage_source,
+        estimate_method=estimate_method,
+        price_source=price_source,
+        price_version=price_version,
         prompt=prompt[:4000],
         output=output,
         tokens_in=tokens_in,
@@ -543,7 +602,7 @@ async def ainvoke_structured[T: BaseModel](
                         latency,
                         "ok",
                         model_name=resolved.model_name,
-                        provider_type=resolved.provider_type,
+                        resolved=resolved,
                         pack_key=pack.key if pack else None,
                         pack_version=pack.version if pack else None,
                         run_id=run_id,
@@ -576,7 +635,7 @@ async def ainvoke_structured[T: BaseModel](
                     tokens_out,
                     latency,
                     "ok",
-                    provider_type=resolved.provider_type,
+                    resolved=resolved,
                     pack_key=pack.key if pack else None,
                     pack_version=pack.version if pack else None,
                     run_id=run_id,
@@ -775,7 +834,7 @@ async def ainvoke_agent(
                 usage.get("output_tokens"),
                 latency,
                 "ok",
-                provider_type=resolved.provider_type,
+                resolved=resolved,
                 pack_key=pack.key if pack else None,
                 pack_version=pack.version if pack else None,
                 run_id=run_id,
@@ -803,7 +862,7 @@ async def ainvoke_agent(
         latency,
         "error",
         last_error,
-        provider_type=resolved.provider_type,
+        resolved=resolved,
         run_id=run_id,
         run_stage=run_stage,
     )
@@ -1010,7 +1069,7 @@ class StructuredStream:
                 latency,
                 "ok",
                 model_name=resolved.model_name,
-                provider_type=resolved.provider_type,
+                resolved=resolved,
                 pack_key=pack.key if pack else None,
                 pack_version=pack.version if pack else None,
             )
@@ -1039,7 +1098,7 @@ class StructuredStream:
                             latency,
                             "error",
                             audit_error,
-                            provider_type=resolved.provider_type,
+                            resolved=resolved,
                         )
                 elif "AINotConfigured" not in self.error:
                     latency = (time.perf_counter() - started) * 1000
@@ -1055,7 +1114,7 @@ class StructuredStream:
                         latency,
                         "error",
                         audit_error,
-                        provider_type=resolved.provider_type,
+                        resolved=resolved,
                     )
             raise
 
@@ -1299,7 +1358,7 @@ async def embed_batches(
                     outcome.latency_ms,
                     "ok",
                     model_name=resolved.model_name,
-                    provider_type=resolved.provider_type,
+                    resolved=resolved,
                     run_id=run_id,
                     run_stage=run_stage,
                     metadata=batch.tags,
@@ -1453,7 +1512,7 @@ async def transcribe_audio(
             latency,
             status,
             error,
-            provider_type=resolved.provider_type,
+            resolved=resolved,
             model_name=resolved.model_name,
         )
         # Unlike the chat flow (a service commit follows the audit flush),

@@ -28,6 +28,7 @@ from app.models.enums import JobSkillImportance, JobSource
 from app.models.job_model import Job, JobFamily, JobSkill
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
+from app.services.postings import job_type_candidates as job_type_candidates_module
 from app.services.postings.change_journal import (
     RETAG_FIELDS,
     PostingChangeJournal,
@@ -36,6 +37,7 @@ from app.services.postings.change_journal import (
 from app.services.postings.mapping_outcome import (
     MappingOutcomeReason,
     MappingOutcomeState,
+    clear_mapping_review,
     write_mapping_outcome,
 )
 
@@ -113,24 +115,18 @@ def proposal_of(posting: JobPosting) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def proposal_version_predicate(dialect_name: str, *, legacy: bool = False):
-    """Rows whose ``job_proposal`` is an object at the given payload version.
+def proposal_version_predicate(dialect_name: str):
+    """Rows whose ``job_proposal`` is an object at ``proposal_version == 2``.
 
     The key's JSON *type* decides liveness, never mere presence (dismissal
-    stores an explicit JSON ``null``), and the v2 reader additionally
-    requires ``proposal_version == 2``. A v1 object has no version key, so
-    ``COALESCE(..., 1)`` makes it invisible to the queue (no-BC, plan 202
-    AD7) and selectable by the backfill (``legacy=True``).
+    stores an explicit JSON ``null``). The COALESCE keeps malformed/older
+    objects out of the live queue without keeping a v1 reader.
     """
     if dialect_name == "postgresql":
         version = "COALESCE((posting_facts -> 'job_proposal' ->> 'proposal_version')::int, 1)"
-        operator = "<>" if legacy else "="
-        return text(
-            f"jsonb_typeof(posting_facts -> 'job_proposal') = 'object' AND {version} {operator} 2"
-        )
+        return text(f"jsonb_typeof(posting_facts -> 'job_proposal') = 'object' AND {version} = 2")
     version = "COALESCE(json_extract(posting_facts, '$.job_proposal.proposal_version'), 1)"
-    operator = "<>" if legacy else "="
-    return text(f"json_type(posting_facts, '$.job_proposal') = 'object' AND {version} {operator} 2")
+    return text(f"json_type(posting_facts, '$.job_proposal') = 'object' AND {version} = 2")
 
 
 def pending_predicate(dialect_name: str):
@@ -141,15 +137,6 @@ def pending_predicate(dialect_name: str):
 def is_v2_proposal(proposal) -> bool:
     """True when a stored proposal object is the current payload shape."""
     return isinstance(proposal, dict) and proposal.get("proposal_version") == PROPOSAL_VERSION
-
-
-async def legacy_proposal_count(db: AsyncSession) -> int:
-    """Live v1 proposal objects (the backfill banner; no payload read)."""
-    from sqlalchemy import func
-
-    predicate = proposal_version_predicate(db.get_bind().dialect.name, legacy=True)
-    count = (await db.execute(select(func.count(JobPosting.id)).where(predicate))).scalar_one()
-    return int(count)
 
 
 #: Residual section labels some boards/extracts leave at the head of a
@@ -214,7 +201,10 @@ async def store_job_type_proposal(
     if not title_norm or len(skills) < MIN_PROPOSAL_SKILLS:
         return {"status": "skipped", "reason": "short_extract"}
 
-    candidates, exact = await candidates_module.job_type_candidates(db, posting, extract)
+    catalog = await candidates_module.load_title_catalog(db)
+    candidates, exact = await candidates_module.job_type_candidates(
+        db, posting, extract, catalog=catalog
+    )
     family_keys = await _proposal_family_context(db)
     language_name = "English"
     before = {"facts_summary": facts_summary(posting)}
@@ -303,6 +293,7 @@ async def store_job_type_proposal(
         rationale = proposal.rationale
         source = "proposer"
 
+    proposed_at = datetime.now(UTC)
     facts["job_proposal"] = {
         "proposal_version": PROPOSAL_VERSION,
         "action": action,
@@ -327,9 +318,10 @@ async def store_job_type_proposal(
         "needs_edit": needs_edit,
         "source": source,
         "extract_version": posting.extract_version,
-        "proposed_at": datetime.now(UTC).isoformat(),
+        "proposed_at": proposed_at.isoformat(),
     }
     posting.posting_facts = facts
+    posting.proposal_proposed_at = proposed_at
     flag_modified(posting, "posting_facts")
     PostingChangeJournal.record(
         db,
@@ -355,7 +347,7 @@ async def clear_job_proposal(
     reason: str,
     actor_ref: dict | None = None,
 ) -> bool:
-    """Clear a (legacy) proposal object with an explicit audit reason."""
+    """Clear a proposal object with an explicit audit reason."""
     from app.services.postings.change_journal import facts_summary
 
     value = (posting.posting_facts or {}).get("job_proposal")
@@ -367,6 +359,7 @@ async def clear_job_proposal(
     facts["job_proposal_cleared_at"] = datetime.now(UTC).isoformat()
     facts["job_proposal_cleared_reason"] = reason
     posting.posting_facts = facts
+    posting.proposal_proposed_at = None
     flag_modified(posting, "posting_facts")
     PostingChangeJournal.record(
         db,
@@ -483,22 +476,17 @@ class JobProposalService:
         )
         return int(total or 0)
 
-    async def legacy_count(self) -> int:
-        """Live v1 proposal objects (the backfill banner; no payload read)."""
-        from sqlalchemy import func
-
-        predicate = proposal_version_predicate(self.db.get_bind().dialect.name, legacy=True)
-        count = (
-            await self.db.execute(select(func.count(JobPosting.id)).where(predicate))
-        ).scalar_one()
-        return int(count)
-
-    async def duplicate_candidates(self, posting: JobPosting) -> list[dict]:
+    async def duplicate_candidates(
+        self,
+        posting: JobPosting,
+        *,
+        catalog: job_type_candidates_module.TitleCatalog | None = None,
+    ) -> list[dict]:
         """Near-duplicate published/draft types for the proposal's title."""
+        from app.core.job_titles import normalize_job_type_title
         from app.services.postings.job_type_text import (
             JOB_TYPE_NEAR_DUPLICATE_TRIGRAM,
             contains_title_tokens,
-            normalize_job_type_title,
             trigram_similarity,
         )
 
@@ -508,16 +496,16 @@ class JobProposalService:
         proposed_title = str(proposal.get("job_type") or "")
         if not proposed_title:
             return []
-        rows = (await self.db.execute(select(Job).where(Job.status != "retired"))).scalars().all()
+        catalog = catalog or await job_type_candidates_module.load_title_catalog(self.db)
         duplicates: list[dict] = []
-        for job in rows:
-            if normalize_job_type_title(job.title) == normalize_job_type_title(proposed_title):
+        for entry in catalog.non_retired:
+            if normalize_job_type_title(entry.title) == normalize_job_type_title(proposed_title):
                 score = 1.0
                 reason = "exact"
             else:
-                score = trigram_similarity(proposed_title, job.title)
-                if contains_title_tokens(job.title, proposed_title) or contains_title_tokens(
-                    proposed_title, job.title
+                score = trigram_similarity(proposed_title, entry.title)
+                if contains_title_tokens(entry.title, proposed_title) or contains_title_tokens(
+                    proposed_title, entry.title
                 ):
                     score = max(score, JOB_TYPE_NEAR_DUPLICATE_TRIGRAM)
                     reason = "containment"
@@ -527,8 +515,8 @@ class JobProposalService:
                     continue
             duplicates.append(
                 {
-                    "code": str(job.code),
-                    "title": str(job.title),
+                    "code": entry.code,
+                    "title": entry.title,
                     "score": round(score, 3),
                     "reason": reason,
                 }
@@ -631,6 +619,7 @@ class JobProposalService:
         facts["job_proposal"] = None
         facts["job_proposal_rejected_at"] = datetime.now(UTC).isoformat()
         posting.posting_facts = facts
+        posting.proposal_proposed_at = None
         flag_modified(posting, "posting_facts")
         PostingChangeJournal.record(
             self.db,
@@ -689,12 +678,10 @@ class JobProposalService:
         leaves no job, mapping or proposal mutation.
         """
         from app.ai.agents.job_generator import _slugify
+        from app.core.job_titles import normalize_job_type_title
         from app.schemas.job import JobCreate, JobSkillIn
         from app.services.catalog.job_service import JobService
-        from app.services.postings.job_type_text import (
-            job_type_title_issue,
-            normalize_job_type_title,
-        )
+        from app.services.postings.job_type_text import job_type_title_issue
 
         proposal = self._require_v2(posting)
         final_title = (title or str(proposal.get("job_type") or "")).strip()
@@ -753,6 +740,7 @@ class JobProposalService:
             source=JobSource.AI.value,
             status="published",
             commit=False,
+            allow_duplicate_title=allow_duplicate,
         )
 
         operation: dict[str, object] = {
@@ -769,7 +757,6 @@ class JobProposalService:
             user=user,
             reason=f"mapped by applying the job proposal ({job.code})",
             operation=operation,
-            clear_proposal=True,
         )
 
         await self.db.commit()
@@ -800,7 +787,6 @@ class JobProposalService:
                 "job_proposal": "mapped",
                 "catalog_job_code": job.code,
             },
-            clear_proposal=True,
         )
         await self.db.commit()
         await self.db.refresh(posting)
@@ -825,7 +811,6 @@ class JobProposalService:
             user=user,
             reason="manually mapped by a moderator",
             operation={"catalog_job_id": str(job.id), "catalog_job_code": job.code},
-            clear_proposal=False,
         )
         if commit:
             await self.db.commit()
@@ -908,16 +893,17 @@ class JobProposalService:
         user,
         reason: str,
         operation: dict,
-        clear_proposal: bool,
     ) -> None:
+        before_map = snapshot(posting, RETAG_FIELDS)
         facts = {**(posting.posting_facts or {})}
-        if clear_proposal:
-            facts["job_proposal"] = None
-            facts["job_proposal_applied_at"] = datetime.now(UTC).isoformat()
-            facts["job_proposal_applied_code"] = job.code
+        facts["job_proposal"] = None
+        facts["job_proposal_applied_at"] = datetime.now(UTC).isoformat()
+        facts["job_proposal_applied_code"] = job.code
         posting.posting_facts = facts
         flag_modified(posting, "posting_facts")
-        before_map = snapshot(posting, RETAG_FIELDS)
+        posting.proposal_proposed_at = None
+        posting.mapping_margin = None
+        clear_mapping_review(posting)
         posting.catalog_job_id = job.id
         posting.mapping_method = "manual"
         posting.mapping_confidence = 1.0

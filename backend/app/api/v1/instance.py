@@ -6,19 +6,29 @@ render on the login gate), so the route is session-exempt
 `PROFILE_BIND_EXEMPT_PREFIXES` in main.py) and stays product-owned: it
 reads the family-normative `instance_settings` through the auth kit's
 live instance state (identity-auth §4/§13, fail-closed) plus the kit's
-registration flag — nothing else.
+registration flag and — on the desktop identity only — the one-time
+datastore-break marker (family datastore-breaks contract).
 """
 
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from nx_auth.instance import effective_auth_mode
+from nx_auth.instance import IdentityMode, effective_auth_mode
 from pydantic import BaseModel
 
 from app import __version__
 from app.core.version_check import check_update
+from app.storage.datastore_guard import read_marker
 
 router = APIRouter(prefix="/instance", tags=["instance"])
+
+
+class QuarantineOut(BaseModel):
+    path: str
+    reason: str
+    quarantined_at: str
+    schema_revision: str | None = None
+    from_version: str | None = None
 
 
 class InstanceConfigOut(BaseModel):
@@ -26,12 +36,31 @@ class InstanceConfigOut(BaseModel):
     auth_mode: str
     registration_enabled: bool
     identity_mode: str
+    datastore_quarantine: QuarantineOut | None = None
 
 
 @router.get("/config", response_model=InstanceConfigOut)
 def get_instance_config(request: Request) -> dict[str, object]:
     kit = request.app.state.auth
     state = kit.state
+    # Desktop-only: a local filesystem path is never public fact in server
+    # mode (family datastore-breaks contract).
+    marker = (
+        read_marker(request.app.state.settings.data_dir)
+        if kit.config.identity_mode == IdentityMode.DESKTOP
+        else None
+    )
+    quarantine = (
+        QuarantineOut(
+            path=str(marker["path"]),
+            reason=str(marker["reason"]),
+            quarantined_at=str(marker["quarantined_at"]),
+            schema_revision=marker.get("schema_revision"),
+            from_version=marker.get("from_version"),
+        )
+        if marker
+        else None
+    )
     return {
         "demo_mode": state.demo_mode,
         "auth_mode": effective_auth_mode(state).value,
@@ -40,6 +69,7 @@ def get_instance_config(request: Request) -> dict[str, object]:
         # §4.5 control needs it to mark server instances as permanently
         # authenticated ("Remove login" is never offered there).
         "identity_mode": kit.config.identity_mode,
+        "datastore_quarantine": quarantine,
     }
 
 

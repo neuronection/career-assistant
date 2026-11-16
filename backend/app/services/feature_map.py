@@ -131,10 +131,58 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             prompt_hint=("education: stated level + field, only when the text says so."),
         ),
         FeatureRow(
-            "languages",
-            "Spoken-language requirements",
+            "language_requirements",
+            "Spoken-language requirements with level",
             ("facts_write",),
-            prompt_hint="languages: required spoken languages.",
+            prompt_hint=(
+                "language_requirements: each required spoken language as "
+                "an ISO 639-1 two-letter code (en, de, el…) + level "
+                "(basic/intermediate/advanced/native) with a verbatim "
+                "evidence_quote — only when the posting states the "
+                "language and its level cue."
+            ),
+        ),
+        FeatureRow(
+            "work_authorization",
+            "Work-authorization / sponsorship signal",
+            ("facts_write",),
+            prompt_hint=(
+                "work_authorization: status none (cannot sponsor), sponsors, "
+                "case_by_case, or citizens_only + a verbatim evidence_quote; "
+                "omit it when the posting does not say."
+            ),
+        ),
+        FeatureRow(
+            "grade_requirement",
+            "Academic-grade cutoff",
+            ("facts_write",),
+            prompt_hint=(
+                "grade_requirement: scale (uk_honours/gpa_4/gpa_10/de_note/"
+                "percentage/other) + the raw numeric value + a verbatim "
+                "evidence_quote; never convert between scales."
+            ),
+        ),
+        FeatureRow(
+            "opportunity_type",
+            "Student opportunity type",
+            ("facts_write",),
+            prompt_hint=(
+                "opportunity_type: internship/placement_year/apprenticeship/"
+                "graduate_scheme/insight_programme/part_time/full_time/"
+                "contract/unknown when the posting makes the programme type "
+                "explicit; distinct from employment_type."
+            ),
+        ),
+        FeatureRow(
+            "application_deadline",
+            "Explicit application deadline",
+            ("facts_write",),
+            prompt_hint=(
+                "application_deadline: an explicit calendar date only "
+                "(YYYY-MM-DD) taken from the posting's own words; omit "
+                'relative phrases like "apply by Friday". No separate '
+                "evidence_quote field — the date must be stated verbatim."
+            ),
         ),
         FeatureRow(
             "prerequisites",

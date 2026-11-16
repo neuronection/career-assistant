@@ -1,6 +1,7 @@
 """Posting API schemas (Phase 26)."""
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -97,7 +98,7 @@ class PostingExtractPrerequisiteOut(BaseModel):
 
 class PostingExtractBenefitOut(BaseModel):
     """Typed benefit: `kind` powers display grouping, `raw` keeps the
-    original wording. Stored plain strings (legacy extract rows) coerce
+    original wording. Stored plain strings (pre-migration extract rows) coerce
     to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
     precedent."""
 
@@ -140,13 +141,40 @@ class PostingExtractOnsiteOut(BaseModel):
     confidence: float | None = None
 
 
+class PostingExtractWorkAuthorizationOut(BaseModel):
+    status: str
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractLanguageOut(BaseModel):
+    code: str
+    level: str
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class PostingExtractGradeOut(BaseModel):
+    scale: str
+    value: float
+    evidence_quote: str = ""
+    confidence: float | None = None
+
+
+class GateOverrideIn(BaseModel):
+    """One per-posting eligibility override ("apply anyway")."""
+
+    gate: Literal["visa", "language", "grade"]
+    allow: bool = True
+
+
 class PostingExtractOut(BaseModel):
     """The posting's structured extraction payload (pipeline-written
     JSONB, envelope-typed since plan 123.4).
 
     Read coercion is part of the contract: ``apply_extract`` suppresses
     low-confidence fields to ``null`` (``_suppressed_fields`` names
-    them) and legacy rows stored plain-string benefits, so lists
+    them) and pre-migration rows stored plain-string benefits, so lists
     normalize to ``[]`` and benefit strings to ``kind="other"`` instead
     of failing whole postings on read."""
 
@@ -160,7 +188,7 @@ class PostingExtractOut(BaseModel):
     location: PostingExtractLocationOut | None = None
     salary: PostingExtractSalaryOut | None = None
     education: PostingExtractEducationOut | None = None
-    languages: list[str] = Field(default_factory=list)
+    language_requirements: list[PostingExtractLanguageOut] = Field(default_factory=list)
     prerequisites: list[PostingExtractPrerequisiteOut] = Field(default_factory=list)
     benefits: list[PostingExtractBenefitOut] = Field(default_factory=list)
     responsibilities: list[PostingExtractResponsibilityOut] = Field(default_factory=list)
@@ -170,11 +198,15 @@ class PostingExtractOut(BaseModel):
     schedule_cues: list[PostingExtractScheduleCueOut] = Field(default_factory=list)
     travel_required: PostingExtractTravelOut | None = None
     onsite_policy: PostingExtractOnsiteOut | None = None
+    work_authorization: PostingExtractWorkAuthorizationOut | None = None
+    grade_requirement: PostingExtractGradeOut | None = None
+    opportunity_type: str | None = None
+    application_deadline: date | None = None
     values_cues: list[str] = Field(default_factory=list)
     field_confidence: dict[str, float] = Field(default_factory=dict)
 
     @field_validator(
-        "languages",
+        "language_requirements",
         "prerequisites",
         "responsibilities",
         "skills",
@@ -227,6 +259,52 @@ class PostingMatchOut(BaseModel):
     inputs_hash: str = ""
 
 
+GapStatus = Literal["met", "partial", "missing"]
+
+
+class PostingGapEvidenceOut(BaseModel):
+    """One user-side evidence ref on a gap row (plan 212 S1.1).
+
+    A display ref, not a lookup key: `source` names the evidence ledger
+    kind (experience / assessment / cv_document), `label` the item's
+    own title when it has one. The frontend localizes the source kind;
+    the label is the user's own data."""
+
+    source: str = Field(min_length=1, max_length=30)
+    label: str = Field(default="", max_length=120)
+
+
+class PostingGapRowOut(BaseModel):
+    """One requirement row of the evidence-first gap report.
+
+    `raw_label` is the posting's verbatim wording — a label that never
+    resolved to a taxonomy key keeps its row (`skill_key`/`label` null)
+    but carries no quote: the quote joins on the resolved key. There is
+    deliberately no score field on this surface."""
+
+    raw_label: str = Field(max_length=200)
+    skill_key: str | None = None
+    label: str | None = None
+    required_level: int | None = Field(default=None, ge=0, le=10)
+    user_level: int | None = Field(default=None, ge=0, le=10)
+    status: GapStatus
+    priority: str = Field(default="bonus", max_length=20)
+    kind: str = Field(default="skill", max_length=20)
+    evidence_quote: str = Field(default="", max_length=400)
+    user_evidence: list[PostingGapEvidenceOut] = Field(default_factory=list, max_length=4)
+
+
+class PostingGapOut(BaseModel):
+    """The posting gap report (plan 212 S1.1): requirements grouped by
+    the extractor's closed priority vocabulary, each row evidence-backed
+    or explicitly bare. NOT a match score — the match card lives on its
+    own and is never duplicated here."""
+
+    must_have: list[PostingGapRowOut] = Field(default_factory=list, max_length=40)
+    nice_to_have: list[PostingGapRowOut] = Field(default_factory=list, max_length=40)
+    bonus: list[PostingGapRowOut] = Field(default_factory=list, max_length=40)
+
+
 class PostingSimilarOut(BaseModel):
     ref: str
     title: str
@@ -257,6 +335,9 @@ class PostingOut(BaseModel):
     url: str
     seniority: str | None = None
     employment_type: str | None = None
+    work_authorization: str | None = None
+    opportunity_type: str | None = None
+    application_deadline: date | None = None
     contract_type: str | None = None
     work_hours: str | None = None
     hours_per_week_min: float | None = None
@@ -276,6 +357,10 @@ class PostingOut(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     status: str
+    repost_count: int = 0
+    last_verified_at: datetime | None = None
+    duplicate_of_id: UUID | None = None
+    trust_flags: dict = Field(default_factory=dict)
     catalog_job_id: UUID | None = None
     mapping_method: str | None = None
     mapping_confidence: float | None = None
@@ -299,9 +384,16 @@ class PostingOut(BaseModel):
     skills: list[PostingSkillRefOut] = Field(default_factory=list)
 
 
+class PostingSafetyFlagOut(BaseModel):
+    key: str
+    label: str
+    evidence: str = ""
+
+
 class PostingDetailOut(PostingOut):
     """Detail view: full extract, source attribution, the
-    match-score card and the similar-postings rail."""
+    match-score card, the evidence-first gap report and the
+    similar-postings rail."""
 
     description: str = ""
     extract: PostingExtractOut | None = None
@@ -309,7 +401,10 @@ class PostingDetailOut(PostingOut):
     source_connector: str = ""
     source_synced_at: datetime | None = None
     match: PostingMatchOut | None = None
+    gap: PostingGapOut | None = None
     similar: list[PostingSimilarOut] = Field(default_factory=list)
+    gate_overrides: dict[str, bool] = Field(default_factory=dict)
+    safety_flags: list[PostingSafetyFlagOut] = Field(default_factory=list)
 
 
 class PostingSearchOut(BaseModel):
@@ -340,6 +435,7 @@ class ExploreOut(BaseModel):
     total: int
     next_cursor: str | None = None
     facets: dict[str, dict[str, int]] = Field(default_factory=dict)
+    job_titles: dict[str, str] = Field(default_factory=dict)
 
 
 class SeenIn(BaseModel):

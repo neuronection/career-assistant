@@ -12,6 +12,16 @@ from app import __version__
 APP_NAME: str = "Career Assistant"
 
 _DEV_ENVS = ("development", "test", "testing")
+DEFAULT_EXPORT_MAX_MB: int = 1024
+
+
+class SplitCredentialConfigError(RuntimeError):
+    """The broken half-configured credential split (ADR-0064 §4).
+
+    `CAREER_DB_SPLIT=1` without `CAREER_MIGRATIONS_DATABASE_URL` — the
+    process would serve under app-role expectations with no owner path
+    to provision the schema. Refuse to boot; never fall back silently.
+    """
 
 
 def _resolve_env_file() -> str | None:
@@ -124,13 +134,44 @@ class Settings(BaseSettings):
     # --- §16 auth knobs (routed into the auth-kit config via
     # nx_auth.config.knob_overrides — field names mirror the kit's
     # `<CAREER_>…` env suffixes verbatim).
-    cookie_secure: bool = False
+    # `cookie_secure: None` means *derive* (plan 64 §1.6 / ADR-0062 §9):
+    # from the public scheme of `public_url`, else `tls`. An explicit
+    # `CAREER_COOKIE_SECURE` always wins so a LAN/VPN HTTP deployment can
+    # pin it off. The kit receives the resolved value (install.py), never
+    # the None sentinel.
+    cookie_secure: bool | None = None
+    public_url: str | None = None
+    tls: bool = False
     auth_access_ttl_minutes: int = 60
     auth_refresh_ttl_days: int = 7
     auth_refresh_absolute_days: int = 30
     auth_lockout_threshold: int = 5
     auth_lockout_minutes: int = 15
     trusted_proxy_count: int = 0
+
+    # --- DB credential split (ADR-0064) --------------------------------
+    # Server deployments run two roles: the owner (DDL/migrations, used by
+    # the one-shot `migrate` mode only) and the app role (DML only, used
+    # by serve/worker paths). Tri-state:
+    #   legacy — neither marker below is set: one role serves and may
+    #     DDL (loud boot warning in production; not managed-ready);
+    #   split  — `CAREER_MIGRATIONS_DATABASE_URL` + `CAREER_DB_SPLIT=1`:
+    #     the app role is DML-only; runtime code never issues DDL and the
+    #     checkpointer opens without `setup()` (schema comes from migrate);
+    #   broken — `CAREER_DB_SPLIT=1` without the migrations URL: refuse to
+    #     boot (no silent fallback), enforced by `db_credential_mode`.
+    # The owner DSN (`migrations_database_url`) is only ever injected into
+    # the migrate service; the serving container never sees it.
+    migrations_database_url: str | None = None
+    db_split: bool = False
+    # Serving processes use the DML-only app role and skip runtime DDL.
+    # They must NOT carry the owner/migrations URL.
+    db_app_role: bool = False
+    # The app role the migrate mode provisions/grants (split mode). The
+    # serving container receives the full app DSN instead of these parts;
+    # `db_password` mirrors the deployment env var `CAREER_DB_PASSWORD`.
+    db_app_user: str | None = None
+    db_password: str | None = None
 
     # AI providers/models/assignments are configured exclusively through the
     # UI (Settings → AI Configuration) and stored in the database. There are
@@ -158,6 +199,45 @@ class Settings(BaseSettings):
 
     upload_dir: str = "uploads"
     max_upload_mb: int = 25
+    # Data-export archives are a different object class: one export bundles
+    # every document a user owns, so the per-upload cap must not bound it.
+    # Default and ceiling are the contract hard maximum (1024 MB).
+    export_max_mb: int = Field(default=DEFAULT_EXPORT_MAX_MB, ge=1, le=1024)
+
+    # --- Family object storage (ADR-0057 / plan 55) --------------------
+    # Pydantic loads these from `.env`/OS env with the `CAREER_` prefix; the
+    # storage bootstrap maps the resolved values into the contract (it never
+    # reads `os.environ` directly, so `.env` values reach it). Desktop stays
+    # local-only; a cloud profile is object storage only.
+    cloud_profile: str | None = None
+    object_storage_backend: str | None = None
+    object_storage_required: bool | None = None
+    object_storage_local_root: Path | None = None
+    object_storage_max_mb: int | None = None
+    object_storage_presign_ttl: int | None = None
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_session_token: str | None = None
+    s3_path_style: bool | None = None
+    s3_sse: str | None = None
+    s3_kms_key_id: str | None = None
+    s3_prefix: str | None = None
+    s3_verify_tls: bool | None = None
+    s3_connect_timeout: float | None = None
+    s3_read_timeout: float | None = None
+    s3_max_attempts: int | None = None
+    azure_storage_container: str | None = None
+    azure_storage_connection_string: str | None = None
+    azure_storage_account_url: str | None = None
+    azure_storage_account_name: str | None = None
+    azure_storage_credential: str | None = None
+    azure_storage_prefix: str | None = None
+    azure_connect_timeout: float | None = None
+    azure_read_timeout: float | None = None
+    azure_max_attempts: int | None = None
 
     # Opt-in local OCR fallback: used only when no vision-capable
     # AI provider is configured and the tesseract binary is installed.
@@ -287,15 +367,140 @@ class Settings(BaseSettings):
         """Unknown entrypoint values fail closed to `server` (§4)."""
         return parse_identity_mode(None if value is None else str(value))
 
+    @field_validator("export_max_mb", mode="before")
+    @classmethod
+    def _empty_export_cap_uses_the_default(cls, value: object) -> object:
+        """Compose renders ``${CAREER_EXPORT_MAX_MB:-}`` as an empty string.
+
+        An unset/blank value means "use the default export ceiling", not a
+        validation error; the integer bounds still apply to explicit values.
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return DEFAULT_EXPORT_MAX_MB
+        return value
+
+    @field_validator("cookie_secure", "public_url", mode="before")
+    @classmethod
+    def _empty_values_are_unset(cls, value: object) -> object:
+        """Compose passes ``${VAR:-}`` as an empty string; treat it as unset.
+
+        `cookie_secure=""` must mean "derive from the public scheme" (the
+        deployment default), never a parse error or a pinned False.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator(
+        "cloud_profile",
+        "object_storage_backend",
+        "object_storage_required",
+        "object_storage_local_root",
+        "object_storage_max_mb",
+        "object_storage_presign_ttl",
+        "s3_bucket",
+        "s3_region",
+        "s3_endpoint_url",
+        "s3_access_key_id",
+        "s3_secret_access_key",
+        "s3_session_token",
+        "s3_path_style",
+        "s3_sse",
+        "s3_kms_key_id",
+        "s3_prefix",
+        "s3_verify_tls",
+        "s3_connect_timeout",
+        "s3_read_timeout",
+        "s3_max_attempts",
+        "azure_storage_container",
+        "azure_storage_connection_string",
+        "azure_storage_account_url",
+        "azure_storage_account_name",
+        "azure_storage_credential",
+        "azure_storage_prefix",
+        "azure_connect_timeout",
+        "azure_read_timeout",
+        "azure_max_attempts",
+        mode="before",
+    )
+    @classmethod
+    def _empty_storage_values_are_unset(cls, value: object) -> object:
+        """Compose passes ``${VAR:-}`` as an empty string; treat it as unset."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @property
     def upload_path(self) -> Path:
         """Upload directory as a path (absolute when configured absolute)."""
         return Path(self.upload_dir).expanduser()
 
     @property
+    def upload_root(self) -> Path:
+        """The upload directory as an absolute path.
+
+        The store's local root and the legacy `<upload_dir>/<id><ext>` read
+        fallback must resolve to the same tree, so a relative
+        `CAREER_UPLOAD_DIR` is anchored at the process working directory —
+        exactly how the pre-contract code resolved it.
+        """
+        path = self.upload_path
+        return path if path.is_absolute() else (Path.cwd() / path)
+
+    @property
+    def sqlite_path(self) -> Path | None:
+        """The local SQLite datastore file; `None` on the PostgreSQL profile.
+
+        File-based only — the fileless (`:memory:`) test profiles have no
+        datastore to quarantine or back up.
+        """
+        prefix = "sqlite+aiosqlite:///"
+        if not self.database_url.startswith(prefix):
+            return None
+        raw = self.database_url[len(prefix) :].split("?", 1)[0]
+        if not raw or raw == ":memory:":
+            return None
+        return Path(raw)
+
+    @property
     def cors_origin_list(self) -> list[str]:
         """CORS origins as a list."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def effective_cookie_secure(self) -> bool:
+        """The cookie `Secure` truth: explicit override, else derived.
+
+        Derived from the public scheme of `public_url` (ADR-0062 §9 /
+        plan 64 §1.6) — `https://` pins Secure, `http://` keeps LAN/VPN
+        login working — falling back to the `CAREER_TLS=1` escape hatch.
+        Never hard-coded `true`: a cookie marked Secure silently drops on
+        plain-HTTP LAN deployments.
+        """
+        if self.cookie_secure is not None:
+            return self.cookie_secure
+        if self.public_url:
+            return self.public_url.strip().lower().startswith("https://")
+        return self.tls
+
+    @property
+    def db_credential_mode(self) -> str:
+        """`legacy` | `split` (ADR-0064 §4).
+
+        `split` requires BOTH the migrations URL and the `CAREER_DB_SPLIT`
+        marker; the marker alone is the broken half-configured state and
+        **refuses to boot** — a serving process must never silently fall
+        back to a role that cannot reach the schema the split promises.
+        """
+        if self.db_split and not self.migrations_database_url:
+            raise SplitCredentialConfigError(
+                "CAREER_DB_SPLIT=1 is set without CAREER_MIGRATIONS_DATABASE_URL — "
+                "half-configured credential split. Set the owner migrations URL "
+                "(migrate service only) or use CAREER_DB_APP_ROLE=1 for serving."
+            )
+        if self.db_split or self.db_app_role:
+            return "split"
+        return "legacy"
 
     @property
     def is_dev(self) -> bool:

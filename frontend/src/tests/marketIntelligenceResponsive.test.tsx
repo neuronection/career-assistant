@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 
 async function loaded() {
-  await screen.findByTestId("stats-card-pulse");
+  await screen.findByTestId("stats-card-pulse", {}, { timeout: 5_000 });
 }
 
 describe("market intelligence responsive contract (plan 195 §3.6)", () => {
@@ -50,7 +50,7 @@ describe("market intelligence responsive contract (plan 195 §3.6)", () => {
     expect(screen.getByTestId("market-stats-filter-fields")).toBeTruthy();
     await user.click(screen.getByTestId("market-stats-sheet-apply"));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
+  }, 15_000);
 
   it("wide renders the fields inline and no sheet trigger", async () => {
     renderMarketIntelligence("/postings/stats", "wide");

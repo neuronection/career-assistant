@@ -95,7 +95,7 @@ async def _resolve_basics(
             .first()
         )
         if document is not None:
-            photo_uri = photo_data_uri(document)
+            photo_uri = await photo_data_uri(document)
     location = ", ".join(
         part for part in (basics.get("city") or "", basics.get("country") or "") if part
     )

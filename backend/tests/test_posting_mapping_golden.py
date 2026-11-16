@@ -1,7 +1,7 @@
 """The versioned posting↔catalog golden benchmark (plan 50 P2b/P2c.2, plan 164 §4).
 
 The fixture (``fixtures/posting_mapping_golden.json``, schema v2) is a
-public/synthetic corpus: 164 cases over 123 jobs and 13 families, built by
+public/synthetic corpus: 169 cases over 131 jobs and 13 families, built by
 keeping the original 17-case P2b slice and adding seven synthetic families
 covering clear deterministic matches, wrong deterministic winners,
 below-threshold lifts, margin/threshold abstentions, delta/blend boundary
@@ -18,8 +18,9 @@ twice: the deterministic baseline with both semantic switches off, then the
 rerank with ``catalog.semantic_rerank`` on and the rescue still off. It also
 asserts per-case parity with the in-memory calibration model so the committed
 sweep report (``fixtures/posting_mapping_calibration.json``) cannot drift from
-the real policy. ``candidate_recall@25`` is a real ceiling because 123 jobs
-exceed K=25.
+the real policy. ``candidate_recall@25`` is a real ceiling because 131 jobs
+exceed K=25. Plan 210 adds the coverage/title/neutral-title/priority cases and
+records the fixture re-tuning delta; the runtime rerank default stays OFF.
 """
 
 from __future__ import annotations
@@ -42,6 +43,8 @@ from app.services.postings.catalog_settings import (
     set_switch,
 )
 from app.services.postings.mapping_candidates import score_catalog_candidates
+from app.services.postings.mapping_outcome import MappingOutcomeReason
+from app.services.postings.mapping_score import TITLE_LAMBDA, posting_skill_weights
 from app.services.postings.postings_service import decide_catalog, upsert_posting
 from app.services.postings.semantic_rerank import RERANK_MARGIN
 from app.services.vector_retrieval_service import DocumentHit, RetrievalResult
@@ -130,6 +133,39 @@ async def _posting_skill_ids(db, posting: JobPosting) -> set:
         .scalars()
         .all()
     )
+
+
+async def _posting_weights(db, posting: JobPosting) -> dict:
+    return posting_skill_weights(
+        (
+            await db.execute(
+                select(
+                    PostingSkill.skill_id,
+                    PostingSkill.priority,
+                    PostingSkill.required_level,
+                ).where(PostingSkill.posting_id == posting.id)
+            )
+        ).all()
+    )
+
+
+async def _apply_posting_weights(db, posting: JobPosting, case: dict) -> None:
+    meta = case.get("skill_meta") or {}
+    if not meta:
+        return
+    rows = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    skill_keys = dict((await db.execute(select(Skill.id, Skill.key))).all())
+    for row in rows:
+        entry = meta.get(skill_keys.get(row.skill_id, ""))
+        if not entry:
+            continue
+        row.priority = entry.get("priority")
+        row.required_level = entry.get("level")
+    await db.flush()
 
 
 class _FakeIndexer:
@@ -230,13 +266,33 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
             posting.status = "mapped"
         elif case["kind"] == "terminal":
             posting.status = str(case["posting_status"])
+        else:
+            await _apply_posting_weights(db, posting, case)
         postings[case["id"]] = posting
+    await db.flush()
+
+    # The fixture's posting-side weights change the deterministic baseline;
+    # re-decide with both semantic switches OFF so the baseline is honest.
+    for case in fixture["cases"]:
+        if case["kind"] in {"manual", "terminal"}:
+            continue
+        posting = postings[case["id"]]
+        await decide_catalog(
+            db,
+            posting,
+            await _posting_skill_ids(db, posting),
+            defer_semantic=False,
+        )
     await db.flush()
 
     candidate_positions: dict[str, int | None] = {}
     for case in fixture["cases"]:
-        skill_ids = await _posting_skill_ids(db, postings[case["id"]])
-        candidates = await score_catalog_candidates(db, skill_ids)
+        posting = postings[case["id"]]
+        candidates = await score_catalog_candidates(
+            db,
+            await _posting_weights(db, posting),
+            posting_title=posting.title,
+        )
         codes = [candidate.code for candidate in candidates]
         expected = case.get("expected_job")
         candidate_positions[case["id"]] = codes.index(expected) if expected in codes else None
@@ -281,6 +337,7 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
     await set_switch(db, SEMANTIC_RERANK_KEY, True)
 
     reranked: list[dict] = []
+    outcome_reasons: dict[str, str | None] = {}
     for case in fixture["cases"]:
         if case["kind"] == "terminal":
             continue
@@ -288,7 +345,23 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
         skill_ids = await _posting_skill_ids(db, posting)
         await decide_catalog(db, posting, skill_ids)
         reranked.append(_outcome(posting, case, job_family, job_code, candidate_positions))
+        outcome_reasons[case["id"]] = posting.mapping_outcome_reason
     await db.flush()
+
+    # S1a names the delta: the inverted loader returns no candidates for a
+    # posting whose resolved skills share nothing with the catalog, so the
+    # honest outcome is no_candidate (the old full-catalog tail reported
+    # below_threshold). The fixture's 22 no_shared_skill rows split: one has a
+    # resolved-but-unmatched skill, the other 21 resolve no PostingSkill row at
+    # all and stay no_skills.
+    no_shared = [case["id"] for case in fixture["cases"] if case["kind"] == "no_shared_skill"]
+    assert len(no_shared) == 22
+    assert outcome_reasons["no-shared-skill"] == MappingOutcomeReason.NO_CANDIDATE.value
+    assert all(
+        outcome_reasons[case_id] == MappingOutcomeReason.NO_SKILLS.value
+        for case_id in no_shared
+        if case_id != "no-shared-skill"
+    )
 
     rerank_metrics = evaluate(reranked)
     report = {
@@ -303,9 +376,12 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
     # the deterministic baseline on precision/intent without regressing family
     # recall or candidate recall. The deterministic baseline keeps its known
     # wrong-winner and draft failures; the rerank corrects them.
-    assert baseline_metrics["precision@1"] <= 0.90, report
+    # Plan 210 S1b re-derives the old-formula floors from the regenerated
+    # report: the deterministic baseline keeps its known wrong/draft/lift
+    # failures, and the rerank must still show a measured benefit.
+    assert baseline_metrics["precision@1"] >= 0.60, report
     assert rerank_metrics["precision@1"] >= 0.95, report
-    assert rerank_metrics["precision@1"] >= baseline_metrics["precision@1"] + 0.05, report
+    assert rerank_metrics["precision@1"] >= baseline_metrics["precision@1"] + 0.30, report
     assert rerank_metrics["family_recall@1"] >= 0.95, report
     assert rerank_metrics["abstention"] <= 0.30, report
     assert rerank_metrics["abstention"] < baseline_metrics["abstention"], report
@@ -321,6 +397,7 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
         delta=RERANK_MARGIN,
         blend_deterministic=0.75,
         blend_semantic=0.25,
+        title_lambda=TITLE_LAMBDA,
     )
     simulated = {
         row["id"]: row
@@ -361,8 +438,8 @@ async def test_golden_mapping_benchmark(db, source, monkeypatch):
     assert postings["terminal-operations-hidden"].status == "hidden"
 
     features = postings["wrong-operations"].mapping_features
-    assert features["schema_version"] == 1
-    assert features["mapping_version"] == 2
+    assert features["schema_version"] == 2
+    assert features["mapping_version"] == 3
     assert features["space_key"] == "golden-space"
     assert features["policy"]["tau_job"] == 0.34
     assert features["policy"]["delta"] == RERANK_MARGIN

@@ -49,6 +49,13 @@ SLOT_LABELS: dict[str, str] = {
 MOCK_PROVIDER_NAME = "Built-in Mock (dev only)"
 
 
+def _is_local_url(url: str | None) -> bool:
+    from urllib.parse import urlparse
+
+    host = (urlparse(url or "").hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".local")
+
+
 @dataclass
 class ResolvedModel:
     """The effective model configuration for one AI task invocation."""
@@ -58,6 +65,9 @@ class ResolvedModel:
     api_key: str | None
     model_name: str
     source: str
+    provider_id: str | None = None
+    provider_key: str | None = None
+    is_local: bool = False
     temperature: float | None = None
     max_tokens: int | None = None
     reasoning_effort: str | None = None
@@ -230,6 +240,11 @@ async def _resolve_scanned(
                     api_key=provider.api_key,
                     model_name=model.model_name,
                     source=f"{scope}:{task}{source_suffix}",
+                    provider_id=str(provider.id),
+                    provider_key=provider.preset_key,
+                    is_local=bool(provider.is_local)
+                    if provider.is_local is not None
+                    else _is_local_url(provider.api_base),
                     temperature=model.temperature,
                     max_tokens=model.max_tokens,
                     reasoning_effort=model.reasoning_effort,
@@ -250,6 +265,11 @@ async def _resolve_scanned(
                     api_key=provider.api_key,
                     model_name=model.model_name,
                     source=f"{scope}:{task} (tier:{tier}){source_suffix}",
+                    provider_id=str(provider.id),
+                    provider_key=provider.preset_key,
+                    is_local=bool(provider.is_local)
+                    if provider.is_local is not None
+                    else _is_local_url(provider.api_base),
                     temperature=model.temperature,
                     max_tokens=model.max_tokens,
                     reasoning_effort=model.reasoning_effort,

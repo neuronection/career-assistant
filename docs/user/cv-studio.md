@@ -56,6 +56,12 @@ Precedence is always:
 - **Bullets are strictly two-layer:** per-item bullets variants replace an
   item's achievement list; overrides never carry achievements. See
   [Variant library](cv-variants.md).
+- **Check bullets** in the bullets editor runs a deterministic coach (no
+  AI): it flags a missing number, a duty-phrase opening ("responsible
+  for…"), passive voice, an over-long or very short line, and two bullets
+  that start with the same opening word. Findings render under each line; you
+  edit and save. The **Generate** action is separate and still produces
+  review-only chips.
 
 ## Listing at a glance
 
@@ -68,6 +74,18 @@ the import workspace, not here.
 
 - **ATS lint** with a one-click score report, opened from the toolbar's ATS
   score chip.
+- **Parser view** ("What a parser sees", beside the ATS chip) — prints your
+  current CV through the same engine as the PDF export and shows, verbatim,
+  **what our own extractor reads back**: each printed page's text with its
+  line count, plus deterministic findings — a missing text layer
+  (image-only export), contact details that did not survive extraction,
+  welded (joined) lines, a section order that deviates from the reading
+  order, pages over budget and empty pages. It is read-only, creates no
+  version and runs no AI; the panel says explicitly that this is **our
+  extractor reading our printed PDF — not a simulation of any ATS
+  product**. There is no score on this surface. Without the optional print
+  engine the read answers 503 and the panel shows the same "not installed"
+  message as the PDF export.
 - **Page-count meter** with over-budget warnings. The **printed PDF is the
   page-count truth** (measured by a real print engine), not an estimate.
 - **Versions** with text diff, image diff and restore.
@@ -76,8 +94,19 @@ the import workspace, not here.
 Drafts announce "review before exporting" — the app never pretends an
 unfinished CV is ready.
 
+## Tailoring from a posting: the kit
+
+The tailor action ("Tailor to posting" with its must-have coverage) also
+has a posting-side entry point: the [application kit](application-kit.md)
+(`Tailor & apply` on a posting) shows the same evidence-first requirement
+report and runs the **deterministic** comparison — missing sections and
+covered/missing levels as review cards that open the right CV here. The
+kit never writes into your CV and never drafts with AI; the writing
+proposals stay in the builder, where every one is a draft you approve.
+
 ## Related
 
+- [Application kit](application-kit.md)
 - [Templates and design](cv-design-and-templates.md)
 - [Variant library](cv-variants.md)
 - [Cover letters](cover-letters.md)

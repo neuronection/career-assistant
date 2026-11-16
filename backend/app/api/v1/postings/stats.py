@@ -23,11 +23,13 @@ from app.schemas.stats import (
     PostingStatsBreakdown,
     PostingStatsSkills,
     PostingStatsSummary,
+    SalaryBenchmarksOut,
     StatusBasis,
 )
 from app.services.catalog import company_stats_service
 from app.services.deps import get_current_user
 from app.services.postings import stats_dashboard_service, stats_service
+from app.services.postings.explore_service import compile_explore_filters
 
 router = APIRouter(tags=["postings-stats"], dependencies=[Depends(get_current_user)])
 
@@ -66,6 +68,64 @@ async def postings_stats_skills(
         date_to=date_to,
         status_basis=status_basis,
         limit=limit,
+    )
+
+
+@router.get("/postings/stats/salary-benchmarks", response_model=SalaryBenchmarksOut)
+async def postings_stats_salary_benchmarks(
+    request: Request,
+    window: str = WINDOW_QUERY,
+    date_from: datetime | None = FROM_QUERY,
+    date_to: datetime | None = TO_QUERY,
+    status_basis: str = BASIS_QUERY,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SalaryBenchmarksOut:
+    """Per job/family x country x seniority pay cells, with n and a floor."""
+    filter_keys = {
+        "source",
+        "org",
+        "mapped_family",
+        "seniority",
+        "remote_policy",
+        "employment_type",
+        "contract",
+        "education_min",
+        "city",
+        "country",
+        "skills",
+        "skill_mode",
+        "salary_min",
+        "q",
+    }
+    raw: dict = {}
+    for key in filter_keys:
+        values = request.query_params.getlist(key)
+        if not values:
+            continue
+        raw[key] = (
+            values
+            if len(values) > 1
+            or key
+            in {
+                "source",
+                "org",
+                "mapped_family",
+                "seniority",
+                "remote_policy",
+                "employment_type",
+                "contract",
+            }
+            else values[0]
+        )
+    _, conditions = await compile_explore_filters(db, raw, user.id)
+    return await stats_service.salary_benchmarks(
+        db,
+        window=window,
+        date_from=date_from,
+        date_to=date_to,
+        status_basis=status_basis,
+        extra=conditions,
     )
 
 

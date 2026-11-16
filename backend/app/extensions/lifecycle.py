@@ -975,7 +975,11 @@ def _resolve_source_secrets(source: ExtensionSource) -> str | None:
     return value or None
 
 
-def _source_view(source: ExtensionSource, installs: list[ExtensionInstall]) -> dict:
+def _source_view(
+    source: ExtensionSource,
+    installs: list[ExtensionInstall],
+    conditions: dict[str, list[str]] | None = None,
+) -> dict:
     descriptor = source.descriptor or {}
     candidates = []
     for candidate in source.candidates or []:
@@ -1007,11 +1011,13 @@ def _source_view(source: ExtensionSource, installs: list[ExtensionInstall]) -> d
         "last_success_at": source.last_success_at.isoformat() if source.last_success_at else None,
         "consecutive_failures": source.consecutive_failures,
         "candidates": candidates,
-        "installs": [_install_view(install) for install in installs],
+        "installs": [_install_view(install, conditions) for install in installs],
     }
 
 
-def _install_view(install: ExtensionInstall) -> dict:
+def _install_view(
+    install: ExtensionInstall, conditions: dict[str, list[str]] | None = None
+) -> dict:
     manifest = install.manifest or {}
     return {
         "id": str(install.id),
@@ -1024,6 +1030,7 @@ def _install_view(install: ExtensionInstall) -> dict:
         "originClass": "imported",
         "state": install.state,
         "enabled": install.enabled,
+        "conditions": (conditions or {}).get(str(install.id), []),
         "managedBy": install.managed_by,
         "parked": install.parked,
         "sourceKey": install.source_key,
@@ -1045,6 +1052,40 @@ async def _installs_for_source(db: AsyncSession, source_id: uuid.UUID) -> list[E
     return list(rows.scalars().all())
 
 
+async def _install_conditions(
+    db: AsyncSession, installs: list[ExtensionInstall]
+) -> dict[str, list[str]]:
+    """The charter's ``needs-config`` condition (``guidelines/extensions.md``
+    "Lifecycle, instances, status"): a connector install whose minted job
+    source's stored options no longer satisfy the bundle's own
+    ``configSchema`` — the SAME rule the enable gate enforces, reported here
+    instead of raised, never silently defaulted. Mini-app installs and
+    non-managed commands carry no condition (nothing to validate against)."""
+    from app.models.posting_model import JobSource
+
+    candidates = [
+        install
+        for install in installs
+        if (install.manifest or {}).get("kind") == "connector" and install.source_key
+    ]
+    if not candidates:
+        return {}
+    from app.extensions.builtin.mcp import source_tool_options_problem
+
+    keys = {str(install.source_key) for install in candidates}
+    rows = await db.execute(select(JobSource).where(JobSource.key.in_(keys)))
+    by_key = {row.key: row for row in rows.scalars().all()}
+    conditions: dict[str, list[str]] = {}
+    for install in candidates:
+        job_source = by_key.get(str(install.source_key))
+        schema = (install.manifest or {}).get("configSchema")
+        if job_source is None or job_source.connector_key != "mcp" or not isinstance(schema, dict):
+            continue
+        if source_tool_options_problem(job_source, schema) is not None:
+            conditions[str(install.id)] = ["needs-config"]
+    return conditions
+
+
 async def list_sources(db: AsyncSession) -> list[dict]:
     sources = (
         (await db.execute(select(ExtensionSource).order_by(ExtensionSource.created_at)))
@@ -1054,7 +1095,7 @@ async def list_sources(db: AsyncSession) -> list[dict]:
     views = []
     for source in sources:
         installs = await _installs_for_source(db, source.id)
-        views.append(_source_view(source, installs))
+        views.append(_source_view(source, installs, await _install_conditions(db, installs)))
     return views
 
 
@@ -1267,7 +1308,8 @@ async def update_source(
             }
         await db.commit()
         await db.refresh(source)
-        return _source_view(source, await _installs_for_source(db, source.id))
+        installs = await _installs_for_source(db, source.id)
+        return _source_view(source, installs, await _install_conditions(db, installs))
 
 
 async def remove_source(db: AsyncSession, source_id: uuid.UUID) -> dict:
@@ -1616,6 +1658,8 @@ async def _land_install(
         command = (
             f'"{_bundle_interpreter(source, subpath)}" "{content_dir / str(manifest.get("entry"))}"'
         )
+        mint_options = _tool_option_defaults(manifest)
+        options_json = json.dumps(mint_options) if mint_options else ""
         clash = await db.execute(select(JobSource).where(JobSource.key == source_key))
         existing_row = clash.scalars().first()
         if existing_row is None:
@@ -1631,6 +1675,7 @@ async def _land_install(
                     # budget (budget_seconds ≤ 90) plus spawn + pacing
                     # overhead — 30s died mid-run ("tool call timed out").
                     "timeout_seconds": 120,
+                    **({"options": options_json} if options_json else {}),
                 },
                 enabled=False,
             )
@@ -1642,6 +1687,8 @@ async def _land_install(
                     "invalid", f"a non-imported job source already owns the key {source_key!r}"
                 )
             existing_row.config = {**existing_row.config, "command": command}
+            if options_json and not existing_row.config.get("options"):
+                existing_row.config = {**existing_row.config, "options": options_json}
             existing_row.title = display_title
             existing_row.enabled = False
     elif kind == "connector" and tier == "T2":
@@ -1956,6 +2003,24 @@ def _default_config(manifest: dict) -> dict:
                 f"configSchema requires {field_name!r} but manifest defaults omit it — "
                 "the instance would install unconfigurable",
             )
+    return defaults
+
+
+def _tool_option_defaults(manifest: dict) -> dict:
+    """The T3 mint's starting tool ``options``: the manifest's declared
+    ``defaults`` map (the family's "initial values for configSchema
+    properties"), validated against the bundle's own configSchema — an
+    invalid default rejects the install, mirroring :func:`_default_config`.
+    Coverage is NOT enforced here: a bundle may legitimately demand a value
+    only the admin can choose (the install then carries ``needs-config``)."""
+    defaults = manifest.get("defaults") or {}
+    if not isinstance(defaults, dict):
+        raise LifecycleError("invalid", "manifest defaults is not an object")
+    schema = manifest.get("configSchema")
+    if defaults and isinstance(schema, dict):
+        err = contract.validate(schema, defaults, schema)
+        if err is not None:
+            raise LifecycleError("invalid", f"manifest defaults fail their configSchema: {err}")
     return defaults
 
 

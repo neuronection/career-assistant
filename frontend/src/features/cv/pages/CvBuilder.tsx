@@ -39,6 +39,7 @@ import { fetchTemplates } from "@/api/cvTemplates";
 import { fetchPostings } from "@/api/postings";
 import { fetchPhotoGallery, uploadGalleryPhoto, type GalleryPhoto } from "@/api/mePhoto";
 import { BuilderToolbar, EXPORT_FORMATS, type ExportFormat } from "@/features/cv/components/cv/BuilderToolbar";
+import { ParseViewDialog } from "@/features/cv/components/cv/ParseViewDialog";
 import { BuildProgressCard } from "@/features/cv/components/cv/BuildProgress";
 import { RunsPanelModal } from "@/features/cv/components/cv/RunsPanel";
 import { AiToolbarCluster } from "@/features/cv/components/cv/AiToolbarCluster";
@@ -140,6 +141,7 @@ export function CvBuilder() {
   const [loaded, setLoaded] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [parseViewOpen, setParseViewOpen] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tone, setTone] = useState("");
@@ -1435,6 +1437,7 @@ export function CvBuilder() {
           />
         }
         onOpenVersions={() => setVersionsOpen(true)}
+        onOpenParseView={() => setParseViewOpen(true)}
         onOpenRuns={() => setRunsOpen(true)}
         onOpenPolish={polishVersion ? () => setRunsOpen(true) : null}        onOpenPalette={() => setPaletteOpen(true)}
         onOpenAssistant={() => void openCvChat(id, "docked")}
@@ -1665,6 +1668,11 @@ export function CvBuilder() {
         onOpenChange={setRunsOpen}
         cv={cv}
         polishVersion={polishVersion}
+      />
+      <ParseViewDialog
+        cvId={id}
+        open={parseViewOpen}
+        onOpenChange={setParseViewOpen}
       />
       <Modal open={versionsOpen} onOpenChange={(open) => !open && setVersionsOpen(false)}>
         <ModalContent size="md" aria-describedby={undefined}>
@@ -1952,6 +1960,9 @@ export function CvBuilder() {
             const first = out.proposals[0];
             return first?.proposal.bullets ?? [];
           }}
+          onCheck={async (bullets) =>
+            (await aiAction(id, "bullet_review", { bullets })).bullet_checks
+          }
           onSave={(entries) => {
             const key = `${bulletsEditor.sourceKey}:${bulletsEditor.itemId}`;
             const variantId = bulletsEditorView.variantId;

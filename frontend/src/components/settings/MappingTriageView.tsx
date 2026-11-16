@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { ChevronDown, Eye, ExternalLink, MapPin } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  Eye,
+  ExternalLink,
+  MapPin,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 
 import {
   fetchMappingsQueue,
   fetchMappingsTrace,
   mappingActionError,
   mappingsExtract,
+  mappingsFetchDetail,
   mappingsGolden,
   mappingsIgnore,
   mappingsMap,
+  mappingsMapBulk,
   mappingsRedecide,
+  mappingsRepropose,
   mappingsResolve,
   mappingsReview,
   mappingsUnignore,
@@ -38,6 +49,7 @@ type BadgeTone = "default" | "success" | "warning" | "danger" | "secondary" | "o
 const STATE_TONE: Record<MappingFunnelState, BadgeTone> = {
   mapped: "success",
   ignored: "secondary",
+  detail_failed: "danger",
   no_description: "warning",
   detail_not_fetched: "warning",
   extract_failed: "danger",
@@ -54,6 +66,7 @@ const STATE_TONE: Record<MappingFunnelState, BadgeTone> = {
 
 const DETAIL_MODE_STATES = new Set<MappingFunnelState>([
   "not_extracted",
+  "detail_failed",
   "detail_not_fetched",
   "extract_failed",
 ]);
@@ -62,8 +75,9 @@ const IGNORE_REASONS = ["no_good_type", "multi_role", "not_a_job", "duplicate", 
 
 /**
  * The triage queue (plan 205 S3): filterable unmapped rows with the trace
- * drawer and the bounded bulk actions (extract, re-decide, map, unmap,
- * ignore, mark reviewed). Map is one posting at a time through the trace.
+ * drawer and the bounded row/bulk actions (detail now, extract, re-propose,
+ * re-decide, bulk map, unmap, ignore, mark reviewed). The trace keeps the
+ * single-posting map; the toolbar maps the whole selection.
  */
 export function MappingTriageView() {
   const { t } = useTranslation();
@@ -77,6 +91,8 @@ export function MappingTriageView() {
   const [trace, setTrace] = useState<MappingTrace | null>(null);
   const [traceLoading, setTraceLoading] = useState(false);
   const [mapJobId, setMapJobId] = useState<string | null>(null);
+  const [bulkMapOpen, setBulkMapOpen] = useState(false);
+  const [bulkMapJobId, setBulkMapJobId] = useState<string | null>(null);
   const [bulkNote, setBulkNote] = useState<string | null>(null);
   const [bulkFailures, setBulkFailures] = useState<string[]>([]);
   const [ignorePanel, setIgnorePanel] = useState(false);
@@ -149,8 +165,14 @@ export function MappingTriageView() {
     setBulkFailures([]);
     try {
       const result = await action(selectedIds);
-      setBulkNote(t("mappingsConsole.triage.bulkDone", { count: result.affected }));
+      setBulkNote(
+        t("mappingsConsole.triage.bulkDone", {
+          count: result.affected ?? result.queued ?? 0,
+        }),
+      );
       selection.exit();
+      setBulkMapOpen(false);
+      setBulkMapJobId(null);
       await load(filters, false);
     } catch (caught) {
       setBulkFailures([mappingActionError(caught)]);
@@ -188,6 +210,56 @@ export function MappingTriageView() {
     }
   };
 
+  const detailNow = async (id: string) => {
+    setBusy(true);
+    setBulkFailures([]);
+    try {
+      const result = await mappingsFetchDetail(id);
+      setBulkNote(
+        t("mappingsConsole.triage.detailDone", { fetched: result.fetched }),
+      );
+      await load(filters, false);
+    } catch (caught) {
+      setBulkFailures([mappingActionError(caught)]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryExtract = async (id: string) => {
+    setBusy(true);
+    setBulkFailures([]);
+    try {
+      const result = await mappingsExtract([id]);
+      setBulkNote(
+        t("mappingsConsole.triage.bulkDone", { count: result.queued ?? 0 }),
+      );
+      await load(filters, false);
+    } catch (caught) {
+      setBulkFailures([mappingActionError(caught)]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const repropose = async (id: string) => {
+    setBusy(true);
+    setBulkFailures([]);
+    try {
+      const result = await mappingsRepropose(id);
+      setBulkNote(
+        t("mappingsConsole.triage.reproposeDone", {
+          count: result.queued ? 1 : 0,
+        }),
+      );
+      await load(filters, false);
+    } catch (caught) {
+      setBulkFailures([mappingActionError(caught)]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const goldenFromTrace = async () => {
     if (!trace || !traceId) return;
     setBusy(true);
@@ -211,7 +283,7 @@ export function MappingTriageView() {
     <div className="space-y-3" data-testid="mappings-triage">
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-sm">
-          <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.stateFilter")}</span>
+          <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.stateFilter")}</span>
           <select
             aria-label={t("mappingsConsole.triage.stateFilter")}
             value={filters.state ?? ""}
@@ -230,7 +302,7 @@ export function MappingTriageView() {
           </select>
         </label>
         <label className="text-sm">
-          <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.sourceFilter")}</span>
+          <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.sourceFilter")}</span>
           <select
             aria-label={t("mappingsConsole.triage.sourceFilter")}
             value={filters.source ?? ""}
@@ -249,7 +321,7 @@ export function MappingTriageView() {
           </select>
         </label>
         <label className="text-sm">
-          <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.detailFilter")}</span>
+          <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.detailFilter")}</span>
           <select
             aria-label={t("mappingsConsole.triage.detailFilter")}
             value={filters.detail_state ?? ""}
@@ -268,7 +340,7 @@ export function MappingTriageView() {
           </select>
         </label>
         <label className="text-sm">
-          <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.reviewFilter")}</span>
+          <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.reviewFilter")}</span>
           <select
             aria-label={t("mappingsConsole.triage.reviewFilter")}
             value={String(filters.needs_review ?? "")}
@@ -287,6 +359,25 @@ export function MappingTriageView() {
             <option value="false">{t("mappingsConsole.triage.reviewClean")}</option>
           </select>
         </label>
+        <label className="text-sm">
+          <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.weakFilter")}</span>
+          <select
+            aria-label={t("mappingsConsole.triage.weakFilter")}
+            value={String(filters.weak ?? "")}
+            onChange={(event) =>
+              setFilters((current) => ({
+                ...current,
+                weak: event.target.value === "" ? "" : event.target.value === "true",
+                cursor: undefined,
+              }))
+            }
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+          >
+            <option value="">{t("mappingsConsole.triage.weakAll")}</option>
+            <option value="true">{t("mappingsConsole.triage.weakOnly")}</option>
+            <option value="false">{t("mappingsConsole.triage.weakExclude")}</option>
+          </select>
+        </label>
         <div className="w-48" data-testid="mappings-q-filter">
           <TextField
             label={t("mappingsConsole.triage.search")}
@@ -296,7 +387,7 @@ export function MappingTriageView() {
             }
           />
         </div>
-        <span className="text-sm text-slate-500" data-testid="mappings-total">
+        <span className="text-sm text-[var(--as-muted-fg)]" data-testid="mappings-total">
           {t("mappingsConsole.triage.total", { count: queue?.total ?? 0 })}
         </span>
         <span className="grow" />
@@ -329,6 +420,15 @@ export function MappingTriageView() {
             data-testid="mappings-bulk-redecide"
           >
             {t("mappingsConsole.triage.redecide")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy || selectedIds.length === 0}
+            onClick={() => setBulkMapOpen((open) => !open)}
+            data-testid="mappings-bulk-map-open"
+          >
+            {t("mappingsConsole.triage.mapSelected")}
           </Button>
           <Button
             variant="outline"
@@ -370,13 +470,45 @@ export function MappingTriageView() {
         />
       )}
 
+      {bulkMapOpen && selection.active && (
+        <div
+          className="flex flex-wrap items-end gap-2 rounded-lg border p-3"
+          data-testid="mappings-bulk-map-panel"
+        >
+          <div className="w-72">
+            <JobTypePicker
+              value={bulkMapJobId}
+              onChange={setBulkMapJobId}
+              disabled={busy}
+            />
+          </div>
+          <Button
+            size="sm"
+            disabled={busy || !bulkMapJobId}
+            onClick={() => {
+              if (!bulkMapJobId) return;
+              void runBulk(
+                (ids) => mappingsMapBulk(ids, bulkMapJobId),
+                t("mappingsConsole.triage.confirmMapSelected"),
+              );
+            }}
+            data-testid="mappings-bulk-map-confirm"
+          >
+            {t("mappingsConsole.triage.mapSelectedAction")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setBulkMapOpen(false)}>
+            {t("mappingsConsole.triage.cancel")}
+          </Button>
+        </div>
+      )}
+
       {ignorePanel && (
         <div
           className="flex flex-wrap items-end gap-2 rounded-lg border p-3"
           data-testid="mappings-ignore-panel"
         >
           <label className="text-sm">
-            <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.ignoreReason")}</span>
+            <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.ignoreReason")}</span>
             <select
               aria-label={t("mappingsConsole.triage.ignoreReason")}
               value={ignoreReason}
@@ -391,7 +523,7 @@ export function MappingTriageView() {
             </select>
           </label>
           <label className="grow text-sm">
-            <span className="mr-1 text-slate-500">{t("mappingsConsole.triage.ignoreNote")}</span>
+            <span className="mr-1 text-[var(--as-muted-fg)]">{t("mappingsConsole.triage.ignoreNote")}</span>
             <TextareaField
               label={t("mappingsConsole.triage.ignoreNote")}
               value={ignoreNote}
@@ -425,14 +557,14 @@ export function MappingTriageView() {
         <div className="space-y-1" data-testid="mappings-bulk-note">
           {bulkNote && <p className="text-sm text-slate-600">{bulkNote}</p>}
           {bulkFailures.map((failure) => (
-            <p key={failure} className="text-sm text-red-600">
+            <p key={failure} className="text-sm text-[var(--as-danger)]">
               {failure}
             </p>
           ))}
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
       {loading && items.length === 0 ? (
         <div className="flex justify-center py-8">
@@ -447,7 +579,7 @@ export function MappingTriageView() {
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm" data-testid="mappings-queue-table">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-[var(--as-muted-fg)]">
               <tr>
                 <th className="px-3 py-2">{t("mappingsConsole.triage.colPosting")}</th>
                 <th className="px-3 py-2">{t("mappingsConsole.triage.colSource")}</th>
@@ -479,10 +611,35 @@ export function MappingTriageView() {
                         {t("mappingsConsole.triage.needsReview")}
                       </Badge>
                     )}
+                    {row.weak && (
+                      <span data-testid="mapping-weak">
+                        <Badge variant="warning" className="ml-2">
+                          {t("mappingsConsole.triage.weakChip")}
+                        </Badge>
+                      </span>
+                    )}
                     {row.review && (
                       <Badge variant="secondary" className="ml-2">
                         {t(`mappingsConsole.reviewReason.${row.review.reason}`)}
                       </Badge>
+                    )}
+                    {row.proposal_state && (
+                      <span data-testid="mapping-proposal-state">
+                        <Badge
+                          variant={
+                            row.proposal_state === "failed"
+                              ? "danger"
+                              : row.proposal_state === "needs_edit"
+                                ? "warning"
+                                : "secondary"
+                          }
+                          className="ml-2"
+                        >
+                          {t("mappingsConsole.triage.proposalState", {
+                            state: row.proposal_state,
+                          })}
+                        </Badge>
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-600">
@@ -499,11 +656,44 @@ export function MappingTriageView() {
                       ? `${row.top_candidate.job_code} (${row.top_candidate.deterministic ?? "—"})`
                       : "—"}
                   </td>
-                  <td className="px-3 py-2 text-slate-500">
+                  <td className="px-3 py-2 text-[var(--as-muted-fg)]">
                     {row.created_at ? new Date(row.created_at).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        className="rounded p-1 text-slate-400 hover:text-slate-700"
+                        title={t("mappingsConsole.triage.detailNow")}
+                        aria-label={t("mappingsConsole.triage.detailNow")}
+                        disabled={busy}
+                        onClick={() => void detailNow(row.id)}
+                        data-testid={`mappings-detail-now-${row.ref}`}
+                      >
+                        <Download className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded p-1 text-slate-400 hover:text-slate-700"
+                        title={t("mappingsConsole.triage.retryExtract")}
+                        aria-label={t("mappingsConsole.triage.retryExtract")}
+                        disabled={busy}
+                        onClick={() => void retryExtract(row.id)}
+                        data-testid={`mappings-retry-extract-${row.ref}`}
+                      >
+                        <RefreshCw className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded p-1 text-slate-400 hover:text-slate-700"
+                        title={t("mappingsConsole.triage.repropose")}
+                        aria-label={t("mappingsConsole.triage.repropose")}
+                        disabled={busy}
+                        onClick={() => void repropose(row.id)}
+                        data-testid={`mappings-repropose-${row.ref}`}
+                      >
+                        <RotateCcw className="size-4" />
+                      </button>
                       {DETAIL_MODE_STATES.has(row.state) && (
                         <Link
                           to="/settings/tools?section=sources"
@@ -615,7 +805,7 @@ export function MappingTriageView() {
                 </Badge>
                 {trace.outcome.method && <Badge variant="secondary">{trace.outcome.method}</Badge>}
                 {trace.outcome.confidence != null && (
-                  <span className="text-slate-500">
+                  <span className="text-[var(--as-muted-fg)]">
                     {t("mappingsConsole.triage.confidence", {
                       value: (trace.outcome.confidence * 100).toFixed(0),
                     })}
@@ -624,6 +814,30 @@ export function MappingTriageView() {
               </div>
               {trace.outcome.reason_prose && (
                 <p className="text-slate-600">{trace.outcome.reason_prose}</p>
+              )}
+              {trace.last_extract && (
+                <div className="text-xs text-[var(--as-muted-fg)]" data-testid="mapping-last-extract">
+                  <span>
+                    {t("mappingsConsole.triage.lastExtract", {
+                      status: trace.last_extract.status,
+                    })}
+                  </span>
+                  {trace.last_extract.pending && (
+                    <Badge variant="outline" className="ml-2">
+                      {t("mappingsConsole.triage.extractQueued")}
+                    </Badge>
+                  )}
+                  {trace.last_extract.error && (
+                    <p className="mt-1 text-[var(--as-danger)]">{trace.last_extract.error}</p>
+                  )}
+                </div>
+              )}
+              {trace.proposal_failure && (
+                <p className="text-xs text-[var(--as-danger)]" data-testid="mapping-proposal-failure">
+                  {t("mappingsConsole.triage.proposalFailure", {
+                    reason: trace.proposal_failure.reason,
+                  })}
+                </p>
               )}
               {trace.review && (
                 <p className="text-slate-600">
@@ -684,7 +898,7 @@ export function MappingTriageView() {
                 <p className="mb-1 font-medium text-slate-700">
                   {t("mappingsConsole.triage.journal")}
                 </p>
-                <ul className="space-y-1 text-xs text-slate-500">
+                <ul className="space-y-1 text-xs text-[var(--as-muted-fg)]">
                   {trace.journal.slice(0, 6).map((entry) => (
                     <li key={entry.id}>
                       {entry.created_at

@@ -257,6 +257,38 @@ class SalaryCurrencyOut(BaseModel):
     period_basis: dict[str, int] = Field(default_factory=dict)
 
 
+class SalaryBenchmarkCellOut(BaseModel):
+    scope: Literal["job", "family"]
+    job_code: str | None = None
+    job_title: str
+    family_key: str | None = None
+    family_title: str | None = None
+    country: str
+    seniority: str
+    currency: str
+    period: str = "year"
+    n: int = Field(ge=0)
+    thin_sample: bool
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+
+
+class SalaryBenchmarksOut(BaseModel):
+    as_of: datetime
+    window: str
+    status_basis: StatusBasis
+    start: datetime | None = None
+    end: datetime
+    floor: int
+    cells: list[SalaryBenchmarkCellOut] = Field(default_factory=list)
+    truncated: int = Field(default=0, ge=0)
+    reference: dict | None = None
+    reference_status: Literal["unavailable", "available"] = "unavailable"
+    notes: list[str] = Field(default_factory=list)
+    note_codes: list[str] = Field(default_factory=list)
+
+
 class PostingStatsSalary(BaseModel):
     as_of: datetime
     window: str

@@ -29,6 +29,8 @@ import {
   startInterviewSession,
 } from "@/api/interview";
 import { openInterviewChat } from "@/features/chat/components/chat/interviewChatLink";
+import { StoryLibraryModal } from "@/features/interviews/components/StoryLibraryModal";
+import { fetchStories } from "@/api/interviewStories";
 import type {
   InterviewKind,
   InterviewQuestion,
@@ -69,6 +71,7 @@ export function Interviews() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [storiesOpen, setStoriesOpen] = useState(false);
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -197,6 +200,13 @@ export function Interviews() {
             {t("interviews.subtitle")}
           </p>
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setStoriesOpen(true)}
+          data-testid="open-stories"
+        >
+          <BookOpen className="mr-1 h-4 w-4" aria-hidden /> {t("interviews.stories.open")}
+        </Button>
         <Button
           variant="default"
           onClick={() => setCreateOpen(true)}
@@ -511,6 +521,7 @@ export function Interviews() {
         }}
         onError={setError}
       />
+      <StoryLibraryModal open={storiesOpen} onClose={() => setStoriesOpen(false)} />
     </div>
   );
 }
@@ -553,6 +564,8 @@ function CreateSessionModal({
   const { t } = useTranslation();
   const [kind, setKind] = useState("mixed");
   const [jobCode, setJobCode] = useState("");
+  const [stories, setStories] = useState<{ id: string; title: string }[]>([]);
+  const [storyIds, setStoryIds] = useState<string[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -563,6 +576,13 @@ function CreateSessionModal({
       .then((page) => setJobs(page.items ?? []))
       .catch(() => setJobs([]));
   }, [open, jobs.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetchStories()
+      .then((rows) => setStories(rows.map((row) => ({ id: row.id, title: row.title }))))
+      .catch(() => setStories([]));
+  }, [open]);
 
   const jobOptions = useMemo(
     () => jobs.map((job) => ({ value: job.code, label: job.title })),
@@ -577,6 +597,7 @@ function CreateSessionModal({
       const created = await createInterviewSession({
         job_code: jobCode,
         kind: kind as InterviewKind,
+        ...(storyIds.length > 0 ? { story_ids: storyIds } : {}),
       });
       onCreated(created);
     } catch (err) {
@@ -620,6 +641,42 @@ function CreateSessionModal({
             hint={t("interviews.roleHint")}
             testId="interview-job"
           />
+          {stories.length > 0 && (
+            <div className="space-y-1" data-testid="interview-story-picker">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("interviews.stories.pick")}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {stories.map((story) => {
+                  const active = storyIds.includes(story.id);
+                  return (
+                    <button
+                      key={story.id}
+                      type="button"
+                      aria-pressed={active}
+                      className={`rounded-full border px-2 py-1 text-xs ${
+                        active
+                          ? "border-[var(--as-accent)] text-[var(--as-accent)]"
+                          : "border-[var(--as-border)] text-[var(--as-muted-fg)]"
+                      }`}
+                      data-testid={`interview-story-${story.id}`}
+                      onClick={() =>
+                        setStoryIds((prev) =>
+                          active
+                            ? prev.filter((id) => id !== story.id)
+                            : prev.length < 3
+                              ? [...prev, story.id]
+                              : prev,
+                        )
+                      }
+                    >
+                      {story.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-sm text-[var(--as-danger)]">
               {error}

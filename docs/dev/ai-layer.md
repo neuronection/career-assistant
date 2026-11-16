@@ -15,9 +15,8 @@ the family AI architecture standard; this page is the app-specific map.
   a second SELECT (used by run-linked flows).
 
 **`app/ai/chat_models.py` is the only module that touches provider SDKs.**
-`scripts/check-ai-alignment.sh` enforces this (ADR-0008/0018); the decision
-SDK (`typesafe_sdk`) is sanctioned inside `app/ai/decide/` only
-(ADR-0032).
+`scripts/check-ai-alignment.sh` enforces this; the decision
+SDK (`typesafe_sdk`) is sanctioned inside `app/ai/decide/` only.
 
 ## Configuration is data, not env
 
@@ -177,7 +176,7 @@ degrades:
 | Semantic sweep (embeddings) | wording and description-level meaning no keyword shares | stored posting embeddings + an assigned `embed` task | timeline entry with a sanitized note; lexical candidates unaffected |
 | Curated job-relation sweep | role adjacency (`similar_to`/`alternative_to`) no text encodes | postings mapped to catalog jobs + curated relations | no-op timeline entry; no embeddings, no AI, desktop-safe |
 
-All three sources share one recall contract (ADR-0012 §13 addendum): a
+All three sources share one recall contract: a
 candidate is only *proposed* — every one of them passes the same deterministic
 gates in code before entering the pool, so a vector hit can never resurrect a
 gated-out row; ordering stays deterministic (`(must_hits, fit)`) with cosine
@@ -199,17 +198,18 @@ still ships:
 A replan spends one audited call; when the run budget is already spent the
 node skips the call and the deterministic findings still ship.
 
-### Profile usage & goal-adjusted fit (plan 169)
+### Profile usage & goal-adjusted fit
 
 Every goal carries a `profile` block on its constraints (`ProfileUsage`:
-six `use_*` toggles + `stage_source: "profile" | "goal"`, defaults
+five `use_*` toggles + `stage_source: "profile" | "goal"`, defaults
 reproducing the pre-plan behavior). `AutopilotService.run_goal` derives a
 `FitOverrides` from it once and threads it through `GraphDeps`; the
 planner and the fit engine honor it:
 
 - **Planner context** — `collect_profile_context` drops a disabled input
   (with everything off it plans from the goal text + vocabulary alone),
-  adds the academic languages when `use_languages`, and shows the
+  always adds the academic languages (language is a contextual signal,
+  not a scored toggle), and shows the
   effective stage: `stage_source="goal"` derives it from the goal's
   seniority selection by max rank (intern→`student`,
   junior/mid→`early_career`, senior+→`experienced`; an empty selection
@@ -219,8 +219,8 @@ planner and the fit engine honor it:
 - **Fit** — disabled dimensions score the engine's neutral 7.0 with a
   `disabled` marker (`use_lifestyle` empties the gates instead — gates
   are recomputed live, never cached); the `prereqs` dimension carries
-  internal per-part sub-scores (`parts: {education, languages,
-  certificates}`, each `{kind, cap, detail, scored}`) and merges like the
+  internal per-part sub-scores (`parts: {education, certificates}`,
+  each `{kind, cap, detail, scored}`) and merges like the
   pre-plan accumulator: any `scored` part makes the dimension
   non-neutral at the min over the enabled parts' `cap`s (a recognized
   education comparison caps without scoring — education-met/below alone
@@ -250,7 +250,6 @@ flowchart LR
     subgraph P["Profile (per-goal usage flags)"]
         SK[skills] -->|use_skills| V[planner vocabulary + context]
         ED[education + certs] -->|use_education| F[fit prereqs.parts]
-        LG[languages] -->|use_languages| F
         LOC[location] -->|use_location| F2[fit location_remote]
         EX[experience years] -->|use_experience · stage_source| F3[fit seniority_stage]
         LS[lifestyle tolerance] -->|use_lifestyle| G[lifestyle gates]
@@ -262,7 +261,7 @@ flowchart LR
     SCORE --> POOL["(must_hits, fit) ordering → pool → findings"]
 ```
 
-### Findings feed and runs rail (plan 175)
+### Findings feed and runs rail
 
 The shortlist is the product surface. `GET /autopilot/findings` returns a
 flat, keyset-paginated feed of findings joined with their postings; the
@@ -294,7 +293,7 @@ workspace (`/autopilot`) renders it with the same card primitives as
   filter, the explore pattern).
 - `GET /autopilot/runs` is the runs rail — status, tokens, live
   findings and the Σ `examined` per run, cross-goal, newest first. The
-  timeline itself stays on `GET /autopilot/runs/{run_id}` (plan 168).
+  timeline itself stays on `GET /autopilot/runs/{run_id}`.
 
 ```mermaid
 flowchart LR
@@ -314,7 +313,7 @@ flowchart LR
     RP -- "Mark applied" --> A
 ```
 
-### Run trace (plan 168)
+### Run trace
 
 Every executed node lands one entry in the `trace_steps` state channel —
 append-return, exactly the `searches` precedent, so a retried node
@@ -365,10 +364,10 @@ flowchart LR
     RE --> UI["/autopilot/runs/:id<br/>steps · graph chips · AI-call links"]
 ```
 
-### Tracing export (plan 168)
+### Tracing export
 
 The first-party trace above is the product surface; OpenTelemetry is an
-**optional export adapter, never a second surface** (ADR-0044 addendum).
+**optional export adapter, never a second surface**.
 `app/ai/tracing.py` exposes one `TraceSink`: `autopilot.run` (root, in
 `AutopilotService.run_goal` — the single entry for API, queue and chat
 callers), `autopilot.node` (one per graph node, started by the wiring
@@ -406,8 +405,8 @@ flowchart LR
 ## Decision models (`app/ai/decide/`)
 
 Non-chat decision points (tool dispatch, gates, choice, score) resolve
-through the decision funnel — the family transport model (ADR-0019/0020 +
-ADR-0032): no engine enum, a model row carries `decision_transport`
+through the decision funnel — the family transport model: no engine
+enum, a model row carries `decision_transport`
 (`systemone` today) and the registry routes `decision:<cap>` slot →
 assignment row (the caller's own first, system second — the scope chain is
 the fallback chain) → model → provider. `off` is a resolution result;
@@ -459,7 +458,7 @@ pins `pack_key`/`pack_version` on every `ai_generations` row. Packs steer
 ## Vector retrieval
 
 Embeddings still flow through the `embed` task (EMBEDDINGS capability), but
-they land in the **family vector store** (plan 50, ADR-0051):
+they land in the **family vector store**:
 `vector_spaces` / `vector_documents` / `vector_records`
 (`app/models/vector_model.py`) plus a per-space physical index — pgvector +
 HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a capped exact-linear
@@ -474,8 +473,8 @@ never re-embedded unchanged (content-hash dedupe).
   budget-capped, coverage snapshots only when a kind's chain completes). A
   reconcile prepares a **window** of documents and embeds them through shared
   provider batches — deduped by content hash inside the window, split by the
-  profile's item/token limits, overlapped under `CAREER_EMBED_CONCURRENCY`
-  (plan 201); a failed batch retries once per document so failures stay
+  profile's item/token limits, overlapped under `CAREER_EMBED_CONCURRENCY`;
+  a failed batch retries once per document so failures stay
   attributable. Both write through `app/storage/vector_store.py`, never
   dialect SQL.
 - **Space lifecycle.** A model/dim/prefix change is a new space, never an
@@ -491,8 +490,8 @@ never re-embedded unchanged (content-hash dedupe).
   exposes `list/status/build/backfill/activate/retire/drop`; `backfill`
   only enqueues the job, and `drop` requires a retired space, the grace
   period or `--force --confirm <name>`. The HTTP action surface and the
-  full Runs/quality view remain plan 51.
-- **Gateway hygiene (plan 201 S1-S7).** Embedding batches record their
+  full Runs/quality view remain the admin Runs view.
+- **Gateway hygiene.** Embedding batches record their
   caller-counted input tokens on the `ai_generations` row (Usage, the EMBED
   budget and its alert are real), a transient provider failure retries in
   the funnel with backoff and `Retry-After` (one audit row per request
@@ -505,7 +504,7 @@ never re-embedded unchanged (content-hash dedupe).
 - **Read path.** `app/services/vector_retrieval_service.py` embeds the query
   once — served from a bounded process-local cache keyed on
   `(space key, query prefix, normalized text digest)`
-  (`app/services/embed_cache.py`, plan 201 S6; a hit is no provider call and
+  (`app/services/embed_cache.py`; a hit is no provider call and
   writes no audit row) — searches each view under the caller's opaque scope, aggregates chunks
   into a document score and fuses lexical rankings with weighted RRF
   (`app/services/hybrid_search.py` keeps the RRF math). Explore's relevance
@@ -521,27 +520,38 @@ never re-embedded unchanged (content-hash dedupe).
   reason and the caller falls back to the lexical/neutral path — **semantic is
   a ranking signal, never a filter gate**, and never a 500.
 
-## The hybrid catalog mapping (plan 185)
+## The hybrid catalog mapping
 
-The ingest decision is the **deterministic weighted skill overlap** over the
-posting's resolved skills (`_best_catalog_job` ≥ `AUTO_MAP_THRESHOLD` 0.34),
-evaluated at BOTH decision points (ingest sync and after the deep extract —
-the extract's join is `decide_catalog`'s second caller, and `decide_catalog`
-never touches `PostingSkill` rows). The method + `retag` journal make every
-map auditable and admin-overridable (manual map endpoint,
-`POST /admin/postings/{id}/remap` re-runs the join without the extract).
+The ingest decision is the **deterministic two-way coverage score**
+(`SCORE_MODEL = "two_way_coverage_v3"`) over the posting's resolved skills,
+gated by the policy's `τ_job` (default 0.34). Each side — the posting's
+priority/level weights and the type's importance/required-level weights — is
+normalized independently and combined with the harmonic mean; the score model
+version is recorded in `mapping_features`. The decision is evaluated at BOTH
+decision points (ingest sync and after the deep extract — the extract's join
+is `decide_catalog`'s second caller, and `decide_catalog` never touches
+`PostingSkill` rows). The method + `retag` journal make every map auditable and
+admin-overridable (manual map endpoint, `POST /admin/postings/{id}/remap`
+re-runs the join without the extract).
+
+**Title orders, never maps.** The deterministic winner rail is
+`clamp(skill + 0.10·title, 0, 1)`; exact normalized titles score 1.0,
+containment (≥2 tokens) 0.8, and trigram ≥0.6 caps at 0.6. A title can lift a
+candidate that already clears the skill gate, but it never admits a gated-out
+candidate and never maps by itself. The 0.72 near-duplicate bar belongs to
+catalog hygiene, not to this score.
 
 The **bounded semantic rerank** runs in the deferred semantic pass (off the
 request path, see below) where the deterministic outcome is ambiguous — best
-below `AUTO_MAP_THRESHOLD` or a runner-up margin under `δ = 0.08` (plan 164
-S4.4, `app/services/postings/semantic_rerank.py`). It scores **only the
+below `AUTO_MAP_THRESHOLD` or a runner-up margin under `δ = 0.08`
+(`app/services/postings/semantic_rerank.py`). It scores **only the
 stage-2 candidates** the deterministic scorer produced (`K = 25`), using the
 same stored-vector job↔posting match, and applies the pinned blend
 `0.75·deterministic + 0.25·semantic`. A rerank is accepted only when its top
 candidate clears `τ_job = 0.34` with the `δ` margin (and, when the
 deterministic winner already cleared `τ_job`, only if the top-1 changes); it
 records `semantic_rerank`, never silently replaces the deterministic score,
-and never introduces a candidate. The plan-185 rescue below still handles the
+and never introduces a candidate. The semantic rescue below still handles the
 below-threshold case the rerank could not lift.
 
 Both semantic stages are **independent, per-decision switches** stored as
@@ -554,7 +564,47 @@ deterministic trace — the decision is bit-identical to the pre-rerank path.
 The admin mapping-settings GET/PUT payload exposes both switches; this slice
 adds no UI card.
 
-## The mapping outcome, quality and policy contracts (plan 205)
+### Score v3, weak review and recorded truth
+
+- **Score v3** is `two_way_coverage_v3`: per-side normalization plus a
+  harmonic mean, with `λ = 0.10` title evidence ordering only the candidates
+  that already pass the skill gate. `mapping_features.schema_version` is 2 and
+  `mapping_version` is 3; v1 rows remain readable. The calibration harness
+  models the same formula case-for-case (golden parity) and carries an
+  explicit **rerank OFF baseline** beside the ON matrix. The live
+  `catalog.semantic_rerank` default remains **OFF**; the measured synthetic
+  ON counterfactual is precision@1 1.0 / intent 1.0 / abstention 0.1837
+  versus OFF 0.6429 / 0.6429 / 0.2857 (retuned corpus). The owner has not
+  ratified the flip; flipping is one setting.
+- **Weak review.** A deterministic mapping writes `mapping_margin` (top-minus-
+  second skill rank); a semantic mapping below `WEAK_SEMANTIC_CONFIDENCE`
+  (0.65) is weak. The triage can filter weak rows and the quality sample
+  reserves half its batch for them. Weak is a review overlay, not a new funnel
+  state and never an automatic unmap.
+- **Recorded extract truth.** `job_postings.extract_status` records the latest
+  extract attempt: success writes `succeeded`, a terminal non-cancelled
+  failure writes `failed` (even after a previous success), a retryable failure
+  preserves the previous status, and a `resolve` replay never writes. The
+  funnel's `detail_failed` state means the detail page was never fetched and
+  the attempt budget is exhausted; a fetched-then-failed extract folds to
+  `extract_failed`. The trace reads the latest non-resolve extract job.
+- **Scoped re-decide.** `POSTING_REMAP` supports `redecide_scope="stale"`
+  (active non-manual rows below `MAPPING_VERSION`) and `"all"`; absence keeps
+  the semantic-space cutover selection unchanged.
+- **Pipeline actions.** Detail-now performs one connector call and journals
+  `detail_fetch` as manual, without a run row or attempt increment; only a
+  changed description resets the stale extract and queues a re-extract.
+  Re-propose reuses `enqueue_refresh_redecision`. Bulk map resolves one
+  published target, maps up to 200 active rows in one transaction with
+  per-row journals and one audit, and reports mapped/already/blocked.
+- **Type identity.** `jobs.title_key` is derived by the model's
+  `before_insert`/`before_update` event (and the `0003` backfill), guarded
+  across non-retired rows at every write path, and indexed **non-uniquely**
+  until the owner merges live duplicates. Catalog hygiene reports non-retired
+  exact and near groups; only exact titles merge; retired types keep a
+  successor link.
+
+## The mapping outcome, quality and policy contracts
 
 Every `decide_catalog` decision mirrors a machine-readable outcome into
 typed columns (`mapping_outcome_state` mapped|unmapped + a closed reason
@@ -573,7 +623,7 @@ index write and report an `index_missing` degrade — no embed, no spend).
 The policy (`app_settings["catalog.mapping_policy"]`: τ_job, δ, semantic
 threshold, min shared skills; blend/k fixed) is read per decision —
 defaults bit-identical to the shipped constants — and its effective hash
-rides the trace. The quality review set (`mapping_reviews`, plan 205 S6)
+rides the trace. The quality review set (`mapping_reviews`)
 is human-only: golden rows with an expected type (`none` is a class) and
 bounded deterministic samples; precision/recall/confusion run over the
 resolved rows and the gate is advisory — it never blocks a release and
@@ -614,8 +664,8 @@ family_recall@1 1.0, abstention 0.194 and candidate_recall@25/@200 1.0, and
 is the recommended point. The recommendation is advisory: the live constants
 do not move until the owner ratifies them.
 
-The **semantic rescue** fires only where that overlap misses (plan 50 P2,
-`app/services/postings/semantic_rescue.py`) — in the same deferred pass. The
+The **semantic rescue** fires only where that overlap misses
+(`app/services/postings/semantic_rescue.py`) — in the same deferred pass. The
 posting is indexed through the sanctioned synchronous writer (unchanged
 content costs zero embeds; the space must already exist — a fresh install
 records `index_missing` until the index/reconcile job provisions it, because
@@ -633,9 +683,10 @@ overlap-only verdict and the reason is recorded — a posting write never fails
 for it.
 
 Every automatic decision also writes the bounded, versioned
-`job_postings.mapping_features` payload (`mapping_version = 2`): the top
-candidates with their deterministic/semantic/blend scores, shared taxonomy
-keys and per-view scores, the pinned policy thresholds, the embedding
+`job_postings.mapping_features` payload (`schema_version = 2`,
+`mapping_version = 3`): the top candidates with their deterministic/semantic/
+blend scores, shared taxonomy keys and per-view scores, the pinned policy
+thresholds, the embedding
 `space_key` and the degradation reason. A space cutover therefore has a
 recorded dependency: `app/services/postings/mapping_remap.py` enqueues one
 bounded `POSTING_REMAP` sweep over rows whose method is
@@ -643,8 +694,8 @@ bounded `POSTING_REMAP` sweep over rows whose method is
 space row when it is built and read back verbatim (never recomputed), so the
 lifecycle service's `activate_space` calls
 `invalidate_mapping_space(space_key=retired.space_key)` after the new space
-is active (a first build has no old key and enqueues nothing); plan 51's
-HTTP action wraps that same service. The sweep re-runs
+is active (a first build has no old key and enqueues nothing); the HTTP
+action wraps that same service. The sweep re-runs
 `decide_catalog` only — it never rewrites `PostingSkill` rows and never
 alerts.
 
@@ -656,7 +707,7 @@ here to stream). The `catalog.job_proposals` and `catalog.semantic_rescue`
 run switches in `app_settings` are read per decision — effective on the next
 decision, no restart.
 
-### Job-type proposals (plan 202)
+### Job-type proposals
 
 A posting the overlap cannot place AND whose extract is rich enough (kept
 title + ≥ 3 kept skills) is proposed as a **catalog job type**, never as the
@@ -694,13 +745,12 @@ explicitly overridden. A proposer/unconfigured-AI failure journals
 `{job_proposal: "failed", reason}` with `job_proposal_failed_at/reason`
 markers while the committed mapping stands; a later success clears the
 markers. The v2 reader is the only reader (`COALESCE(proposal_version, 1) ==
-2`), and the bounded `job_proposal_backfill` regenerates or clears every live
-v1 object (see `docs/dev/scheduler-and-jobs.md`). Duplicate catalog types are
+2`); older proposal objects are not surfaced or regenerated. Duplicate catalog types are
 retired into a survivor by the admin Catalog hygiene surface: dependents are
 field-merged/repointed, postings are re-decided, and one
 `admin.job_type.merge` audit event is the trail.
 
-## Smart discovery (plan 179)
+## Smart discovery
 
 Cost-tiered by design — LLM appears exactly once in the whole feature:
 
@@ -727,8 +777,8 @@ documents under a source-id scope, and per-view weights favour `summary` and
 `skills`. Every degrade — a profile the index job has not reached yet, no
 provisioned space, a posting without a vector, a backend over its cap — lands
 on the neutral affinity term 7.0 (`SMART_AFFINITY_NEUTRAL`); the request never
-fails and never spends AI. Smart always ranks **canonical fits** (plan-169
-goal overrides do not apply outside a goal).
+fails and never spends AI. Smart always ranks **canonical fits** (goal
+overrides do not apply outside a goal).
 
 NL smart search (`POST /postings/smart-search`): normalize (casefold +
 whitespace collapse) → sha256 → cache hit returns the stored spec with
@@ -772,7 +822,7 @@ Multi-step flows opt each gateway call into the audit ledger with a `RunRef`
 run). `GET /cv/{id}/runs` assembles per-CV runs from job rows and their
 run-linked audit rows. Budgets live in `app/ai/budgets.py` / `ai_budgets`.
 
-## Bulk reprocessing of failed jobs (plan 184)
+## Bulk reprocessing of failed jobs
 
 When a connection/credit outage fails a window of AI jobs terminally
 (`status='failed'`, attempts exhausted), the admin audit console's

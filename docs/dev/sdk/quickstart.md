@@ -48,8 +48,8 @@ uv run alembic upgrade head
 The last lines of the migration run:
 
 ```
-INFO  [alembic.runtime.migration] Running upgrade 0048 -> 0049, Plan 32 Phase 5 / ADR-0030 (Python port): the T2 sandbox runner's store.
-INFO  [alembic.runtime.migration] Running upgrade 0049 -> 0050, Plan 32 follow-up (D20 / ADR-0011 / ADR-0015): the destructive-confirm runtime funnel's store.
+INFO  [alembic.runtime.migration] Running upgrade 0048 -> 0049, the T2 sandbox runner's store.
+INFO  [alembic.runtime.migration] Running upgrade 0049 -> 0050, the destructive-confirm runtime funnel's store.
 ```
 
 (List-valued settings parse JSON from the environment — hence the

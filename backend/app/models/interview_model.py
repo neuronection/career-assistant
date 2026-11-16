@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -94,3 +95,30 @@ class InterviewSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def finished_at(self) -> datetime | None:
         return self.updated_at
+
+
+class InterviewStory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One STAR story the user owns (plan 212 S1.7).
+
+    The four fields are separate text blocks so the practice plan can
+    cite the story without inventing a narrative. `competency_keys` are
+    stable taxonomy-ish tags (free keys the user picks); `evidence_refs`
+    is the same typed evidence shape used elsewhere.
+    """
+
+    __tablename__ = "interview_stories"
+    __table_args__ = (Index("ix_interview_stories_user", "user_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    competency_keys: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    situation: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    task: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    action: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    result: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    experience_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("experience_items.id", ondelete="SET NULL"), nullable=True
+    )
+    evidence_refs: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)

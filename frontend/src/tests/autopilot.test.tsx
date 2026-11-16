@@ -672,7 +672,6 @@ describe("Autopilot goals", () => {
           profile: {
             use_skills: false,
             use_education: true,
-            use_languages: true,
             use_location: true,
             use_experience: true,
             use_lifestyle: true,

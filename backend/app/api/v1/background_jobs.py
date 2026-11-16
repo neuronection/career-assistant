@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -89,18 +89,49 @@ async def download_export(
     job_id: uuid.UUID,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> FileResponse:
-    """Download a finished data-export archive (owner only, attachment)."""
+):
+    """Download a finished data-export archive (owner only, attachment).
+
+    New exports are objects streamed through the store; pre-contract rows
+    carry a legacy local `export_path` and are served from the local tree
+    (desktop/self-host only).
+    """
+    from app.services.profile.document_storage import chain_first, document_storage
+    from app.storage.object_storage import ObjectNotFound, safe_download_filename
+
     job = await _get_owned(db, job_id, user.id)
     if job.job_type != "data_export" or job.status != BackgroundJobStatus.SUCCEEDED.value:
         raise DomainError("No downloadable result for this job")
-    export_path = Path(str((job.result or {}).get("export_path", "")))
+    result = job.result or {}
+    filename = safe_download_filename(
+        str(result.get("filename") or f"career-assistant-export-{job.id}.zip")
+    )
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
+    key = result.get("export_key")
+    if key:
+        storage = document_storage()
+        stream = storage.astream_key(str(key))
+        try:
+            first = await anext(stream)
+        except ObjectNotFound as exc:
+            raise NotFoundError("Export file is gone; run the export again") from exc
+        except StopAsyncIteration:
+            return Response(content=b"", media_type="application/zip", headers=headers)
+        return StreamingResponse(
+            chain_first(first, stream),
+            media_type="application/zip",
+            headers=headers,
+        )
+    export_path = Path(str(result.get("export_path") or ""))
     if not export_path.is_file():
         raise NotFoundError("Export file is gone; run the export again")
-    filename = (job.result or {}).get("filename", export_path.name)
     return FileResponse(
         export_path,
         media_type="application/zip",
-        filename=str(filename),
+        filename=filename,
         content_disposition_type="attachment",
     )

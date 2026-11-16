@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button, ConfirmationModal, EmptyState } from "@neuronection/assistant-ui";
 import { CvIntakeFlow } from "@/features/cv/components/intake/CvIntakeFlow";
+import { JsonResumeCard } from "@/components/profile/JsonResumeCard";
 import { CvDraftViewer } from "@/features/cv/components/intake/CvDraftViewer";
 import { GithubIntakeCard } from "@/features/cv/components/intake/GithubIntakeCard";
 import { ReportLines, StatusChip } from "@/features/cv/components/intake/CvStatus";
@@ -355,6 +356,8 @@ export function ProfileImport() {
           {t("profileImport.subtitle")}
         </p>
       </div>
+
+      {!documentId && <JsonResumeCard />}
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 

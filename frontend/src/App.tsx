@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { DatastoreQuarantineGate } from "@/components/DatastoreQuarantineDialog";
 import { Layout } from "@/components/Layout";
 import { SessionGate } from "@/components/SessionGate";
 import { SettingsShell } from "@/components/SettingsShell";
@@ -13,6 +14,7 @@ import { ToolsConfig } from "@/pages/settings/ToolsConfig";
 import { Users } from "@/pages/settings/Users";
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
 import { Notifications } from "@/pages/settings/Notifications";
+import { Storage } from "@/pages/settings/Storage";
 import { Experience } from "@/features/profile/pages/Experience";
 import { Education } from "@/features/profile/pages/Education";
 import { CvStudio } from "@/features/cv/pages/CvStudio";
@@ -24,6 +26,9 @@ import { CatalogGraph } from "@/features/catalog/components/catalog/CatalogGraph
 import { CatalogTree } from "@/features/catalog/components/catalog/CatalogTree";
 import { Dashboard } from "@/features/profile/pages/Dashboard";
 import { Applications } from "@/features/postings/pages/Applications";
+import { OfferComparisonPage } from "@/features/postings/pages/OfferComparisonPage";
+import { Contacts } from "@/features/contacts/pages/Contacts";
+import { ApplicationKitPage } from "@/features/postings/pages/ApplicationKitPage";
 import { ChatPage } from "@/features/chat/pages/ChatPage";
 import { Generate } from "@/features/catalog/pages/Generate";
 import { JobDetail } from "@/features/catalog/pages/JobDetail";
@@ -40,6 +45,8 @@ import { ProfileImport } from "@/features/profile/pages/ProfileImport";
 import { Rankings } from "@/features/catalog/pages/Rankings";
 import { Compare } from "@/features/catalog/pages/Compare";
 import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
+import { PostingKitPage } from "@/features/postings/pages/PostingKitPage";
+import { CaptureHelpPage } from "@/features/postings/pages/CaptureHelpPage";
 import { Explore } from "@/features/catalog/pages/Explore";
 import { Autopilot } from "@/features/growth/pages/Autopilot";
 import { AutopilotRunPage } from "@/features/growth/pages/AutopilotRunPage";
@@ -50,6 +57,7 @@ import { Companies } from "@/features/companies/pages/Companies";
 import { MarketIntelligence } from "@/features/postings/pages/market-intelligence";
 import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 import { SkillPage } from "@/features/skills/pages/SkillPage";
+import { MarketGuide } from "@/features/career/pages/MarketGuide";
 
 function UniversityRedirect() {
   const { id } = useParams();
@@ -59,6 +67,7 @@ function UniversityRedirect() {
 export function App() {
   return (
     <BrowserRouter>
+      <DatastoreQuarantineGate />
       <Routes>
         <Route
           element={
@@ -85,8 +94,13 @@ export function App() {
           <Route path="/postings/search" element={<Navigate to="/postings" replace />} />
           <Route path="/postings/feed" element={<Navigate to="/postings" replace />} />
           <Route path="/postings/stats" element={<MarketIntelligence />} />
+          <Route path="/postings/capture-help" element={<CaptureHelpPage />} />
           <Route path="/postings/:ref" element={<PostingDetailPage />} />
+          <Route path="/postings/:ref/kit" element={<PostingKitPage />} />
           <Route path="/applications" element={<Applications />} />
+          <Route path="/applications/offers" element={<OfferComparisonPage />} />
+          <Route path="/contacts" element={<Contacts />} />
+          <Route path="/applications/:id" element={<ApplicationKitPage />} />
           <Route path="/explore" element={<Navigate to="/postings" replace />} />
           <Route path="/radar" element={<JobRadarSettings />} />
           <Route path="/autopilot" element={<Autopilot />} />
@@ -110,6 +124,7 @@ export function App() {
           <Route path="/catalog/universities/:id" element={<UniversityDetail />} />
           <Route path="/universities" element={<Navigate to="/catalog/universities" replace />} />
           <Route path="/universities/:id" element={<UniversityRedirect />} />
+          <Route path="/guides/market" element={<MarketGuide />} />
           <Route path="/cv" element={<CvStudio />} />
           <Route path="/cv/synth" element={<CvSynthLibrary />} />
           <Route path="/cv/:id" element={<CvBuilder />} />
@@ -128,6 +143,7 @@ export function App() {
             {/* Legacy deep links (ADR-0033 INV-6): scheduler → automations */}
             <Route path="scheduler" element={<Navigate to="/settings/automations" replace />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="storage" element={<Storage />} />
             <Route path="audit" element={<Audit />} />
           </Route>
         </Route>

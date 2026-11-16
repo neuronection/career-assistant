@@ -1,11 +1,14 @@
 """The ``job_postings.mapping_features`` audit payload (plan 164 S1.9, P2b).
 
 One validated, bounded document per automatic mapping: the stage-2
-candidate list (job code/id, deterministic score, semantic score, blend,
-shared taxonomy keys, per-view semantic scores), the pinned policy
-thresholds, the embedding ``space_key`` and the structured degradation
-reason. It is an open audit payload (``keep-open`` in the JSONB inventory)
-validated at the service boundary by :class:`MappingFeatures`.
+candidate list (job code/id, deterministic skill score, semantic score,
+blend, title/skill evidence, shared taxonomy keys, per-view semantic
+scores), the pinned policy thresholds, the embedding ``space_key`` and the
+structured degradation reason. Schema 2 adds optional ``score_model``,
+``title_lambda`` and ``gate`` fields plus per-candidate ``title``/``skill``;
+v1 rows still validate. It is an open audit payload (``keep-open`` in the
+JSONB inventory) validated at the service boundary by
+:class:`MappingFeatures`.
 
 Bounds: the top five candidates and at most twenty shared skills per
 candidate, every score rounded to four decimals. The payload is deliberately
@@ -25,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.postings.mapping_candidates import CatalogCandidate, shared_skill_keys
 from app.services.postings.semantic_rerank import RerankSignal
 
-MAPPING_FEATURES_SCHEMA_VERSION = 1
+MAPPING_FEATURES_SCHEMA_VERSION = 2
 MAX_FEATURE_CANDIDATES = 5
 MAX_SHARED_SKILLS = 20
 
@@ -35,9 +38,12 @@ class MappingCandidateFeatures(BaseModel):
 
     job_code: str
     job_id: str
+    job_title: str | None = None
     deterministic: float | None = None
     semantic: float | None = None
     blend: float | None = None
+    title: float | None = None
+    skill: float | None = None
     shared_skills: list[str] = Field(default_factory=list)
     per_view: dict[str, float] = Field(default_factory=dict)
 
@@ -52,6 +58,8 @@ class MappingPolicyFeatures(BaseModel):
     blend_semantic: float
     semantic_threshold: float
     semantic_min_shared_skills: int
+    score_model: str | None = None
+    title_lambda: float | None = None
 
 
 class MappingFeatures(BaseModel):
@@ -61,6 +69,9 @@ class MappingFeatures(BaseModel):
     mapping_version: int
     space_key: str | None = None
     degraded: str | None = None
+    score_model: str | None = None
+    title_lambda: float | None = None
+    gate: str | None = None
     policy: MappingPolicyFeatures
     candidates: list[MappingCandidateFeatures] = Field(default_factory=list)
 
@@ -84,6 +95,9 @@ async def build_mapping_features(
     semantic_min_shared_skills: int,
     space_key: str | None = None,
     degraded: str | None = None,
+    score_model: str | None = None,
+    title_lambda: float | None = None,
+    gate: str | None = None,
 ) -> dict[str, Any]:
     """Build and validate the bounded mapping provenance payload.
 
@@ -95,6 +109,9 @@ async def build_mapping_features(
         tuple[
             str,
             str,
+            str | None,
+            float | None,
+            float | None,
             float | None,
             float | None,
             float | None,
@@ -108,9 +125,12 @@ async def build_mapping_features(
                 (
                     rerank_item.job_id,
                     rerank_item.code,
+                    rerank_item.job_title,
                     rerank_item.deterministic,
                     rerank_item.semantic,
                     rerank_item.blend,
+                    rerank_item.title,
+                    rerank_item.deterministic,
                     rerank_item.shared_skill_ids,
                     dict(rerank_item.per_view),
                 )
@@ -121,16 +141,30 @@ async def build_mapping_features(
                 (
                     det_item.job_id,
                     det_item.code,
-                    det_item.score,
+                    str(det_item.job.title),
+                    det_item.skill,
                     None,
                     None,
+                    det_item.title,
+                    det_item.skill,
                     det_item.shared_skill_ids,
                     {},
                 )
             )
 
     all_shared: set[uuid.UUID] = set()
-    for _job_id, _code, _det, _sem, _blend, shared_ids, _per_view in rows:
+    for (
+        _job_id,
+        _code,
+        _job_title,
+        _det,
+        _sem,
+        _blend,
+        _title,
+        _skill,
+        shared_ids,
+        _per_view,
+    ) in rows:
         all_shared.update(shared_ids)
     keys = await shared_skill_keys(db, all_shared)
 
@@ -138,6 +172,9 @@ async def build_mapping_features(
         mapping_version=mapping_version,
         space_key=space_key,
         degraded=degraded,
+        score_model=score_model,
+        title_lambda=_round(title_lambda),
+        gate=gate,
         policy=MappingPolicyFeatures(
             tau_job=round(float(tau_job), 4),
             delta=round(float(delta), 4),
@@ -146,20 +183,25 @@ async def build_mapping_features(
             blend_semantic=round(float(blend_semantic), 4),
             semantic_threshold=round(float(semantic_threshold), 4),
             semantic_min_shared_skills=int(semantic_min_shared_skills),
+            score_model=score_model,
+            title_lambda=_round(title_lambda),
         ),
         candidates=[
             MappingCandidateFeatures(
                 job_code=code,
                 job_id=job_id,
+                job_title=job_title,
                 deterministic=_round(det),
                 semantic=_round(sem),
                 blend=_round(blend),
+                title=_round(title),
+                skill=_round(skill),
                 shared_skills=sorted(keys.get(skill_id, str(skill_id)) for skill_id in shared_ids)[
                     :MAX_SHARED_SKILLS
                 ],
                 per_view={view: round(float(value), 4) for view, value in sorted(per_view.items())},
             )
-            for job_id, code, det, sem, blend, shared_ids, per_view in rows
+            for job_id, code, job_title, det, sem, blend, title, skill, shared_ids, per_view in rows
         ],
     )
     return features.model_dump(mode="json")

@@ -109,6 +109,26 @@ export function MappingQualityView() {
         </p>
       </section>
 
+      <section className="rounded-xl border p-4" data-testid="mappings-quality-weak">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-800">
+            {t("mappingsConsole.quality.weakTitle")}
+          </h3>
+          <span className="text-sm text-slate-500">
+            {t("mappingsConsole.quality.weakLine", {
+              count: data.weak.count,
+              margin: Math.round(data.weak.margin_floor * 100),
+              semantic: Math.round(data.weak.semantic_floor * 100),
+            })}
+          </span>
+        </div>
+        {data.weak.empty_until_sweep && (
+          <p className="mt-1 text-xs text-slate-500">
+            {t("mappingsConsole.quality.weakEmpty")}
+          </p>
+        )}
+      </section>
+
       <section className="grid gap-4 md:grid-cols-2">
         {(
           [

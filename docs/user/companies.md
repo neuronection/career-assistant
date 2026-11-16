@@ -24,7 +24,7 @@ app's item-card grammar:
   (when known) — plus headquarters and website domain,
 - industry tags and the number of open postings.
 
-Filter by the hiring the companies are doing right now (plan 154): a
+Filter by the hiring the companies are doing right now: a
 filter rail over the **active postings** — work mode, seniority,
 employment type and industries as tri-state chips with live counts
 ("12 companies hiring remote"), plus a location box and a minimum

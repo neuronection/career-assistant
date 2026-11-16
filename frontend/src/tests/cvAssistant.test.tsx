@@ -5,6 +5,7 @@ import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget
 import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { CvAssistantState } from "@/types/cvAssistant";
 
 const createChatSession = vi.fn();
@@ -50,6 +51,7 @@ const state: CvAssistantState = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetConfigSummaryCache();
   localStorage.clear();
   useChatStore.setState({
     sessions: [],

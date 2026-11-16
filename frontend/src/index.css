@@ -495,3 +495,64 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Catalog graph constellation — node chrome and state.
+   Motion (entry/stagger/transitions) lives in motion.css. */
+
+.ca-graph-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 10px;
+  padding: 4px 8px;
+  color: #ffffff;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.ca-graph-node-surface {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.ca-graph-node-label {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Dimming is a box-level opacity: nothing else writes opacity here, so a
+   dimmed node is really dimmed (the entry animation runs on the surface). */
+.ca-graph-node-dim {
+  opacity: 0.24;
+}
+
+/* Neighbour ring: a dark ring outside a white gap — readable on the card's
+   slate-50 tray and on every family fill (a plain white ring was invisible). */
+.ca-graph-node-neighbour {
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 4px #0f172a;
+}
+
+.ca-graph-node-focus {
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 5px #0f172a;
+  z-index: 1;
+}
+
+.ca-graph-node:focus-visible {
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 5px #0f172a;
+}

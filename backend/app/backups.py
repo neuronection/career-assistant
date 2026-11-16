@@ -2,13 +2,16 @@
 
 Backups are zips under `<data_dir>/backups/`:
     backup-YYYYMMDD-HHMMSS.zip
-        manifest.json        {created_at, app_version, contents}
+        manifest.json        {created_at, app_version, schema, contents}
+                             `schema` is the Alembic head that wrote the
+                             archive; a restore refuses a mismatched one
+                             before anything is swapped
         career-assistant.db  consistent snapshot (VACUUM INTO)
         uploads/…            uploaded documents
         auth_keys.json       per-instance key family (identity-auth §8) —
                              without it a restore can decrypt nothing and
                              every session invalidates
-        secret.key           legacy pre-P3d key (kept when present so
+        secret.key           pre-migration pre-P3d key (kept when present so
                              restored old snapshots can still drain their
                              JWT-derived ciphertext via migration 0044)
 Retention keeps 14 daily and 8 weekly archives.
@@ -38,13 +41,12 @@ def backups_dir(data_dir: Path) -> Path:
     return path
 
 
-def _db_path(data_dir: Path) -> Path:
-    """The SQLite file this instance uses (parsed from DATABASE_URL)."""
-    url = settings.database_url
-    prefix = "sqlite+aiosqlite:///"
-    if not url.startswith(prefix):
+def _db_path() -> Path:
+    """The SQLite file this instance uses (from the database profile)."""
+    path = settings.sqlite_path
+    if path is None:
         raise RuntimeError("Local backups require the SQLite database profile")
-    return Path(url[len(prefix) :])
+    return path
 
 
 def _snapshot_db(db_path: Path, target: Path) -> None:
@@ -56,11 +58,34 @@ def _snapshot_db(db_path: Path, target: Path) -> None:
         connection.close()
 
 
+def _require_local_storage() -> None:
+    """Backups archive the local uploads tree; an object backend has none.
+
+    Desktop-only by design: a cloud deployment relies on provider
+    durability for document bytes and keeps database dumps (ADR-0057).
+    """
+    from app.storage.bootstrap import is_object_backend
+    from app.storage.object_storage import UnsupportedOperation
+
+    if is_object_backend():
+        raise UnsupportedOperation(
+            "Local backups are unavailable under an object-storage backend; "
+            "document bytes live in the provider and the database dump remains the backup"
+        )
+
+
 def create_backup(data_dir: Path) -> Path:
     """Create one backup archive; returns its path."""
-    db_path = _db_path(data_dir)
+    from app.local import head_revision
+    from app.storage.datastore_guard import database_state
+
+    _require_local_storage()
+
+    db_path = _db_path()
     if not db_path.is_file():
         raise RuntimeError(f"Database file not found: {db_path}")
+    _, revision = database_state(f"sqlite+aiosqlite:///{db_path}")
+    schema = revision or head_revision()
 
     created = datetime.now(UTC)
     out = backups_dir(data_dir) / (f"backup-{created.strftime('%Y%m%d-%H%M%S')}.zip")
@@ -91,6 +116,7 @@ def create_backup(data_dir: Path) -> Path:
                 {
                     "created_at": created.isoformat(),
                     "app_version": settings.version,
+                    "schema": schema,
                     "contents": contents,
                 },
                 indent=2,
@@ -166,31 +192,34 @@ def _validate_sqlite(path: Path) -> bool:
         return False
 
 
-def verify_or_repair_database(data_dir: Path) -> str:
-    """Quarantine a corrupt DB and restore the newest backup's snapshot.
+def _archive_schema(bundle: zipfile.ZipFile) -> str | None:
+    """The schema revision an archive's manifest declares, when it has one."""
+    try:
+        manifest = json.loads(bundle.read("manifest.json"))
+    except (KeyError, ValueError):
+        return None
+    if not isinstance(manifest, dict):
+        return None
+    schema = manifest.get("schema")
+    return str(schema) if schema else None
 
-    Returns one of: "ok", "repaired", "quarantined".
-    """
-    db_path = _db_path(data_dir)
-    if not db_path.is_file() or _validate_sqlite(db_path):
-        return "ok"
 
-    quarantine = db_path.with_name(f"corrupt-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.db")
-    db_path.replace(quarantine)
-    logger.error("Database corrupt; quarantined as %s", quarantine.name)
+def _assert_restorable(bundle: zipfile.ZipFile, candidate: Path) -> None:
+    """Refuse an archive from a previous schema line before anything is swapped."""
+    from app.local import known_revisions
+    from app.storage.datastore_guard import PREVIOUS, UNREADABLE, database_state
 
-    for archive in reversed(list_backups(data_dir)):
-        with zipfile.ZipFile(archive) as bundle:
-            if db_path.name not in bundle.namelist():
-                continue
-            bundle.extract(db_path.name, data_dir)
-            extracted = data_dir / db_path.name
-            if _validate_sqlite(extracted):
-                extracted.replace(db_path)
-                logger.warning("Restored database from %s", archive.name)
-                return "repaired"
-            extracted.unlink(missing_ok=True)
-    return "quarantined"
+    declared = _archive_schema(bundle)
+    state, revision = database_state(f"sqlite+aiosqlite:///{candidate}")
+    if state in (PREVIOUS, UNREADABLE) or (
+        declared is not None and declared not in known_revisions()
+    ):
+        found = declared or revision
+        detail = f"schema revision {found}" if found else "an unknown schema"
+        raise RuntimeError(
+            f"This backup uses {detail}, which this release cannot read. Backups made by "
+            "another release cannot be restored; the live datastore was left untouched."
+        )
 
 
 def restore_backup(data_dir: Path, archive: Path) -> dict:
@@ -200,10 +229,11 @@ def restore_backup(data_dir: Path, archive: Path) -> dict:
     restore is the declared D6 exception (reference-architecture §4): an
     ops action that migrates, exactly like study's restore API (audit F12).
     """
+    _require_local_storage()
     restored = {"db": False, "uploads": 0, "keys": False, "secret": False}
     with zipfile.ZipFile(archive) as bundle:
         names = bundle.namelist()
-        db_path = _db_path(data_dir)
+        db_path = _db_path()
         if db_path.name in names:
             staging = data_dir / ".restore-staging"
             staging.mkdir(exist_ok=True)
@@ -212,6 +242,7 @@ def restore_backup(data_dir: Path, archive: Path) -> dict:
                 candidate = staging / db_path.name
                 if not _validate_sqlite(candidate):
                     raise RuntimeError("Backup contains a corrupt database")
+                _assert_restorable(bundle, candidate)
                 for suffix in ("-wal", "-shm"):
                     db_path.with_name(db_path.name + suffix).unlink(missing_ok=True)
                 candidate.replace(db_path)

@@ -5,8 +5,13 @@ describe("feature registry", () => {
   it("resolves a route to its longest matching prefix", () => {
     expect(featureFor("/postings")?.key).toBe("/postings");
     expect(featureFor("/postings/search")?.key).toBe("/postings");
-    expect(featureFor("/catalog")?.state).toBeUndefined();
-    expect(featureFor("/catalog")).toBeNull();
+    expect(featureFor("/catalog")?.key).toBe("/catalog");
+    expect(featureFor("/catalog/graph")?.key).toBe("/catalog");
+    expect(featureFor("/jobs/code-123")?.key).toBe("/jobs");
+    expect(featureFor("/catalog/universities/42")?.key).toBe(
+      "/catalog/universities",
+    );
+    expect(featureFor("/nowhere")).toBeNull();
   });
 
   it("hides only explicit hidden entries", () => {
@@ -18,6 +23,7 @@ describe("feature registry", () => {
     // postings + companies graduate to shipped on 2026-10-30;
     // market stats arrives beta (plan 170, 2026-10-31)
     expect(betaFeatures().map((feature) => feature.key)).toEqual([
+      "/contacts",
       "/autopilot",
       "/interviews",
       "/growth",

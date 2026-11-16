@@ -11,7 +11,8 @@ const FIELD_ORDER: Record<string, string[]> = {
     "institution",
     "program",
     "level",
-    "grade_band",
+    "grade_scale",
+    "grade_value",
     "focus_subjects",
     "start",
     "end",
@@ -128,6 +129,7 @@ export function ProfileSnapshotCard({
         .filter(
           ([key, value]) =>
             !order.includes(key) &&
+            key !== "grade_ordinal" &&
             value !== null &&
             value !== undefined &&
             value !== "" &&
@@ -161,10 +163,12 @@ export function ProfileSnapshotCard({
                   ? "Open-ended"
                   : key === "in_progress"
                     ? "In progress"
-                    : key === "grade_band"
-                      ? "Grade band"
-                      : key === "focus_subjects"
-                        ? "Focus subjects"
+                    : key === "grade_scale"
+                      ? "Grade scale"
+                      : key === "grade_value"
+                        ? "Grade value"
+                        : key === "focus_subjects"
+                          ? "Focus subjects"
                         : key === "language_code"
                           ? "Language"
                           : key.replace(/_/g, " "),

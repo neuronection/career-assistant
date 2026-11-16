@@ -73,6 +73,29 @@ The **printed PDF is the page-count truth** — it is measured by the real print
 engine, not estimated. If the export and the canvas disagree, trust the
 exported PDF. See [CV Studio overview](cv-studio.md#honesty-tools).
 
+## After an update, the app says my previous data was kept
+
+v0.17 uses a new database schema that cannot read a pre-v0.17 datastore, so
+the first launch moved the old one aside instead of migrating it. **Nothing
+was deleted.** The notice shows the folder — normally
+`…/CareerAssistant/previous-datastore-<date>-<time>/` — and you can copy the
+path from it.
+
+- The new database starts empty; AI provider keys, your `env` settings and
+  logs stay where they were.
+- To go back, reinstall the previous release and restore that folder over
+  the data directory.
+- If the app refuses to start with "could not be moved aside", another
+  Career Assistant instance still holds the database (quit it from the tray
+  and relaunch) or the data, uploads and backups folders are not on one
+  volume. The full message is also written to `STARTUP-ERROR.txt` in the
+  data directory.
+- A backup archive made by a previous release cannot be restored by this
+  one; the restore command refuses it before touching the live database.
+- The same rule applies in reverse: opening a datastore written by a
+  **newer** release with an older one quarantines it as well. Reinstall the
+  newer release and move that folder back to get the data.
+
 ## Still stuck?
 
 - Search or open an issue:

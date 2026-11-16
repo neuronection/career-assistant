@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as extApi from "@/api/extensionSources";
+import type { PostingSource } from "@/api/sources";
+import * as sourcesApi from "@/api/sources";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
 // plan 33 Phase B: the sources surface renders through the family kit
@@ -27,7 +30,13 @@ vi.mock("@/api/extensionSources", async (importOriginal) => {
   };
 });
 
+vi.mock("@/api/sources", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/sources")>();
+  return { ...actual, fetchAdminSources: vi.fn() };
+});
+
 const mocked = vi.mocked(extApi);
+const mockedSources = vi.mocked(sourcesApi);
 
 const T3_DISCLOSURE =
   "This extension runs as a separate process outside the app's network perimeter. It opens its own network connections, with no SSRF guard, robots.txt check or rate limiting by the app. The app governs only what it returns: outputs are validated and capped.";
@@ -117,7 +126,15 @@ const INSTALL = {
 };
 
 function renderSection() {
-  return render(<ExtensionSourcesSection />);
+  return render(
+    <MemoryRouter>
+      <ExtensionSourcesSection />
+    </MemoryRouter>,
+  );
+}
+
+function LocationProbe() {
+  return <div data-testid="location">{useLocation().pathname}</div>;
 }
 
 describe("ExtensionSourcesSection (kit surfaces)", () => {
@@ -126,6 +143,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     mocked.fetchExtensionSources.mockResolvedValue([]);
     mocked.fetchInstallPreview.mockResolvedValue(PREVIEW);
     mocked.fetchUpdatePreview.mockResolvedValue(PREVIEW);
+    mockedSources.fetchAdminSources.mockResolvedValue([]);
   });
 
   it("renders the empty kit list and the add-source affordance", async () => {
@@ -297,5 +315,50 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /check/i }));
     expect(await screen.findByText(/not-found: no tags found/)).toBeTruthy();
     expect(screen.queryByText(/\[object Object\]/)).toBeNull();
+  });
+
+  it("flags an install whose bundle config is unmet as needs-config", async () => {
+    mocked.fetchExtensionSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        candidates: [],
+        installs: [{ ...INSTALL, conditions: ["needs-config"] }],
+      },
+    ]);
+    renderSection();
+    const pill = await screen.findByTestId("integration-condition-inst-1-needs-config");
+    expect(pill.textContent).toBe("needs config");
+  });
+
+  it("configures the minted job source from the install row", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionSources.mockResolvedValue([
+      { ...SOURCE, candidates: [], installs: [{ ...INSTALL }] },
+    ]);
+    mockedSources.fetchAdminSources.mockResolvedValue([
+      { id: "job-source-1", key: "example-posting-fetcher" } as unknown as PostingSource,
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ExtensionSourcesSection />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Configure" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location").textContent).toBe("/sources/job-source-1"),
+    );
+  });
+
+  it("reports a configure target whose job source is gone", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionSources.mockResolvedValue([
+      { ...SOURCE, candidates: [], installs: [{ ...INSTALL }] },
+    ]);
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Configure" }));
+    expect(
+      await screen.findByText(/This install's source settings could not be found/),
+    ).toBeTruthy();
   });
 });

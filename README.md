@@ -38,7 +38,8 @@
 
 </div>
 
-> **Your data stays on your own server.** Self-hosted by design — no managed cloud.
+> **Your data stays on your own server.** Self-hosted by design — no managed cloud
+> from us. Runs on your own AWS or Azure VM, or on-prem hardware.
 
 ---
 
@@ -96,15 +97,36 @@ fails when a claim here drifts from the code.
 
 | Surface | Route | State | Documented in |
 |---|---|---|---|
+| Workspace (dashboard) | `/` | on | [user/workspace.md](docs/user/workspace.md) |
+| Assistant chat | `/chat` | on | [user/assistant-chat.md](docs/user/assistant-chat.md) |
+| Onboarding wizard | `/onboarding` | on | [user/onboarding-and-profile.md](docs/user/onboarding-and-profile.md) |
 | First-run AI setup | `/onboarding/setup` | on | [user/ai-setup.md](docs/user/ai-setup.md) |
+| Express start | `/onboarding/express` | on | [user/onboarding-and-profile.md](docs/user/onboarding-and-profile.md) |
+| Job catalog | `/catalog` | on | [user/explore-the-catalog.md](docs/user/explore-the-catalog.md) |
+| Catalog job pages | `/jobs` | on | [user/explore-the-catalog.md](docs/user/explore-the-catalog.md) |
+| Universities and pathways | `/catalog/universities` | on | [user/universities.md](docs/user/universities.md) |
+| Rankings | `/rankings` | on | [user/matching-and-rankings.md](docs/user/matching-and-rankings.md) |
+| Compare tray | `/compare` | on | [user/matching-and-rankings.md](docs/user/matching-and-rankings.md) |
 | Live postings | `/postings` | on | [user/postings-and-search.md](docs/user/postings-and-search.md) |
-| Companies | `/companies` | on | [user/companies.md](docs/user/companies.md) |
 | Market intelligence | `/postings/stats` | beta | [user/market-stats.md](docs/user/market-stats.md) |
+| Capture a posting | `/postings/capture-help` | on | [user/capture.md](docs/user/capture.md) |
+| Companies | `/companies` | on | [user/companies.md](docs/user/companies.md) |
 | Application tracker | `/applications` | on | [user/applications.md](docs/user/applications.md) |
+| Offer comparison | `/applications/offers` | on | [user/applications.md](docs/user/applications.md) |
+| Contacts and outreach | `/contacts` | beta | [user/outreach.md](docs/user/outreach.md) |
+| Job radar | `/radar` | on | [user/job-radar.md](docs/user/job-radar.md) |
 | Career Autopilot | `/autopilot` | beta | [user/career-autopilot.md](docs/user/career-autopilot.md) |
 | Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |
 | Growth toolkit | `/growth` | beta | [user/growth.md](docs/user/growth.md) |
 | Career paths | `/paths` | beta | [user/career-paths.md](docs/user/career-paths.md) |
+| CV Studio | `/cv` | on | [user/cv-studio.md](docs/user/cv-studio.md) |
+| Market guide | `/guides/market` | on | [user/market-guide.md](docs/user/market-guide.md) |
+| Profile | `/profile` | on | [user/onboarding-and-profile.md](docs/user/onboarding-and-profile.md) |
+| Skill pages | `/skills` | on | [user/skills.md](docs/user/skills.md) |
+| Source management | `/sources` | on | [user/add-a-job-source.md](docs/user/add-a-job-source.md) |
+| Extension surfaces | `/extensions` | on | [user/add-a-job-source.md](docs/user/add-a-job-source.md) |
+| About | `/about` | on | [user/README.md](docs/user/README.md) |
+| Settings | `/settings` | on | [user/settings.md](docs/user/settings.md) |
 | Skill relations admin | `/settings/taxonomy` | on | [user/skills-taxonomy.md](docs/user/skills-taxonomy.md) |
 | Company matching rules | `/settings/companies` | on | [user/companies.md](docs/user/companies.md) |
 | Audit & monitoring | `/settings/audit` | on | [user/settings.md](docs/user/settings.md) |
@@ -276,7 +298,7 @@ Interactive API docs are also available at `/docs` on a running backend.
 Career Assistant is in **public beta** (`0.17.x`). The points below are honest boundaries — not every limitation is a bug.
 
 - **Pre-1.0 APIs.** REST endpoints and DB schemas may change before `1.0`. Pin a version if you depend on it.
-- **Fresh-baseline schema.** v0.17 replaces the whole migration history with one baseline; a pre-v0.17 database is not upgradeable. Recreate dev/test/production databases (`alembic upgrade head` + seed) instead of migrating.
+- **Fresh-baseline schema.** v0.17 replaces the whole migration history with one baseline; a pre-v0.17 database is not upgradeable. The desktop app moves the old datastore aside on first launch (nothing is deleted, with a one-time notice); PostgreSQL deployments are refused at boot with guidance — recreate dev/test/production databases (`alembic upgrade head` + seed) instead of migrating.
 - **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/dev/deployment.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
 - **No Celery in v1.** PDF parsing and AI generation run as in-process FastAPI background tasks. Redis ships in the compose file for a later worker split; today the FastAPI process does the work itself.
 - **Single-tenant.** Students are `users`; there is no tenancy model. Multi-school/organization support is not on the v1 roadmap.
@@ -292,17 +314,21 @@ Career Assistant is in **public beta** (`0.17.x`). The points below are honest b
 - **Discovery wave** — skills ontology, deterministic fit engine, JobTypeMatch assessment, engagement & notifications, career stages.
 - **Live postings wave** — connector SDK (ATS/JSON-LD/RSS/CSV/URL), deep extraction with skill-level search, Explore page, Career Autopilot, express start & target mode, growth toolkit, the modular scheduler.
 - **Desktop & ops** — tray background mode, Linux packaging (`.deb` + `.AppImage`), production self-host stack ([docs/dev/deployment.md](docs/dev/deployment.md)), MCP server + client bridge, semantic search & skill packs, interview prep.
+- **Career OS depth wave** — evidence-first gap reports, the application kit, visa/language/grade eligibility gates, bookmarklet capture, JSON Resume and ICS import, contacts + outreach, posting trust and safety signals, salary benchmarks, offer comparison, STAR stories, screening answers, the bullet coach, NACE competencies, degree roles and the UK/DACH market guide.
 
 **Up next**:
 
-- **Phase 2 of the 2026-10-21 wave** — applications and follow-ups, the
-  notification-integration loop, AI first-run setup, assistant-surface
-  parity, explore/fit performance, i18n completion, the connector
-  platform, a codebase restructure, the quality gates and the career-path
-  explorer (plans 116–125).
-- **Notification-center library unification** and health-assistant
-  adoption — shared work in the assistant-ui and health repos.
-- **Sustainability model** — how the family of assistants stays funded.
+- **Career OS close-out** — the Career OS depth surfaces shipped; the remaining
+  work is the docs/status close-out pass, the deferred 2FA slice (blocked on
+  auth-kit MFA) and the deferred correctness items from the 2026-11-12 audits
+  (AI-audit PII redaction on deletion, capture provenance, ICS-apply
+  concurrency, price-override uniqueness).
+- **Market intelligence successors** — currency normalization (one display
+  currency with manual FX rates) ahead of the analysis
+  tabs (196), sources & data-quality operations with saved views (197)
+  and the personal "My market" lens (198).
+- **Uniform taxonomy maintenance agent** — one evaluated
+  pipeline for job types, skills and relations.
 
 ## Community & support
 

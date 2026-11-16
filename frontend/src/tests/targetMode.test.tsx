@@ -74,6 +74,7 @@ function postingRow(id: string): PostingOut {
     status: "mapped",
     ref: id,
     mapping_reason: "",
+    repost_count: 0,
     needs_review: false,
     catalog_job_id: "j1",
     fit: 7.2,

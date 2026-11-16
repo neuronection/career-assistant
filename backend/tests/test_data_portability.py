@@ -141,10 +141,16 @@ async def test_sole_user_can_delete_account(client, db):
 def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     from app import backups
     from app.core.config import settings
+    from app.local import run_migrations
 
     data_dir = tmp_path
     db_path = data_dir / "app.db"
     import sqlite3
+
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
+    # A real datastore is stamped by this release's chain; an unstamped file
+    # is a previous-line datastore and a restore refuses it by design.
+    run_migrations()
 
     connection = sqlite3.connect(db_path)
     connection.execute("CREATE TABLE t (x TEXT)")
@@ -156,11 +162,14 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     (data_dir / "auth_keys.json").write_text('{"session": "s", "refresh": "r", "data": "d"}')
     (data_dir / "secret.key").write_text("s3cret")
 
-    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
-
     archive = backups.create_backup(data_dir)
     assert archive.is_file()
     assert backups.prune_backups(data_dir) == 0
+    with zipfile.ZipFile(archive) as bundle:
+        manifest = __import__("json").loads(bundle.read("manifest.json"))
+    from app.local import head_revision
+
+    assert manifest["schema"] == head_revision()
 
     connection = sqlite3.connect(db_path)
     connection.execute("DROP TABLE t")
@@ -232,34 +241,68 @@ def test_backup_prune_keeps_daily_and_weekly(tmp_path, monkeypatch):
     assert remaining[-1] == max(remaining, key=lambda p: p.name)
 
 
-def test_corrupt_db_is_quarantined_and_repaired(tmp_path, monkeypatch):
-    import sqlite3
-
+def test_restore_refuses_a_previous_release_archive(tmp_path, monkeypatch):
+    """A backup from the pre-baseline schema line is refused before the swap."""
     from app import backups
     from app.core.config import settings
 
     data_dir = tmp_path
     db_path = data_dir / "app.db"
-    (data_dir / "backups").mkdir()
-
     connection = sqlite3.connect(db_path)
-    connection.execute("CREATE TABLE t (x TEXT)")
-    connection.execute("INSERT INTO t VALUES ('keep')")
+    connection.execute("CREATE TABLE live (x TEXT)")
+    connection.execute("INSERT INTO live VALUES ('current')")
     connection.commit()
     connection.close()
     monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
-    archive = backups.create_backup(data_dir)
+    old_db = data_dir / "old-release.db"
+    connection = sqlite3.connect(old_db)
+    connection.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
+    connection.execute("INSERT INTO alembic_version VALUES ('0100_previous_line')")
+    connection.execute("CREATE TABLE previous (x TEXT)")
+    connection.commit()
+    connection.close()
+    archive = data_dir / "backup-previous.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("app.db", old_db.read_bytes())
+        bundle.writestr(
+            "manifest.json",
+            '{"app_version": "0.16.0", "schema": "0100_previous_line"}',
+        )
 
-    db_path.write_bytes(b"this is not a database at all")
-    assert backups._validate_sqlite(db_path) is False
+    with pytest.raises(RuntimeError, match="cannot be restored"):
+        backups.restore_backup(data_dir, archive)
 
-    result = backups.verify_or_repair_database(data_dir)
-    assert result == "repaired"
-    assert backups._validate_sqlite(db_path) is True
-    assert list((data_dir / "backups").glob("backup-*.zip")) == [archive]
-    quarantined = list(data_dir.glob("corrupt-*.db"))
-    assert len(quarantined) == 1
+    connection = sqlite3.connect(db_path)
+    try:
+        rows = connection.execute("SELECT x FROM live").fetchall()
+    finally:
+        connection.close()
+    assert rows == [("current",)]
+
+
+def test_restore_refuses_an_undeclared_previous_schema(tmp_path, monkeypatch):
+    """Archives without a manifest schema are probed against the chain."""
+    from app import backups
+    from app.core.config import settings
+
+    data_dir = tmp_path
+    db_path = data_dir / "app.db"
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
+
+    old_db = data_dir / "old-release.db"
+    connection = sqlite3.connect(old_db)
+    connection.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
+    connection.execute("INSERT INTO alembic_version VALUES ('0052_retired')")
+    connection.commit()
+    connection.close()
+    archive = data_dir / "backup-no-manifest.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("app.db", old_db.read_bytes())
+
+    with pytest.raises(RuntimeError, match="cannot be restored"):
+        backups.restore_backup(data_dir, archive)
+    assert not db_path.exists()
 
 
 def test_restore_rejects_corrupt_archive_and_leaves_live_db(tmp_path, monkeypatch):

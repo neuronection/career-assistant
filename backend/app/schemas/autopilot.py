@@ -27,7 +27,6 @@ class ProfileUsage(BaseModel):
 
     use_skills: bool = True
     use_education: bool = True
-    use_languages: bool = True
     use_location: bool = True
     use_experience: bool = True
     use_lifestyle: bool = True

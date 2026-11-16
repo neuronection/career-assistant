@@ -95,6 +95,7 @@ function detail(overrides: Partial<PostingDetailOut> = {}): PostingDetailOut {
     expires_at: ahead(12 * DAY),
     status: "mapped",
     mapping_reason: "",
+    repost_count: 0,
     notes: "",
     seen: false,
     saved: false,
@@ -131,6 +132,49 @@ function detail(overrides: Partial<PostingDetailOut> = {}): PostingDetailOut {
       inputs_hash: "abc",
     },
     similar: [{ ref: "AAAA2222", title: "Data Analyst", org: "BetaCo", score: 0.72 }],
+    gap: {
+      must_have: [
+        {
+          raw_label: "strong programming",
+          skill_key: "programming",
+          label: "Programming",
+          required_level: 5,
+          user_level: 6,
+          status: "met",
+          priority: "must_have",
+          kind: "skill",
+          evidence_quote: "strong programming required",
+          user_evidence: [{ source: "experience", label: "DevOps intern" }],
+        },
+        {
+          raw_label: "vibe coding",
+          skill_key: null,
+          label: null,
+          required_level: 2,
+          user_level: null,
+          status: "missing",
+          priority: "must_have",
+          kind: "skill",
+          evidence_quote: "",
+          user_evidence: [],
+        },
+      ],
+      nice_to_have: [
+        {
+          raw_label: "docker",
+          skill_key: "docker",
+          label: "Docker",
+          required_level: 3,
+          user_level: 1,
+          status: "partial",
+          priority: "nice_to_have",
+          kind: "skill",
+          evidence_quote: "docker a plus",
+          user_evidence: [],
+        },
+      ],
+      bonus: [],
+    },
     extract: {
       skills: [
         {
@@ -159,7 +203,20 @@ function detail(overrides: Partial<PostingDetailOut> = {}): PostingDetailOut {
         },
       ],
       responsibilities: [{ text: "Build dashboards", time_pct: 40, optional: false }],
-      languages: ["English (C1)", "German (B2)"],
+      language_requirements: [
+        {
+          code: "English",
+          level: "advanced",
+          evidence_quote: "C1 English",
+          confidence: 0.8,
+        },
+        {
+          code: "German",
+          level: "intermediate",
+          evidence_quote: "B2 German",
+          confidence: 0.8,
+        },
+      ],
       contract_type: {
         contract_type: "permanent",
         evidence_quote: "permanent role",
@@ -224,7 +281,7 @@ describe("PostingDetailPage", () => {
     expect(facts).toHaveTextContent("Permanent");
     expect(facts).toHaveTextContent("Full time");
     expect(facts).toHaveTextContent("40–42 h / week");
-    expect(facts).toHaveTextContent("English (C1), German (B2)");
+    expect(facts).toHaveTextContent("English (advanced), German (intermediate)");
     expect(screen.getByTestId("salary-annualized")).toBeInTheDocument();
 
     const timeline = await screen.findByTestId("posting-timeline");
@@ -587,5 +644,102 @@ describe("catalog job type card (plan 202 S5b)", () => {
     expect((await screen.findByTestId("posting-catalog-proposals-link")).getAttribute("href")).toBe(
       "/settings/taxonomy?tab=enrichment",
     );
+  });
+});
+
+describe("PostingDetailPage — What's missing gap report (plan 212 S1.1)", () => {
+  it("renders grouped rows with verbatim quotes, levels and status", async () => {
+    renderPage();
+    const card = await screen.findByTestId("gap-card");
+    expect(card).toHaveTextContent("What's missing");
+    expect(card).toHaveTextContent(/not a match score/i);
+    const quotes = screen.getAllByTestId("gap-quote");
+    expect(quotes.map((q) => q.textContent)).toEqual(
+      expect.arrayContaining(["“strong programming required”", "“docker a plus”"]),
+    );
+    expect(screen.getByTestId("gap-status-met")).toBeInTheDocument();
+    expect(screen.getByTestId("gap-status-partial")).toBeInTheDocument();
+    // User evidence label is shown next to the quote.
+    expect(screen.getByTestId("gap-user-evidence")).toHaveTextContent("DevOps intern");
+    // No headline percentage anywhere in the gap card.
+    expect(card.textContent).not.toMatch(/\d+(\.\d+)?\s*%/);
+  });
+
+  it("keeps unresolved labels visible with no quote and marks them", async () => {
+    renderPage();
+    await screen.findByTestId("gap-card");
+    const requirements = screen.getAllByTestId("gap-requirement");
+    expect(requirements.map((r) => r.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("strong programming"), expect.stringContaining("vibe coding")]),
+    );
+    expect(screen.getByTestId("gap-unresolved")).toHaveTextContent(/not in your skill taxonomy/i);
+    // The unresolved row carries no quote — exactly two quotes exist.
+    expect(screen.getAllByTestId("gap-quote")).toHaveLength(2);
+    expect(screen.getByTestId("gap-status-missing")).toBeInTheDocument();
+  });
+
+  it("explains the empty state when there is no extract", async () => {
+    mockFetchDetail.mockResolvedValue(detail({ gap: null, extract_version: null }));
+    renderPage();
+    const card = await screen.findByTestId("gap-card");
+    expect(card).toHaveTextContent(/No deep extraction yet/i);
+  });
+
+  it("explains the empty state when extraction found no requirements", async () => {
+    mockFetchDetail.mockResolvedValue(
+      detail({
+        gap: { must_have: [], nice_to_have: [], bonus: [] },
+      }),
+    );
+    renderPage();
+    const card = await screen.findByTestId("gap-card");
+    expect(card).toHaveTextContent(/No skill requirements recorded/i);
+  });
+
+  it("expands and copies a capped quote", async () => {
+    const long = "an unusually long evidence quote that keeps going and going. ".repeat(4);
+    mockFetchDetail.mockResolvedValue(
+      detail({
+        gap: {
+          must_have: [
+            {
+              raw_label: "sql",
+              skill_key: "sql",
+              label: "SQL",
+              required_level: 4,
+              user_level: null,
+              status: "missing",
+              priority: "must_have",
+              kind: "skill",
+              evidence_quote: long,
+              user_evidence: [],
+            },
+          ],
+          nice_to_have: [],
+          bonus: [],
+        },
+      }),
+    );
+    renderPage();
+    await screen.findByTestId("gap-card");
+    const quote = screen.getByTestId("gap-quote");
+    expect(quote.textContent).toContain("…");
+    fireEvent.click(screen.getByTestId("gap-quote-toggle"));
+    expect(screen.getByTestId("gap-quote").textContent).not.toContain("…");
+    expect(screen.getByTestId("gap-quote-toggle")).toHaveTextContent(/show less/i);
+  });
+
+  it("links the Tailor & apply CTA to the pre-application kit", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings/P3KX9Q2A"]}>
+        <Routes>
+          <Route path="/postings/:ref" element={<PostingDetailPage />} />
+          <Route path="/postings/:ref/kit" element={<div data-testid="kit-page" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("posting-detail");
+    fireEvent.click(screen.getByTestId("open-kit"));
+    expect(await screen.findByTestId("kit-page")).toBeInTheDocument();
   });
 });

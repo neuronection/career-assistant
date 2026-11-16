@@ -391,6 +391,31 @@ DEMO_SCRIPTS = (
 )
 
 
+def mock_assist(schema: type, user_prompt: str) -> dict:
+    """Deterministic quick-assist + outreach draft fixture."""
+    if getattr(schema, "__name__", "") == "OutreachDraftAI":
+        ctx = parse_context(user_prompt)
+        contact = ctx.get("contact") or {}
+        posting = ctx.get("posting") or {}
+        kind = ctx.get("kind", "intro")
+        name = str(contact.get("name") or "there")
+        org = str(contact.get("org") or posting.get("org") or "the team")
+        role = str(posting.get("title") or contact.get("role") or "the role")
+        evidence = ctx.get("evidence") or []
+        return {
+            "subject": f"{kind.replace('_', ' ').title()} — {role}",
+            "body": (
+                f"Hi {name}, I'm reaching out about the {role} role at {org}. "
+                "I've followed the team's work and would value the chance to "
+                "learn more. Thank you for your time."
+            ),
+            "evidence_refs": evidence[:12],
+        }
+    from app.ai.gateway import _generic_mock
+
+    return _generic_mock(schema)
+
+
 def mock_chat_reply(schema: type, user_prompt: str) -> dict:
     ctx = parse_context(user_prompt)
     tools = ctx.get("tool_results", {})
@@ -494,6 +519,7 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
 
 
 register_mock_fixture(AITaskType.CHAT, mock_chat_reply)
+register_mock_fixture(AITaskType.ASSIST, mock_assist)
 
 
 def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:

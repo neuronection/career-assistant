@@ -37,3 +37,9 @@ vector_records.text_ref :: keep-open {table,id,field} pointer rehydrated under A
 retrieval_query_rollups.latency_buckets :: keep-open latency histogram bucket-to-count map (plan 51 Q0 owns the boundaries; latency_bucket_schema_version is the sibling)
 ai_generations.metadata :: keep-open caller-supplied embedding tags (space_id/kind/view/chunk_index; schema version sibling; never text)
 mapping_coverage_snapshots.reasons :: keep-open funnel-state→count histogram at capture time (closed keys from the AD2 precedence; no text)
+saved_answers.evidence_refs :: typed-out list[{source,item_id,label}] evidence refs
+posting_interactions.gate_overrides :: typed-out {gate: bool} per-user "apply anyway" map
+interview_stories.competency_keys :: typed-out list[str] competency tags
+interview_stories.evidence_refs :: typed-out list[{source,item_id,label}] evidence refs
+job_postings.trust_flags :: typed-out dict {duplicate_candidate: list[{posting_id,ref,title,org,score,reason}], duplicate_suppressed: list[canonical_id]}
+contacts.tags :: typed-out list[str] free tags

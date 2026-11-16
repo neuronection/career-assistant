@@ -29,7 +29,9 @@ documents. Every JSONB write is validated by pydantic on the way in.
 | `user_skills` | `user_model.py` | FK join to `skills`, with level |
 | `experience_items`, `experience_skills`, `experience_achievements` | `experience_model.py` | Jobs, internships, freelance, projects, volunteering + their links |
 | `skill_evidence` | `experience_model.py` | Evidence backing a skill level |
-| `education_items`, `certifications`, `profile_achievements` | `profile_entities_model.py` | Education, certifications, achievements |
+| `education_items`, `certifications`, `profile_achievements` | `profile_entities_model.py` | Education, certifications, achievements. A later revision replaces the qualitative `grade_band` with the scale-scoped `grade_scale` + `grade_value` + derived `grade_ordinal` (UK honours, 4.0/10 GPA, German Note, percentage; never cross-converted) |
+| `saved_answers` | `profile_entities_model.py` | One user-written screening answer per `question_key` (unique per user), with `question_text`, `answer_text` and typed `evidence_refs`; the kit is the reader |
+| `interview_stories` | `interview_model.py` | One STAR story per user (title, competency tags, S/T/A/R, optional `experience_item_id`, typed evidence refs); practice prepends a story-derived behavioral question |
 | `organizations` | `experience_model.py` | Normalized employers |
 | `documents` | `document_model.py` | Uploaded files (CVs, admission PDFs) |
 
@@ -52,19 +54,26 @@ stays referentially intact.
 | `user_path_flags` | `career_path_model.py` | A user's `interested`/`dismissed`/`pinned` mark on a path (`step_id` NULL = the whole path) |
 
 `background_jobs.job_type` is the second pre-existing §6 exception (a plain
-string column, absent from `test_schema_contracts.CHECKS`), so the
-`job_proposal_backfill` member (plan 202) needs no DDL either.
+string column, absent from `test_schema_contracts.CHECKS`).
 
 `jobs.status` carries the closed vocabulary `draft | published | retired`
-(`JobStatus`). `retired` is written only by the job-type merge service
-(plan 202): a duplicate type is retired into its survivor, never deleted,
+(`JobStatus`). `retired` is written only by the job-type merge service:
+a duplicate type is retired into its survivor, never deleted,
 and the row keeps `ai_metadata.retired_into` / `retired_at` /
 `retired_reason` as the trail. The column is a **pre-existing §6 exception**
 (plain `String(20)`, no mirrored CHECK, absent from
 `test_schema_contracts.CHECKS`), so the additive enum member needs no DDL;
 the debt is recorded here, not widened.
 
-`skill_relations` (plan 138) is the typed edge table over `skills`:`from_skill_id`/`to_skill_id` (FK `skills.id` CASCADE, each indexed),
+`jobs.title_key` is the derived normalized title
+(`String(200)`, `ix_jobs_title_key`), written by the `before_insert` /
+`before_update` SQLAlchemy event on every ORM write, including the seed.
+The write-path guard compares it across non-retired rows; migration `0003`
+backfills existing rows. The index is deliberately **not unique** while live
+duplicate pairs exist — the partial unique index is a
+follow-up, not current schema.
+
+`skill_relations` is the typed edge table over `skills`:`from_skill_id`/`to_skill_id` (FK `skills.id` CASCADE, each indexed),
 `relation` (`is_a | synonym | part_of | related_to`, CHECK
 `relation_allowed`), `status` (`proposed | approved | rejected`, CHECK
 `status_allowed`), `source` (`llm | manual | import | derived`, CHECK
@@ -105,11 +114,13 @@ provenance.
 | Table(s) | Model | Holds |
 |---|---|---|
 | `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `title` (optional display name from the extension manifest), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
-| `job_postings` | `posting_model.py` | Live postings + extraction payload |
+| `job_postings` | `posting_model.py` | Live postings + extraction payload; the typed mapping-truth columns `mapping_margin` (weak-review margin), `extract_status` (`succeeded`/`failed`) and `proposal_proposed_at` (typed v2 proposal time). `language_codes` holds the comma-delimited projection (`",en,el,"`) of the structured `extract.language_requirements` rows used by the Explore facet; the structured rows carry code, level and evidence — plus the eligibility columns `work_authorization`, `opportunity_type` and `application_deadline`; the trust columns `duplicate_of_id` (self-FK, NULL = canonical, clear = undo), `repost_count`, `last_verified_at` and the typed `trust_flags` JSONB (duplicate proposals) |
 | `posting_skills` | `posting_model.py` | Extracted skills with level/priority/evidence |
-| `posting_interactions` | `posting_model.py` | Engagement state only: seen / saved / hidden |
-| `applications` | `application_model.py` | The application pipeline, 1:1 per user+posting: `stage`, `applied_at`, `applied_via` + `applied_via_url`, `deadline_at`, `next_followup_at`, `contact` (`{name, email, role, channel}`), `offer` (`{currency, amount, period, benefits[]}` — money triple), `outcome`/`closed_at`, `cv_id`/`cover_letter_id`, `external_ref`, `notes`, extension-only `meta` |
-| `application_events` | `application_model.py` | Append-only timeline: `at`, `kind`, `stage_from`/`stage_to`, `body`, `actor`, per-kind `meta` (`document_id` for `document_linked`, `step` for `followup_*`, `scheduled_at` + optional `duration_minutes` for `interview_scheduled`, the webhook payload for `external_update`); every stage transition writes exactly one `stage_change` |
+| `posting_interactions` | `posting_model.py` | Engagement state only: seen / saved / hidden; `gate_overrides` (`{"visa": true}`) — the per-user "apply anyway" map read fresh on every fit read, never part of the fit cache hash |
+| `applications` | `application_model.py` | The application pipeline, 1:1 per user+posting: `stage`, `applied_at`, `applied_via` + `applied_via_url`, `deadline_at`, `next_followup_at`, `contact_id` (the structured contact), `offer` (`{currency, amount, period, benefits[]}` — money triple), `outcome`/`closed_at`, `cv_id`/`cover_letter_id`, `external_ref`, `notes`, extension-only `meta` |
+| `contacts` | `contact_model.py` | One flat user-owned person around applications (`name`, `org`, `role`, `email`, normalized nullable `email_key` with a per-user partial unique index, `profile_url`, `notes`, `tags`, derived `last_contacted_at`, `source`); no cadence and no enrichment |
+| `contact_interactions` | `contact_model.py` | One logged outreach moment (`kind`, `at`, `channel`, `notes`, optional `application_id`); contact delete cascades, application delete sets null |
+| `application_events` | `application_model.py` | Append-only timeline: `at`, `kind`, `stage_from`/`stage_to`, `body`, `actor`, per-kind `meta` (`document_id` for `document_linked`, `step` for `followup_*`, `scheduled_at` + optional `duration_minutes` for `interview_scheduled`, plus ICS `ics_uid`/`all_day`/`end`/`location` on imports, the webhook payload for `external_update`); every stage transition writes exactly one `stage_change` |
 | `followup_rules` | `followup_model.py` | Per-user follow-up cadence (`cadence_days`), milestone check-ins, per-kind channel routing (`default`/`followup_due`/`interview_checkin`/`offer_checkin`) |
 | `user_feed_tokens` | `followup_model.py` | Hashed `.ics`/RSS subscription tokens (`kind` = `ics`/`rss`): `scope` is `{}` (everything) or `{"saved_search_id": …}` for RSS, plaintext shown once at mint/rotation, `last_used_at`, `revoked_at` + `rotated_from_id` chain |
 | `webhook_endpoints` | `posting_model.py` | Inbound-webhook keys (`target` = `posting_status`/`application_status`/`ingest`), hashed token, health |
@@ -131,8 +142,26 @@ and rule changes (due immediately at Interview/Offer while milestone
 check-ins are on), the follow-up sweep rewrites it after each pass from
 the notification history, and a snooze pins it explicitly.
 
+**Mapping-truth columns.** `job_postings.mapping_margin` is the
+skill-ranked top-minus-second margin of a deterministic mapping (0..1,
+CHECK-enforced; NULL for manual/semantic; pre-existing rows stay NULL until
+the owner runs the re-decide sweep, while new deterministic mappings write it
+immediately). `extract_status` records the extract attempt outcome
+(`succeeded`/`failed`, CHECK-enforced; NULL for never-attempted rows) and is
+written by the extract paths in S3. `proposal_proposed_at` is the typed v2
+proposal timestamp written by `store_job_type_proposal` and cleared by
+dismiss/clear/map; the queue display and `mapping_ops` aging read the typed
+column, with `created_at` as the fallback for rows the migration could not
+parse. The three indexes are `ix_postings_mapping_margin`,
+`ix_postings_proposal_proposed_at` and `ix_postings_status_extract`.
+`job_postings.mapping_features` is schema version 2 / mapping version 3 for
+new decisions (v1 rows still parse); the payload carries the deterministic/
+semantic/blend legs, shared taxonomy keys and the title evidence. Automatic
+semantic writes are re-decided by the scoped `POSTING_REMAP` backfill; manual
+rows are never overwritten.
 
-## Economic context (plan 127)
+
+## Economic context
 
 | Table(s) | Model | Holds |
 |---|---|---|
@@ -167,7 +196,7 @@ deletion).
 ### Migration notes
 
 The chain is a **single no-BC baseline** (`0001_baseline_schema.py`) since
-v0.17: the plan-113 `0001` and the `0002`–`0100` revisions were replaced by
+v0.17: the earlier `0001` and the `0002`–`0100` revisions were replaced by
 one schema generated from the final models. v0.16.0 → v0.17 is a declared
 breaking release with no production users, so the baseline's empty-schema
 `downgrade()` is an approved one-off (declared in the revision header) —
@@ -199,12 +228,13 @@ model ⇄ baseline drift check.
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
-| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model (plan 52 T2a/T2b): tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Kinds are `tiktoken`, `hf_tokenizers` and `heuristic`; `sentencepiece` is reserved. Curated rows live in code (`app/ai/tokenizers/registry.py`) with HF provenance (repo/revision/SHA-256/license/source URL); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite. Fetched HF artifacts are cached at `<data_dir>/tokenizers/<sha256>/tokenizer.json`, not in the database |
-| `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
+| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model: tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Kinds are `tiktoken`, `hf_tokenizers` and `heuristic`; `sentencepiece` is reserved. Curated rows live in code (`app/ai/tokenizers/registry.py`) with HF provenance (repo/revision/SHA-256/license/source URL); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite. Fetched HF artifacts are cached at `<data_dir>/tokenizers/<sha256>/tokenizer.json`, not in the database |
+| `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text). Call-time cost provenance: `cost_micros`, `usage_source` (`provider`/`estimated`/`partial`/`unknown`), `estimate_method`, `price_source` (`user`/`builtin`/`local`/`unknown`) and `price_version`; an unknown price stays NULL, never zero |
+| `ai_price_overrides` | `ai_model.py` | System-scoped price rows (provider preset key or product `provider_ref`, model, `exact`/`prefix` match, input/output micros per million, `tokens`/`input_only`/`output_only` metering). Read/write through the admin-only `/ai/prices` surface; the resolver order is user row → override → built-in list price → local zero → unknown |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
-| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space (plan 52 T3b/T3c) also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens/source provenance) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
-| `retrieval_query_rollups`, `retrieval_coverage_snapshots` | `vector_model.py` | Bounded operational telemetry (plan 51 Q0 schema, first written by the P1d reconcile pass): query-health buckets and per-kind coverage points (`total`/`missing`/`stale`/`failed`/`embedded` + the sampled ANN recall) |
+| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store: versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens/source provenance) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
+| `retrieval_query_rollups`, `retrieval_coverage_snapshots` | `vector_model.py` | Bounded operational telemetry (first written by the reconcile pass): query-health buckets and per-kind coverage points (`total`/`missing`/`stale`/`failed`/`embedded` + the sampled ANN recall) |
 | `ai_mcp_servers` | `mcp_bridge_model.py` | External MCP server registrations |
 | `mcp_tokens` | `mcp_bridge_model.py` | Hashed MCP access tokens (personal or instance-wide), closed `scopes`, rotation + per-token revocation |
 
@@ -215,7 +245,7 @@ model ⇄ baseline drift check.
 | `growth_plans`, `growth_plan_steps` | `growth_model.py` | Roadmaps |
 | `learning_resources` | `growth_model.py` | Resources for skill gaps |
 | `search_history` | `engagement_model.py` | Saved/recent searches |
-| `smart_query_cache` | `smart_search_model.py` | Cross-user NL-search cache (plan 179): `query_hash` PK = sha256 of the normalized query, closed `SmartSearchSpec` JSONB, `created_at`. TTL-pruned (7 days) by the daily smart-digest job — cache data, never a record |
+| `smart_query_cache` | `smart_search_model.py` | Cross-user NL-search cache: `query_hash` PK = sha256 of the normalized query, closed `SmartSearchSpec` JSONB, `created_at`. TTL-pruned (7 days) by the daily smart-digest job — cache data, never a record |
 | `notifications`, `notification_recipients`, `notification_deliveries` | `engagement_model.py` | The notification funnel (dedup keys, delivery state); `channel` spans `in_app`/`desktop`/`browser`/`email`/`webhook`. A `pending` delivery with `error = deferred:<quiet_hours|digest_mode>` is email waiting for the next digest run; webhook rows stay `pending` until the queued delivery job reports |
 | `user_channel_configs` | `engagement_model.py` | Per-user, per-channel config — email: `address` override, `digest_mode`, `pending_address`/`verification_hash`/`verification_expires_at` while double opt-in is open; webhook: `url` + `template` (`generic`/`slack`/`teams`/`telegram`/`ntfy`) — sealed `secrets` (webhook token only; URLs are not secrets) + `verified_at` |
 | `notification_kinds`, `notification_kind_prefs`, `notification_rules`, `notification_preferences`, `notification_subscriptions` | `engagement_model.py` | Kind registry, per-rule caps/cooldowns, quiet hours |
@@ -224,7 +254,7 @@ model ⇄ baseline drift check.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) and the bounded live `progress_detail` counters (plan 52 T4). `tokenizer_fetch` rows (plan 52 T2b) are plain jobs: they are not `VECTOR_*` runs and never take a space lock |
+| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes and the bounded live `progress_detail` counters. `tokenizer_fetch` rows are plain jobs: they are not `VECTOR_*` runs and never take a space lock |
 | `schedules` | `schedule_model.py` | Trigger definitions, misfire policy, claimed/queued state |
 | `app_settings` | `settings_model.py` | Instance settings (AI config, web tools, notification config) |
 | `interview_sessions` | `interview_model.py` | Interview plans, rubric aggregates, status |

@@ -17,7 +17,9 @@ short version; this page is the reference. Statuses live in
   typical positives and negatives.
 - **AI-generated jobs** — extend the catalog with new careers; the generator
   maps output onto the existing taxonomy so nothing becomes an orphan of free
-  text.
+  text. Generated jobs land as **drafts** — nothing enters the working
+  catalog until you review each draft and publish it explicitly from the job
+  page.
 - **Search and filter** across the whole catalog.
 
 ## Profile
@@ -33,6 +35,10 @@ short version; this page is the reference. Statuses live in
   against the taxonomy, so matching is computed, not vibes.
 - **AI profile analysis** — get an external read on your profile and what it
   implies.
+- **JSON Resume in and out** — export the profile in the community shape or
+  import a file through a review report that lists mapped fields, dropped
+  keys and basics conflicts; nothing writes until **Apply import**, and no
+  runtime schema package is required.
 
 ## Matching & rankings
 
@@ -87,8 +93,14 @@ short version; this page is the reference. Statuses live in
   backed by a verbatim evidence quote, plus salary, responsibilities with time
   splits and seniority. Extraction v2 adds contract type, work hours, schedule
   cues, travel demand, onsite policy and typed benefits (each with its own
-  evidence). Lifestyle constraints gate postings — flagged on the card, never
-  hidden. Search vacancies by "skill X at level ≥ N", rank them by
+  evidence). Extraction v6 adds **eligibility reality**: work authorization
+  (cannot sponsor / sponsors / case-by-case / citizens only), language
+  requirements with level, a scale-scoped academic grade cutoff, the
+  student-facing opportunity type, an explicit application deadline and
+  trust signals (repost count, last verified detail fetch) — each with
+  evidence, missing values suppressed rather than guessed. Lifestyle
+  constraints gate postings — flagged on the card, never hidden. Search
+  vacancies by "skill X at level ≥ N", rank them by
   deterministic coverage of your skills, and read the provenance (raw →
   fast-mapped → extracted) on every card. Low-confidence fields are suppressed
   for review, never guessed.
@@ -99,11 +111,40 @@ short version; this page is the reference. Statuses live in
   dashboard shows the real saved → applied → interviewing → offers funnel,
   and the assistant can read the pipeline and proposes stage changes and
   notes as approval cards.
+- **Application kit** — before applying, an evidence-first requirement
+  report, deterministic prep and the measured checklist; after applying, the
+  kit with five tabs (CV, letter, answers, checklist, timeline), reusing the
+  documents you already made.
+- **Answer library** — save user-written screening answers once and reuse
+  them; the kit fills from your saved answers and never invents text.
+- **Import interview invitations** — an `.ics` calendar export is parsed
+  review-first into interview proposals linked to applications, with UTC
+  conversion, Windows timezone support, duplicate detection and all-day
+  events; nothing lands until you apply.
+- **Response-rate coaching** — tailored vs untailored response rates over
+  your own applications, with `n` disclosed, suppression below 10 per group,
+  one next action, and no causal or cross-user claim.
+- **Contacts and outreach** — a flat contact list with an interaction log,
+  linked from applications, and copy-only intro/follow-up/thank-you/
+  referral/informational drafts grounded in the contact and posting. No
+  sending, scraping, enrichment or second follow-up cadence.
+- **Capture a posting from anywhere** — a bookmarklet/`?capture=` opens a
+  confirmation dialog and lands one ordinary posting through the existing
+  paste-a-URL path; the canonical URL makes a second capture idempotent.
+- **Trust signals and duplicate hygiene** — cards show factual repost and
+  last-verified chips; a deterministic cross-source scan merges only
+  high-confidence duplicates, leaves weaker pairs as proposals, and Settings
+  → Tools → Posting hygiene merges or clears them. Explore's **Hide likely
+  duplicates** keeps merged rows out of the list and facet counts.
 - **Explore page** — filters every structured field (including contract type,
   travel, schedule cues, benefits and organization) with live facet counts,
   saves searches you can schedule, and paginates by cursor. Posting detail
   shows a per-posting match score built from the extracted data (weighted by
-  your fit sliders, stale-proof), source attribution and similar roles.
+  your fit sliders, stale-proof), source attribution and similar roles — plus
+  the **"What's missing" gap report**: every asked skill grouped must-have /
+  nice-to-have / bonus with the posting's verbatim quote and your own
+  evidence per row. It is deterministic and deliberately not a score — no
+  percentage lives anywhere near it.
 - **Semantic search & skill packs** — postings embed into a portable vector
   store (pgvector optional, plain Postgres/SQLite fully supported); Explore's
   relevance search fuses lexical and semantic rankings without ever bypassing
@@ -153,6 +194,11 @@ Every route to a target job in one place (beta):
   roadmap.
 
 ## Growth toolkit
+
+- **NACE competencies** — evidence-derived career-readiness signals from
+  experiences, achievements, skills and certifications; every competency
+  cites evidence or says there is none, with no self-rating or score. CV
+  bullet checks tag the competencies a bullet touches.
 
 The product works after you're hired:
 
@@ -210,6 +256,17 @@ experience-first, and gates student-only modules like university intake behind
 feature flags. The engine stays one engine: presets are suggestions, never
 hidden scoring branches.
 
+## Market guide
+
+- **UK and DACH orientation** — `/guides/market` compares UK honours
+  classifications with German/Austrian grades, explains the Swiss scale, and
+  gives market-specific CV conventions, application norms and hiring cycles.
+- **Sourced and dated** — every market links official portals and the page
+  shows the review date. The copy is general guidance, not legal or
+  immigration advice.
+- **Locale-aware** — the page is fully translated into English, German and
+  Greek, while local application terms stay recognizable.
+
 ## CV Studio
 
 Career Assistant is not just a CV builder, but this is its most mature
@@ -261,6 +318,9 @@ structured profile.
   evidence per paragraph with unbacked claims flagged, and the letter renders
   through the same template engine with your CV's design tokens — with the
   same versions/exports as CVs.
+- **Deterministic bullet coach** — **Check bullets** flags a missing metric,
+  duty-phrase openings, passive voice, over-long/very short lines and
+  duplicate opening words; no AI call and no write.
 - **Listing at a glance** — every CV card in the studio carries a first-page
   thumbnail printed by the same engine as the PDF (downscaled, cached per
   edit), the whole card opens the CV, and the list shows exactly your CVs —
@@ -299,7 +359,10 @@ structured profile.
   calibrated to your own skill levels from the deep posting extract (or a
   catalog archetype), coached practice with a structure/evidence/clarity
   rubric per answer, a debrief with per-dimension aggregates, learning
-  resources for weak skills, and one-click weak-area retry.
+  resources for weak skills, and one-click weak-area retry. The **STAR
+  story library** stores your own situation/task/action/result stories with
+  competency tags and experience links; picked stories are prepended to the
+  plan deterministically, never generated.
 - **Bring your own LLM** — any OpenAI-compatible endpoint (OpenAI, OpenRouter,
   Ollama, LM Studio). Providers, models and per-task assignments (matching,
   generation, parsing, chat…) are managed in **Settings → AI Configuration**

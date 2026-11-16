@@ -17,6 +17,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -26,6 +27,7 @@ from app.services.postings.change_journal import (
     PostingChangeJournal,
     snapshot,
 )
+from app.services.postings.mapping_score import WEAK_SEMANTIC_CONFIDENCE
 
 
 class MappingOutcomeState(StrEnum):
@@ -74,6 +76,37 @@ MACHINE_TERMINAL_REASONS = frozenset(
         MappingOutcomeReason.NO_CANDIDATE,
     }
 )
+
+
+def is_weak_mapping(
+    *,
+    method: str | None,
+    margin: float | None,
+    confidence: float | None,
+    delta: float,
+) -> bool:
+    """The plan-210 weak-review predicate (AD3), in Python form."""
+    if method == "skill_overlap":
+        return margin is not None and margin < delta
+    if method in ("semantic", "semantic_rerank"):
+        return confidence is not None and confidence < WEAK_SEMANTIC_CONFIDENCE
+    return False
+
+
+def weak_mapping_predicate(delta: float):
+    """The same predicate as a SQL expression for the console/quality reads."""
+    return or_(
+        and_(
+            JobPosting.mapping_method == "skill_overlap",
+            JobPosting.mapping_margin.isnot(None),
+            JobPosting.mapping_margin < delta,
+        ),
+        and_(
+            JobPosting.mapping_method.in_(("semantic", "semantic_rerank")),
+            JobPosting.mapping_confidence.isnot(None),
+            JobPosting.mapping_confidence < WEAK_SEMANTIC_CONFIDENCE,
+        ),
+    )
 
 
 def write_mapping_outcome(
@@ -176,9 +209,9 @@ async def backfill_postings_outcome(
             db,
             posting.id,
             "retag",
-            actor_ref=actor_ref or {"trigger": "mapping_outcome_backfill"},
+            actor_ref=actor_ref or {"trigger": "mapping_outcome"},
             operation={
-                "mapping_outcome_backfill": {
+                "mapping_outcome": {
                     "state": state.value,
                     "reason": reason.value,
                 }
@@ -198,6 +231,8 @@ __all__ = [
     "backfill_postings_outcome",
     "clear_mapping_review",
     "derive_outcome",
+    "is_weak_mapping",
+    "weak_mapping_predicate",
     "write_mapping_outcome",
     "write_mapping_review",
 ]

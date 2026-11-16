@@ -55,7 +55,7 @@ class DesignTokens(BaseModel):
     # only when section_style is "card".
     elevation: Literal["none", "soft", "raised"] = "none"
     # Chip styling (skills/languages/interests chips): tint = accent wash
-    # (legacy default), outline = bordered, solid = accent fill, plain =
+    # (pre-migration default), outline = bordered, solid = accent fill, plain =
     # text only. chip_tint_pct is the accent share in the tint wash.
     chip_style: Literal["tint", "outline", "solid", "plain"] = "tint"
     chip_tint_pct: int = Field(default=12, ge=0, le=40)
@@ -80,7 +80,7 @@ class DesignTokens(BaseModel):
     sidebar_text_color: str = Field(default="#ffffff", pattern=HEX_COLOR)
     sidebar_width_pct: int = Field(default=34, ge=25, le=45)
     # Per-area padding (plan 70): inner padding of the main flow and the
-    # sidebar column. None = legacy renderer defaults (sidebar 4mm/4.5mm,
+    # sidebar column. None = previous renderer defaults (sidebar 4mm/4.5mm,
     # main unpadded). Sidebar templates typically pair these with
     # margin_mm=0 so the areas own the spacing instead of the page.
     main_padding_mm: int | None = Field(default=None, ge=0, le=25)

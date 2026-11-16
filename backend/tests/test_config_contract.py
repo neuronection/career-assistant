@@ -42,6 +42,7 @@ import pytest
 from fastapi import FastAPI
 from nx_auth import AuthConfig
 from nx_auth.config import AUTH_KNOB_ENV_NAMES, knob_overrides
+from pydantic import ValidationError
 
 from app.auth.install import _settings_knob
 from app.core.config import Settings
@@ -302,6 +303,27 @@ def test_require_shell_secret_computed_knob_routes_non_none(
 # ---------------------------------------------------------------------------
 # (b) env writes are read by the app (mirror-image rename guard)
 # ---------------------------------------------------------------------------
+
+
+def test_empty_export_cap_from_compose_uses_the_default(monkeypatch) -> None:
+    """``${CAREER_EXPORT_MAX_MB:-}`` is an empty string, not a boot failure."""
+    assert settings_from_env_file(None, export_max_mb="").export_max_mb == 1024
+    assert settings_from_env_file(None, export_max_mb="   ").export_max_mb == 1024
+    assert settings_from_env_file(None, export_max_mb=None).export_max_mb == 1024
+
+    monkeypatch.setenv("CAREER_EXPORT_MAX_MB", "")
+    assert settings_from_env_file(None).export_max_mb == 1024
+    monkeypatch.setenv("CAREER_EXPORT_MAX_MB", "   ")
+    assert settings_from_env_file(None).export_max_mb == 1024
+
+
+def test_export_cap_bounds_stay_enforced() -> None:
+    assert settings_from_env_file(None, export_max_mb=1).export_max_mb == 1
+    assert settings_from_env_file(None, export_max_mb=1024).export_max_mb == 1024
+    with pytest.raises(ValidationError):
+        settings_from_env_file(None, export_max_mb=0)
+    with pytest.raises(ValidationError):
+        settings_from_env_file(None, export_max_mb=1025)
 
 
 def test_suite_env_writes_are_read_by_the_app() -> None:

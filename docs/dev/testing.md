@@ -60,6 +60,22 @@ cd backend && PYTEST_XDIST=0 uv run pytest tests -q   # serial
 cd backend && PYTEST_XDIST_WORKERS=4 uv run pytest tests -q
 ```
 
+### Golden/calibration fixtures and changed-area xdist
+
+- The posting-mapping golden corpus's **case meaning** is pinned by
+  `tests/test_posting_mapping_fixture_integrity.py` and the committed
+  case/job manifests. A metric change may re-tune **filler counts only**,
+  with the `posting_mapping_fixture_delta.json` old→new table and the
+  untouched-corpus numbers committed; never edit a case's labels, expected
+  job/family/outcome, skills or semantic oracle to make a change pass.
+- The calibration harness imports the production pure scorer
+  (`app/services/postings/mapping_score.py`), and the committed report is
+  byte-reproduced by a test; keep both in lockstep.
+- A changed-area xdist set is not "green" from one run: repeat it (3×). A
+  lazy relationship touched from an async endpoint (e.g. `Job.family`)
+  throws `MissingGreenlet` under xdist — eager-load it (`selectinload`) and
+  force a fresh identity map in the test (`expire_all`).
+
 ### Writing backend tests
 
 - Use the async fixtures in `tests/conftest.py`; every test runs inside a
@@ -120,7 +136,7 @@ not `CAREER_RATELIMIT_ENABLED`).
 The suite covers the product loops end-to-end over the mock provider: chat
 (docked + bubble), CV Studio (create, generate, cover letters), synth
 bullets/references, profile HITL, extensions, AI settings/first run, and —
-since plan 124 — Autopilot (`test_autopilot.py`), interview practice
+since the gate expansion — Autopilot (`test_autopilot.py`), interview practice
 (`test_interviews.py`), universities intake review (`test_universities.py`),
 onboarding start paths (`test_onboarding_paths.py`) and CV PDF export
 (`test_cv_pdf_export.py`).
@@ -142,7 +158,7 @@ onboarding start paths (`test_onboarding_paths.py`) and CV PDF export
 
 ## Quality gates (CI)
 
-Every gate blocks, and every ratchet only tightens (plan 124). A gate that
+Every gate blocks, and every ratchet only tightens. A gate that
 can fail silently — `continue-on-error`, cron-only, "advisory" — is not a
 gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 `frontend/vitest.config.ts`, type pegs in `backend/pyproject.toml`

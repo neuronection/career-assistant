@@ -1001,26 +1001,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/mappings/backfill": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Enqueue Outcome Backfill
-         * @description Enqueue the bounded, idempotent outcome backfill (one queued/running run).
-         */
-        post: operations["enqueue_outcome_backfill_api_v1_admin_mappings_backfill_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/mappings/extract": {
         parameters: {
             query?: never;
@@ -1110,6 +1090,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/mappings/map-bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mappings Map Bulk
+         * @description Map selected active postings onto one published catalog type.
+         */
+        post: operations["mappings_map_bulk_api_v1_admin_mappings_map_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/mappings/overview": {
         parameters: {
             query?: never;
@@ -1174,6 +1174,46 @@ export interface paths {
          *     per-posting before/after and a semantic-degrade flag.
          */
         post: operations["mappings_policy_dry_run_api_v1_admin_mappings_policy_dry_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mappings/postings/{posting_id}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mappings Detail Now
+         * @description Fetch one posting's detail page now (one connector call, no run row).
+         */
+        post: operations["mappings_detail_now_api_v1_admin_mappings_postings__posting_id__detail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mappings/postings/{posting_id}/repropose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mappings Repropose
+         * @description Queue the existing refresh-redecision path for one posting.
+         */
+        post: operations["mappings_repropose_api_v1_admin_mappings_postings__posting_id__repropose_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1299,6 +1339,31 @@ export interface paths {
          *     selected postings.
          */
         post: operations["mappings_redecide_api_v1_admin_mappings_redecide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mappings/redecide-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mappings Redecide All
+         * @description Owner-run re-decide: one bounded ``POSTING_REMAP`` run.
+         *
+         *     ``scope="stale"`` (default) selects active non-manual rows whose
+         *     ``mapping_version`` is missing or below the current version — the after-S1
+         *     backfill; ``scope="all"`` forces every active non-manual row.
+         *     Confirmation/result count are the UI's.
+         */
+        post: operations["mappings_redecide_all_api_v1_admin_mappings_redecide_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1826,6 +1891,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/posting-hygiene": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hygiene Overview */
+        get: operations["hygiene_overview_api_v1_admin_posting_hygiene_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/posting-hygiene/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hygiene Clear */
+        post: operations["hygiene_clear_api_v1_admin_posting_hygiene_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/posting-hygiene/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hygiene Merge */
+        post: operations["hygiene_merge_api_v1_admin_posting_hygiene_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/posting-hygiene/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hygiene Scan */
+        post: operations["hygiene_scan_api_v1_admin_posting_hygiene_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/connectors": {
         parameters: {
             query?: never;
@@ -1909,32 +2042,11 @@ export interface paths {
          * @description Postings whose catalog join ended unmapped with a rich extract —
          *     the HITL "create the job type" queue (plan 202), keyset-paged since
          *     plan 206 (the old silent 50-row cap hid every later proposal):
-         *     provenance, the proposed type, actionable candidates and the
-         *     legacy-v1 banner count.
+         *     provenance, the proposed type, actionable candidates.
          */
         get: operations["job_proposal_queue_api_v1_admin_postings_job_proposals_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/postings/job-proposals/regenerate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regenerate Job Proposals
-         * @description Enqueue the bounded v1 → v2 backfill (one queued/running run).
-         */
-        post: operations["regenerate_job_proposals_api_v1_admin_postings_job_proposals_regenerate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3180,6 +3292,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/storage/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Storage Status
+         * @description The resolved deployment target plus a cached live health row.
+         *
+         *     ``refresh=true`` drops the health cache before probing, so the operator
+         *     "test connection" action is a real check instead of a repeat of a
+         *     snapshot up to 30 s old.
+         */
+        get: operations["get_storage_status_api_v1_admin_storage_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/taxonomy/resolution/stats": {
         parameters: {
             query?: never;
@@ -3711,6 +3847,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Prices */
+        get: operations["list_prices_api_v1_ai_prices_get"];
+        /** Put Price */
+        put: operations["put_price_api_v1_ai_prices_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/prices/{override_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Price */
+        delete: operations["delete_price_api_v1_ai_prices__override_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/providers": {
         parameters: {
             query?: never;
@@ -4006,6 +4177,23 @@ export interface paths {
          * @description Dictation speech-to-text through the transcribe task.
          */
         post: operations["transcribe_api_v1_ai_transcribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/usage/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage Costs */
+        get: operations["usage_costs_api_v1_ai_usage_costs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4855,6 +5043,10 @@ export interface paths {
         /**
          * Download Export
          * @description Download a finished data-export archive (owner only, attachment).
+         *
+         *     New exports are objects streamed through the store; pre-contract rows
+         *     carry a legacy local `export_path` and are served from the local tree
+         *     (desktop/self-host only).
          */
         get: operations["download_export_api_v1_background_jobs__job_id__download_get"];
         put?: never;
@@ -6140,6 +6332,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cv/{cv_id}/parse-view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Parse View Cv
+         * @description What our extractor sees (plan 212 S1.2): the current state printed
+         *     through the export engine (no version created) and read back per page
+         *     with deterministic findings. 503 with the capability message when no
+         *     print engine is available — never a simulated answer. No AI, no
+         *     vendor claims: the UI says "what our extractor sees".
+         */
+        get: operations["parse_view_cv_api_v1_cv__cv_id__parse_view_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cv/{cv_id}/polish": {
         parameters: {
             query?: never;
@@ -6398,7 +6614,7 @@ export interface paths {
         };
         /**
          * Download Document
-         * @description The original upload, byte-exact.
+         * @description The original upload, byte-exact, streamed through the store.
          */
         get: operations["download_document_api_v1_documents__document_id__file_get"];
         put?: never;
@@ -7368,6 +7584,42 @@ export interface paths {
         patch: operations["update_achievement_api_v1_me_achievements__item_id__patch"];
         trace?: never;
     };
+    "/api/v1/me/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Answers */
+        get: operations["list_answers_api_v1_me_answers_get"];
+        put?: never;
+        /** Upsert Answer */
+        post: operations["upsert_answer_api_v1_me_answers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/answers/{answer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Answer */
+        delete: operations["delete_answer_api_v1_me_answers__answer_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Answer */
+        patch: operations["update_answer_api_v1_me_answers__answer_id__patch"];
+        trace?: never;
+    };
     "/api/v1/me/applications": {
         parameters: {
             query?: never;
@@ -7386,6 +7638,66 @@ export interface paths {
          * @description Track one application (idempotent per posting).
          */
         post: operations["create_application_api_v1_me_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/applications/import/ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Applications Import Ics
+         * @description Review-first ICS import: VEVENTs → proposed interview links.
+         */
+        post: operations["applications_import_ics_api_v1_me_applications_import_ics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/applications/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Applications Insights
+         * @description Descriptive tailored/untailored response rates with n and suppression.
+         */
+        get: operations["applications_insights_api_v1_me_applications_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/applications/offers/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Offers
+         * @description Normalized comp/benefits/location/CoL/deadline for up to four offers.
+         */
+        get: operations["compare_offers_api_v1_me_applications_offers_compare_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7432,6 +7744,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/applications/{application_id}/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Application Contact */
+        post: operations["set_application_contact_api_v1_me_applications__application_id__contact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/applications/{application_id}/documents": {
         parameters: {
             query?: never;
@@ -7446,6 +7775,28 @@ export interface paths {
          * @description Attach the CV / cover letter actually sent.
          */
         post: operations["link_application_document_api_v1_me_applications__application_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/applications/{application_id}/kit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Application Kit
+         * @description The application's kit (plan 212 S1.3): the posting kit plus the
+         *     event timeline and the linked documents. Ownership-checked — a
+         *     foreign application is a 404 like every other application read.
+         */
+        get: operations["get_application_kit_api_v1_me_applications__application_id__kit_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7467,6 +7818,30 @@ export interface paths {
          */
         post: operations["add_application_note_api_v1_me_applications__application_id__notes_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/applications/{application_id}/offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Application Offer
+         * @description Store structured offer details; the stage is never changed automatically.
+         */
+        post: operations["set_application_offer_api_v1_me_applications__application_id__offer_post"];
+        /**
+         * Clear Application Offer
+         * @description Remove offer details without touching the application stage.
+         */
+        delete: operations["clear_application_offer_api_v1_me_applications__application_id__offer_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7639,6 +8014,94 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Contacts */
+        get: operations["list_contacts_api_v1_me_contacts_get"];
+        put?: never;
+        /** Create Contact */
+        post: operations["create_contact_api_v1_me_contacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/contacts/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Contact */
+        get: operations["get_contact_api_v1_me_contacts__contact_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Contact */
+        delete: operations["delete_contact_api_v1_me_contacts__contact_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Contact */
+        patch: operations["patch_contact_api_v1_me_contacts__contact_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/me/contacts/{contact_id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Draft Outreach */
+        post: operations["draft_outreach_api_v1_me_contacts__contact_id__draft_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/contacts/{contact_id}/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Interaction */
+        post: operations["add_interaction_api_v1_me_contacts__contact_id__interactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/contacts/{contact_id}/interactions/{interaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Interaction */
+        delete: operations["delete_interaction_api_v1_me_contacts__contact_id__interactions__interaction_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7963,6 +8426,59 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/interview/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Stories */
+        get: operations["list_stories_api_v1_me_interview_stories_get"];
+        put?: never;
+        /** Create Story */
+        post: operations["create_story_api_v1_me_interview_stories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/interview/stories/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Story Suggestions */
+        get: operations["story_suggestions_api_v1_me_interview_stories_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/interview/stories/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Story */
+        delete: operations["delete_story_api_v1_me_interview_stories__story_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Story */
+        patch: operations["update_story_api_v1_me_interview_stories__story_id__patch"];
         trace?: never;
     };
     "/api/v1/me/job-radar": {
@@ -9525,6 +10041,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Postings Capture
+         * @description Capture one posting from a pasted URL through the manual-URL path.
+         */
+        post: operations["postings_capture_api_v1_postings_capture_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/explore": {
         parameters: {
             query?: never;
@@ -9773,6 +10309,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/stats/salary-benchmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Salary Benchmarks
+         * @description Per job/family x country x seniority pay cells, with n and a floor.
+         */
+        get: operations["postings_stats_salary_benchmarks_api_v1_postings_stats_salary_benchmarks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/stats/skills": {
         parameters: {
             query?: never;
@@ -9825,11 +10381,64 @@ export interface paths {
         /**
          * Posting Detail
          * @description One posting by ref or id with the structured extract, source
-         *     attribution, match-score card and the similar-postings rail.
+         *     attribution, match-score card, evidence-first gap report and the
+         *     similar-postings rail.
          */
         get: operations["posting_detail_api_v1_postings__posting_ref__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/{posting_ref}/gap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Posting Gap Report
+         * @description Standalone evidence-first gap report (plan 212 S1.1).
+         *
+         *     Requirements grouped must-have / nice-to-have / bonus; every row
+         *     carries the verbatim posting wording, the required level, the
+         *     caller's level, a status and — when the label resolved to a
+         *     taxonomy key — the posting's evidence quote and the user's evidence
+         *     ledger. `null` when the posting has no deep extraction yet. This is
+         *     deliberately NOT a score: the match card is a different surface.
+         */
+        get: operations["posting_gap_report_api_v1_postings__posting_ref__gap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/{posting_ref}/gate-override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Posting Gate Override
+         * @description Set or clear one per-posting eligibility override.
+         *
+         *     Overrides are read fresh on every fit read (never part of the fit
+         *     cache hash), so the flag applies immediately to both the score card
+         *     and the feed. Unknown gates never exclude; this endpoint only records
+         *     the user's explicit "apply anyway" decision.
+         */
+        post: operations["posting_gate_override_api_v1_postings__posting_ref__gate_override_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9851,6 +10460,58 @@ export interface paths {
         get: operations["posting_history_api_v1_postings__posting_ref__history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/{posting_ref}/kit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Posting Kit
+         * @description The pre-application kit (plan 212 S1.3): posting identity, the
+         *     evidence-first gap report, the user's CV / cover-letter state
+         *     (`needs_cv` when there is no resume at all), deterministic screening
+         *     prompts backed by your saved answer library, a
+         *     read-only sourced checklist (posting state, measured page count,
+         *     lint facts, static guidance — never a vendor simulation) and the
+         *     application id/stage when one exists. Reads only.
+         */
+        get: operations["posting_kit_api_v1_postings__posting_ref__kit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/{posting_ref}/kit/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Posting Kit Prepare
+         * @description Idempotent deterministic prep for the kit's CV tab.
+         *
+         *     Runs the existing deterministic computation — the tailor coverage
+         *     (identical rows to the CV Studio tailor table) and the
+         *     missing-section report. Never calls AI, never creates a CV, a cover
+         *     letter or an application row; `needs_cv` asks for the CV Studio CTA
+         *     and `extract_ready=false` is the honest no-extract degradation.
+         */
+        post: operations["posting_kit_prepare_api_v1_postings__posting_ref__kit_prepare_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9895,6 +10556,80 @@ export interface paths {
          * @description Run the AI profile analyst and store the structured summary.
          */
         post: operations["ai_analyze_api_v1_profile_ai_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/competencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Competencies
+         * @description Evidence-derived NACE competencies; no self-rating or score.
+         */
+        get: operations["competencies_api_v1_profile_competencies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/degree-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Degree Roles
+         * @description Deterministic programme/focus-subject -> family suggestions.
+         */
+        get: operations["degree_roles_api_v1_profile_degree_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/export/jsonresume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Json Resume */
+        get: operations["export_json_resume_api_v1_profile_export_jsonresume_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/import/jsonresume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Json Resume */
+        post: operations["import_json_resume_api_v1_profile_import_jsonresume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10321,7 +11056,11 @@ export interface paths {
         };
         /**
          * Health
-         * @description Liveness probe.
+         * @description Liveness probe: dependency states ride the payload.
+         *
+         *     A transient storage-provider failure degrades open (200,
+         *     ``storage.status: degraded``); the endpoint returns 503 only when
+         *     object storage is required or the failure has been sustained.
          */
         get: operations["health_health_get"];
         put?: never;
@@ -10534,6 +11273,11 @@ export interface components {
             note: string;
             outcome: components["schemas"]["ApplicationOutcome"];
         };
+        /** ApplicationContactIn */
+        ApplicationContactIn: {
+            /** Contact Id */
+            contact_id?: string | null;
+        };
         /**
          * ApplicationCreateIn
          * @description Track an application (idempotent per posting).
@@ -10583,10 +11327,8 @@ export interface components {
             applied_via_url: string;
             /** Closed At */
             closed_at?: string | null;
-            /** Contact */
-            contact?: {
-                [key: string]: unknown;
-            };
+            /** Contact Id */
+            contact_id?: string | null;
             /** Cover Letter Id */
             cover_letter_id?: string | null;
             /**
@@ -10702,6 +11444,29 @@ export interface components {
             stage_to?: string | null;
         };
         /**
+         * ApplicationKitOut
+         * @description The kit plus the application timeline and the linked documents.
+         */
+        ApplicationKitOut: {
+            /** Answers */
+            answers?: components["schemas"]["KitAnswerPrompt"][];
+            application?: components["schemas"]["KitApplicationState"] | null;
+            /** Checklist */
+            checklist?: components["schemas"]["KitChecklistItem"][];
+            cover_letter?: components["schemas"]["KitLetterState"];
+            cv?: components["schemas"]["KitCvState"];
+            documents?: components["schemas"]["KitLinkedDocuments"];
+            gap?: components["schemas"]["PostingGapOut"] | null;
+            posting: components["schemas"]["KitPostingOut"];
+            /** Timeline */
+            timeline?: components["schemas"]["ApplicationEventOut"][];
+            /**
+             * Timeline Truncated
+             * @default false
+             */
+            timeline_truncated: boolean;
+        };
+        /**
          * ApplicationListOut
          * @description One tracker page of applications plus aggregate counts.
          */
@@ -10723,6 +11488,33 @@ export interface components {
             text: string;
         };
         /**
+         * ApplicationOfferIn
+         * @description One offer, stored as JSON on the application (plan 212 S3.6).
+         */
+        ApplicationOfferIn: {
+            /** Amount */
+            amount: number;
+            /** Benefits */
+            benefits?: string[];
+            /** Cost Of Living */
+            cost_of_living?: number | null;
+            /** Currency */
+            currency: string;
+            /** Deadline */
+            deadline?: string | null;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+            /**
+             * Period
+             * @default year
+             * @enum {string}
+             */
+            period: "year" | "month" | "hour";
+        };
+        /**
          * ApplicationOut
          * @description The application row as the tracker renders it.
          */
@@ -10741,10 +11533,8 @@ export interface components {
             applied_via_url: string;
             /** Closed At */
             closed_at?: string | null;
-            /** Contact */
-            contact?: {
-                [key: string]: unknown;
-            };
+            /** Contact Id */
+            contact_id?: string | null;
             /** Cover Letter Id */
             cover_letter_id?: string | null;
             /**
@@ -11139,6 +11929,8 @@ export interface components {
              * @default UTC
              */
             timezone: string;
+            /** Work Authorization */
+            work_authorization?: ("citizen" | "permanent_resident" | "student_visa" | "needs_sponsorship" | "other") | null;
         };
         /** Body_transcribe_api_v1_ai_transcribe_post */
         Body_transcribe_api_v1_ai_transcribe_post: {
@@ -11474,6 +12266,27 @@ export interface components {
             /** Ids */
             ids: string[];
         };
+        /** BulletCheck */
+        BulletCheck: {
+            /** Id */
+            id: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "info" | "warn" | "fail";
+            /** Message */
+            message: string;
+        };
+        /** BulletReview */
+        BulletReview: {
+            /** Checks */
+            checks?: components["schemas"]["BulletCheck"][];
+            /** Competency Keys */
+            competency_keys?: string[];
+            /** Index */
+            index: number;
+        };
         /** BulletTarget */
         BulletTarget: {
             /** Item Id */
@@ -11492,6 +12305,11 @@ export interface components {
             /** Fit Score */
             fit_score: number;
             job: components["schemas"]["JobOut"];
+        };
+        /** CaptureIn */
+        CaptureIn: {
+            /** Url */
+            url: string;
         };
         /**
          * CardErrorOut
@@ -11827,6 +12645,14 @@ export interface components {
             last_at?: string | null;
             /** Next At */
             next_at?: string | null;
+        };
+        /** ClearIn */
+        ClearIn: {
+            /**
+             * Posting Id
+             * Format: uuid
+             */
+            posting_id: string;
         };
         /**
          * ClockCellOut
@@ -12184,6 +13010,35 @@ export interface components {
          * @enum {string}
          */
         CompanyType: "public" | "private" | "subsidiary" | "nonprofit" | "government" | "startup";
+        /** CompetenciesOut */
+        CompetenciesOut: {
+            /** Competencies */
+            competencies?: components["schemas"]["CompetencyOut"][];
+        };
+        /** CompetencyEvidenceOut */
+        CompetencyEvidenceOut: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "experience" | "achievement" | "skill" | "certification";
+            /** Label */
+            label: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+        };
+        /** CompetencyOut */
+        CompetencyOut: {
+            /** Evidence */
+            evidence?: components["schemas"]["CompetencyEvidenceOut"][];
+            /** Key */
+            key: string;
+        };
         /** CompletenessOut */
         CompletenessOut: {
             /** Percent */
@@ -12241,6 +13096,219 @@ export interface components {
              * @default true
              */
             willing_to_relocate: boolean;
+        };
+        /** ContactDetailOut */
+        ContactDetailOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Interactions */
+            interactions?: components["schemas"]["ContactInteractionOut"][];
+            /** Last Contacted At */
+            last_contacted_at?: string | null;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: string;
+            /** Org */
+            org: string;
+            /** Profile Url */
+            profile_url: string;
+            /** Role */
+            role: string;
+            /** Source */
+            source: string;
+            /** Tags */
+            tags: unknown[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ContactIn */
+        ContactIn: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+            /** Name */
+            name: string;
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Org
+             * @default
+             */
+            org: string;
+            /**
+             * Profile Url
+             * @default
+             */
+            profile_url: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            /**
+             * Source
+             * @default manual
+             * @enum {string}
+             */
+            source: "manual" | "application_migration" | "import";
+            /** Tags */
+            tags?: string[];
+        };
+        /** ContactInteractionIn */
+        ContactInteractionIn: {
+            /** Application Id */
+            application_id?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Channel
+             * @default other
+             * @enum {string}
+             */
+            channel: "email" | "call" | "meeting" | "message" | "other";
+            /**
+             * Kind
+             * @default other
+             * @enum {string}
+             */
+            kind: "intro" | "follow_up" | "thank_you" | "referral" | "informational" | "other";
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+        };
+        /** ContactInteractionOut */
+        ContactInteractionOut: {
+            /** Application Id */
+            application_id?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Channel */
+            channel: string;
+            /**
+             * Contact Id
+             * Format: uuid
+             */
+            contact_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Notes */
+            notes: string;
+        };
+        /** ContactOut */
+        ContactOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Contacted At */
+            last_contacted_at?: string | null;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: string;
+            /** Org */
+            org: string;
+            /** Profile Url */
+            profile_url: string;
+            /** Role */
+            role: string;
+            /** Source */
+            source: string;
+            /** Tags */
+            tags: unknown[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ContactPatch */
+        ContactPatch: {
+            /** Email */
+            email?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Org */
+            org?: string | null;
+            /** Profile Url */
+            profile_url?: string | null;
+            /** Role */
+            role?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
+        /** CostRow */
+        CostRow: {
+            /** Calls */
+            calls: number;
+            /** Cost Micros */
+            cost_micros: number | null;
+            /** Model */
+            model: string;
+            /** Priced Calls */
+            priced_calls: number;
+            /** Provider */
+            provider: string;
+            /** Tokens In */
+            tokens_in: number;
+            /** Tokens Out */
+            tokens_out: number;
+            /** Unpriced Calls */
+            unpriced_calls: number;
+        };
+        /** CostsOut */
+        CostsOut: {
+            /** Rows */
+            rows: components["schemas"]["CostRow"][];
+            /** Window */
+            window: string;
         };
         /** CoverLetterActionRequest */
         CoverLetterActionRequest: {
@@ -12349,8 +13417,30 @@ export interface components {
             /** Paragraphs */
             paragraphs?: components["schemas"]["VerifiedParagraph"][];
         };
-        /** CoverageEntry */
+        /**
+         * CoverageEntry
+         * @description One deterministic tailor-coverage row (plan 212 S1.1 v2).
+         *
+         *     Beyond the key/priority/level facts each row carries the posting's
+         *     own words: the verbatim `raw_label`, the `required_level`, the
+         *     extract's `evidence_quote` (joined on the resolved skill key) and
+         *     the user's `user_evidence` refs — evidence-first, never a score.
+         *     `status` compares the user's level to the requirement:
+         *     `met` / `partial` (below the bar) / `missing` (no level recorded).
+         *     Labels that never resolved to a key are the posting gap report's
+         *     rows, not coverage's — the tailor table is keyed.
+         */
         CoverageEntry: {
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /**
+             * Kind
+             * @default skill
+             */
+            kind: string;
             /**
              * Label
              * @default
@@ -12361,8 +13451,23 @@ export interface components {
              * @default
              */
             priority: string;
+            /**
+             * Raw Label
+             * @default
+             */
+            raw_label: string;
+            /** Required Level */
+            required_level?: number | null;
             /** Skill Key */
             skill_key: string;
+            /**
+             * Status
+             * @default missing
+             * @enum {string}
+             */
+            status: "met" | "partial" | "missing";
+            /** User Evidence */
+            user_evidence?: components["schemas"]["PostingGapEvidenceOut"][];
             /** User Level */
             user_level?: number | null;
         };
@@ -12406,6 +13511,8 @@ export interface components {
          * @description Action payload; only the fields an action needs are read.
          */
         CvActionRequest: {
+            /** Bullets */
+            bullets?: string[];
             /** Items */
             items?: components["schemas"]["CompactionItem"][];
             /** Length */
@@ -12896,6 +14003,57 @@ export interface components {
          * @enum {string}
          */
         CvPageSize: "a4" | "letter";
+        /**
+         * CvParseViewFinding
+         * @description One deterministic finding — never a score, never a vendor name.
+         */
+        CvParseViewFinding: {
+            /** Id */
+            id: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "info" | "warn" | "fail";
+            /** Message */
+            message: string;
+        };
+        /**
+         * CvParseViewOut
+         * @description What our extractor sees in the exported PDF: per-page text,
+         *     findings, the page count and whether a text layer exists at all.
+         *     `engine` names our own pipeline ("pdf" = printed through the server
+         *     print engine); this is explicitly NOT a vendor simulation.
+         */
+        CvParseViewOut: {
+            /**
+             * Engine
+             * @default pdf
+             * @constant
+             */
+            engine: "pdf";
+            /** Findings */
+            findings?: components["schemas"]["CvParseViewFinding"][];
+            /** Page Count */
+            page_count: number;
+            /** Pages */
+            pages?: components["schemas"]["CvParseViewPage"][];
+            /** Text Layer */
+            text_layer: boolean;
+        };
+        /**
+         * CvParseViewPage
+         * @description One printed page's extracted text — exactly what this app's own
+         *     extractor sees, verbatim.
+         */
+        CvParseViewPage: {
+            /** Index */
+            index: number;
+            /** Line Count */
+            line_count: number;
+            /** Text */
+            text: string;
+        };
         /** CvPreviewOut */
         CvPreviewOut: {
             /** Blocks */
@@ -13074,6 +14232,8 @@ export interface components {
         CvSuggestionOut: {
             /** Action */
             action: string;
+            /** Bullet Checks */
+            bullet_checks?: components["schemas"]["BulletReview"][];
             coverage?: components["schemas"]["TailorCoverage"] | null;
             /** Gaps */
             gaps?: components["schemas"]["SectionGap"][];
@@ -13526,6 +14686,30 @@ export interface components {
          * @enum {string}
          */
         DegreeLevel: "vocational" | "bachelor" | "master" | "phd";
+        /** DegreeRoleMatchOut */
+        DegreeRoleMatchOut: {
+            /** Depth */
+            depth: number;
+            /** Family Key */
+            family_key: string;
+            /** Family Title */
+            family_title: string;
+            /** Matched Terms */
+            matched_terms?: string[];
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "matched" | "parent" | "family_expansion";
+        };
+        /**
+         * DegreeRolesOut
+         * @description Structured suggestions; the UI localizes reason codes into sentences.
+         */
+        DegreeRolesOut: {
+            /** Matches */
+            matches?: components["schemas"]["DegreeRoleMatchOut"][];
+        };
         /** DeliveriesOut */
         DeliveriesOut: {
             /** Items */
@@ -13782,8 +14966,10 @@ export interface components {
             end?: string | null;
             /** Focus Subjects */
             focus_subjects?: string[];
-            /** Grade Band */
-            grade_band?: ("low" | "below_average" | "average" | "good" | "excellent" | "unknown") | null;
+            /** Grade Scale */
+            grade_scale?: ("uk_honours" | "gpa_4" | "gpa_10" | "de_note" | "percentage" | "other") | null;
+            /** Grade Value */
+            grade_value?: number | null;
             /**
              * In Progress
              * @default false
@@ -13829,8 +15015,12 @@ export interface components {
             end?: string | null;
             /** Focus Subjects */
             focus_subjects: unknown[];
-            /** Grade Band */
-            grade_band?: string | null;
+            /** Grade Ordinal */
+            grade_ordinal?: number | null;
+            /** Grade Scale */
+            grade_scale?: string | null;
+            /** Grade Value */
+            grade_value?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13870,8 +15060,10 @@ export interface components {
             end?: string | null;
             /** Focus Subjects */
             focus_subjects?: string[] | null;
-            /** Grade Band */
-            grade_band?: ("low" | "below_average" | "average" | "good" | "excellent" | "unknown") | null;
+            /** Grade Scale */
+            grade_scale?: ("uk_honours" | "gpa_4" | "gpa_10" | "de_note" | "percentage" | "other") | null;
+            /** Grade Value */
+            grade_value?: number | null;
             /** In Progress */
             in_progress?: boolean | null;
             /** Institution */
@@ -13914,6 +15106,27 @@ export interface components {
             task_type: string;
             /** Tier */
             tier?: string | null;
+        };
+        /** EffectivePriceOut */
+        EffectivePriceOut: {
+            /** Input Micros Per Million */
+            input_micros_per_million: number;
+            /** Metering */
+            metering: string;
+            /** Model */
+            model: string;
+            /** Output Micros Per Million */
+            output_micros_per_million: number;
+            /** Price Version */
+            price_version?: string | null;
+            /** Provider */
+            provider: string | null;
+            /** Provider Id */
+            provider_id: string | null;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /** Source */
+            source: string;
         };
         /**
          * EmailChannelConfigIn
@@ -14301,6 +15514,10 @@ export interface components {
             };
             /** Items */
             items: components["schemas"]["PostingOut"][];
+            /** Job Titles */
+            job_titles?: {
+                [key: string]: string;
+            };
             /** Next Cursor */
             next_cursor?: string | null;
             /** Total */
@@ -14690,6 +15907,22 @@ export interface components {
             /** User Level */
             user_level?: number | null;
         };
+        /**
+         * GateOverrideIn
+         * @description One per-posting eligibility override ("apply anyway").
+         */
+        GateOverrideIn: {
+            /**
+             * Allow
+             * @default true
+             */
+            allow: boolean;
+            /**
+             * Gate
+             * @enum {string}
+             */
+            gate: "visa" | "language" | "grade";
+        };
         /** GithubApplyIn */
         GithubApplyIn: {
             /** Login */
@@ -14843,6 +16076,16 @@ export interface components {
             /** Weight */
             weight: number;
         };
+        /** IcsImportIn */
+        IcsImportIn: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply: boolean;
+            /** Ics */
+            ics: string;
+        };
         /**
          * IndexRequest
          * @description One document to (re)index; ``space`` defaults to the content space.
@@ -14905,6 +16148,7 @@ export interface components {
         InstanceConfigOut: {
             /** Auth Mode */
             auth_mode: string;
+            datastore_quarantine?: components["schemas"]["QuarantineOut"] | null;
             /** Demo Mode */
             demo_mode: boolean;
             /** Identity Mode */
@@ -15018,6 +16262,8 @@ export interface components {
             kind: "technical" | "behavioral" | "mixed" | "research";
             /** Posting Ref */
             posting_ref?: string | null;
+            /** Story Ids */
+            story_ids?: string[];
         };
         /** InterviewSessionOut */
         InterviewSessionOut: {
@@ -15058,6 +16304,94 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** InterviewStoryIn */
+        InterviewStoryIn: {
+            /**
+             * Action
+             * @default
+             */
+            action: string;
+            /** Competency Keys */
+            competency_keys?: string[];
+            /** Evidence Refs */
+            evidence_refs?: {
+                [key: string]: unknown;
+            }[];
+            /** Experience Item Id */
+            experience_item_id?: string | null;
+            /**
+             * Result
+             * @default
+             */
+            result: string;
+            /**
+             * Situation
+             * @default
+             */
+            situation: string;
+            /**
+             * Task
+             * @default
+             */
+            task: string;
+            /** Title */
+            title: string;
+        };
+        /** InterviewStoryOut */
+        InterviewStoryOut: {
+            /** Action */
+            action: string;
+            /** Competency Keys */
+            competency_keys: unknown[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence Refs */
+            evidence_refs: unknown[];
+            /** Experience Item Id */
+            experience_item_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Result */
+            result: string;
+            /** Situation */
+            situation: string;
+            /** Task */
+            task: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** InterviewStoryPatch */
+        InterviewStoryPatch: {
+            /** Action */
+            action?: string | null;
+            /** Competency Keys */
+            competency_keys?: string[] | null;
+            /** Evidence Refs */
+            evidence_refs?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Experience Item Id */
+            experience_item_id?: string | null;
+            /** Result */
+            result?: string | null;
+            /** Situation */
+            situation?: string | null;
+            /** Task */
+            task?: string | null;
+            /** Title */
+            title?: string | null;
         };
         /** JobAttributes */
         JobAttributes: {
@@ -15452,30 +16786,15 @@ export interface components {
         };
         /**
          * JobProposalQueuePage
-         * @description Keyset window plus the legacy-v1 banner count (plans 202/206).
+         * @description Keyset window over live v2 job proposals (plans 202/206).
          */
         JobProposalQueuePage: {
             /** Items */
             items: components["schemas"]["JobProposalQueueItem"][];
-            /**
-             * Legacy Count
-             * @default 0
-             */
-            legacy_count: number;
             /** Next Cursor */
             next_cursor?: string | null;
             /** Total */
             total?: number | null;
-        };
-        /** JobProposalRegenerateIn */
-        JobProposalRegenerateIn: {
-            /**
-             * Limit
-             * @default 50
-             */
-            limit: number;
-            /** Posting Ids */
-            posting_ids?: string[] | null;
         };
         /**
          * JobRequeueRequest
@@ -15613,6 +16932,18 @@ export interface components {
              */
             total: number;
         };
+        /** JsonResumeImportIn */
+        JsonResumeImportIn: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply: boolean;
+            /** Resume */
+            resume: {
+                [key: string]: unknown;
+            };
+        };
         /** KindPrefIn */
         KindPrefIn: {
             /** Channels */
@@ -15657,6 +16988,213 @@ export interface components {
             enabled: boolean;
             /** Key */
             key: string;
+        };
+        /**
+         * KitAnswerPrompt
+         * @description One common screening prompt backed by the saved-answer library.
+         *
+         *     Deterministic and bounded; `saved_answer` is the user's own text
+         *     (null before they save one) — never a faked answer.
+         */
+        KitAnswerPrompt: {
+            /** Key */
+            key: string;
+            /** Prompt */
+            prompt: string;
+            /** Saved Answer */
+            saved_answer?: string | null;
+            /** Saved Answer Id */
+            saved_answer_id?: string | null;
+        };
+        /**
+         * KitApplicationState
+         * @description The application row's identity when one exists — id/stage only,
+         *     so the kit can deep-link without duplicating the tracker.
+         */
+        KitApplicationState: {
+            /** Applied At */
+            applied_at?: string | null;
+            /** Cover Letter Id */
+            cover_letter_id?: string | null;
+            /** Cv Id */
+            cv_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Stage
+             * @default applied
+             */
+            stage: string;
+        };
+        /**
+         * KitChecklistItem
+         * @description One read-only checklist row with its source: a measured fact
+         *     (page count, posting state), a lint finding, or a static hint.
+         *
+         *     Labels are backend English strings like the lint's own messages —
+         *     deterministic and quoted verbatim in the docs; the level badge text
+         *     is localized client-side.
+         */
+        KitChecklistItem: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @default info
+             * @enum {string}
+             */
+            level: "pass" | "warn" | "fail" | "info";
+            /** Source */
+            source: string;
+        };
+        /**
+         * KitCvState
+         * @description CV side of the kit: candidates (newest first, bounded), the
+         *     posting-scoped variant when one exists, and `needs_cv` when the
+         *     user has no resume at all — the CV Studio CTA state.
+         */
+        KitCvState: {
+            /** Candidates */
+            candidates?: components["schemas"]["KitDocumentRef"][];
+            /**
+             * Needs Cv
+             * @default false
+             */
+            needs_cv: boolean;
+            variant?: components["schemas"]["KitDocumentRef"] | null;
+        };
+        /**
+         * KitDocumentRef
+         * @description One candidate document; `target_posting_id` set marks it as this
+         *     posting's scoped variant.
+         */
+        KitDocumentRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @default resume
+             */
+            kind: string;
+            /** Target Posting Id */
+            target_posting_id?: string | null;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * KitLetterState
+         * @description Cover-letter side: the posting-scoped letter when one exists plus
+         *     the user's other letters (bounded) for the link action.
+         */
+        KitLetterState: {
+            /** Candidates */
+            candidates?: components["schemas"]["KitDocumentRef"][];
+            doc?: components["schemas"]["KitDocumentRef"] | null;
+        };
+        /**
+         * KitLinkedDocuments
+         * @description The documents actually linked to the application.
+         */
+        KitLinkedDocuments: {
+            cover_letter?: components["schemas"]["KitDocumentRef"] | null;
+            cv?: components["schemas"]["KitDocumentRef"] | null;
+        };
+        /**
+         * KitPostingOut
+         * @description The posting identity the kit hangs off (bounded on purpose — the
+         *     full detail stays on the posting-detail surface).
+         */
+        KitPostingOut: {
+            /** Employment Type */
+            employment_type?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /**
+             * Extract Ready
+             * @default false
+             */
+            extract_ready: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location?: components["schemas"]["PostingLocationOut"] | null;
+            /**
+             * Org
+             * @default
+             */
+            org: string;
+            /** Posted At */
+            posted_at?: string | null;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Seniority */
+            seniority?: string | null;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /**
+         * KitPrepareOut
+         * @description Idempotent deterministic prep: the same computation every run,
+         *     no writes — no CV, cover letter or application row is created.
+         *
+         *     `needs_cv` asks for the CV Studio CTA; `extract_ready` false means
+         *     the posting has no deep extraction yet, so coverage is honestly
+         *     absent rather than guessed. AI proposals stay in CV Studio's own
+         *     tailor action; this returns the deterministic coverage only.
+         */
+        KitPrepareOut: {
+            cover_letter?: components["schemas"]["KitLetterState"];
+            coverage?: components["schemas"]["TailorCoverage"] | null;
+            /** Cv Id */
+            cv_id?: string | null;
+            /**
+             * Extract Ready
+             * @default false
+             */
+            extract_ready: boolean;
+            /**
+             * Needs Cv
+             * @default false
+             */
+            needs_cv: boolean;
+            /**
+             * Posting Id
+             * Format: uuid
+             */
+            posting_id: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Section Gaps */
+            section_gaps?: components["schemas"]["SectionGap"][];
         };
         /**
          * LabelEntityKind
@@ -15776,15 +17314,15 @@ export interface components {
             /** Coverage Floor */
             coverage_floor: number;
         };
-        /** MappingBackfillIn */
-        MappingBackfillIn: {
+        /** MappingBulkMapIn */
+        MappingBulkMapIn: {
             /**
-             * Limit
-             * @default 200
+             * Job Id
+             * Format: uuid
              */
-            limit: number;
+            job_id: string;
             /** Posting Ids */
-            posting_ids?: string[] | null;
+            posting_ids: string[];
         };
         /** MappingGoldenIn */
         MappingGoldenIn: {
@@ -15854,6 +17392,15 @@ export interface components {
             semantic_threshold?: number | null;
             /** Tau Job */
             tau_job?: number | null;
+        };
+        /** MappingRedecideAllIn */
+        MappingRedecideAllIn: {
+            /**
+             * Scope
+             * @default stale
+             * @enum {string}
+             */
+            scope: "stale" | "all";
         };
         /** MappingResolveIn */
         MappingResolveIn: {
@@ -16052,6 +17599,19 @@ export interface components {
             source?: string | null;
             /** Supported */
             supported: string[];
+        };
+        /** MergeIn */
+        MergeIn: {
+            /**
+             * Canonical Id
+             * Format: uuid
+             */
+            canonical_id: string;
+            /**
+             * Duplicate Id
+             * Format: uuid
+             */
+            duplicate_id: string;
         };
         /**
          * Message
@@ -16358,6 +17918,61 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** OfferComparisonItem */
+        OfferComparisonItem: {
+            /** Amount */
+            amount: number;
+            /** Annual Amount */
+            annual_amount: number;
+            /** Annual Cost Of Living */
+            annual_cost_of_living?: number | null;
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            /** Benefits */
+            benefits?: string[];
+            /** Cost Of Living */
+            cost_of_living?: number | null;
+            /** Currency */
+            currency: string;
+            /** Deadline */
+            deadline?: string | null;
+            /**
+             * Location
+             * @default
+             */
+            location: string;
+            /** Monthly Amount */
+            monthly_amount: number;
+            /** Net Annual After Col */
+            net_annual_after_col?: number | null;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "year" | "month" | "hour";
+            /** Posting Org */
+            posting_org: string;
+            /** Posting Title */
+            posting_title: string;
+        };
+        /** OfferComparisonOut */
+        OfferComparisonOut: {
+            /** Items */
+            items?: components["schemas"]["OfferComparisonItem"][];
+            /**
+             * Mixed Currencies
+             * @default false
+             */
+            mixed_currencies: boolean;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
         /**
          * OnboardingPath
          * @description Start-path choice from the /onboarding hero.
@@ -16426,6 +18041,60 @@ export interface components {
             bucket: string;
             /** Count */
             count: number;
+        };
+        /** OutreachDraftIn */
+        OutreachDraftIn: {
+            /** Application Id */
+            application_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "intro" | "follow_up" | "thank_you" | "referral" | "informational";
+        };
+        /** OutreachDraftOut */
+        OutreachDraftOut: {
+            /** Body */
+            body: string;
+            /**
+             * Draft Only
+             * @default true
+             */
+            draft_only: boolean;
+            /** Evidence Refs */
+            evidence_refs?: components["schemas"]["OutreachEvidence"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "intro" | "follow_up" | "thank_you" | "referral" | "informational";
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /** Subject */
+            subject: string;
+        };
+        /** OutreachEvidence */
+        OutreachEvidence: {
+            /** Label */
+            label: string;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "contact" | "application" | "posting" | "profile";
         };
         /**
          * OverlayBulkIn
@@ -16865,9 +18534,12 @@ export interface components {
         /**
          * PostingDetailOut
          * @description Detail view: full extract, source attribution, the
-         *     match-score card and the similar-postings rail.
+         *     match-score card, the evidence-first gap report and the
+         *     similar-postings rail.
          */
         PostingDetailOut: {
+            /** Application Deadline */
+            application_deadline?: string | null;
             /** Application Id */
             application_id?: string | null;
             /** Applied At */
@@ -16886,6 +18558,8 @@ export interface components {
              * @default
              */
             description: string;
+            /** Duplicate Of Id */
+            duplicate_of_id?: string | null;
             /** Education Level */
             education_level?: string | null;
             /** Employment Type */
@@ -16899,6 +18573,11 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
+            gap?: components["schemas"]["PostingGapOut"] | null;
+            /** Gate Overrides */
+            gate_overrides?: {
+                [key: string]: boolean;
+            };
             /** Hours Per Week Max */
             hours_per_week_max?: number | null;
             /** Hours Per Week Min */
@@ -16908,6 +18587,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Verified At */
+            last_verified_at?: string | null;
             location: components["schemas"]["PostingLocationOut"];
             /** Mapping Confidence */
             mapping_confidence?: number | null;
@@ -16928,6 +18609,8 @@ export interface components {
             notes: string;
             /** Onsite Policy */
             onsite_policy?: string | null;
+            /** Opportunity Type */
+            opportunity_type?: string | null;
             /** Org */
             org: string;
             /**
@@ -16944,6 +18627,13 @@ export interface components {
              * @default
              */
             ref: string;
+            /**
+             * Repost Count
+             * @default 0
+             */
+            repost_count: number;
+            /** Safety Flags */
+            safety_flags?: components["schemas"]["PostingSafetyFlagOut"][];
             /** Salary Basis */
             salary_basis?: string | null;
             /** Salary Currency */
@@ -17004,17 +18694,23 @@ export interface components {
             title: string;
             /** Travel Class */
             travel_class?: string | null;
+            /** Trust Flags */
+            trust_flags?: {
+                [key: string]: unknown;
+            };
             /** Updated At */
             updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Authorization */
+            work_authorization?: string | null;
             /** Work Hours */
             work_hours?: string | null;
         };
         /**
          * PostingExtractBenefitOut
          * @description Typed benefit: `kind` powers display grouping, `raw` keeps the
-         *     original wording. Stored plain strings (legacy extract rows) coerce
+         *     original wording. Stored plain strings (pre-migration extract rows) coerce
          *     to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
          *     precedent.
          */
@@ -17045,6 +18741,20 @@ export interface components {
             /** Level */
             level?: string | null;
         };
+        /** PostingExtractGradeOut */
+        PostingExtractGradeOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Scale */
+            scale: string;
+            /** Value */
+            value: number;
+        };
         /** PostingExtractHoursOut */
         PostingExtractHoursOut: {
             /** Confidence */
@@ -17060,6 +18770,20 @@ export interface components {
             hours_per_week_min?: number | null;
             /** Pattern */
             pattern: string;
+        };
+        /** PostingExtractLanguageOut */
+        PostingExtractLanguageOut: {
+            /** Code */
+            code: string;
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Level */
+            level: string;
         };
         /** PostingExtractLocationOut */
         PostingExtractLocationOut: {
@@ -17089,11 +18813,13 @@ export interface components {
          *
          *     Read coercion is part of the contract: ``apply_extract`` suppresses
          *     low-confidence fields to ``null`` (``_suppressed_fields`` names
-         *     them) and legacy rows stored plain-string benefits, so lists
+         *     them) and pre-migration rows stored plain-string benefits, so lists
          *     normalize to ``[]`` and benefit strings to ``kind="other"`` instead
          *     of failing whole postings on read.
          */
         PostingExtractOut: {
+            /** Application Deadline */
+            application_deadline?: string | null;
             /** Benefits */
             benefits?: components["schemas"]["PostingExtractBenefitOut"][];
             contract_type?: components["schemas"]["PostingExtractContractOut"] | null;
@@ -17106,10 +18832,13 @@ export interface components {
             field_confidence?: {
                 [key: string]: number;
             };
-            /** Languages */
-            languages?: string[];
+            grade_requirement?: components["schemas"]["PostingExtractGradeOut"] | null;
+            /** Language Requirements */
+            language_requirements?: components["schemas"]["PostingExtractLanguageOut"][];
             location?: components["schemas"]["PostingExtractLocationOut"] | null;
             onsite_policy?: components["schemas"]["PostingExtractOnsiteOut"] | null;
+            /** Opportunity Type */
+            opportunity_type?: string | null;
             /** Prerequisites */
             prerequisites?: components["schemas"]["PostingExtractPrerequisiteOut"][];
             /** Remote Policy */
@@ -17128,6 +18857,7 @@ export interface components {
             travel_required?: components["schemas"]["PostingExtractTravelOut"] | null;
             /** Values Cues */
             values_cues?: string[];
+            work_authorization?: components["schemas"]["PostingExtractWorkAuthorizationOut"] | null;
             work_hours?: components["schemas"]["PostingExtractHoursOut"] | null;
         } & {
             [key: string]: unknown;
@@ -17217,6 +18947,109 @@ export interface components {
             /** Level */
             level: string;
         };
+        /** PostingExtractWorkAuthorizationOut */
+        PostingExtractWorkAuthorizationOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * PostingGapEvidenceOut
+         * @description One user-side evidence ref on a gap row (plan 212 S1.1).
+         *
+         *     A display ref, not a lookup key: `source` names the evidence ledger
+         *     kind (experience / assessment / cv_document), `label` the item's
+         *     own title when it has one. The frontend localizes the source kind;
+         *     the label is the user's own data.
+         */
+        PostingGapEvidenceOut: {
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Source */
+            source: string;
+        };
+        /**
+         * PostingGapOut
+         * @description The posting gap report (plan 212 S1.1): requirements grouped by
+         *     the extractor's closed priority vocabulary, each row evidence-backed
+         *     or explicitly bare. NOT a match score — the match card lives on its
+         *     own and is never duplicated here.
+         */
+        PostingGapOut: {
+            /** Bonus */
+            bonus?: components["schemas"]["PostingGapRowOut"][];
+            /** Must Have */
+            must_have?: components["schemas"]["PostingGapRowOut"][];
+            /** Nice To Have */
+            nice_to_have?: components["schemas"]["PostingGapRowOut"][];
+        };
+        /**
+         * PostingGapRowOut
+         * @description One requirement row of the evidence-first gap report.
+         *
+         *     `raw_label` is the posting's verbatim wording — a label that never
+         *     resolved to a taxonomy key keeps its row (`skill_key`/`label` null)
+         *     but carries no quote: the quote joins on the resolved key. There is
+         *     deliberately no score field on this surface.
+         */
+        PostingGapRowOut: {
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /**
+             * Kind
+             * @default skill
+             */
+            kind: string;
+            /** Label */
+            label?: string | null;
+            /**
+             * Priority
+             * @default bonus
+             */
+            priority: string;
+            /** Raw Label */
+            raw_label: string;
+            /** Required Level */
+            required_level?: number | null;
+            /** Skill Key */
+            skill_key?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "met" | "partial" | "missing";
+            /** User Evidence */
+            user_evidence?: components["schemas"]["PostingGapEvidenceOut"][];
+            /** User Level */
+            user_level?: number | null;
+        };
+        /**
+         * PostingKitOut
+         * @description The pre-application kit for one posting.
+         */
+        PostingKitOut: {
+            /** Answers */
+            answers?: components["schemas"]["KitAnswerPrompt"][];
+            application?: components["schemas"]["KitApplicationState"] | null;
+            /** Checklist */
+            checklist?: components["schemas"]["KitChecklistItem"][];
+            cover_letter?: components["schemas"]["KitLetterState"];
+            cv?: components["schemas"]["KitCvState"];
+            gap?: components["schemas"]["PostingGapOut"] | null;
+            posting: components["schemas"]["KitPostingOut"];
+        };
         /** PostingLocationOut */
         PostingLocationOut: {
             /** City */
@@ -17257,6 +19090,8 @@ export interface components {
         };
         /** PostingOut */
         PostingOut: {
+            /** Application Deadline */
+            application_deadline?: string | null;
             /** Application Id */
             application_id?: string | null;
             /** Applied At */
@@ -17270,6 +19105,8 @@ export interface components {
             coverage?: number | null;
             /** Created At */
             created_at?: string | null;
+            /** Duplicate Of Id */
+            duplicate_of_id?: string | null;
             /** Education Level */
             education_level?: string | null;
             /** Employment Type */
@@ -17291,6 +19128,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Verified At */
+            last_verified_at?: string | null;
             location: components["schemas"]["PostingLocationOut"];
             /** Mapping Confidence */
             mapping_confidence?: number | null;
@@ -17310,6 +19149,8 @@ export interface components {
             notes: string;
             /** Onsite Policy */
             onsite_policy?: string | null;
+            /** Opportunity Type */
+            opportunity_type?: string | null;
             /** Org */
             org: string;
             /**
@@ -17326,6 +19167,11 @@ export interface components {
              * @default
              */
             ref: string;
+            /**
+             * Repost Count
+             * @default 0
+             */
+            repost_count: number;
             /** Salary Basis */
             salary_basis?: string | null;
             /** Salary Currency */
@@ -17372,12 +19218,30 @@ export interface components {
             title: string;
             /** Travel Class */
             travel_class?: string | null;
+            /** Trust Flags */
+            trust_flags?: {
+                [key: string]: unknown;
+            };
             /** Updated At */
             updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Authorization */
+            work_authorization?: string | null;
             /** Work Hours */
             work_hours?: string | null;
+        };
+        /** PostingSafetyFlagOut */
+        PostingSafetyFlagOut: {
+            /**
+             * Evidence
+             * @default
+             */
+            evidence: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
         };
         /**
          * PostingSearchOut
@@ -17697,6 +19561,67 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** PriceOverrideIn */
+        PriceOverrideIn: {
+            /** Input Micros Per Million */
+            input_micros_per_million: number;
+            /**
+             * Match
+             * @default exact
+             * @enum {string}
+             */
+            match: "exact" | "prefix";
+            /**
+             * Metering
+             * @default tokens
+             * @enum {string}
+             */
+            metering: "tokens" | "input_only" | "output_only";
+            /** Model */
+            model: string;
+            /** Output Micros Per Million */
+            output_micros_per_million: number;
+            /** Provider Key */
+            provider_key?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+        };
+        /** PriceOverrideOut */
+        PriceOverrideOut: {
+            /** Id */
+            id: string;
+            /** Input Micros Per Million */
+            input_micros_per_million: number;
+            /**
+             * Match
+             * @default exact
+             * @enum {string}
+             */
+            match: "exact" | "prefix";
+            /**
+             * Metering
+             * @default tokens
+             * @enum {string}
+             */
+            metering: "tokens" | "input_only" | "output_only";
+            /** Model */
+            model: string;
+            /** Output Micros Per Million */
+            output_micros_per_million: number;
+            /** Provider Key */
+            provider_key?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Updated At */
+            updated_at: string;
+        };
+        /** PricesOut */
+        PricesOut: {
+            /** Effective */
+            effective: components["schemas"]["EffectivePriceOut"][];
+            /** Overrides */
+            overrides: components["schemas"]["PriceOverrideOut"][];
+        };
         /** ProfileAchievementIn */
         ProfileAchievementIn: {
             /** Date */
@@ -17998,11 +19923,6 @@ export interface components {
              */
             use_experience: boolean;
             /**
-             * Use Languages
-             * @default true
-             */
-            use_languages: boolean;
-            /**
              * Use Lifestyle
              * @default true
              */
@@ -18145,6 +20065,19 @@ export interface components {
              * @description candidate/new space id or name
              */
             space: string;
+        };
+        /** QuarantineOut */
+        QuarantineOut: {
+            /** From Version */
+            from_version?: string | null;
+            /** Path */
+            path: string;
+            /** Quarantined At */
+            quarantined_at: string;
+            /** Reason */
+            reason: string;
+            /** Schema Revision */
+            schema_revision?: string | null;
         };
         /** QuietHoursIn */
         QuietHoursIn: {
@@ -18712,6 +20645,88 @@ export interface components {
             /** Items */
             items: components["schemas"]["RuleOut"][];
         };
+        /** SalaryBenchmarkCellOut */
+        SalaryBenchmarkCellOut: {
+            /** Country */
+            country: string;
+            /** Currency */
+            currency: string;
+            /** Family Key */
+            family_key?: string | null;
+            /** Family Title */
+            family_title?: string | null;
+            /** Job Code */
+            job_code?: string | null;
+            /** Job Title */
+            job_title: string;
+            /** N */
+            n: number;
+            /** P25 */
+            p25?: number | null;
+            /** P50 */
+            p50?: number | null;
+            /** P75 */
+            p75?: number | null;
+            /**
+             * Period
+             * @default year
+             */
+            period: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "job" | "family";
+            /** Seniority */
+            seniority: string;
+            /** Thin Sample */
+            thin_sample: boolean;
+        };
+        /** SalaryBenchmarksOut */
+        SalaryBenchmarksOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Cells */
+            cells?: components["schemas"]["SalaryBenchmarkCellOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Floor */
+            floor: number;
+            /** Note Codes */
+            note_codes?: string[];
+            /** Notes */
+            notes?: string[];
+            /** Reference */
+            reference?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Reference Status
+             * @default unavailable
+             * @enum {string}
+             */
+            reference_status: "unavailable" | "available";
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /**
+             * Truncated
+             * @default 0
+             */
+            truncated: number;
+            /** Window */
+            window: string;
+        };
         /** SalaryBucketOut */
         SalaryBucketOut: {
             /** Ceiling */
@@ -18782,6 +20797,59 @@ export interface components {
             median?: number | null;
             /** Seniority */
             seniority: string;
+        };
+        /** SavedAnswerIn */
+        SavedAnswerIn: {
+            /** Answer Text */
+            answer_text: string;
+            /** Evidence Refs */
+            evidence_refs?: {
+                [key: string]: unknown;
+            }[];
+            /** Question Key */
+            question_key: string;
+            /**
+             * Question Text
+             * @default
+             */
+            question_text: string;
+        };
+        /** SavedAnswerOut */
+        SavedAnswerOut: {
+            /** Answer Text */
+            answer_text: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence Refs */
+            evidence_refs?: unknown[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Question Key */
+            question_key: string;
+            /** Question Text */
+            question_text: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SavedAnswerPatch */
+        SavedAnswerPatch: {
+            /** Answer Text */
+            answer_text?: string | null;
+            /** Evidence Refs */
+            evidence_refs?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Question Text */
+            question_text?: string | null;
         };
         /** SavedSearchScheduleIn */
         SavedSearchScheduleIn: {
@@ -19996,6 +22064,61 @@ export interface components {
              */
             refitted: number;
             step: components["schemas"]["GrowthStepRefOut"];
+        };
+        /** StorageStatusOut */
+        StorageStatusOut: {
+            /** Backend */
+            backend: string;
+            /** Bucket */
+            bucket?: string | null;
+            /** Checked At */
+            checked_at?: string | null;
+            /** Cloud Profile */
+            cloud_profile?: string | null;
+            /** Container */
+            container?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Endpoint Host */
+            endpoint_host?: string | null;
+            /** Entrypoint */
+            entrypoint: string;
+            /** Healthy */
+            healthy: boolean;
+            /** Max Object Mb */
+            max_object_mb: number;
+            /**
+             * Prefix
+             * @default
+             */
+            prefix: string;
+            /** Presign Ttl Seconds */
+            presign_ttl_seconds: number;
+            /** Region */
+            region?: string | null;
+            /** Required */
+            required: boolean;
+            /** Sse */
+            sse: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "unavailable";
+        };
+        /** StorySuggestionOut */
+        StorySuggestionOut: {
+            /**
+             * Experience Item Id
+             * Format: uuid
+             */
+            experience_item_id: string;
+            /** Hint */
+            hint: string;
+            /** Org */
+            org: string;
+            /** Title */
+            title: string;
         };
         /**
          * SubscriptionIn
@@ -22694,41 +24817,6 @@ export interface operations {
             };
         };
     };
-    enqueue_outcome_backfill_api_v1_admin_mappings_backfill_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MappingBackfillIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     mappings_extract_api_v1_admin_mappings_extract_post: {
         parameters: {
             query?: never;
@@ -22854,6 +24942,41 @@ export interface operations {
             };
         };
     };
+    mappings_map_bulk_api_v1_admin_mappings_map_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingBulkMapIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mappings_overview_api_v1_admin_mappings_overview_get: {
         parameters: {
             query?: never;
@@ -22945,6 +25068,72 @@ export interface operations {
                 "application/json": components["schemas"]["MappingPolicyDryRunIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mappings_detail_now_api_v1_admin_mappings_postings__posting_id__detail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mappings_repropose_api_v1_admin_mappings_postings__posting_id__repropose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -23165,6 +25354,41 @@ export interface operations {
             };
         };
     };
+    mappings_redecide_all_api_v1_admin_mappings_redecide_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MappingRedecideAllIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mappings_review_api_v1_admin_mappings_review_post: {
         parameters: {
             query?: never;
@@ -23354,6 +25578,7 @@ export interface operations {
                 source?: string | null;
                 needs_review?: boolean | null;
                 detail_state?: string | null;
+                weak?: boolean | null;
                 q?: string | null;
                 cursor?: string | null;
                 limit?: number;
@@ -24153,6 +26378,120 @@ export interface operations {
             };
         };
     };
+    hygiene_overview_api_v1_admin_posting_hygiene_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    hygiene_clear_api_v1_admin_posting_hygiene_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClearIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hygiene_merge_api_v1_admin_posting_hygiene_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hygiene_scan_api_v1_admin_posting_hygiene_scan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     posting_connectors_api_v1_admin_postings_connectors_get: {
         parameters: {
             query?: never;
@@ -24252,41 +26591,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobProposalQueuePage"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    regenerate_job_proposals_api_v1_admin_postings_job_proposals_regenerate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobProposalRegenerateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -26456,6 +28760,37 @@ export interface operations {
             };
         };
     };
+    get_storage_status_api_v1_admin_storage_status_get: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_resolution_stats_api_v1_admin_taxonomy_resolution_stats_get: {
         parameters: {
             query?: {
@@ -27370,6 +29705,88 @@ export interface operations {
             };
         };
     };
+    list_prices_api_v1_ai_prices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricesOut"];
+                };
+            };
+        };
+    };
+    put_price_api_v1_ai_prices_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceOverrideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOverrideOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_price_api_v1_ai_prices__override_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                override_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_providers_api_v1_ai_providers_get: {
         parameters: {
             query?: never;
@@ -27876,6 +30293,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TranscribeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_costs_api_v1_ai_usage_costs_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostsOut"];
                 };
             };
             /** @description Validation Error */
@@ -31721,6 +34169,37 @@ export interface operations {
             };
         };
     };
+    parse_view_cv_api_v1_cv__cv_id__parse_view_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cv_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CvParseViewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     polish_cv_api_v1_cv__cv_id__polish_post: {
         parameters: {
             query?: never;
@@ -33846,6 +36325,123 @@ export interface operations {
             };
         };
     };
+    list_answers_api_v1_me_answers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnswerOut"][];
+                };
+            };
+        };
+    };
+    upsert_answer_api_v1_me_answers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedAnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnswerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_answer_api_v1_me_answers__answer_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                answer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_answer_api_v1_me_answers__answer_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                answer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedAnswerPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedAnswerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_applications_api_v1_me_applications_get: {
         parameters: {
             query?: {
@@ -33908,6 +36504,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    applications_import_ics_api_v1_me_applications_import_ics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IcsImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    applications_insights_api_v1_me_applications_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    compare_offers_api_v1_me_applications_offers_compare_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfferComparisonOut"];
                 };
             };
         };
@@ -33978,6 +36651,41 @@ export interface operations {
             };
         };
     };
+    set_application_contact_api_v1_me_applications__application_id__contact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationContactIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     link_application_document_api_v1_me_applications__application_id__documents_post: {
         parameters: {
             query?: never;
@@ -34013,6 +36721,37 @@ export interface operations {
             };
         };
     };
+    get_application_kit_api_v1_me_applications__application_id__kit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationKitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_application_note_api_v1_me_applications__application_id__notes_post: {
         parameters: {
             query?: never;
@@ -34027,6 +36766,72 @@ export interface operations {
                 "application/json": components["schemas"]["ApplicationNoteIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_application_offer_api_v1_me_applications__application_id__offer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationOfferIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_application_offer_api_v1_me_applications__application_id__offer_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -34355,6 +37160,267 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompletenessOut"];
+                };
+            };
+        };
+    };
+    list_contacts_api_v1_me_contacts_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                org?: string;
+                application_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_contact_api_v1_me_contacts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_contact_api_v1_me_contacts__contact_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_contact_api_v1_me_contacts__contact_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_contact_api_v1_me_contacts__contact_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_outreach_api_v1_me_contacts__contact_id__draft_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutreachDraftIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutreachDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_interaction_api_v1_me_contacts__contact_id__interactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactInteractionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactInteractionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_interaction_api_v1_me_contacts__contact_id__interactions__interaction_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+                interaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -34948,6 +38014,143 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_stories_api_v1_me_interview_stories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewStoryOut"][];
+                };
+            };
+        };
+    };
+    create_story_api_v1_me_interview_stories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewStoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewStoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    story_suggestions_api_v1_me_interview_stories_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorySuggestionOut"][];
+                };
+            };
+        };
+    };
+    delete_story_api_v1_me_interview_stories__story_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_story_api_v1_me_interview_stories__story_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewStoryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewStoryOut"];
                 };
             };
             /** @description Validation Error */
@@ -37745,6 +40948,41 @@ export interface operations {
             };
         };
     };
+    postings_capture_api_v1_postings_capture_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptureIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     postings_explore_api_v1_postings_explore_get: {
         parameters: {
             query?: never;
@@ -38127,6 +41365,40 @@ export interface operations {
             };
         };
     };
+    postings_stats_salary_benchmarks_api_v1_postings_stats_salary_benchmarks_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalaryBenchmarksOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     postings_stats_skills_api_v1_postings_stats_skills_get: {
         parameters: {
             query?: {
@@ -38224,6 +41496,74 @@ export interface operations {
             };
         };
     };
+    posting_gap_report_api_v1_postings__posting_ref__gap_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingGapOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    posting_gate_override_api_v1_postings__posting_ref__gate_override_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GateOverrideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     posting_history_api_v1_postings__posting_ref__history_get: {
         parameters: {
             query?: {
@@ -38245,6 +41585,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostingsHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    posting_kit_api_v1_postings__posting_ref__kit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingKitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    posting_kit_prepare_api_v1_postings__posting_ref__kit_prepare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitPrepareOut"];
                 };
             };
             /** @description Validation Error */
@@ -38338,6 +41740,138 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    competencies_api_v1_profile_competencies_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetenciesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    degree_roles_api_v1_profile_degree_roles_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DegreeRolesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_json_resume_api_v1_profile_export_jsonresume_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_json_resume_api_v1_profile_import_jsonresume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-profile-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JsonResumeImportIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

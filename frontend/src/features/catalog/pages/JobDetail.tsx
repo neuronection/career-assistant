@@ -26,20 +26,20 @@ import type { CareerPath, Job, JobLink, MarketSnapshot, MatchInsight, MatchStatu
 import type { JobMatchDetail } from "@/types";
 
 const EDUCATION_LABEL: Record<string, string> = {
-  no_formal: "No formal education",
-  middle_school: "Middle school",
-  high_school: "High school",
-  vocational: "Vocational training",
-  bachelor: "Bachelor's degree",
-  master: "Master's degree",
-  doctorate: "Doctorate",
+  no_formal: "jobDetail.educationLevel.no_formal",
+  middle_school: "jobDetail.educationLevel.middle_school",
+  high_school: "jobDetail.educationLevel.high_school",
+  vocational: "jobDetail.educationLevel.vocational",
+  bachelor: "jobDetail.educationLevel.bachelor",
+  master: "jobDetail.educationLevel.master",
+  doctorate: "jobDetail.educationLevel.doctorate",
 };
 
 const LINK_KIND_LABEL: Record<JobLink["kind"], string> = {
-  apply: "Apply",
-  learn: "Learn more",
-  certification: "Certification",
-  video: "Video",
+  apply: "jobDetail.linkKind.apply",
+  learn: "jobDetail.linkKind.learn",
+  certification: "jobDetail.linkKind.certification",
+  video: "jobDetail.linkKind.video",
 };
 
 export function JobDetail() {
@@ -169,19 +169,46 @@ export function JobDetail() {
     }
   };
 
-  if (error && !job) return <p className="text-rose-600">{error}</p>;
-  if (!job) return <p className="text-slate-400">{t("common.loading")}</p>;
+  if (error && !job) return <p className="text-[var(--as-danger)]">{error}</p>;
+  if (!job) return <p className="text-[var(--as-muted-fg)]">{t("common.loading")}</p>;
   const attrs = job.attributes;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto" data-testid="job-detail">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <button onClick={() => navigate(-1)} className="text-sm text-slate-400 hover:text-slate-600">{t("common.back")}</button>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="text-sm text-[var(--as-muted-fg)] hover:text-[var(--as-muted-fg)]">{t("common.back")}</button>
+          {job.status === "retired" && (
+            <div
+              className="mt-2 rounded-lg border border-[color-mix(in_srgb,var(--as-warning)_25%,transparent)] bg-[color-mix(in_srgb,var(--as-warning)_8%,transparent)] px-3 py-2 text-sm text-[var(--as-warning)]"
+              data-testid="job-retired-banner"
+            >
+              {t("jobDetail.retiredBanner")}{" "}
+              {job.retired_into ? (
+                <Link to={`/jobs/${job.retired_into.code}`} className="font-medium underline">
+                  {t("jobDetail.retiredSuccessor", {
+                    title: job.retired_into.title || job.retired_into.code,
+                  })}
+                </Link>
+              ) : null}
+            </div>
+          )}
+          <h1 className="text-2xl font-bold text-[var(--as-fg)] flex items-center gap-3">
             {job.title} <DemandBadge outlook={attrs?.demand?.outlook} />
           </h1>
-          <p className="text-slate-500 mt-1 max-w-2xl">{job.short_description}</p>
+          <p className="text-[var(--as-muted-fg)] mt-1 max-w-2xl">{job.short_description}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--as-muted-fg)]">
+            <span data-testid="job-open-roles">
+              {t("jobDetail.openRoles", { count: job.open_roles ?? 0 })}
+            </span>
+            <Link
+              to={`/postings?job=${job.code}`}
+              data-testid="job-browse-postings"
+              className="font-medium text-[var(--as-accent)] hover:underline"
+            >
+              {t("jobDetail.browsePostings")} →
+            </Link>
+          </div>
           <div className="mt-2 flex gap-2 items-center">
             <AiButton
               page="job_detail"
@@ -198,7 +225,7 @@ export function JobDetail() {
             <button
               onClick={() => void toggleSaved()}
               className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 ${
-                saved ? "bg-primary-600 text-white border-primary-600" : "border-slate-200 text-slate-600"
+                saved ? "bg-[var(--as-accent)] text-[var(--as-primary-fg)] border-[var(--as-accent)]" : "border-[var(--as-border)] text-[var(--as-muted-fg)]"
               }`}
               data-testid="save-job"
             >
@@ -208,7 +235,7 @@ export function JobDetail() {
             <button
               onClick={() => void toggleHidden()}
               className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 ${
-                hidden ? "bg-slate-700 text-white border-slate-700" : "border-slate-200 text-slate-600"
+                hidden ? "bg-[var(--as-fg)] text-[var(--as-surface)] border-[var(--as-fg)]" : "border-[var(--as-border)] text-[var(--as-muted-fg)]"
               }`}
               data-testid="hide-job"
               title={t("jobDetail.hideTitle")}
@@ -219,7 +246,7 @@ export function JobDetail() {
             <button
               onClick={() => toggleCompare({ id: job.id, title: job.title })}
               className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 ${
-                comparing ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200 text-slate-600"
+                comparing ? "bg-[var(--as-success)] text-[var(--as-success-fg)] border-[var(--as-success)]" : "border-[var(--as-border)] text-[var(--as-muted-fg)]"
               }`}
               data-testid="add-compare"
               title={t("jobDetail.addToComparison")}
@@ -229,27 +256,27 @@ export function JobDetail() {
             </button>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shrink-0" data-testid="job-score-card">
+        <div className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4 shrink-0" data-testid="job-score-card">
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center gap-0.5">
               <ScoreBubble score={matchScore} size={72} />
-              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">
                 {t("rankings.match")}
                 <ScoreLegend />
               </span>
             </div>
-            <div className="flex items-center gap-4 px-4 border-l border-slate-100 self-stretch" data-testid="job-scores">
+            <div className="flex items-center gap-4 px-4 border-l border-[var(--as-border)] self-stretch" data-testid="job-scores">
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.fit")}</p>
-                <p className="text-sm font-semibold text-slate-700">{fitScore != null ? fitScore.toFixed(1) : "–"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">{t("rankings.fit")}</p>
+                <p className="text-sm font-semibold text-[var(--as-fg)]">{fitScore != null ? fitScore.toFixed(1) : "–"}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.aiScore")}</p>
-                <p className="text-sm font-semibold text-slate-700">{aiScore != null ? aiScore.toFixed(1) : "–"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">{t("rankings.aiScore")}</p>
+                <p className="text-sm font-semibold text-[var(--as-fg)]">{aiScore != null ? aiScore.toFixed(1) : "–"}</p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.yourScore")}</p>
-                <p className="text-sm font-semibold text-slate-700">{userScore ?? "–"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">{t("rankings.yourScore")}</p>
+                <p className="text-sm font-semibold text-[var(--as-fg)]">{userScore ?? "–"}</p>
               </div>
             </div>
           </div>
@@ -257,26 +284,26 @@ export function JobDetail() {
             <button
               onClick={() => void score()}
               disabled={busy}
-              className="mt-3 w-full text-xs bg-primary-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+              className="mt-3 w-full text-xs bg-[var(--as-accent)] text-[var(--as-primary-fg)] rounded-lg px-3 py-1.5 disabled:opacity-50"
             >
               {busy ? t("jobDetail.scoring") : t("jobDetail.scoreForMe")}
             </button>
           ) : (
-            <button onClick={() => void score()} disabled={busy} className="mt-3 w-full text-xs text-primary-700">
+            <button onClick={() => void score()} disabled={busy} className="mt-3 w-full text-xs text-[var(--as-accent)]">
               {t("jobDetail.rescore")}
             </button>
           )}
         </div>
       </div>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
       {insight?.fit_breakdown && (
-        <section className="bg-white border border-slate-200 rounded-xl p-4" data-testid="fit-breakdown-panel">
+        <section className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4" data-testid="fit-breakdown-panel">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-medium">{t("jobDetail.whyThisFits")}</h3>
             {insight.fit_breakdown.specialist_dimension && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-[color-mix(in_srgb,var(--as-warning)_12%,transparent)] text-[var(--as-warning)] px-2 py-0.5 rounded-full">
                 {t("jobDetail.strongIn")} {insight.fit_breakdown.specialist_dimension}
               </span>
             )}
@@ -294,30 +321,30 @@ export function JobDetail() {
 
       {insight && (
         <section className="grid md:grid-cols-2 gap-4">
-          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-            <h3 className="font-medium text-emerald-800 mb-2">{t("jobDetail.positivesForYou")}</h3>
+          <div className="bg-[color-mix(in_srgb,var(--as-success)_8%,transparent)] border border-[color-mix(in_srgb,var(--as-success)_25%,transparent)] rounded-xl p-4">
+            <h3 className="font-medium text-[var(--as-success)] mb-2">{t("jobDetail.positivesForYou")}</h3>
             <ul className="space-y-2">
               {insight.ai_positives.map((p, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-medium">{p.title}</span>
-                  {p.detail && <span className="text-slate-600"> — {p.detail}</span>}
+                  {p.detail && <span className="text-[var(--as-muted-fg)]"> — {p.detail}</span>}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="bg-rose-50 border border-rose-100 rounded-xl p-4">
-            <h3 className="font-medium text-rose-800 mb-2">{t("jobDetail.negativesForYou")}</h3>
+          <div className="bg-[color-mix(in_srgb,var(--as-danger)_8%,transparent)] border border-[color-mix(in_srgb,var(--as-danger)_25%,transparent)] rounded-xl p-4">
+            <h3 className="font-medium text-[var(--as-danger)] mb-2">{t("jobDetail.negativesForYou")}</h3>
             <ul className="space-y-2">
               {insight.ai_negatives.map((n, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-medium">{n.title}</span>
-                  {n.detail && <span className="text-slate-600"> — {n.detail}</span>}
+                  {n.detail && <span className="text-[var(--as-muted-fg)]"> — {n.detail}</span>}
                 </li>
               ))}
             </ul>
           </div>
           {insight.prerequisites.length > 0 && (
-            <div className="md:col-span-2 bg-white border border-slate-200 rounded-xl p-4">
+            <div className="md:col-span-2 bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4">
               <h3 className="font-medium mb-2">{t("jobDetail.prerequisites")}</h3>
               <ul className="space-y-1.5">
                 {insight.prerequisites.map((p, i) => (
@@ -325,16 +352,16 @@ export function JobDetail() {
                     <span
                       className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                         p.status === "met"
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-[color-mix(in_srgb,var(--as-success)_12%,transparent)] text-[var(--as-success)]"
                           : p.status === "unmet"
-                            ? "bg-rose-100 text-rose-700"
-                            : "bg-slate-100 text-slate-600"
+                            ? "bg-[color-mix(in_srgb,var(--as-danger)_12%,transparent)] text-[var(--as-danger)]"
+                            : "bg-[var(--as-muted)] text-[var(--as-muted-fg)]"
                       }`}
                     >
                       {p.status}
                     </span>
                     {p.requirement}
-                    {p.detail && <span className="text-slate-400">· {p.detail}</span>}
+                    {p.detail && <span className="text-[var(--as-muted-fg)]">· {p.detail}</span>}
                   </li>
                 ))}
               </ul>
@@ -344,7 +371,7 @@ export function JobDetail() {
       )}
 
       <section className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4" data-testid="job-skills">
+        <div className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4" data-testid="job-skills">
           <h3 className="font-medium mb-2">{t("jobDetail.skillsRequired")}</h3>
           {gaps && (gaps.gaps ?? []).length > 0 ? (
             <ul className="space-y-2">
@@ -352,44 +379,45 @@ export function JobDetail() {
                 <li key={g.key} className="text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{g.label}</span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-[var(--as-muted-fg)]">
                       {g.importance}
                       {g.importance !== "bonus" ? ` · ${t("jobDetail.levelSuffix", { level: g.required_level })}` : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="flex-1 h-1.5 bg-[var(--as-muted)] rounded-full overflow-hidden">
                       <div
                         className={`h-1.5 rounded-full ${
                           g.user_level == null
-                            ? "bg-slate-300"
+                            ? "bg-[var(--as-muted-fg)]"
                             : (g.delta ?? 0) < 0
-                              ? "bg-amber-500"
-                              : "bg-emerald-500"
+                              ? "bg-[color-mix(in_srgb,var(--as-warning)_8%,transparent)]"
+                              : "bg-[color-mix(in_srgb,var(--as-success)_8%,transparent)]"
                         }`}
+                        data-testid={`job-gap-bar-${g.key}`}
                         style={{
                           width: `${(Math.min(g.user_level ?? 0, g.required_level) / 10) * 100}%`,
                         }}
                       />
                     </div>
-                    <span className={`text-xs ${g.user_level == null ? "text-slate-400" : (g.delta ?? 0) < 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    <span className={`text-xs ${g.user_level == null ? "text-[var(--as-muted-fg)]" : (g.delta ?? 0) < 0 ? "text-[var(--as-warning)]" : "text-[var(--as-success)]"}`}>
                       {t("jobDetail.youVsRequired", { you: g.user_level ?? "–", required: g.required_level })}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{g.suggestion}</p>
+                  <p className="text-xs text-[var(--as-muted-fg)] mt-0.5">{g.suggestion}</p>
                   {g.next_step && (
-                    <p className="text-xs text-primary-700 mt-0.5">{t("jobDetail.nextStep", { step: g.next_step })}</p>
+                    <p className="text-xs text-[var(--as-accent)] mt-0.5">{t("jobDetail.nextStep", { step: g.next_step })}</p>
                   )}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[var(--as-muted-fg)]">
               {(job.skills ?? []).map((s) => s.label).join(", ") || t("jobDetail.noSpecificSkills")}
             </p>
           )}
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4" data-testid="job-paths">
+        <div className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4" data-testid="job-paths">
           <h3 className="font-medium mb-2">{t("jobDetail.yourPath")}</h3>
           {paths.length > 0 ? (
             <div className="space-y-3">
@@ -399,7 +427,7 @@ export function JobDetail() {
                     <p className="text-sm font-medium">{path.title}</p>
                     <Link
                       to="/paths"
-                      className="text-xs font-medium text-primary-700 hover:underline"
+                      className="text-xs font-medium text-[var(--as-accent)] hover:underline"
                       data-testid="job-paths-open"
                     >
                       {t("jobDetail.openInPaths")}
@@ -413,13 +441,13 @@ export function JobDetail() {
             </div>
           ) : pathNodes.length > 0 ? (
             <div>
-              <p className="text-xs text-slate-500 mb-2">{t("jobDetail.commonlyLeadsHere")}</p>
+              <p className="text-xs text-[var(--as-muted-fg)] mb-2">{t("jobDetail.commonlyLeadsHere")}</p>
               <div className="flex flex-wrap gap-2">
                 {pathNodes.map((n) => (
                   <Link
                     key={n.code}
                     to={`/jobs/${n.code}`}
-                    className="text-xs border border-slate-200 rounded-lg px-2 py-1 hover:border-primary-400"
+                    className="text-xs border border-[var(--as-border)] rounded-lg px-2 py-1 hover:border-[var(--as-accent)]"
                   >
                     {n.title}
                   </Link>
@@ -434,9 +462,13 @@ export function JobDetail() {
 
       <section className="grid md:grid-cols-3 gap-4">
         <InfoBlock title={t("jobDetail.education")}>
-          <p>{EDUCATION_LABEL[attrs?.education?.level ?? ""] ?? attrs?.education?.level}</p>
+          <p>
+            {t(EDUCATION_LABEL[attrs?.education?.level ?? ""] ?? attrs?.education?.level ?? "", {
+              defaultValue: attrs?.education?.level ?? "",
+            })}
+          </p>
           {(attrs?.education?.fields ?? []).length > 0 && (
-            <p className="text-slate-500">{(attrs?.education?.fields ?? []).join(", ")}</p>
+            <p className="text-[var(--as-muted-fg)]">{(attrs?.education?.fields ?? []).join(", ")}</p>
           )}
           {(job.links ?? []).length > 0 && (
             <div className="pt-2 space-y-1" data-testid="job-links">
@@ -446,10 +478,10 @@ export function JobDetail() {
                   href={link.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 text-primary-700 hover:underline text-sm"
+                  className="flex items-center gap-1.5 text-[var(--as-accent)] hover:underline text-sm"
                 >
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                  {LINK_KIND_LABEL[link.kind]}: {link.label}
+                  {t(LINK_KIND_LABEL[link.kind])}: {link.label}
                 </a>
               ))}
             </div>
@@ -461,7 +493,7 @@ export function JobDetail() {
               <p>
                 {t("jobDetail.livePostings", { count: snapshot.sample_size })}
                 {(snapshot.months ?? []).length > 0 && (
-                  <span className="text-slate-400">
+                  <span className="text-[var(--as-muted-fg)]">
                     {" · "}
                     {t("jobDetail.last30d", {
                       count: (snapshot.months ?? [])[(snapshot.months ?? []).length - 1]?.postings ?? 0,
@@ -480,10 +512,10 @@ export function JobDetail() {
                     : "—"}
                 </p>
               ) : (
-                <p className="text-slate-400">{t("jobDetail.salaryBandHidden", { sample: snapshot.sample_size })}</p>
+                <p className="text-[var(--as-muted-fg)]">{t("jobDetail.salaryBandHidden", { sample: snapshot.sample_size })}</p>
               )}
               {(snapshot.top_skills ?? []).length > 0 && (
-                <p className="text-slate-500">
+                <p className="text-[var(--as-muted-fg)]">
                   {t("jobDetail.demanded")}{" "}
                   {(snapshot.top_skills ?? []).slice(0, 4).map((s) => s.key).join(", ")}
                 </p>
@@ -491,7 +523,7 @@ export function JobDetail() {
               <MarketTrendStrip history={trend} />
             </div>
           ) : (
-            <p className="text-slate-400">{t("jobDetail.noPostingsData")}</p>
+            <p className="text-[var(--as-muted-fg)]">{t("jobDetail.noPostingsData")}</p>
           )}
         </InfoBlock>
         <InfoBlock title={t("jobDetail.salary")}>
@@ -534,7 +566,7 @@ export function JobDetail() {
         </InfoBlock>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-xl p-4">
+      <section className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4">
         <div className="flex items-center justify-between">
           <h3 className="font-medium">{t("jobDetail.yourRating")}</h3>
           <div className="flex gap-2">
@@ -543,7 +575,7 @@ export function JobDetail() {
                 key={s}
                 onClick={() => void saveRating(userScore, s)}
                 className={`text-xs px-3 py-1.5 rounded-full border ${
-                  status === s ? "bg-primary-600 text-white border-primary-600" : "border-slate-200"
+                  status === s ? "bg-[var(--as-accent)] text-[var(--as-primary-fg)] border-[var(--as-accent)]" : "border-[var(--as-border)]"
                 }`}
               >
                 {s}
@@ -565,14 +597,14 @@ export function JobDetail() {
           <span className="text-lg font-semibold w-8 text-center">{userScore ?? "–"}</span>
         </div>
         <label className="block mt-3">
-          <span className="text-xs font-medium text-slate-400 uppercase">{t("jobDetail.yourNotes")}</span>
+          <span className="text-xs font-medium text-[var(--as-muted-fg)] uppercase">{t("jobDetail.yourNotes")}</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             onBlur={() => void saveRating(userScore, status)}
             rows={2}
             placeholder={t("jobDetail.notesPlaceholder")}
-            className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            className="mt-1 w-full border border-[var(--as-border)] rounded-lg px-3 py-2 text-sm"
             data-testid="job-notes"
           />
         </label>
@@ -590,9 +622,9 @@ export function JobDetail() {
                 <Link
                   key={r.id}
                   to={`/jobs/${other}`}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 hover:border-primary-500"
+                  className="text-sm border border-[var(--as-border)] rounded-lg px-3 py-1.5 hover:border-[var(--as-accent)]"
                 >
-                  <span className="text-slate-400 text-xs block">{r.relation_type.replace(/_/g, " ")}</span>
+                  <span className="text-[var(--as-muted-fg)] text-xs block">{r.relation_type.replace(/_/g, " ")}</span>
                   {r.from_code === job.code ? r.to_title : r.from_title}
                 </Link>
               );
@@ -605,7 +637,7 @@ export function JobDetail() {
               const updated = await publishJob(job.code);
               setJob(updated);
             }}
-            className="mt-3 text-sm bg-emerald-600 text-white rounded-lg px-3 py-1.5"
+            className="mt-3 text-sm bg-[var(--as-success)] text-[var(--as-success-fg)] rounded-lg px-3 py-1.5"
           >
             {t("jobDetail.publishToCatalog")}
           </button>
@@ -619,20 +651,20 @@ export function JobDetail() {
           <h3 className="font-medium mb-2">{t("jobDetail.universityPathways")}</h3>
           <div className="space-y-3">
             {detail.university_pathways.map((p, i) => (
-              <div key={i} className="bg-white border border-slate-200 rounded-xl p-4">
+              <div key={i} className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Link to={`/universities/${p.department.university.id}`} className="font-medium hover:text-primary-700">
+                    <Link to={`/universities/${p.department.university.id}`} className="font-medium hover:text-[var(--as-accent)]">
                       {p.department.university.name}
                     </Link>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-[var(--as-muted-fg)]">
                       {p.department.name} · {p.department.degree} · {p.department.duration_years}y
                       {p.department.application_deadline && (
-                        <span className="text-amber-700"> · {t("jobDetail.appliesBy", { date: p.department.application_deadline })}</span>
+                        <span className="text-[var(--as-warning)]"> · {t("jobDetail.appliesBy", { date: p.department.application_deadline })}</span>
                       )}
                     </p>
                   </div>
-                  <span className="text-sm text-slate-400">{t("jobDetail.relevance", { score: p.relevance })}</span>
+                  <span className="text-sm text-[var(--as-muted-fg)]">{t("jobDetail.relevance", { score: p.relevance })}</span>
                 </div>
                 {p.admissions.length > 0 && (
                   <Table
@@ -642,7 +674,7 @@ export function JobDetail() {
                   />
                 )}
                 {p.required_subjects.length > 0 && (
-                  <p className="text-sm text-slate-500 mt-2">{t("jobDetail.subjects")}: {p.required_subjects.join(", ")}</p>
+                  <p className="text-sm text-[var(--as-muted-fg)] mt-2">{t("jobDetail.subjects")}: {p.required_subjects.join(", ")}</p>
                 )}
               </div>
             ))}
@@ -655,9 +687,9 @@ export function JobDetail() {
 
 function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
+    <div className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-xl p-4">
       <h3 className="font-medium mb-2">{title}</h3>
-      <div className="text-sm space-y-0.5 text-slate-700">{children}</div>
+      <div className="text-sm space-y-0.5 text-[var(--as-fg)]">{children}</div>
     </div>
   );
 }

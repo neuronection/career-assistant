@@ -4063,13 +4063,55 @@
       "type": "similar_to",
       "weight": 0.5,
       "rationale": "User empathy serves campaigns too."
+    },
+    {
+      "from": "paramedic",
+      "to": "firefighter",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Both are emergency-response roles with overlapping fitness and duty requirements."
+    },
+    {
+      "from": "financial-analyst",
+      "to": "data-scientist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Both turn quantitative evidence into decisions, with different tools."
+    },
+    {
+      "from": "software-developer",
+      "to": "cybersecurity-analyst",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Secure coding overlaps directly with security analysis."
+    },
+    {
+      "from": "veterinarian",
+      "to": "biologist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Life sciences, clinical practice versus research."
+    },
+    {
+      "from": "teacher",
+      "to": "psychologist",
+      "type": "similar_to",
+      "weight": 0.4,
+      "rationale": "Learning and behaviour are shared foundations."
+    },
+    {
+      "from": "sales-representative",
+      "to": "marketing-specialist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Both read the market and persuade it: sales owns the customer conversation, marketing the campaign around it."
     }
   ],
   "PATHS": [
     {
       "job": "software-developer",
       "title": "The classic study route",
-      "description": "Secondary school → CS degree → junior developer role.",
+      "description": "Secondary school \u2192 CS degree \u2192 junior developer role.",
       "steps": [
         {
           "kind": "education",

@@ -179,12 +179,17 @@ def merge_detail(
     *,
     actor_ref: dict | None = None,
     operation: dict | None = None,
-) -> bool:
-    """Fold one detail row into its posting. Only fields the detail page
-    actually states are merged — list-derived fields are never wiped;
-    typed fields fill gaps (the detail page wins when the list said
-    nothing). Returns True when anything changed; the change journals as
-    `detail_fetch` in the caller's transaction."""
+    count_attempt: bool = False,
+) -> tuple[bool, bool]:
+    """Fold one detail row into its posting.
+
+    Returns ``(changed, description_changed)``. ``changed`` covers any
+    detail field; only ``description_changed`` invalidates the extract and
+    writes the second journal row. The merge row captures the detail
+    fields/raw diff; the reset row captures the invalidated extract state —
+    distinct before/after snapshots. ``count_attempt`` is the batch path's
+    attempt-budget increment; manual fetches leave it off.
+    """
     from app.services.postings.change_journal import (
         DETAIL_FIELDS,
         PostingChangeJournal,
@@ -192,6 +197,11 @@ def merge_detail(
         snapshot,
     )
 
+    before_description = _description_text(posting)
+    if count_attempt:
+        posting.detail_attempts += 1
+    if row is None:
+        return False, False
     before = {**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)}
     detail = dict(row.raw or {})
     changed = False
@@ -240,7 +250,37 @@ def merge_detail(
                 before=before,
                 after={**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)},
             )
-    return changed
+    now = datetime.now(UTC)
+    posting.last_verified_at = now
+    if not changed:
+        return False, False
+    description_changed = _description_text(posting) != before_description
+    before_reset = (
+        snapshot(posting, ("detail_fetched_at", "extract_version")) if description_changed else None
+    )
+    posting.detail_fetched_at = posting.detail_fetched_at or now
+    if not description_changed:
+        return True, False
+    from sqlalchemy.orm import object_session
+
+    session = object_session(posting)
+    posting.extract = None
+    posting.extract_version = None
+    if session is not None:
+        PostingChangeJournal.record(
+            session,
+            posting.id,
+            "detail_fetch",
+            actor_ref=actor_ref,
+            operation={**(operation or {}), "reset": "description_changed"},
+            before=before_reset or {},
+            after=snapshot(posting, ("detail_fetched_at", "extract_version")),
+        )
+    return True, True
+
+
+def _description_text(posting: JobPosting) -> str:
+    return str((posting.raw or {}).get("description") or "")
 
 
 async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
@@ -289,12 +329,69 @@ async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
     )
 
 
+async def fetch_detail_now(db: AsyncSession, posting: JobPosting, *, actor=None) -> dict:
+    """Fetch one posting's detail page on demand, without an enrichment run.
+
+    One connector call, no ``JobSourceRun``, no attempt increment and no
+    batch drain. A changed description resets the extract and queues the
+    normal re-extract, matching the batch path's stale-extract rule.
+    """
+    from app.core.errors import sanitize_error_detail
+
+    posting_id = str(posting.id)
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == posting.source_id)))
+        .scalars()
+        .first()
+    )
+    if source is None:
+        return {"posting_id": posting_id, "fetched": 0, "changed": False}
+    rows, partials, error, _summary = await _fetch_details(db, source, [posting.external_id])
+    if error:
+        return {
+            "posting_id": posting_id,
+            "fetched": 0,
+            "changed": False,
+            "errors": [{"code": "io", "detail": sanitize_error_detail(error)}],
+        }
+    row = next((entry for entry in rows if entry.external_id == posting.external_id), None)
+    if row is None:
+        return {
+            "posting_id": posting_id,
+            "fetched": 0,
+            "changed": False,
+            "errors": partials[:5],
+        }
+    actor_ref = {"user_id": str(actor.id)} if getattr(actor, "id", None) is not None else None
+    changed, description_changed = merge_detail(
+        posting, row, actor_ref=actor_ref, operation={"manual": True}
+    )
+    if not changed:
+        return {"posting_id": posting_id, "fetched": 1, "changed": False}
+    if not description_changed:
+        await db.commit()
+        return {
+            "posting_id": posting_id,
+            "fetched": 1,
+            "changed": True,
+            "extract_requeued": False,
+        }
+    from app.services.postings.extract_service import plan_extractions
+
+    plan = await plan_extractions(db, [(posting, False)])
+    return {
+        "posting_id": posting_id,
+        "fetched": 1,
+        "changed": True,
+        "extract_requeued": plan.queued > 0,
+    }
+
+
 async def run_detail_enrichment(
     db: AsyncSession, payload: dict, user_id=None, *, job_id=None
 ) -> dict:
     """DETAIL_ENRICHMENT handler: drain batches under a per-run cap.
     Never raises — a failing batch is a report line, not a crashed job."""
-    from app.services.postings.change_journal import PostingChangeJournal, snapshot
     from app.services.postings.postings_service import (
         _begin_run,
         _finish_run,
@@ -338,31 +435,26 @@ async def run_detail_enrichment(
         if error:
             errors.append({"code": "io", "detail": error[:500], "retryable": "yes"})
         by_id = {row.external_id: row for row in rows}
+        batch_re_extract: list[JobPosting] = []
         for posting in batch:
-            row = by_id.get(posting.external_id)
-            posting.detail_attempts += 1
-            if row is not None and merge_detail(
-                posting, row, actor_ref=actor_ref or None, operation={"source": source.key}
-            ):
-                before = snapshot(posting, ("detail_fetched_at", "extract_version"))
-                posting.detail_fetched_at = datetime.now(UTC)
-                # The description materially changed — the earlier extract
-                # (made from list-card data) is stale. Reset it so the
-                # deep pass re-runs on the full text.
-                posting.extract = None
-                posting.extract_version = None
-                re_extract.append(posting)
+            changed, description_changed = merge_detail(
+                posting,
+                by_id.get(posting.external_id),
+                actor_ref=actor_ref or None,
+                operation={"source": source.key, "batch": batch_no},
+                count_attempt=True,
+            )
+            if changed:
                 enriched += 1
-                PostingChangeJournal.record(
-                    db,
-                    posting.id,
-                    "detail_fetch",
-                    actor_ref=actor_ref or None,
-                    operation={"source": source.key, "batch": batch_no},
-                    before=before,
-                    after=snapshot(posting, ("detail_fetched_at", "extract_version")),
-                )
-        await db.commit()
+            if description_changed:
+                re_extract.append(posting)
+                batch_re_extract.append(posting)
+        if batch_re_extract:
+            from app.services.postings.extract_service import plan_extractions
+
+            await plan_extractions(db, [(posting, False) for posting in batch_re_extract])
+        else:
+            await db.commit()
         if run_row is not None:
             await _update_run_progress(
                 db,
@@ -374,10 +466,6 @@ async def run_detail_enrichment(
             )
         if error or not rows:
             break
-    if re_extract:
-        from app.services.postings.extract_service import plan_extractions
-
-        await plan_extractions(db, [(posting, False) for posting in re_extract])
     report = {
         "enriched": enriched,
         "detail_rows": fetched,

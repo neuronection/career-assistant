@@ -16,7 +16,6 @@ from app.services.profile.stages_service import stage_from_seniority
 DEFAULT_PROFILE = {
     "use_skills": True,
     "use_education": True,
-    "use_languages": True,
     "use_location": True,
     "use_experience": True,
     "use_lifestyle": True,
@@ -115,7 +114,7 @@ async def test_update_without_profile_resets_the_block(client, auth_headers, db)
     created = await _goal(
         client,
         auth_headers,
-        constraints={"profile": {"use_skills": False, "use_languages": False}},
+        constraints={"profile": {"use_skills": False}},
     )
     patched = await client.patch(
         f"/api/v1/autopilot/goals/{created['id']}",
@@ -190,14 +189,14 @@ async def test_preview_disabled_toggles_drop_their_keys(client, auth_headers, pr
     response = await client.post(
         "/api/v1/autopilot/profile-context",
         json={
-            "profile": {"use_languages": False, "use_experience": False, "use_lifestyle": False},
+            "profile": {"use_experience": False, "use_lifestyle": False},
             "seniority": [],
         },
         headers=auth_headers,
     )
     assert response.status_code == 200, response.text
     snapshot = response.json()
-    assert "languages" not in snapshot
+    assert "languages" in snapshot, "languages are no longer a toggle — always contextual"
     assert "stage" not in snapshot and "stage_source" not in snapshot
     assert "lifestyle_count" not in snapshot
 
@@ -247,14 +246,13 @@ async def test_collect_profile_context_gates_fields(
                 "use_skills": False,
                 "use_education": False,
                 "use_location": False,
-                "use_languages": False,
             },
         },
     )
     assert "skills" not in gated
     assert "education_level" not in gated
     assert "country" not in gated and "city" not in gated
-    assert "languages" not in gated
+    assert "languages" in gated
     assert gated["stage"] == "student", "experience stays on unless its own flag is off"
     assert gated["target_seniority"] == ["junior"], "the goal's own constraint always stays"
 
@@ -267,12 +265,11 @@ async def test_collect_profile_context_gates_fields(
                 "use_skills": False,
                 "use_education": False,
                 "use_location": False,
-                "use_languages": False,
                 "use_experience": False,
             },
         },
     )
-    assert all_off == {"target_seniority": []}, "all flags off plans from the goal text alone"
+    assert all_off["target_seniority"] == []
 
 
 async def test_collect_profile_context_goal_stage(
@@ -399,7 +396,6 @@ async def test_mock_planner_resolves_with_all_flags_off(
                 "use_skills": False,
                 "use_education": False,
                 "use_location": False,
-                "use_languages": False,
                 "use_experience": False,
                 "use_lifestyle": False,
             },

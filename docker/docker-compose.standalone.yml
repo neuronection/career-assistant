@@ -7,6 +7,11 @@
 #   cp docker/.env.production.example docker/.env   # then edit secrets
 #   docker compose -f docker/docker-compose.standalone.yml up -d --build
 #
+# Credential split (ADR-0064): the one-shot `migrate` service provisions and
+# migrates as the OWNER; the app serves with the DML-only app role and never
+# receives the owner DSN or password. Set distinct `CAREER_DB_OWNER_PASSWORD`
+# / `CAREER_DB_PASSWORD` (see docker/.env.production.example).
+#
 # TLS: mount docker/nginx-TLS.conf over nginx.conf, uncomment the 443
 # mapping, and provide certs (see docker/README.md → TLS). HTTP-only by
 # default — fine for loopback/VPN, not for the open internet.
@@ -21,15 +26,16 @@ x-logging: &default-logging
 
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector provisioned: migrate creates the `vector` extension here
+    # (the embeddings index needs it; the prod/demo stacks use the same image).
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      # ADR-0022 (amended): the bootstrap role is `neuronection_career_owner`
-      # — career keeps its single-role layout (this role runs migrations AND
-      # serves runtime DML); there is no separate least-privilege `_app` role.
+      # The bootstrap role is the OWNER (ADR-0064); the app serves with the
+      # DML-only app role the migrate service provisions (see `migrate`).
       POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
       POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+      POSTGRES_PASSWORD: ${CAREER_DB_OWNER_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD in docker/.env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -42,19 +48,57 @@ services:
     networks:
       - career-assistant-network
 
-  app:
+  migrate:
+    # One-shot provisioning job (ADR-0062 §3 / ADR-0064 §3): app role +
+    # grants, `vector` extension, Alembic, checkpoint schema, vector
+    # spaces, re-grant + verify. The ONLY service holding the owner
+    # credential; the app starts only after it completed successfully.
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: ${CAREER_IMAGE:-career-assistant:local}
-    restart: unless-stopped
-    init: true
+    command: ["migrate"]
+    restart: "no"
     depends_on:
       db:
         condition: service_healthy
     environment:
       CAREER_APP_ENV: production
-      CAREER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-neuronection_career}
+      CAREER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}@db:5432/${POSTGRES_DB:-neuronection_career}
+      CAREER_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}@db:5432/${POSTGRES_DB:-neuronection_career}
+      CAREER_DB_APP_USER: ${CAREER_DB_APP_USER:-neuronection_career_app}
+      CAREER_DB_PASSWORD: ${CAREER_DB_PASSWORD:?Set CAREER_DB_PASSWORD (distinct from POSTGRES_PASSWORD)}
+      CAREER_DB_SPLIT: "1"
+    logging: *default-logging
+    networks:
+      - career-assistant-network
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ${CAREER_IMAGE:-career-assistant:local}
+    command: ["serve"]
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      CAREER_APP_ENV: production
+      # App (DML-only) role DSN — the owner credential never enters here.
+      CAREER_DATABASE_URL: postgresql+asyncpg://${CAREER_DB_APP_USER:-neuronection_career_app}:${CAREER_DB_PASSWORD:?Set CAREER_DB_PASSWORD}@db:5432/${POSTGRES_DB:-neuronection_career}
+      # Split marker (ADR-0064): serving code never issues DDL.
+      CAREER_DB_APP_ROLE: "1"
+      # Cookie `Secure` derives from the public scheme (plan 64 §1.6):
+      # CAREER_PUBLIC_URL https://… → Secure, http://… → not (LAN/VPN login
+      # keeps working); CAREER_TLS=1 is the no-domain escape hatch; an
+      # explicit CAREER_COOKIE_SECURE overrides both. Never hard-coded true.
+      CAREER_COOKIE_SECURE: ${CAREER_COOKIE_SECURE:-}
+      CAREER_PUBLIC_URL: ${CAREER_PUBLIC_URL:-}
+      CAREER_TLS: ${CAREER_TLS:-0}
       # Per-purpose key family (identity-auth §8) — generate each with:
       #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
       CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
@@ -65,6 +109,40 @@ services:
       # so per-IP limits key on real clients.
       CAREER_TRUSTED_PROXY_COUNT: ${CAREER_TRUSTED_PROXY_COUNT:-1}
       CAREER_MAX_UPLOAD_MB: ${CAREER_MAX_UPLOAD_MB:-25}
+      # Data exports are capped independently of the per-upload ceiling.
+      CAREER_EXPORT_MAX_MB: ${CAREER_EXPORT_MAX_MB:-1024}
+      # Family object storage (ADR-0057 / plan 55 P2). Empty defaults keep
+      # the local volume; a cloud profile sets its provider block (see
+      # docker/.env.production.example and docker/docker-compose.cloud.yml).
+      CAREER_CLOUD_PROFILE: ${CAREER_CLOUD_PROFILE:-}
+      CAREER_OBJECT_STORAGE_BACKEND: ${CAREER_OBJECT_STORAGE_BACKEND:-}
+      CAREER_OBJECT_STORAGE_REQUIRED: ${CAREER_OBJECT_STORAGE_REQUIRED:-false}
+      CAREER_OBJECT_STORAGE_LOCAL_ROOT: ${CAREER_OBJECT_STORAGE_LOCAL_ROOT:-/app/uploads}
+      CAREER_OBJECT_STORAGE_MAX_MB: ${CAREER_OBJECT_STORAGE_MAX_MB:-}
+      CAREER_OBJECT_STORAGE_PRESIGN_TTL: ${CAREER_OBJECT_STORAGE_PRESIGN_TTL:-300}
+      CAREER_S3_BUCKET: ${CAREER_S3_BUCKET:-}
+      CAREER_S3_REGION: ${CAREER_S3_REGION:-}
+      CAREER_S3_ENDPOINT_URL: ${CAREER_S3_ENDPOINT_URL:-}
+      CAREER_S3_ACCESS_KEY_ID: ${CAREER_S3_ACCESS_KEY_ID:-}
+      CAREER_S3_SECRET_ACCESS_KEY: ${CAREER_S3_SECRET_ACCESS_KEY:-}
+      CAREER_S3_SESSION_TOKEN: ${CAREER_S3_SESSION_TOKEN:-}
+      CAREER_S3_PATH_STYLE: ${CAREER_S3_PATH_STYLE:-}
+      CAREER_S3_SSE: ${CAREER_S3_SSE:-}
+      CAREER_S3_KMS_KEY_ID: ${CAREER_S3_KMS_KEY_ID:-}
+      CAREER_S3_PREFIX: ${CAREER_S3_PREFIX:-}
+      CAREER_S3_VERIFY_TLS: ${CAREER_S3_VERIFY_TLS:-}
+      CAREER_S3_CONNECT_TIMEOUT: ${CAREER_S3_CONNECT_TIMEOUT:-}
+      CAREER_S3_READ_TIMEOUT: ${CAREER_S3_READ_TIMEOUT:-}
+      CAREER_S3_MAX_ATTEMPTS: ${CAREER_S3_MAX_ATTEMPTS:-}
+      CAREER_AZURE_STORAGE_CONTAINER: ${CAREER_AZURE_STORAGE_CONTAINER:-}
+      CAREER_AZURE_STORAGE_CONNECTION_STRING: ${CAREER_AZURE_STORAGE_CONNECTION_STRING:-}
+      CAREER_AZURE_STORAGE_ACCOUNT_URL: ${CAREER_AZURE_STORAGE_ACCOUNT_URL:-}
+      CAREER_AZURE_STORAGE_ACCOUNT_NAME: ${CAREER_AZURE_STORAGE_ACCOUNT_NAME:-}
+      CAREER_AZURE_STORAGE_CREDENTIAL: ${CAREER_AZURE_STORAGE_CREDENTIAL:-}
+      CAREER_AZURE_STORAGE_PREFIX: ${CAREER_AZURE_STORAGE_PREFIX:-}
+      CAREER_AZURE_CONNECT_TIMEOUT: ${CAREER_AZURE_CONNECT_TIMEOUT:-}
+      CAREER_AZURE_READ_TIMEOUT: ${CAREER_AZURE_READ_TIMEOUT:-}
+      CAREER_AZURE_MAX_ATTEMPTS: ${CAREER_AZURE_MAX_ATTEMPTS:-}
       # Ingest runs in its own serial worker lane, so a source sync or an
       # extraction backlog drain never blocks digests, CV generation or the
       # vector reconcile (plan 203). Each lane is serial: 1 is the intended
@@ -87,8 +165,10 @@ services:
       - career-assistant-network
 
   backup:
-    # Scheduled instance backups (database dump + uploads) written to the
-    # ./backups bind mount. Enable with --profile backup.
+    # Scheduled database dumps written to the ./backups bind mount. Enable
+    # with --profile backup. Each run records a row in `backup_runs`
+    # (ADR-0063 §2). Same-host by design — scripts/backup.sh owns the
+    # off-host upload for T1; label a local-only install non-DR.
     image: postgres:16-alpine
     profiles: ["backup"]
     restart: unless-stopped
@@ -96,20 +176,16 @@ services:
       db:
         condition: service_healthy
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${CAREER_DB_OWNER_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD}
+      PGHOST: db
       POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
       POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
     volumes:
       - ./backups:/backups
-    command: >
-      sh -c 'while true; do
-        ts=$$(date -u +%Y%m%d-%H%M%S);
-        pg_dump -U $$POSTGRES_USER -Fc $$POSTGRES_DB > /backups/db-$$ts.dump;
-        find /backups -name "db-*.dump" | sort | head -n -$$BACKUP_KEEP | xargs -r rm --;
-        sleep $$((BACKUP_INTERVAL_HOURS * 3600));
-      done'
+      - ./backup-sidecar.sh:/usr/local/bin/backup-sidecar.sh:ro
+    command: ["sh", "/usr/local/bin/backup-sidecar.sh"]
     logging: *default-logging
     networks:
       - career-assistant-network

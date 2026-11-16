@@ -33,6 +33,34 @@ export interface ApplicationEvent {
   meta: Record<string, unknown>;
 }
 
+export type OfferPeriod = "year" | "month" | "hour";
+
+export interface ApplicationOffer {
+  currency: string;
+  amount: number;
+  period: OfferPeriod;
+  benefits: string[];
+  location: string;
+  cost_of_living: number | null;
+  deadline: string | null;
+}
+
+export interface OfferComparisonItem extends ApplicationOffer {
+  application_id: string;
+  posting_title: string;
+  posting_org: string;
+  annual_amount: number;
+  monthly_amount: number;
+  annual_cost_of_living: number | null;
+  net_annual_after_col: number | null;
+}
+
+export interface OfferComparison {
+  items: OfferComparisonItem[];
+  total: number;
+  mixed_currencies: boolean;
+}
+
 export interface Application {
   id: string;
   posting_id: string;
@@ -45,8 +73,8 @@ export interface Application {
   applied_via_url: string;
   deadline_at: string | null;
   next_followup_at: string | null;
-  contact: Record<string, unknown>;
-  offer: Record<string, unknown>;
+  contact_id: string | null;
+  offer: Partial<ApplicationOffer>;
   outcome: ApplicationOutcome | null;
   closed_at: string | null;
   cv_id: string | null;

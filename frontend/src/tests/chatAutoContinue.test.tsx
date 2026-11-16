@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ChatDock } from "@/features/chat/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 import type { ChatMessage, ProfileProposalCardData as CardData } from "@/types";
 
@@ -48,6 +49,11 @@ vi.mock("@/api/universities", () => ({
 
 vi.mock("@/api/ai", () => ({
   fetchAiTools: vi.fn(),
+  fetchConfigSummary: vi.fn().mockResolvedValue({
+    tasks: [],
+    can_manage_global: false,
+    mock_allowed: false,
+  }),
   transcribeAudio: vi.fn(),
   classifyDictationError: vi.fn(),
 }));
@@ -150,6 +156,7 @@ function mockApprove() {
 describe("auto-continue after resolving proposal cards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetConfigSummaryCache();
     resetStores();
     streamChatMessage.mockResolvedValue(undefined);
     api.fetchChatSessions.mockResolvedValue([

@@ -69,6 +69,7 @@ export interface FacetChip {
   label: string;
   count?: number;
   testId?: string;
+  hint?: string;
 }
 
 export type TriStateMode = "include" | "exclude" | "clear";
@@ -120,7 +121,7 @@ export function TriStateChips({
   const { t } = useTranslation();
   return (
     <div className="flex flex-wrap gap-1.5">
-      {values.map(({ value, label, count, testId }) => {
+      {values.map(({ value, label, count, testId, hint }) => {
         const isIncluded = include.includes(value);
         const isExcluded = exclude.includes(value);
         const selected = isIncluded || isExcluded;
@@ -169,7 +170,7 @@ export function TriStateChips({
               className={`py-1 pl-2.5 ${selected ? "pr-1" : "pr-2.5"} ${
                 isIncluded ? "font-medium" : ""
               }`}
-              title={title}
+              title={hint ? `${title} · ${hint}` : title}
             >
               {isExcluded ? "− " : ""}
               {label}

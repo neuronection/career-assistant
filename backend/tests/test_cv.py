@@ -2,7 +2,6 @@
 
 import io
 import uuid
-from pathlib import Path
 
 from pypdf import PdfWriter
 from sqlalchemy import select
@@ -182,22 +181,24 @@ async def test_cv_image_upload_uses_ocr_and_serves_page(client, db, auth_headers
 
 
 async def test_document_delete_removes_files(client, db, auth_headers):
+    import uuid
+
+    from app.models.document_model import Document
+    from app.services.profile.document_storage import document_storage
+
     content = b"to be deleted"
     upload = await _upload_cv(client, auth_headers, "gone.txt", content, "text/plain")
     doc_id = upload.json()["document"]["id"]
     await _drain(db)
-    assert source_file_path_by_id(doc_id).exists()
+    document = await db.get(Document, uuid.UUID(doc_id))
+    assert document.object_key is not None
+    storage = document_storage()
+    assert storage.exists(document)
     response = await client.delete(f"/api/v1/documents/{doc_id}", headers=auth_headers)
     assert response.status_code == 204
-    assert not source_file_path_by_id(doc_id).exists()
+    assert not storage.exists(document)
     detail = await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)
     assert detail.status_code == 404
-
-
-def source_file_path_by_id(document_id: str) -> Path:
-    from app.core.config import settings
-
-    return Path(settings.upload_dir) / f"{document_id}.txt"
 
 
 async def test_document_delete_requires_ownership(client, db, auth_headers):

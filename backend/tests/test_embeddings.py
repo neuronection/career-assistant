@@ -162,6 +162,10 @@ def _patch_embedding_model(monkeypatch, model):
         model_name="text-embedding-3-small",
         api_key="sk-test-key",
         base_url="https://embeddings.example.invalid/v1",
+        source="user",
+        provider_key=None,
+        provider_id=None,
+        is_local=False,
     )
 
     async def _resolve(db, task, user_id=None):

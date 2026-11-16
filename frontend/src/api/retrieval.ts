@@ -406,12 +406,12 @@ export interface RetrievalQualitySet {
 }
 
 export interface RetrievalQualityCompare {
-  old_space_id: string;
+  baseline_space_id: string;
   new_space_id: string;
   set_version: number;
   k: number;
-  old_recall_at_k: number;
-  old_precision_at_k: number;
+  baseline_recall_at_k: number;
+  baseline_precision_at_k: number;
   new_recall_at_k: number;
   new_precision_at_k: number;
   passed: boolean;

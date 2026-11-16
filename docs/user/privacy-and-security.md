@@ -32,7 +32,7 @@ re-entered in Settings → AI Configuration).
 
 ## Authentication
 
-Family auth contract (identity-auth, ADR-0013):
+Family auth contract (identity-auth):
 
 - **Desktop (`open` mode):** no login — the app boots straight into your
   data; the security boundary is your user account + data directory.
@@ -95,6 +95,16 @@ around the AI gateway, so the trail is complete.
   manual redirect hops, size and time caps).
 - The production SPA is served with a strict CSP; preview iframes use
   `sandbox=""` and `frame-ancestors 'none'`.
+
+## Contacts are third-party data
+
+Contacts and their interaction notes are people other than you. They stay
+in your instance, are included in your account export, and are deleted with
+your account (or individually). There is no enrichment and no directory import. Outreach drafts are
+copy-only (`mailto:` opens your own mail client); requesting one sends the
+contact/application facts to your configured AI provider, while Career
+Assistant itself never sends the message. Do not store sensitive third-party notes you would not want in
+your own export.
 
 ## Reporting a vulnerability
 

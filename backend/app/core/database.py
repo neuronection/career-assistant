@@ -2,6 +2,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -26,6 +27,8 @@ class CustomJSONEncoder(json.JSONEncoder):
             return str(obj)
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
         return super().default(obj)
 
 

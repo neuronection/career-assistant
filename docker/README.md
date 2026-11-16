@@ -10,13 +10,14 @@ For development on the host see the root `README.md` and `scripts/run-dev.sh`.
 | File | Purpose |
 |---|---|
 | `docker-compose.dev-db.yml` | Dev infrastructure only: Postgres :5433 + Redis :6380 for host-based development (`scripts/run-dev.sh`). |
-| `docker-compose.prod.yml` | Production services (app + Postgres). Proxy handled externally or via the standalone flavor. Supports `CAREER_IMAGE` to deploy pre-built GHCR images. |
-| `docker-compose.standalone.yml` | Canonical self-hosted single-host stack: app + Postgres + nginx (TLS-ready). |
+| `docker-compose.prod.yml` | Production services (app + one-shot migrate + Postgres). Proxy handled externally or via the standalone flavor. Supports `CAREER_IMAGE` to deploy pre-built GHCR images. |
+| `docker-compose.standalone.yml` | Canonical self-hosted single-host stack: one-shot migrate + app + Postgres + nginx (TLS-ready). |
 | `docker-compose.demo.yml` | Egress-blocked demo flavor: isolated project/networks, database `neuronection_career_demo`, synthetic-only data (never production). |
 | `Dockerfile` | Multi-stage: frontend bundle → single uvicorn image serving API + SPA. |
-| `entrypoint.sh` | Waits for the DB, runs migrations, starts uvicorn. |
+| `entrypoint.sh` | Modes (deployment contract): `migrate` (one-shot provisioning as the owner: app role, `vector`, Alembic, checkpoint schema, vector spaces, re-grant) and `serve` (never runs migrations/DDL). Unknown mode fails closed. |
 | `nginx.conf` | HTTP-only reverse proxy (loopback / VPN). |
 | `nginx-TLS.conf` | TLS-terminating variant (certbot webroot ACME + HSTS). |
+| `backup-sidecar.sh` | The `backup` profile's dump loop; each run writes a `backup_runs` ledger row (backup policy). Off-host upload lives in `scripts/backup.sh`. |
 | `init-test-db.sh` / `init-test-db` | Creates the `neuronection_career_test` DB used by pytest. |
 
 ## Compose project name & volumes
@@ -58,7 +59,7 @@ docker compose -f docker/docker-compose.dev-db.yml up -d
 ```
 
 Dev databases are disposable in any case — `down -v` on the dev stack
-recreates the ADR-0022 names from scratch.
+recreates the family datastore names from scratch.
 
 ## Dev infrastructure (host-based development)
 
@@ -67,7 +68,7 @@ docker compose -f docker/docker-compose.dev-db.yml up -d   # Postgres :5433 + Re
 ./scripts/run-dev.sh                                       # backend :8100 + frontend :3100
 ```
 
-The dev stack creates the ADR-0022 names: database `neuronection_career`,
+The dev stack creates the family datastore names: database `neuronection_career`,
 bootstrap role `neuronection_career_owner` and the companion test database
 `neuronection_career_test` (per-xdist-worker databases follow
 `neuronection_career_test_gwN`).
@@ -88,12 +89,12 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
   `CAREER_IMAGE=ghcr.io/<owner>/<repo>:<tag> docker compose ... up -d`
   (images are published by the release workflow on tags).
 
-## Renaming `career_*` / `neuro_career_*` → `neuronection_*` (ADR-0022 amendment, 2026-09-30)
+## Renaming `career_*` / `neuro_career_*` → `neuronection_*` (2026-09-30)
 
-The family datastore prefix was amended (ADR-0022 clause 5 + revision
+The family datastore prefix was amended (revision
 history): databases `neuronection_career` (+ `neuronection_career_test` /
 `neuronection_career_demo`) with bootstrap role `neuronection_career_owner`.
-Career's pre-ADR `POSTGRES_DB=career` default and the demo's
+Career's legacy `POSTGRES_DB=career` default and the demo's
 `neuro_career_demo` fold into that same pattern.
 
 **Existing installations migrate automatically** (guarded, one-time, and a
@@ -174,5 +175,8 @@ loopback. For internet-facing deployments:
 ```bash
 docker compose -f docker/docker-compose.standalone.yml exec app bash     # app shell
 docker compose -f docker/docker-compose.standalone.yml logs -f app       # follow logs
+# Schema check + migrations (run the preflight first when doing this by hand:
+# a pre-v0.17 volume is refused with guidance instead of migrated)
+docker compose -f docker/docker-compose.standalone.yml run --rm app python -m careerassistant preflight
 docker compose -f docker/docker-compose.standalone.yml run --rm app alembic upgrade head
 ```

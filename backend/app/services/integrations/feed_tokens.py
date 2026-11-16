@@ -1,17 +1,20 @@
-"""Signed feed tokens for calendar and RSS subscriptions (plan 117.3/117.4).
+"""Feed tokens for calendar and RSS subscriptions (plan 117.3/117.4).
 
-Tokens are random URL-safe secrets: the plaintext is returned once at mint
-time, only its sha256 lands in `user_feed_tokens`. Revocation stamps
-`revoked_at`; rotation mints a successor and links the chain through
-`rotated_from_id`. A revoked or unknown token is a 404 — never a fallback.
+Tokens are minted by the family's opaque credential core
+(`nx_auth.opaque`, plan 60 Phase 2) as a bare `token_urlsafe(32)` secret:
+the plaintext is returned once at mint time, only its sha256 digest lands in
+`user_feed_tokens`. The digest is the sole stored form and the sole lookup
+key — this product has no prefix column and never had one, so there is no
+prefix-or-hash dual lookup. Revocation stamps `revoked_at`; rotation mints a
+successor and links the chain through `rotated_from_id`. A revoked or
+unknown token is a 404 — never a fallback.
 """
 
 from __future__ import annotations
 
-import hashlib
-import secrets
 from uuid import UUID
 
+from nx_auth import opaque
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,16 +23,21 @@ from app.models.enums import FeedTokenKind
 from app.models.followup_model import UserFeedToken
 from app.services.notification_channels import utcnow
 
-TOKEN_BYTES = 32
+
+def hash_token(token: str) -> str | None:
+    """The stored form of a presented feed secret (sha256 hex, or None).
+
+    Brandless `opaque.parse` answers ``None`` for a blank or non-string
+    value, so a missing token never produces a digest that could match a
+    row.
+    """
+    parsed = opaque.parse(token, brand=None)
+    return None if parsed is None else parsed[1]
 
 
-def hash_token(token: str) -> str:
-    """The stored form of a feed secret (sha256 hex)."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _new_secret() -> str:
-    return secrets.token_urlsafe(TOKEN_BYTES)
+def verify_hash(stored_hash: str | None, presented_hash: str | None) -> bool:
+    """Compare two digests in constant time (delegates to the kit)."""
+    return opaque.verify(stored_hash or "", presented_hash or "")
 
 
 def _kind(kind: str | FeedTokenKind) -> str:
@@ -76,11 +84,11 @@ async def mint(
     rotated_from_id: UUID | None = None,
 ) -> tuple[UserFeedToken, str]:
     """Create a token; returns the row and the plaintext (shown once)."""
-    plaintext = _new_secret()
+    plaintext, _prefix, token_hash = opaque.mint()
     row = UserFeedToken(
         user_id=user_id,
         kind=_kind(kind),
-        token_hash=hash_token(plaintext),
+        token_hash=token_hash,
         scope=normalize_scope(scope),
         rotated_from_id=rotated_from_id,
     )
@@ -119,13 +127,21 @@ async def owned(db: AsyncSession, user_id: UUID, token_id: UUID) -> UserFeedToke
 
 
 async def resolve(db: AsyncSession, plaintext: str, kind: str | FeedTokenKind) -> UserFeedToken:
-    """Look a URL token up by hash; revoked/unknown is a 404."""
+    """Look a URL token up by hash; revoked/unknown is a 404.
+
+    The digest is the only lookup key (a 256-bit equality on an indexed
+    column); the loaded digest is then re-compared through the kit's
+    constant-time ``verify`` so a match is never a bare ``==``.
+    """
     expected_kind = _kind(kind)
+    presented_hash = hash_token(plaintext)
+    if presented_hash is None:
+        raise NotFoundError("Feed not found")
     row = (
         (
             await db.execute(
                 select(UserFeedToken).where(
-                    UserFeedToken.token_hash == hash_token(plaintext or ""),
+                    UserFeedToken.token_hash == presented_hash,
                     UserFeedToken.kind == expected_kind,
                 )
             )
@@ -133,7 +149,7 @@ async def resolve(db: AsyncSession, plaintext: str, kind: str | FeedTokenKind) -
         .scalars()
         .first()
     )
-    if row is None or row.revoked_at is not None:
+    if row is None or not verify_hash(row.token_hash, presented_hash) or row.revoked_at is not None:
         raise NotFoundError("Feed not found")
     row.last_used_at = utcnow()
     await db.flush()

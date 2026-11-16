@@ -14,15 +14,14 @@ local profile, tray/background scheduler, `python -m careerassistant`, PyInstall
 packaging). Keep the schema dialect-aware (Postgres + SQLite verified) and
 never break one mode while working on the other.
 
-**Identity class D** (family ADR-0013): desktop initializes `auth_mode=open`
+**Identity class D** (family identity-auth class): desktop initializes `auth_mode=open`
 — implicit local owner + auto-provisioned Default profile, zero auth UI (an
 `authenticated` desktop instance is an explicit initialization choice: login
 at boot, registration off). Web is always authenticated and ships the family
 user-management surface. Profiles are 1:N per user; `X-Profile-Id` is
 ownership-checked (403 on mismatch, 400 when absent in web mode). Secrets
 are separated per purpose (`SESSION`/`REFRESH`/`DATA` keys — never derived
-from one another). Datastore: SQLite desktop / PostgreSQL web (family
-ADR-0022).
+from one another). Datastore: SQLite desktop / PostgreSQL web.
 
 Stack mirrors the other Neuronection assistants: FastAPI (async SQLAlchemy +
 Postgres JSONB + Alembic), React 18 + Vite + TS + Tailwind + Zustand,
@@ -37,7 +36,7 @@ pytest/vitest, ruff. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and
 ├── docker/     # dev-db compose (:5433/:6380), prod + standalone (nginx) compose, Dockerfile, nginx confs
 ├── scripts/    # run-dev.sh, run-docker.sh, update-docker.sh, check-changelog.sh,
 │               # run-tests.sh, seed.sh, sync-brand.sh, lib-docker.sh
-│               # (vendored bootstrap lib: scripts/lib/dev-common.sh — canonical in dev repo, ADR-0034)
+│               # (vendored bootstrap lib: scripts/lib/dev-common.sh — canonical in dev repo)
 ├── assets/     # canonical brand assets (icon.svg, icon-light.svg)
 └── dev/        # local-only scratch notes (gitignored)
 ```
@@ -67,7 +66,7 @@ health-assistant. Core rules:
 ## Build & test
 ```bash
 ./scripts/run-dev.sh                                       # desktop dev: SQLite profile, backend :8100 + frontend :3100 (no Docker)
-./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI (ADR-0023)
+./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
 cd backend && uv run pytest tests -q -n auto           # equivalent ONLY in the primary checkout
@@ -76,7 +75,7 @@ cd frontend && npm run build && npm run test -- --run
 ```
 
 **Test env bootstrap**: `backend/.env.test` is untracked — only
-`backend/.env.test.example` ships (plan 126). The first `./scripts/run-tests.sh`
+`backend/.env.test.example` ships. The first `./scripts/run-tests.sh`
 run copies the example into place automatically; existing checkouts keep their
 local file.
 
@@ -119,7 +118,7 @@ regenerating a baseline, drop+recreate instead).
   a read fallback for an old shape, a dual-write, a deprecated alias or a
   "legacy key tolerated" branch is rejected in review. When a shape
   changes, the old shape dies in the same commit — a migration folds the
-  data if it matters at all. (Plan 114 swept the last shims; plan 113's
+  data if it matters at all. (The last shims were swept;
   `0052` is the clean schema break.)
 - **Feature registry is law for user-facing surfaces**: every surface
   gets a `frontend/src/config/features.json` entry (omit = `on`) and a
@@ -166,7 +165,7 @@ regenerating a baseline, drop+recreate instead).
   `contracts/product-capabilities.schema.json`) in the same change.**
 - `CAREER_SCHEDULER_ENABLED=false` in `.env.test` — the live loop never runs in
   tests; drive `SchedulerService(db).tick()` directly.
-- PDF engine (plan 76): `requirements-pdf.txt` + `playwright install
+- PDF engine: `requirements-pdf.txt` + `playwright install
   chromium --only-shell`. The printed PDF is the page-count truth
   (`cv_pdf_service.measure_pages` — count via pypdfium2, never clamped,
   page images rasterized from the PDF for vision critique). Linux desktop
@@ -183,7 +182,7 @@ regenerating a baseline, drop+recreate instead).
   `backend/tests/test_no_private_integration_mentions.py` fails the
   suite on them (legal separation; the full law lives in the private
   family dev repo).
-- **Gates block and only tighten** (plan 124): coverage floors, the mypy
+- **Gates block and only tighten**: coverage floors, the mypy
   per-package peg (`[tool.career-mypy-ratchet]`), the dependency-audit
   allowlist and the skip allowlist (`tests/skip_allowlist.json`) move in one
   direction only — no `continue-on-error`, no cron-only gates. Policy +

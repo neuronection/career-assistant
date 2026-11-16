@@ -8,6 +8,10 @@ Three claims the manual makes are machine-checked here:
 - every row of the README feature-status table maps to a
   ``frontend/src/config/features.json`` entry with the same state and the
   same documentation page, and no registry entry is missing from it;
+- every reachable, non-redirect top-level route in ``App.tsx`` is covered
+  by a ``features.json`` route prefix (plan 212 S0.1: the registry is the
+  single feature-state table, so a page that is not in it cannot carry a
+  state, a docs page or a beta chip);
 - every ``file`` reference in ``docs/docs-tree.json`` resolves.
 
 The gate exists because the manual once advertised a shipped cover-letter
@@ -65,6 +69,60 @@ def _frontend_routes() -> tuple[set[str], set[str]]:
         if not line.rstrip().endswith("/>"):
             stack.append((indent, full))
     return routes, redirects
+
+
+def _frontend_top_level_routes() -> tuple[set[str], set[str]]:
+    """Top-level App.tsx routes as (reachable, redirect-only).
+
+    Mirrors ``_frontend_routes`` but keeps only the routes declared
+    outside any path-bearing parent — the depth the feature registry
+    keys. Nested children ride their parent's prefix.
+    """
+    routes: set[str] = set()
+    redirects: set[str] = set()
+    stack: list[tuple[int, str]] = []
+    for line in APP_TSX.read_text(encoding="utf-8").splitlines():
+        if not _ROUTE_TAG.search(line):
+            continue
+        indent = len(line) - len(line.lstrip())
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        match = _PATH_ATTR.search(line)
+        if match is None:
+            continue
+        raw = match.group(1)
+        if raw.startswith("/"):
+            full = raw
+        elif stack:
+            full = f"{stack[-1][1].rstrip('/')}/{raw}"
+        else:
+            full = f"/{raw}"
+        if not stack:
+            (redirects if "<Navigate" in line else routes).add(full)
+        if not line.rstrip().endswith("/>"):
+            stack.append((indent, full))
+    return routes, redirects
+
+
+def _route_prefix(path: str) -> str:
+    """Collapse a router path onto its static prefix for registry matching.
+
+    Registry keys are plain route prefixes (never ``:param`` segments),
+    so ``/jobs/:code`` and ``/cv/templates/:id`` compare as ``/jobs`` and
+    ``/cv/templates``.
+    """
+    segments = [part for part in path.split("/") if part and part[0] not in (":", "{")]
+    return f"/{'/'.join(segments)}" if segments else "/"
+
+
+# Routes exempt from the registry gate. Redirect-only routes are already
+# excluded by the ``<Navigate>`` detection above, so this set carries the
+# one entry the line-level sniff cannot see:
+# - ``/universities`` — the legacy ``/universities/:id`` deep link renders
+#   ``UniversityRedirect``, an element-level forward onto
+#   ``/catalog/universities/:id``; the ``<Navigate>`` sits inside the
+#   component, not on the route line, so it parses as reachable.
+_TRANSIENT_TOP_LEVEL_ROUTES: set[str] = {"/universities"}
 
 
 def _backend_routes() -> set[str]:
@@ -201,6 +259,20 @@ def test_redirect_only_routes_are_not_documentation_targets():
     assert "/settings/automations" in routes
     assert "/settings/scheduler" in redirects
     assert "/settings/scheduler" not in routes
+
+
+def test_every_top_level_route_is_registered():
+    routes, _redirects = _frontend_top_level_routes()
+    registry = _feature_registry()
+    problems: list[str] = []
+    for route in sorted(routes):
+        prefix = _route_prefix(route)
+        if prefix in _TRANSIENT_TOP_LEVEL_ROUTES:
+            continue
+        if any(prefix == key or prefix.startswith(f"{key}/") for key in registry):
+            continue
+        problems.append(f"{route}: reachable but absent from features.json")
+    assert not problems, "\n".join(problems)
 
 
 def test_feature_table_and_tour_read_the_same_registry():

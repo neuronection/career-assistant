@@ -4,6 +4,659 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (deployment conformance)
+- **One-shot `migrate` + `serve` entrypoint modes (plan 64 / ADR-0062 §3).**
+  The compose stacks gain a one-shot `migrate` service that provisions as
+  the owner role and exits; the app (`serve`) starts only after it
+  completed successfully and never runs migrations or any DDL. Unknown
+  entrypoint modes fail closed. Desktop (`python -m careerassistant`) keeps
+  its local boot migrations, schedulers and SQLite checkpointer unchanged,
+  and gains a server-only `python -m careerassistant migrate` mode (refuses
+  SQLite).
+- **Split owner/app DB credentials (ADR-0064).** Distinct
+  `CAREER_DB_OWNER_PASSWORD` / `CAREER_DB_PASSWORD`; the owner DSN
+  (`CAREER_MIGRATIONS_DATABASE_URL`) exists only in the migrate service,
+  the app role is DML-only and the tri-state (legacy warns / split
+  supported / broken refuses to boot) is enforced at boot. `migrate`
+  provisions the app role + grants + default privileges, the `vector`
+  extension, the LangGraph checkpoint schema and every known vector space,
+  then re-grants and verifies the app role holds no schema `CREATE`. The
+  prod/standalone `db` image is now `pgvector/pgvector:pg16` so semantic
+  search provisions on self-host too.
+- **`GET /ready` readiness probe** with hard checks only: boot complete,
+  database reachable at this release's Alembic head, required object
+  storage available — anything else is 503; soft signals never flip it.
+  `/health` stays the liveness probe; both are exposed through the bundled
+  nginx and the compose app healthcheck.
+- **Backup ledger + off-host upload (ADR-0063).** New `backup_runs` table
+  (migration 0016) written by `scripts/backup.sh` and the compose backup
+  sidecar — one row per run (started/finished/status/bytes/checksum/
+  destination/error-class). `scripts/backup.sh` now uploads off-host
+  (`BACKUP_REMOTE`: `s3://`, azcopy blob URLs, any rclone target) with an
+  optional `age` encryption hook (`BACKUP_AGE_RECIPIENT`). The restore
+  procedure is documented as a drill with pass criteria
+  (`docs/dev/restore-drill.md`): throwaway target first, re-grant, verify
+  named counts and a known record.
+
+### Changed (deployment conformance)
+- **Cookie `Secure` derives from the public scheme** (plan 64 §1.6 /
+  ADR-0062 §9): set `CAREER_PUBLIC_URL` (https → Secure, http → off so
+  LAN/VPN login keeps working) or `CAREER_TLS=1`; an explicit
+  `CAREER_COOKIE_SECURE` still overrides. The compose stacks pass the
+  derivation inputs instead of a hard-coded value. The prod compose gains
+  `x-logging` and an app healthcheck; `CAREER_TRUSTED_PROXY_COUNT` stays
+  set in both stacks.
+
+### Added (storage status)
+- **Admins get a read-only Storage status card under Settings → Storage.**
+  `GET /api/v1/admin/storage/status` reports the resolved backend,
+  bucket/container, prefix, region/endpoint host, SSE, cap, presign TTL and
+  the cached live health row; **Test connection** forces a fresh probe.
+  Non-admins receive 403 and the nav entry is admin-only. There is no
+  credential form, provider tile or backend switch — changing backends stays
+  a verified migration. The response redacts credentials, connection strings,
+  presigned URLs and the full endpoint URL. The family `app.storage`
+  settings-map domain is declared and vendored.
+
+### Changed (object storage health)
+- **`/health` reports the storage row and boots log a redacted storage
+  line.** Backend, `ok`/`degraded`/`unavailable` and `required`; the probe is
+  cached for 30 s and bounded to 5 s (a slow provider cannot outlive the
+  healthcheck), a transient provider failure or probe timeout degrades open
+  (200), and the endpoint returns 503 only when storage is required or the
+  failure is sustained. A missing bucket/container remains a boot
+  configuration error. A manual `Cloud storage smoke` workflow runs the AWS
+  and Azure provider tests on demand; normal PRs stay local-only.
+
+### Fixed (extension installs)
+- **A freshly imported connector bundle is enable-ready.** The install now
+  seeds the source's tool options from the manifest's declared `defaults`
+  (validated against the bundle's own schema, like the T2 install rule), so
+  hitting the enable toggle no longer answers `tool options rejected`. This
+  is what a bundle's `defaults` map is for; per-field schema defaults remain
+  display hints the host never applies.
+- **Installs whose required configuration is still missing say so.** The
+  extensions list badges such an install with `needs config` and offers a
+  **Configure** action that opens the minted source's settings page, instead
+  of dead-ending on an enable error.
+
+### Added (object storage)
+- **Document bytes use the family object-storage contract.** Uploads, CV
+  page images and data-export archives are stored through one backend seam:
+  the local uploads directory on desktop/self-host, or `s3` / `azure_blob`
+  under a cloud profile (`CAREER_CLOUD_PROFILE`, `CAREER_S3_*`,
+  `CAREER_AZURE_STORAGE_*`). Keys are server-generated
+  (`tenants/<user>/documents/<id><ext>`, `…/cv_pages/…`, `…/exports/…`),
+  downloads stream through the store, and no filesystem path appears in an
+  API response. Deletion enumerates the document's page objects instead of
+  trusting row counters, legacy reads materialize a private temp copy, and
+  provider failures map to 404/409/413/503 at the HTTP edge. The per-upload
+  object cap binds to the existing 25 MB ceiling; data exports use their own
+  `CAREER_EXPORT_MAX_MB` (default 1024) and remain exportable past it.
+  Migration `0015` adds `documents.object_key`, backfills it for existing
+  rows and rewrites `extraction.pages[].image_path` to keys or null; files
+  recorded before the contract keep working through a local dual-read.
+  Desktop stays local-only and its backup/restore refuses an object backend.
+  See [docs/dev/storage.md](docs/dev/storage.md).
+
+### Changed
+- **Retired no-user compatibility surfaces.** The job-proposal v1→v2
+  backfill/regenerate endpoint, its `legacy_count` banner, the mapping
+  outcome backfill endpoint/count and their background-job types are
+  removed (migration `0014` clears stored v1 proposals and retired job
+  rows). The `price_source='legacy'` value is removed (migration `0013`).
+  New installs carry no legacy proposal or backfill state.
+
+### Changed (demo seed)
+- **The synthetic demo covers whole job cards and a populated Skills tab.**
+  The fictional posting pool grew from four to fourteen vacancies — accountant,
+  teacher, nurse, graphic designer, financial analyst, data scientist,
+  software developer, marketing specialist, electrician, chef and the original
+  four — each mapped to the catalog and carrying two to five reference skills.
+  Market → Skills now has top, rising and falling examples instead of an empty
+  state, and re-running the seeder backfills skills on postings that already
+  exist without duplicating a row.
+
+### Changed (catalog graph constellation)
+- **The job graph is a family constellation again, not a table.** Jobs are
+  packed into family blobs by a deterministic relaxation (no random source),
+  thirty of the forty-five jobs show by default (`Show all 45` expands), and
+  every family gets a distinct, high-contrast colour — including hyphenated
+  roots such as `public-safety`, which previously fell back to grey.
+- **Edges leave the side that faces the other job** (nearest-border routing)
+  and connected jobs keep enough distance that every relation reads as a line
+  rather than a hairline; the graph gained single-select relation filters,
+  title search, node focus with a neighbour ring, an explicit `Open job`
+  action in the summary bar, and `Reset` — clicking a node no longer
+  navigates away.
+- **One new seed relation** ties `sales-representative` to
+  `marketing-specialist`, so no catalog job is stranded without a relation.
+- **A browser gate (`npm run gate:graph`) now proves the graph's visuals**:
+  no node overlap, label size, dim opacity, neighbour ring contrast, edge
+  length and that `Open job` never covers a node.
+
+### Fixed (close-out polish)
+- **Destructive confirmations are in-app dialogs**: deleting a contact or a
+  STAR story uses the shared confirmation modal (title, description, busy
+  state) instead of the browser's native confirm.
+- **Bullet-coach and generate failures render inline** in the editor instead
+  of a blocking `alert`.
+- **Job cards keep one destination**: the title is a button that follows the
+  card's open action again (the title-only link sent it somewhere else on the
+  dashboard).
+- **ICS import apply is serialized per user on Postgres** (advisory lock), so
+  two concurrent applies cannot insert the same calendar event twice.
+- **JSON Resume apply commits its collections once and dedupes within the
+  payload**, so a repeated entry in one file is written once.
+
+### Fixed (validation and bounded reads)
+- **A PATCH cannot null a required field.** Contacts and saved answers reject
+  an explicit `null` with 422 instead of failing the insert with a 500.
+- **Creating a contact with an existing email returns 409** (and the same
+  email on another contact is a conflict) — it no longer silently overwrites
+  the existing contact.
+- **Offer amounts must be finite.** A non-finite amount is a 422, and
+  validation errors no longer echo the offending input (which also made the
+  response itself unserializable).
+- **Gap evidence is capped per skill**, so an early-mapped skill cannot starve
+  the others; the mapping console's "not weak" filter now includes postings
+  that were never mapped; contacts, answers and stories list reads are capped.
+
+### Fixed (surfaces tell the truth)
+- **Offer comparison reports a failed load** with a retry action instead of
+  showing "no offers to compare"; contacts gained a loading state, one error
+  state (never error plus "no contacts"), a debounced search and a detail
+  panel that refreshes after an edit. The interaction log can record every
+  kind (intro, follow-up, thank-you, referral, informational).
+- **Capture has an entry point**: an "Add by URL" action on `/postings` opens
+  the same dialog the bookmarklet uses, and `/postings/capture-help` is a
+  registered surface.
+- **Salary benchmarks format money in the app locale** and show an em dash
+  for an empty percentile (no more "undefined EUR"); posting dates follow the
+  app locale too.
+- **The gap report uses the shared design tokens** and the type floor instead
+  of raw palette classes and 9.5px text.
+
+### Fixed (outbound fetch hardening)
+- **Web fetches are pinned to the address the guard checked.** The hostname is
+  resolved once, the request connects to that address with the original `Host`
+  and TLS SNI, and every redirect hop is re-guarded and re-pinned — a DNS
+  rebind can no longer swap in an internal address between check and connect.
+  Credentials are dropped when a redirect leaves the original host.
+- **The rendered-page tier guards every request it makes**, including redirects
+  and subresources, and aborts anything private or reserved; bodies are capped
+  while streaming, so a decompression bomb is not buffered whole.
+- **The AI price-override listing is admin-only** (matching the write routes).
+- **JSON Resume import is bounded**: collections are capped (100 work, 100
+  education, 30 highlights, 200 skills) and a resume over 1 MB is rejected with
+  422, with the caps reported in the review warnings.
+
+### Changed (shared UI adoption, plan 60 Phase 4)
+- **The signed-in devices list and the MCP secret-once panel use the shared
+  family components** (`@neuronection/assistant-ui` 0.86.0:
+  `AccountSessionList`, `SecretOnceBlock`). Session rows keep the device
+  glyph, current/revoked badges, preformatted created/expiry line and the
+  existing revoke/revoke-all confirmation dialogs; the minted MCP token keeps
+  its warning copy and gains a copy button with transient copied feedback.
+  Revoked session rows are marked with the shared list's `revoked` flag
+  (`@neuronection/assistant-ui` 0.88.0): the row carries the library-owned
+  "Signed out" badge and no revoke control, and the "sign out everywhere"
+  button sits in the list header.
+
+### Changed (family source grammar vendored, plan 60 Phase 3)
+- **The canonical extension source grammar is vendored** as
+  `backend/app/extensions/extension_sources.py` (byte-identical to the family
+  contract, synced by `scripts/sync-extension-contract.sh`). Nothing consumes
+  it yet — the module is the one parser for extension-source URL / ref /
+  subpath / commit-sha / archive-entry grammar that an import surface will
+  adopt, so no behaviour changes.
+
+### Changed (family auth-kit adoption, plan 60 Phase 2B)
+- **Feed tokens are minted and verified by the shared opaque credential
+  core (`nx_auth.opaque`, auth-kit 0.6.0).** The plaintext stays a bare
+  `token_urlsafe(32)` secret and the stored/lookup form stays its sha256
+  hex digest — no prefix column, no schema change, no dual lookup, and
+  tokens minted before the change keep resolving. Digest comparison now
+  goes through the kit's constant-time `verify`; blank input is refused
+  before any query.
+
+### Fixed (Wave C merge integration)
+- **Wave C merges cleanly with the plan 58/59 line.** The Wave A/C schema
+  migrations now follow `0004_ai_cost_provenance` as `0005`–`0012` with one
+  head, the audit data-cost card has complete en/de/el copy, and the
+  cost-aware embedding fixture supplies the resolved provider fields.
+
+### Added (offer comparison, plan 212 S3.6)
+- **Compare up to four offers side by side.** Record currency, amount and
+  period, benefits, location, monthly cost of living and deadline in the
+  application drawer; `/applications/offers` annualizes pay and shows the
+  net after cost of living. Missing values stay empty, mixed currencies are
+  flagged and never converted, date-only deadlines stay on their UTC day, and
+  there is no negotiation advice. Deadline rendering is zone-pinned and
+  newest-offer ordering is asserted by application id.
+
+### Added (evidence-derived NACE competencies, plan 212 S3.5)
+- **Growth shows the competencies your evidence supports.** Experiences,
+  achievements, linked skills and certifications map to the eight NACE
+  competencies; each row cites its evidence or says there is none, with no
+  self-rating and no score. Evidence is deterministic and de-duplicated,
+  certifications match their name (not the issuer), and exact terms avoid
+  substring false positives. The CV bullet editor tags the
+  competencies a bullet touches.
+
+### Added (UK/DACH market guide, plan 212 S3.4)
+- **A sourced market guide for UK and DACH applications.** Compare UK
+  classifications with the German decimal and Austrian whole-number grade
+  scales, and read locale-aware conventions for CVs, application bundles and
+  hiring cycles. Each card links its own source; the page shows the review
+  date and is general guidance — not legal or immigration advice. The German
+  decimal and Austrian whole-number scales are kept separate, and each card
+  claim (CV, dossier, application and cycle wording) is narrowed to what its
+  linked source states.
+
+### Added (roles for your degree, plan 212 S3.3)
+- **Explore can suggest job families from your degree.** The optional banner
+  maps programme/focus subjects deterministically, expands one bounded family
+  level (matched family, parent and siblings), shows a localized reason, and
+  adds the families to the ordinary filter without replacing manual choices.
+  It never excludes a posting.
+
+### Added (posting safety signals, plan 212 S3.2)
+- **Check before applying.** Posting detail shows six deterministic, factual
+  signals when the text contains a requested fee, a personal email domain, a
+  messaging-app contact, a vague organisation, pay far above the catalog band,
+  or a shortened/personal link. Every row includes the quote or factual value and
+  the copy says this is not a verdict; no signal is never a safety guarantee.
+
+### Added (salary benchmarks, plan 212 S3.1)
+- **Posted-pay benchmarks with a disclosed sample.** The market Pay tab adds
+  per job/family x country x seniority cells with `n`, p25/p50/p75, a floor of
+  10, per-currency only (no FX or cross-country blending), and explicit
+  posted-range and cost-of-living caveats. A thin job cell falls back to a
+  single family cell when that cell is thick enough. Cells follow the page's
+  filter bar and disclose the annualized period. The OEWS/Eurostat reference line
+  stays absent until a sourced adapter exists.
+
+### Changed (security and scale hardening, plan 213 W3/W6)
+- The outbound fetch guard now shares the family IP/range policy
+  (`polite_http.is_blocked_ip`) while keeping the web-tools policy
+  (no robots, own caps, localhost search exception). The posting-hygiene
+  scan bounds each duplicate group (500) and reports skipped groups.
+
+### Added (contacts and outreach, plan 213 W1)
+- **Keep the people around your applications.** A flat `/contacts` list
+  with an interaction log, a contact link on each application, and
+  copy-only intro/follow-up/thank-you/referral/informational drafts
+  grounded in the contact, application and posting. Contacts are exported
+  with the account and deleted with it; deleting a contact clears the
+  application link. No sending, scraping, enrichment or second follow-up
+  cadence. Migration `0012`.
+
+### Changed (shared ICS codec, plan 213 W2)
+- The calendar import now uses the family `ics_codec` contract instead of a
+  career-local RFC 5545 parser. Windows/Outlook TZIDs, BOM, folding,
+  cancellation policy and caps are pinned by the family fixture wall; an
+  unknown TZID warns and skips rather than silently using UTC.
+
+### Added (application response coaching, plan 212 S2.7)
+- **Tailored vs untailored response rates, honestly bounded.** The
+  applications page shows a descriptive card over your own applications:
+  a response is screening-or-later (including rejection), each group
+  discloses `n`, both rates hide below 10 applications per group, and the
+  card offers one next action. No cross-user comparison, no causal claim,
+  no score.
+
+### Added (ICS calendar import, plan 212 S2.5)
+- **Interview invitations come in from a calendar export.** The
+  applications page imports Google/Outlook `.ics` files review-first:
+  VEVENTs are proposed against existing applications (organisation/role
+  text), timezones normalize to UTC, all-day events stay all-day, and
+  duplicates (same UID or application + start + summary) are flagged.
+  Nothing is written until **Apply import**; the outbound feed is
+  unchanged.
+
+### Added (JSON Resume import/export, plan 212 S2.4)
+- **Your profile moves in and out as JSON Resume.** The profile import
+  page gains an export button and a file import that is review-first: a
+  report lists mapped basics/work/education, every dropped top-level key
+  and warnings (skills are reported, not silently created). Nothing is
+  written until **Apply import**; unknown fields are never stored and no
+  runtime schema package is required.
+
+### Added (bookmarklet capture, plan 212 S2.3)
+- **Capture a posting from anywhere.** `/postings?capture=<url>` opens a
+  confirmation dialog and `POST /postings/capture` reuses the manual-URL
+  connector's JSON-LD parser and the SSRF-guarded fetch. The canonical URL
+  (tracking parameters stripped) is the idempotency key, so a second
+  capture returns the same posting; there is no new ingest path. The help
+  page `/postings/capture-help` carries a draggable bookmarklet.
+
+### Added (posting trust signals + duplicate scan, plan 212 S2.2)
+- **Cross-source duplicates collapse into trust signals.** Postings gain
+  `duplicate_of_id`, `repost_count`, `last_verified_at` and typed
+  `trust_flags` (migration `0011`). A deterministic scan merges only
+  high-confidence pairs (same canonical URL, or same organisation with a
+  near-identical title, compatible location and overlapping salary band);
+  weaker pairs stay proposals in `trust_flags.duplicate_candidate`.
+  Cards show **Reposted ×N** when the source re-listed after expiry and
+  **Verified** for the last detail fetch; the Explore rail gains **Hide
+  likely duplicates**, and Settings → Tools → **Posting hygiene** lists
+  canonical rows with repost/verified dates, merges proposals and clears
+  a merge (the undo, which the scan respects). Never a scam verdict; no
+  model call.
+
+### Added (closing-soon filters + deadline alert, plan 212 S2.1)
+- **Explore filters by opportunity type, work authorization and closing
+  window.** The filter rail gains tri-state facets for opportunity type
+  (internship, placement year, apprenticeship, graduate scheme, insight
+  programme, part-time, full-time, contract), work authorization (cannot
+  sponsor / sponsors / case-by-case / citizens only) and a **Closing**
+  window (7/30/90 days) with live facet counts; postings without a
+  deadline stay out of the window rather than being invented into it.
+  The weekly digest gains a **closing-soon** section for saved postings
+  and emits its own `posting_closing_soon` notification (seeded beside
+  `followup_due`, in-app/desktop/browser by default) through the single
+  notification funnel.
+
+### Changed (posting extraction v6, plan 212 S1.4a)
+- **Deep posting extraction now reads eligibility facts too.** The v6
+  schema adds work authorization (none / sponsors / case-by-case /
+  citizens-only), language requirements with level, academic-grade
+  cutoffs (scale-scoped), student opportunity type (internship,
+  placement year, apprenticeship, graduate scheme, insight programme,
+  part-time, full-time, contract) and an explicit application deadline.
+  Every new field carries a verbatim evidence quote and confidence, and
+  is suppressed rather than guessed below the threshold. Spoken
+  languages move from a bare code list to structured requirements; the
+  Explore language facet reads a new typed `job_postings.language_codes`
+  projection (migration `0005`). Existing postings are re-extracted by
+  the bounded backfill (`EXTRACT_VERSION` 5 → 6).
+
+### Changed (eligibility gates, plan 212 S1.4b)
+- **Visa and language gates, with a per-posting "apply anyway".** A
+  posting that states it cannot sponsor (or citizens-only) is gated for
+  a user who needs sponsorship; a language requirement at intermediate
+  or above is gated when the profile has no matching level. Unknown
+  never excludes — a missing posting signal, a missing profile signal
+  or a `case_by_case` answer stays neutral. The user's explicit override
+  (`gate_overrides` on `posting_interactions`) removes the gate without
+  invalidating the cached fit; the API is
+  `POST /api/v1/postings/{ref}/gate-override`. New typed posting
+  columns: `work_authorization`, `opportunity_type`,
+  `application_deadline` (migration `0006`); the profile basics gain
+  `work_authorization`.
+
+### Changed (grade model, plan 212 S1.4c)
+- **Academic grades are now scale-scoped and numeric.** Education rows
+  carry `grade_scale` (UK honours / GPA 4 / GPA 10 / German Note /
+  percentage / other), the raw `grade_value` and a derived 0-100
+  `grade_ordinal`; the old qualitative `grade_band` is gone (migration
+  `0007`; existing qualitative values become empty — never a fabricated
+  class). Postings with a stated grade cutoff gate only when the
+  profile has the same scale and a lower ordinal. The profile editor
+  asks for the scale and its own value (2.1, 3.7, 1.7, 75) and shows
+  "grade not stated" when absent.
+- **Language is a gate, not a score.** The old language prerequisite
+  score and the autopilot "Languages" on/off toggle are removed (the
+  planner still receives languages as context); a missing required
+  language is handled by the eligibility gate with an explicit
+  "apply anyway" override. `FIT_VERSION` moves to 8, so cached posting
+  fits recompute once.
+
+### Added (STAR stories, plan 212 S1.7)
+- **A STAR story library feeds behavioral practice.** Add/edit/delete
+  stories with competency tags and situation/task/action/result blocks;
+  suggestions come from experience items not yet linked. When creating
+  an interview, pick up to three stories and they are prepended to the
+  plan as behavioral questions citing your own STAR text — no generation,
+  no auto-fill. New table `interview_stories` (migration `0010`).
+
+### Added (bullet coach, plan 212 S1.6)
+- **The bullets editor checks your writing deterministically.** A
+  **Check bullets** action flags a missing metric, duty-phrase openings
+  ("responsible for…"), passive voice, over-long/very short lines and
+  duplicate opening words, rendered under each bullet. No AI call, no
+  write; **Generate** remains the separate review-only AI draft. Backend
+  action: `POST /cv/{id}/ai/bullet_review`.
+
+### Added (answer library, plan 212 S1.5)
+- **Screening answers are reusable and user-written.** The kit's
+  **Answers** tab now saves one answer per prompt key (availability,
+  work authorization, salary expectations, languages and a
+  posting-derived language prompt) and reuses it on every posting. Save
+  is explicit, Clear deletes it, and nothing is generated or auto-filled
+  into an application form. New table `saved_answers` (migration `0009`)
+  with flat user-owned CRUD under `/api/v1/me/answers`.
+### Added (eligibility UI, plan 212 S1.4d)
+- **The posting page now shows eligibility and logistics.** A card below
+  the gap report surfaces work authorization, language requirements,
+  grade cutoff, opportunity type and application deadline with the
+  posting's verbatim quote, plus a gate row with **Apply anyway** (and
+  **Undo**). Overrides are per posting and never change the cached
+  score. The profile's Basics section asks for work authorization, used
+  only to flag postings that cannot sponsor.
+
+### Breaking changes (v0.17 datastore break — family `datastore-breaks` policy)
+- **A pre-v0.17 desktop datastore is quarantined, never migrated.** The
+  first boot of this line moves the old SQLite database (plus its WAL
+  sidecars, `checkpoints.db`, `uploads/` and `backups/`) into
+  `<data_dir>/previous-datastore-<timestamp>/` with a `manifest.json`,
+  starts a fresh database and writes
+  `<data_dir>/datastore-quarantine.json`. Nothing is deleted, and a
+  read-only update is shown once as the first startup screen (before the
+  first-run AI wizard). Keys, `env`, logs and window state stay in place.
+  To roll back, reinstall the previous release and restore that folder.
+  If the old datastore cannot be moved (another instance holds it, or a
+  permission problem), the app refuses to start rather than create a
+  fresh database beside it.
+- **An unreadable datastore is preserved, not repaired.** The old
+  corrupt-database auto-restore boot hook is gone: a file that is not a
+  readable database now goes into the same quarantine folder with reason
+  `unreadable` (bytes untouched) instead of being swapped for a backup.
+- **Backups from a previous release are refused.** The archive manifest
+  now records the schema revision it was written with; a restore whose
+  archive (declared or probed) predates this release is rejected before
+  anything is swapped, so the live database is left untouched.
+- **PostgreSQL web/self-host deployments are preflighted.** The container
+  reads `alembic_version` before `alembic upgrade head`; a volume from
+  the old schema line exits non-zero with explicit guidance instead of an
+  opaque Alembic traceback. No volume is ever dropped automatically.
+  New `python -m careerassistant preflight` (also used by
+  `./scripts/run-dev.sh --web`) answers the same check outside the
+  container.
+
+### Added
+- **Missing speech-to-text is a first-class state in the chat composer.** The
+  mic now gates on the effective `transcribe` assignment: when that assignment
+  is explicitly unconfigured, the composer renders the library
+  `DictationUnavailable` row with a direct link to Settings → AI → Tasks
+  instead of offering a mic that can only fail. A loading, missing or failed
+  config summary keeps the mic (unknown, never a false lock-out), and transport
+  failures keep the existing error strip and mic-hide behavior. Bumps
+  `@neuronection/assistant-ui` to 0.85.0.
+- **Posting gap report v2 — "What's missing" (plan 212 S1.1).** The
+  posting detail page gains an evidence-first gap report below the
+  match card: every asked skill grouped must-have / nice-to-have /
+  bonus with the required level, your level and a met / partial /
+  missing status, the posting's verbatim evidence quote (capped,
+  expandable, copyable) and your own evidence per row. Labels that
+  never resolved onto the skill taxonomy keep their row marked "not in
+  your taxonomy" — never dropped silently. Deterministic end to end
+  (one shared computation with the tailor coverage, fresh on every
+  read) and deliberately **not a score**: no percentage, no 0–10
+  number — the match card stays the only place scores live. New
+  `GET /api/v1/postings/{ref}/gap` for tests and clients; the report
+  also rides the posting detail response as `gap`.
+- **Parser view — "What a parser sees" (plan 212 S1.2).** CV Studio
+  gains a toolbar entry beside the ATS chip: the current CV is printed
+  through the same engine as the PDF export (no version created, no
+  AI) and read back with pypdfium2, showing each printed page's
+  verbatim text plus deterministic findings — missing text layer,
+  contact details that did not survive extraction, welded lines, a
+  reading order that deviates from the document, page overflow vs the
+  budget and empty pages. Read-only, no score, and explicitly **our
+  extractor, not a vendor simulation**. Answers 503 with the existing
+  capability message when the print engine is absent. New
+  `GET /api/v1/cv/{id}/parse-view`.
+- **Application kit — the pre-application review surface (plan 212
+  S1.3).** Every saved posting becomes a reviewable application. The
+  posting page gains a **Tailor & apply** action opening the kit at
+  `/postings/{ref}/kit`: the evidence-first requirement report, the
+  CV state (your posting-tailored variant, other CVs, or an honest
+  "no CV yet" with a CV Studio link), the posting's cover letter with
+  an explicit create action, deterministic screening prompts (the S1.5
+  answer library now stores them) and a read-only sourced
+  checklist (posting open/closed from the source expiry, the
+  **measured** page count and header-contact findings from the
+  existing lint, static file hints — general guidance, never a vendor
+  simulation). **Prepare** reruns the deterministic comparison —
+  missing-section review cards (open in CV Studio or dismiss) plus the
+  covered/missing split — idempotently and without any AI call; it
+  creates no CV, no letter and no application row. **Mark as applied**
+  is the one explicit write: it records the tracker row with the
+  documents you choose; nothing is submitted externally and **Open
+  original** stays one click away. Applications get a full kit page at
+  `/applications/{id}` (new route; five tabs — CV variant, cover
+  letter, answers, checklist, timeline — with the event timeline and
+  linked documents), reachable from a **Kit** button on every tracker
+  card, list row and the drawer. Document links ride the tracker's
+  existing audited endpoints; no auto-apply exists anywhere.
+- **`GET /api/v1/instance/config` carries `datastore_quarantine`** on the
+  desktop identity only (path, reason, revision, timestamp) so the SPA can
+  show the one-time notice; server instances never expose a local path.
+
+### Fixed
+- **`docs/capabilities.json` validates again.** The Phase 0 docs-truth
+  pass pushed the live-postings summary past the capability contract's
+  220-character cap, failing `test_product_capabilities`; the summary
+  is back under the cap (and now mentions the gap report).
+
+### Changed (registry & docs hygiene, plan 212 Wave 0)
+- **Every top-level route is now a registered surface.** The feature
+  registry covers the full workspace — dashboard, chat, catalog,
+  universities, jobs, rankings, compare, CV Studio, profile, skill
+  pages, job radar, sources, extensions, settings and the onboarding
+  flow — with a new docs-claims gate that fails when `App.tsx` grows a
+  reachable page the registry does not know. All new entries ship `on`
+  (no behaviour change); the README feature-status table and a new
+  "The workspace" guide document them, and stale docs claims (the
+  README roadmap, the connector-manifest count, radar digest delivery,
+  AI-generated jobs landing as publishable drafts) are corrected.
+
+### Fixed (mapping fast-follows, plan 210 audit)
+- **Crash recovery keeps the funnel and trace in agreement.** An orphaned
+  terminal `posting_extract` job now writes `extract_status="failed"` on its
+  posting (resolve/replay and retryable jobs stay untouched), and detail-now
+  queues its re-extract in the same transaction as the description reset so a
+  crash cannot leave a reset row without a job.
+
+### Changed (mapping correlation, plan 210 — complete wave)
+- **The job-post ↔ job-type correlation is hardened end to end.** The join
+  now uses two-way skill coverage with a title-ordering term (title orders
+  gated candidates, never maps alone), weak mappings are reviewable with a
+  typed margin, the funnel reads the latest recorded extract status
+  (`succeeded`/`failed`, with `detail_failed` split out), catalog types are
+  guarded by a derived `title_key` and exact-only merge with near-duplicate
+  hygiene, and the triage adds detail-now/re-propose/bulk-map actions plus a
+  server-side type picker. Posting cards, Explore and the type page surface
+  the mapped types (titles, successors, open-role counts). The semantic
+  rerank default **stays OFF**; the ON matrix is a measured synthetic
+  counterfactual, not the runtime point.
+
+### Added (mapping consumers, plan 210 S7)
+- **The catalog link is visible where you decide.** Posting cards show a
+  compact mapped-type chip linking the type page (the successor when the type
+  is retired). Explore's **Job** facet is labelled with type titles, supports
+  multi-select include-only and excludes retired types; the API carries the
+  labels as a sibling `job_titles` map, leaving the numeric `facets` intact.
+  `GET /jobs/{ref}` and a posting detail's `catalog_job` now fill
+  `open_roles` from one grouped count; the type page shows it with a
+  **Browse postings** link, plus the retired banner, `--as-*` tokens and
+  i18n education/link-kind labels. Catalog job cards use real title links
+  (card click, keyboard and middle-click stay intact), and the Dashboard's
+  suggested list is selectable. No score, rerank or AI change; rerank default
+  stays off.
+
+### Added (mapping operations, plan 210 S6)
+- **The mapping triage now has direct per-row and cohort actions.** **Fetch
+  detail now** performs one connector call for that posting, journals
+  `detail_fetch` as manual, creates no enrichment run and does not consume
+  the attempt budget; a changed description resets the stale extract and
+  queues the normal re-extract. **Retry extract** and **Re-propose** retry
+  one row (the latter through the existing refresh-redecision path).
+  **Map selected to…** maps up to 200 active rows onto one published,
+  non-retired type in one transaction with per-row journal entries and one
+  audit event, reporting mapped/already/blocked counts. The triage picker now
+  searches the server-side published catalog with a debounce and a 50-row
+  page (pinned candidates keep their titles) instead of loading the
+  moderation endpoint's first 200; the source “top reason” picks the largest
+  bucket. Bulk result notes report `queued` for extract/re-decide and
+  `affected` for map.
+
+### Added (mapping truth, plan 210 S5)
+- **Job types now carry a derived normalized title key and a write-path
+  duplicate guard.** `jobs.title_key` (migration `0003`, indexed but not
+  unique) is derived on every ORM insert/update, including the seed, and
+  backfilled for existing rows. Manual create/update, publish, AI generation,
+  bulk publish and proposal apply refuse an exact normalized-title duplicate
+  among non-retired types (a structured 409); generation and bulk publish
+  skip and report the duplicate instead of failing the batch. Catalog
+  hygiene now lists non-retired exact **and** near groups (trigram ≥ 0.72 /
+  containment), capped; near groups are informational ("merge exact only")
+  and the merge endpoint still merges exact titles only. The retired type
+  page shows a retired banner with its successor link instead of a 404. No
+  unique index yet — the race window is documented until the owner merges
+  the live duplicate pairs.
+
+### Changed (mapping truth, plan 210 S4)
+- **The proposal queue loads the catalog title list once per page.** Candidate
+  and duplicate assembly share the preloaded published/non-retired titles
+  instead of loading full `Job` rows per queue row; the proposal writer uses
+  the same loader per call. Mapping-feature candidate rows now carry the
+  catalog `job_title`, so the triage picker labels pinned candidates instead
+  of showing a blank title. The skill-overlap candidate stage still runs per
+  queue row (bounded by the shared-skill index) — not claimed as closed. No
+  score, rerank or AI change; the rerank default stays off.
+
+### Added (mapping truth, plan 210 S3)
+- **The funnel reports the recorded latest extract attempt.** Successful
+  extractions set `extract_status="succeeded"`; a terminal failure records
+  `failed`; retryable failures keep the previous status. The triage gains the
+  `detail_failed` state (never fetched and attempts exhausted), the trace
+  shows the latest non-resolve extract job (with a queued/running chip), and
+  proposal aging reads the typed `proposal_proposed_at` with a `created_at`
+  fallback. Proposal state derives from the v2 action/`needs_edit` or the
+  failure marker instead of a non-existent status.
+
+### Added (mapping truth, plan 210 S2)
+- **Weak mappings are reviewable and map/unmap clears uniformly.** The
+  mapping console marks and filters weak mappings (deterministic margin below
+  δ, or semantic confidence below 0.65), reserves half the quality sample for
+  them, reports the weak bucket and adds the owner-run **Re-decide stale
+  mappings** action (plus a separately confirmed **Force all**), selecting
+  active non-manual rows below the current mapping version or every active
+  non-manual row respectively. `job_postings` gains `mapping_margin`, `extract_status`
+  and `proposal_proposed_at` (migration `0002`, with backfills from the
+  latest non-resolve extract job and the v2 proposal JSON); every map/unmap
+  path clears the ignore overlay, margin, proposal and typed proposal time.
+
+### Changed (mapping correlation, plan 210)
+- **Posting↔job-type matching now uses two-way skill coverage and a
+  deterministic title signal.** The join measures how much of the posting's
+  weighted skills the type covers and how much of the type's own requirements
+  the posting fills (harmonic mean); title evidence only orders candidates
+  that already pass the skill gate. `skill_overlap` mappings record the
+  coverage score as their confidence, a posting with no shared skill reports
+  `no_candidate`, and mapping features move to schema 2 / mapping version 3
+  (v1 rows still parse). The semantic rerank default **stays OFF**: the
+  synthetic calibration corpus measures OFF 0.6429 → ON 1.0 precision@1 /
+  intent (abstention 0.2857 → 0.1837), but the owner has not ratified the
+  flip — the corpus is synthetic, the human golden set is empty, and flipping
+  is a one-setting change. The report labels the ON matrix as a measured
+  counterfactual, not the runtime point. The corpus re-places 39 filler-only
+  job weights under the new metric (case labels/expected jobs unchanged; the
+  delta is committed).
+
 ## [v0.17.0-rc.2] - 2026-11-07
 
 ### Fixed

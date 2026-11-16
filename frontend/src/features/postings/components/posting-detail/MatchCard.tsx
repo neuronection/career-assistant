@@ -13,6 +13,9 @@ const GATE_LABEL_KEYS: Record<string, string> = {
   shift: "postingDetail.gate.shift",
   hours: "postingDetail.gate.hours",
   salary_min: "postingDetail.gate.salaryMin",
+  visa: "postingDetail.gate.visa",
+  language: "postingDetail.gate.language",
+  grade: "postingDetail.gate.grade",
 };
 
 type Match = NonNullable<PostingDetailOut["match"]>;

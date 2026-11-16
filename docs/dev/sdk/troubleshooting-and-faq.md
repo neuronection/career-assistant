@@ -33,7 +33,7 @@ Error codes are the closed 15-code enum in the
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `net-denied` on Remotive syncs under the default posture | Resolved (plan 182): the connector rides the robots-allowed `remotive.com/remote-jobs/feed`; the legacy `/api/*` target stays disallowed by `remotive.com/robots.txt` | nothing to do — a `net-denied` on the feed path itself would mean Remotive changed its robots file: pick a new polite endpoint, or (a deliberate admin decision, never a connector-side bypass) lift the check per deployment with `CAREER_CONNECTOR_RESPECT_ROBOTS=false` |
+| `net-denied` on Remotive syncs under the default posture | Resolved: the connector rides the robots-allowed `remotive.com/remote-jobs/feed`; the legacy `/api/*` target stays disallowed by `remotive.com/robots.txt` | nothing to do — a `net-denied` on the feed path itself would mean Remotive changed its robots file: pick a new polite endpoint, or (a deliberate admin decision, never a connector-side bypass) lift the check per deployment with `CAREER_CONNECTOR_RESPECT_ROBOTS=false` |
 | `net-denied` on a redirect chain that "should" pass | every hop is re-validated against the declared domains — an undeclared CDN host fails | declare every hop's host in `domains` |
 | `not-ready: no transport injected` | a connector was called without the runtime (direct call in code/tests) | treat transport as required — fail closed, never return empty success |
 | `rate-limited` with `retry_after_ms` | upstream 429; the runtime honored Retry-After | nothing to fix — the next sync backs off; lower the connector's `max_requests_per_minute` if it recurs |
@@ -56,7 +56,7 @@ Error codes are the closed 15-code enum in the
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Instance shows `self-disabled: watchdog` | a call exceeded the wall-clock watchdog — kill = crash = self-disable (ADR-0030 clause 1) | fix the slow code or raise `CAREER_EXTENSION_SANDBOX_CALL_TIMEOUT_SECONDS`; then explicitly re-enable (the only way back) |
+| Instance shows `self-disabled: watchdog` | a call exceeded the wall-clock watchdog — kill = crash = self-disable | fix the slow code or raise `CAREER_EXTENSION_SANDBOX_CALL_TIMEOUT_SECONDS`; then explicitly re-enable (the only way back) |
 | Instance `self-disabled: crash` | the child exited hard (`os._exit`, native crash); host and other extensions unaffected | fix the extension; re-enable explicitly |
 | `path-denied` from sandboxed code | the audit wall denied an fs-shaped attempt — there is no fs capability at this seam | keep data in `cap.state.*`, not files |
 | `net-denied` on a declared-domain fetch | a hop (often a redirect) left the declared `domains` | declare every host in the chain |
@@ -105,6 +105,6 @@ residuals (Windows memory cap, `os.stat` metadata probing) are disclosed
 in [Security & Gotchas](security-and-gotchas.md#the-sandbox-residuals-disclosed-not-mitigated).
 
 **Can the assistant install or enable an extension for me?** No —
-model output may never register, enable or schedule sources
-(ADR-0011 §7); registration and the desired-state document are admin
+model output may never register, enable or schedule sources;
+registration and the desired-state document are admin
 acts by law.

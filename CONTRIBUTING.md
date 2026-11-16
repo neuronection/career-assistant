@@ -14,7 +14,7 @@ cp .env.example .env                                       # localhost defaults
 ./scripts/seed.sh                                          # idempotent starter catalog (web mode / Postgres)
 ```
 
-Desktop dev (the default, ADR-0023) needs no Docker: `run-dev.sh`
+Desktop dev (the default) needs no Docker: `run-dev.sh`
 bootstraps the local SQLite profile via `python -m careerassistant seed`
 (migrations + idempotent catalog) before starting the honcho group.
 
@@ -33,7 +33,7 @@ cd frontend && npm run build && npm run test -- --run
 cd frontend && npm run lint
 ```
 
-The backend pytest env file is not tracked (plan 126): the first
+The backend pytest env file is not tracked: the first
 `./scripts/run-tests.sh` run self-bootstraps `backend/.env.test` from the
 tracked `backend/.env.test.example`; on a fresh clone, a direct `pytest`
 needs that one copy made first.

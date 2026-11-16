@@ -137,6 +137,8 @@ CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
     ("job_postings", "mapping_outcome_reason_allowed", MappingOutcomeReason),
     ("job_postings", "mapping_review_state_allowed", {"ignored"}),
     ("job_postings", "mapping_review_reason_allowed", MappingReviewReason),
+    ("job_postings", "mapping_margin_range", set()),
+    ("job_postings", "extract_status_allowed", {"succeeded", "failed"}),
     ("mapping_reviews", "kind_allowed", ReviewKind),
     ("mapping_reviews", "status_allowed", ReviewStatus),
     ("mapping_coverage_snapshots", "basis_allowed", {"scheduled", "manual"}),

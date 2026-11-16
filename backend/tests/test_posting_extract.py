@@ -4,12 +4,14 @@ driven queueing, skill+level search, profile-coverage parity, provenance."""
 import uuid as uuid_mod
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import select
 
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus
-from app.models.posting_model import JobPosting, PostingSkill
+from app.models.posting_model import JobPosting, PostingChange, PostingSkill
 from app.models.taxonomy_model import Skill
+from app.services.job_worker import JobWorker
 from app.services.postings import extract_service
 from app.services.postings.extract_service import (
     EXTRACT_VERSION,
@@ -169,7 +171,7 @@ def test_extract_model_reads_suppressed_stored_rows():
 
     extract = PostingExtract.model_validate(
         {
-            "languages": None,
+            "language_requirements": None,
             "benefits": None,
             "responsibilities": None,
             "prerequisites": None,
@@ -179,7 +181,7 @@ def test_extract_model_reads_suppressed_stored_rows():
             "field_confidence": None,
         }
     )
-    assert extract.languages == []
+    assert extract.language_requirements == []
     assert extract.benefits == []
     assert extract.responsibilities == []
     assert extract.prerequisites == []
@@ -255,14 +257,212 @@ async def test_version_bump_flags_reextraction(
     await db.refresh(posting)
     assert posting.extract_version == EXTRACT_VERSION
 
+    posting.extract_status = None
+    await db.commit()
     payload = {"posting_id": str(posting.id)}
     result = await run_extract_job(db, payload)
     assert result["skipped"] == "already extracted"
+    assert posting.extract_status == "succeeded"
 
     monkeypatch.setattr(extract_service, "EXTRACT_VERSION", EXTRACT_VERSION + 1)
     result = await run_extract_job(db, payload)
     assert result.get("extracted") is True
     assert posting.extract_version == EXTRACT_VERSION + 1
+
+
+async def _extract_job(
+    db,
+    posting: JobPosting,
+    *,
+    attempts: int,
+    max_attempts: int = 2,
+    cancel_requested: bool = False,
+) -> BackgroundJob:
+    job = BackgroundJob(
+        job_type="posting_extract",
+        status=BackgroundJobStatus.RUNNING.value,
+        payload={"posting_id": str(posting.id)},
+        attempts=attempts,
+        max_attempts=max_attempts,
+        cancel_requested=cancel_requested,
+    )
+    db.add(job)
+    await db.commit()
+    return job
+
+
+async def test_recover_orphans_records_terminal_extract_status(db, source):
+    terminal = await _make_posting(db, source, external_id="orphan-terminal")
+    resolve = await _make_posting(db, source, external_id="orphan-resolve")
+    retryable = await _make_posting(db, source, external_id="orphan-retryable")
+    for posting in (terminal, resolve, retryable):
+        posting.extract_status = "succeeded"
+    db.add_all(
+        [
+            BackgroundJob(
+                job_type="posting_extract",
+                status=BackgroundJobStatus.RUNNING.value,
+                payload={"posting_id": str(terminal.id)},
+                attempts=2,
+                max_attempts=2,
+            ),
+            BackgroundJob(
+                job_type="posting_extract",
+                status=BackgroundJobStatus.RUNNING.value,
+                payload={"posting_id": str(resolve.id), "mode": "resolve"},
+                attempts=2,
+                max_attempts=2,
+            ),
+            BackgroundJob(
+                job_type="posting_extract",
+                status=BackgroundJobStatus.RUNNING.value,
+                payload={"posting_id": str(retryable.id)},
+                attempts=1,
+                max_attempts=2,
+            ),
+        ]
+    )
+    await db.commit()
+
+    assert await JobWorker(db).recover_orphans() == 3
+    await db.refresh(terminal)
+    await db.refresh(resolve)
+    await db.refresh(retryable)
+    assert terminal.extract_status == "failed"
+    assert resolve.extract_status == "succeeded"
+    assert retryable.extract_status == "succeeded"
+
+    journal = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == terminal.id,
+                    PostingChange.actor_kind == "extract_llm",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any((row.operation or {}).get("extract_status") == "failed" for row in journal)
+
+
+async def test_terminal_extract_failure_records_failed_and_success_recovers(
+    db, client, auth_headers, seeded_catalog, source, kinds, monkeypatch
+):
+    posting = await _make_posting(db, source)
+    posting.extract_status = "succeeded"
+    await db.commit()
+    job = await _extract_job(db, posting, attempts=2)
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(extract_service, "extract_posting_now", boom)
+    with pytest.raises(RuntimeError):
+        await run_extract_job(db, {"posting_id": str(posting.id)}, job_id=job.id)
+    await db.refresh(posting)
+    assert posting.extract_status == "failed"
+    journal = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == posting.id,
+                    PostingChange.actor_kind == "extract_llm",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any((row.operation or {}).get("extract_status") == "failed" for row in journal), (
+        "a terminal failure journals its status write"
+    )
+
+    monkeypatch.undo()
+    result = await extract_posting_now(db, posting)
+    await db.refresh(posting)
+    assert result["extracted"] is True
+    assert posting.extract_status == "succeeded"
+
+
+async def test_retryable_extract_failure_preserves_the_previous_status(
+    db, client, auth_headers, seeded_catalog, source, kinds, monkeypatch
+):
+    posting = await _make_posting(db, source)
+    posting.extract_status = "succeeded"
+    await db.commit()
+    job = await _extract_job(db, posting, attempts=1, max_attempts=2)
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(extract_service, "extract_posting_now", boom)
+    with pytest.raises(RuntimeError):
+        await run_extract_job(db, {"posting_id": str(posting.id)}, job_id=job.id)
+    await db.refresh(posting)
+    assert posting.extract_status == "succeeded"
+
+
+async def test_cancelled_extract_failure_preserves_the_previous_status(
+    db, client, auth_headers, seeded_catalog, source, kinds, monkeypatch
+):
+    posting = await _make_posting(db, source)
+    posting.extract_status = "succeeded"
+    await db.commit()
+    job = await _extract_job(db, posting, attempts=2, cancel_requested=True)
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("cancelled")
+
+    monkeypatch.setattr(extract_service, "extract_posting_now", boom)
+    with pytest.raises(RuntimeError):
+        await run_extract_job(db, {"posting_id": str(posting.id)}, job_id=job.id)
+    await db.refresh(posting)
+    assert posting.extract_status == "succeeded"
+
+
+async def test_resolve_mode_never_touches_extract_status(
+    db, client, auth_headers, seeded_catalog, source, kinds, monkeypatch
+):
+    posting = await _make_posting(db, source)
+    posting.extract_status = "succeeded"
+    await db.commit()
+    job = await _extract_job(db, posting, attempts=2)
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("replay failed")
+
+    monkeypatch.setattr(extract_service, "replay_posting_resolution", boom)
+    with pytest.raises(RuntimeError):
+        await run_extract_job(
+            db,
+            {"posting_id": str(posting.id), "mode": "resolve"},
+            job_id=job.id,
+        )
+    await db.refresh(posting)
+    assert posting.extract_status == "succeeded"
+
+
+async def test_worker_terminal_failure_records_failed(
+    db, client, auth_headers, seeded_catalog, source, kinds, monkeypatch
+):
+    from app.services.job_worker import JobWorker
+
+    posting = await _make_posting(db, source)
+    assert await queue_posting_extract(db, posting) is True
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(extract_service, "extract_posting_now", boom)
+    worker = JobWorker(db)
+    assert await worker.run_once() is True
+    await db.refresh(posting)
+    assert posting.extract_status is None, "a retryable attempt keeps the status"
+    assert await worker.run_once() is True
+    await db.refresh(posting)
+    assert posting.extract_status == "failed"
 
 
 async def test_changed_content_resets_extract(
@@ -297,6 +497,7 @@ async def test_extract_job_via_worker_queue(
     assert await worker.run_once() is True
     await db.refresh(posting)
     assert posting.extract_version == EXTRACT_VERSION
+    assert posting.extract_status == "succeeded"
 
 
 # ------------------------------------------------------- demand priority
@@ -678,3 +879,117 @@ async def test_single_posting_never_promotes_and_reextract_is_not_self_corrobora
     await db.refresh(proposed)
     assert proposed.status == "proposed", "a posting cannot corroborate itself"
     assert proposed.provenance.get("corroborated_postings") is None
+
+
+async def test_apply_extract_writes_v6_columns_and_language_codes(db, source):
+    from app.ai.agents.posting_extractor import PostingExtract
+
+    posting = await _make_posting(db, source, external_id="v6-write")
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            work_authorization={
+                "status": "none",
+                "evidence_quote": "We are unable to sponsor visas.",
+                "confidence": 0.9,
+            },
+            language_requirements=[
+                {
+                    "code": "English",
+                    "level": "advanced",
+                    "evidence_quote": "Fluent English required",
+                    "confidence": 0.9,
+                },
+                {
+                    "code": "de",
+                    "level": "basic",
+                    "evidence_quote": "German is a plus",
+                    "confidence": 0.8,
+                },
+            ],
+            grade_requirement={
+                "scale": "uk_honours",
+                "value": 2.1,
+                "evidence_quote": "minimum 2:1",
+                "confidence": 0.9,
+            },
+            opportunity_type="graduate_scheme",
+            application_deadline="2026-12-01",
+        ),
+    )
+    await db.commit()
+    await db.refresh(posting)
+    assert posting.work_authorization == "none"
+    assert posting.opportunity_type == "graduate_scheme"
+    assert str(posting.application_deadline) == "2026-12-01"
+    assert posting.language_codes == ",de,en,"
+    assert posting.extract["language_requirements"][0]["code"] == "en"
+
+
+async def test_apply_extract_clears_absent_v6_fields(db, source):
+    from app.ai.agents.posting_extractor import PostingExtract
+
+    posting = await _make_posting(db, source, external_id="v6-clear")
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            work_authorization={
+                "status": "sponsors",
+                "evidence_quote": "We sponsor visas.",
+                "confidence": 0.9,
+            },
+            opportunity_type="internship",
+            application_deadline="2026-12-01",
+        ),
+    )
+    await db.commit()
+    await db.refresh(posting)
+    assert posting.work_authorization == "sponsors"
+    await apply_extract(db, posting, PostingExtract())
+    await db.commit()
+    await db.refresh(posting)
+    assert posting.work_authorization is None
+    assert posting.opportunity_type is None
+    assert posting.application_deadline is None
+    assert posting.language_codes is None
+
+
+def test_language_requirement_normalizes_common_names():
+    from app.ai.agents.posting_extractor import PostingExtract
+
+    extract = PostingExtract(
+        language_requirements=[
+            {
+                "code": "German",
+                "level": "intermediate",
+                "evidence_quote": "German B1",
+                "confidence": 0.9,
+            }
+        ]
+    )
+    assert extract.language_requirements[0].code == "de"
+
+
+def test_mock_extract_emits_v6_fixtures():
+    from app.ai.agents.context import context_json
+    from app.ai.agents.posting_extractor import PostingExtract, _mock_extract
+
+    prompt = context_json(
+        {
+            "title": "Graduate Data Analyst",
+            "skills_raw": [],
+            "posting_text": (
+                "Graduate scheme. We are unable to sponsor visas. "
+                "Fluent English required and German B1. Minimum 2:1. "
+                "Apply by 2026-12-01."
+            ),
+        }
+    )
+    payload = _mock_extract(PostingExtract, prompt)
+    assert payload["work_authorization"]["status"] == "none"
+    assert payload["opportunity_type"] == "graduate_scheme"
+    assert payload["application_deadline"] == "2026-12-01"
+    assert payload["grade_requirement"]["scale"] == "uk_honours"
+    assert {row["code"] for row in payload["language_requirements"]} == {"en", "de"}

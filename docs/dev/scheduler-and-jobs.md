@@ -21,16 +21,14 @@ in the `HANDLERS` map:
 | `cv_generate` / `cv_polish` / `cv_synth` | CV generation, polish loop, variants |
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
-| `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
-| `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store; `vector_reconcile` accepts an explicit `space_id` for a building space (plan 50) |
-| `retrieval_alert_sweep` | Evaluate the ten retrieval-operations alert thresholds through the notification funnel (plan 51 Q1c) |
-| `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass (plan 50 P2b/P2c.3); the single-posting form also writes the plan-202 job-type proposal |
-| `job_proposal_backfill` | One-shot v1 → v2 job-proposal regeneration/clear (plan 202); first boot or admin-triggered, bounded and idempotent |
-| `mapping_outcome_backfill` | One-shot derivation of the typed mapping outcome columns for legacy rows (plan 205); admin-triggered from Tools → Mappings, bounded and idempotent |
-| `mapping_coverage_capture` / `mapping_alert_sweep` | The mapping console's daily snapshot capture (90-day retention, pruned on capture) and the admin alert evaluation through the notification funnel (plan 205 S9); schedule kinds `system_mapping_coverage` / `system_mapping_alerts` |
+| `skill_relation_learn` | Skill-relation edge discovery + tree catch-up: propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
+| `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store; `vector_reconcile` accepts an explicit `space_id` for a building space |
+| `retrieval_alert_sweep` | Evaluate the ten retrieval-operations alert thresholds through the notification funnel |
+| `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass; the single-posting form also writes the job-type proposal. The admin Runs action sets `redecide_scope: stale|all` to re-decide `skill_overlap` rows too; the no-scope path stays semantic-only |
+| `mapping_coverage_capture` / `mapping_alert_sweep` | The mapping console's daily snapshot capture (90-day retention, pruned on capture) and the admin alert evaluation through the notification funnel; schedule kinds `system_mapping_coverage` / `system_mapping_alerts` |
 | `data_export` | Exports |
 
-The plan-138 learn job is the one handler that lives in the catalog —
+The skill-relation learn job is the one handler that lives in the catalog —
 `app/services/catalog/skill_relation_learn.py`, reached through the
 `HANDLERS` entry in `job_worker.py`. What it does: **candidates → batched
 LLM verdicts (≤40 pairs/call) → `proposed` edges through the one write
@@ -52,7 +50,7 @@ split — there is no Celery in v1, and there are no separate worker processes.
 **Claiming is one conditional UPDATE ordered by `created_at`**, so a single
 worker is strictly FIFO: a long job delays every other family behind it.
 
-**Lanes (plan 203).** A family can own a worker of its own:
+**Lanes.** A family can own a worker of its own:
 `CAREER_JOBS_INGEST_WORKERS` (`posting_sync`, `detail_enrichment`,
 `posting_extract`, `company_triage`, `posting_remap`) and
 `CAREER_JOBS_VECTOR_WORKERS` (the four `VECTOR_*` handlers), both default 0.
@@ -61,9 +59,9 @@ is real and not a race. **A lane is serial per worker** — `1` moves the family
 off the shared worker without adding concurrency inside it; `>1` runs that
 family concurrently and needs a review (the ingest stages touch the same
 posting rows). Web ships `CAREER_JOBS_INGEST_WORKERS=1`; desktop must keep every
-lane at 0, because SQLite has one writer (plans 192/194).
+lane at 0, because SQLite has one writer.
 
-**The extraction backlog is bounded (plan 203).** `posting_sync` queues at most
+**The extraction backlog is bounded.** `posting_sync` queues at most
 `CAREER_EXTRACT_BACKLOG_LIMIT` never-extracted postings per run (default 200,
 oldest first so every row eventually drains; `0` disables the automatic
 backlog). Fresh and demand rows always queue; the run report carries
@@ -71,21 +69,21 @@ backlog). Fresh and demand rows always queue; the run report carries
 single worker's queue and starve every other job family on the first sync of a
 large source.
 
-### The deep extract re-decides the catalog mapping (plan 185)
+### The deep extract re-decides the catalog mapping
 
 The `posting_extract` job's contract is unchanged (one structured call +
 apply), but its transaction now carries the **catalog join** too: after
 `apply_extract` fills the skill levels, `decide_catalog` re-runs the mapping
 join — the deterministic weighted skill overlap first, then the gated
 semantic rescue on the family vector store
-([ai-layer.md](ai-layer.md#the-hybrid-catalog-mapping-plan-185)) — and an
+([ai-layer.md](ai-layer.md#the-hybrid-catalog-mapping)) — and an
 unmapped-and-rich extract stores a `job_proposal` for the admin queue.
-A `MANUAL` mapping stands. Plan-184 interplay: requeued `posting_extract`
+A `MANUAL` mapping stands. The bulk-reprocess interplay: requeued `posting_extract`
 jobs re-run this join through the same handler — a bulk reprocess can
 therefore upgrade mappings and mint fresh proposals; the proposal writer
 never clobbers a live pending proposal.
 
-### The vector reconcile (plan 50 P1d)
+### The vector reconcile
 
 `system_vector_reconcile` enqueues a `vector_reconcile` job daily (04:15
 UTC) for `posting`, `job`, `profile` and `skill`. The handler composes sources
@@ -116,9 +114,9 @@ is charged); `POST /api/v1/admin/retrieval/reconcile` and
 `scripts/reindex_vectors.py` only enqueue the job (both accept `scan_limit`),
 so every run is a `background_jobs` row. Publishing or editing a catalog job
 queues a `VECTOR_INDEX` for it rather than embedding in the request. The full
-Runs/Retrieval surface is plan 51.
+Runs/Retrieval surface is the admin Runs view.
 
-### The space lifecycle (plan 50 P2c.1)
+### The space lifecycle
 
 `app/services/vector_space_lifecycle.py` owns the embedding-space cutover:
 
@@ -145,27 +143,10 @@ Runs/Retrieval surface is plan 51.
 
 CLI: `scripts/vector_spaces.py list | status | build | backfill | activate |
 retire | drop`. Activate/retire/drop print a JSON result; `backfill` only
-enqueues (optionally `--wait` for the first batch). Plan 51's
+enqueues (optionally `--wait` for the first batch). The
 `/admin/retrieval/*` actions wrap this service and must not duplicate it.
 
-### The job-proposal backfill (plan 202)
-
-`job_proposal_backfill` is a bounded, idempotent, one-shot migration vehicle
-(no scheduler task). It selects every live v1 object (`jsonb_typeof` /
-`json_type` object + `COALESCE(proposal_version, 1) <> 2`), oldest first, up
-to `limit` (default 50, max 200), optionally narrowed by `posting_ids`. Each
-row ends with a v2 object or no `job_proposal`: unmapped rich rows clear
-first and regenerate through the same `redecide_and_propose` seam as the
-remap (no re-extract); mapped/terminal, short-extract, unconfigured-AI and
-proposals-off rows are cleared with a counted reason. The result is
-`{regenerated, cleared, skipped, failed}` and each row is its own
-transaction. `POST /admin/postings/job-proposals/regenerate` uses an explicit
-singleton guard (the queue has no structural dedupe for differing payloads);
-the first boot after the change enqueues it once when legacy rows exist,
-guarded by the `catalog.job_proposal_backfill.boot` `app_settings` marker.
-The queue shows a `legacy_count` banner until zero.
-
-### The posting remap after a space cutover (plan 50 P2b)
+### The posting remap after a space cutover
 
 A semantic mapping depends on the embedding space it was decided in:
 `job_postings.mapping_features` stamps the contract's `space_key`. When a
@@ -176,12 +157,20 @@ enqueues a bounded `POSTING_REMAP` job. The handler selects only
 skips terminal statuses, re-runs `decide_catalog` without touching
 `PostingSkill` rows, and pages by posting id with one auto-continuation
 cursor. The space lifecycle's `activate_space` calls the hook after the new
-space is active (plan 51's HTTP action wraps that service); there is
+space is active (the HTTP action wraps that service); there is
 deliberately no second sweep. The run result carries
 `{remapped, failed, skipped, next_after_id, space_key}`.
 
-The same job type also runs the **single-posting deferred semantic pass**
-(plan 50 P2c.3). The request paths — `map_posting`/sync, the extract
+The admin **Re-decide stale/all** action sets `redecide_scope`:
+`stale` selects active, non-manual rows with `mapping_version IS NULL OR <
+MAPPING_VERSION` (including `skill_overlap`), and `all` selects every active
+non-manual row; the continuation key is scope-aware. The no-scope path
+above stays `REMAP_METHODS`-only, so the space-cutover behavior is unchanged.
+The Tools → Mappings **Detail now** and **Re-propose** actions reuse
+`DETAIL_ENRICHMENT` and this job type respectively; they add no new job type.
+
+The same job type also runs the **single-posting deferred semantic pass**.
+The request paths — `map_posting`/sync, the extract
 post-processing and the admin remap — call
 `decide_catalog(defer_semantic=True)`, compute the deterministic decision and
 queue `{posting_id, auto_continue: false, semantic_redecision: true}` in the
@@ -191,14 +180,14 @@ queued/running rows). The handler loads that one posting, skips
 deterministic row is being refined), calls
 `decide_catalog(..., defer_semantic=False)`, commits the result and writes the
 final `mapping_signals`; it never creates a continuation and never queues
-another pass. The single-posting form is also where the plan-202 job-type
+another pass. The single-posting form is also where the job-type
 proposal is written: after the non-deferred decision, an unmapped posting
 runs the proposer and stores the v2 payload. The extract flow queues this
 remap whenever `catalog.job_proposals` is on — even with both semantic
 switches off — so the proposal carrier always exists; the admin "extract now"
 path adds no model call.
 
-### The failed-jobs lifecycle (plan 184)
+### The failed-jobs lifecycle
 
 A job retries within its `max_attempts` budget (backoff between attempts);
 once the budget is exhausted it lands `failed` **terminally** — the row is
@@ -209,7 +198,7 @@ by type × error family, then requeues them as FRESH `background_jobs` rows
 (`requeue_of` marker back to the failed row, `result.requeued_as` on it)
 through the same `HANDLERS` path with a fresh attempts budget. Guards and
 the per-type policy (payload-driven per-job vs collapsing global sweeps)
-are documented in [ai-layer.md](ai-layer.md#bulk-reprocessing-of-failed-jobs-plan-184).
+are documented in [ai-layer.md](ai-layer.md#bulk-reprocessing-of-failed-jobs).
 
 ## The scheduler
 
@@ -245,7 +234,7 @@ params)` — always timezone-aware and UTC-normalized.
 (daily at 04:15 UTC — enqueues `vector_reconcile`),
 `system_retrieval_alerts` (every five minutes — enqueues
 `retrieval_alert_sweep`), `system_mapping_coverage` /
-`system_mapping_alerts` (the plan-205 mapping console's daily coverage
+`system_mapping_alerts` (the mapping console's daily coverage
 capture at 02:45 UTC and alert sweep at 02:50 UTC; both boot-provisioned
 by `ensure_system_schedules`, the CHECKs widened in `0100_mapping_ops`), `user_saved_search`, `user_radar_digest`,
 `user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
@@ -285,7 +274,7 @@ sweep and threshold alerts both emit through this funnel.
 
 **Retrieval operations alerts** are the exception that proves the rule:
 `app/services/retrieval_alerts.py` evaluates the ten contract thresholds
-(plan 51 §2C) from the Q1 read model on the `retrieval_alert_sweep`
+from the Q1 read model on the `retrieval_alert_sweep`
 schedule and emits only through `NotificationService.emit`. Each kind is
 boot-seeded with its dedup scope and daily cap; a condition that clears
 releases its `dedup_key`, so recovery never leaves a permanent silence.

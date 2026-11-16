@@ -76,12 +76,12 @@ There is no side door around it.
   source binds a profile entity to a typed resolver; selection resolves
   deterministically into the renderer snapshot with per-item traceability.
   Ineligible profile data is not registered — it cannot reach a CV.
-  The experience table splits into three sources (plan 70): `experience`
+  The experience table splits into three sources: `experience`
   resolves paid work only (jobs, internships, freelance), `projects`
   kind=project, `volunteer` kind=volunteer — keeping the generate
   machinery's `section kind == source_key` invariant, so generated CVs
   emit separate Work Experience / Projects / Volunteering sections.
-- **Synthesized CV variants** (plan 62) live in the user-level
+- **Synthesized CV variants** live in the user-level
   `cv_synth_items` library (`app/services/cv/cv_synth_service.py`), not in
   the profile: each variant cites typed source refs + source content
   hashes (staleness/orphan detection) and applies through the per-CV
@@ -89,9 +89,9 @@ There is no side door around it.
   override > synth > source; every application is traced via
   `synth_applied` (the version's `context_resolution`, AND the live
   `GET /cv/{id}/context` / `POST /cv/{id}/preview` resolution payloads,
-  so the UI's stars cross-check what actually rendered). **Plan 110
-  (one variant per item) collapsed the two-layer pin slots into a
-  single pin**: `swap_variant_payload` applies by FIELD PRESENCE
+  so the UI's stars cross-check what actually rendered). **One variant per
+  item** collapsed the two-layer pin slots into a single pin:
+  `swap_variant_payload` applies by FIELD PRESENCE
   (description present → text layer swapped; `achievements` present →
   the bullet list; both → full entry) regardless of the row's `scope`
   (now pure provenance shown as a badge — a bullets-only pin swaps just
@@ -102,10 +102,9 @@ There is no side door around it.
   `match_for_user` scope-agnostically; the synth_items highlights
   block filters rows by payload presence (bullets-only winners render
   via their item, not an empty highlight). The pin map carries one plain
-  key per item (`{ref}`) — the `:bullets`-suffixed form is gone (plan
-  114; nothing reads it any more) and
-  all write paths, the bullets editor and `variant_pin` emit only the
-  single key; the retired plan-110 fold (formerly revision 0041) folded the
+  key per item (`{ref}`) — the `:bullets`-suffixed form is gone (nothing
+  reads it any more) and all write paths, the bullets editor and `variant_pin` emit only the
+  single key; the retired fold (formerly revision 0041) folded the
   legacy stars preserving per-field winners before the v0.17 baseline
   absorbed the result. Pins are written SURGICALLY —
   `PUT /cv/{id}/context/pin` (`{source_key, item_id, synth_id|null}`)
@@ -119,7 +118,7 @@ There is no side door around it.
   silently (the UI marks it amber "not rendering"). AI variant
   drafts go through the `cv_synth` gateway task; the CV copilot tools
   (`cv_synth_*`) are registry tools whose read scope surfaces in /mcp.
-  One-shot generation is synth-aware (plan 69): in `prefer` mode the
+  One-shot generation is synth-aware: in `prefer` mode the
   draft graph's `collect` node applies the same overlay before drafting
   (matching via `match_for_user`, no `CvDocument` needed), and the plan
   node may propose ≤3 gap variants per run — grounded by the
@@ -127,11 +126,11 @@ There is no side door around it.
   draft (never editor overrides); the run result records
   `synth_applied`/`synth_proposed` and `POST /cv/synth/preview` powers
   the modal's pre-run match hint. The main chat can manage variant
-  defaults too (plan 104): the chat-audience `variant_list`/`variant_pin`
+  defaults too: the chat-audience `variant_list`/`variant_pin`
   registry tools list the library and set/unset the per-item pin on an
   attached CV (a pinned draft promotes first — `pin inactive` stays
   unreachable).
-- **Synth maturity in CV Studio** (plan 72): the builder context panel
+- **Synth maturity in CV Studio**: the builder context panel
   renders the variant library as a synth tree under its sources
   (cross-listed per touched source, stale/orphan badges, status toggles
   with the one-variant-window supersede hint of `_supersede_slot`);
@@ -161,13 +160,13 @@ There is no side door around it.
   inherits its text color for name/photo/contact, and skill bars/
   contact pieces switch to `currentColor` mixes for contrast). Cover
   letters reuse the pipeline through the `letter` kind. Design tokens
-  include per-area paddings (plan 70): `main_padding_mm` /
+  include per-area paddings: `main_padding_mm` /
   `sidebar_padding_mm` (unset = legacy defaults); sidebar templates pair
   them with `margin_mm: 0` so each area owns its spacing instead of the
   page; `header_style: "band"` paints the name/contact header as a
   filled accent panel. The bank (`app/seeds/cv_templates.py`) ships
   photo + skill-bar magazine layouts (`coral-banner`, `charcoal-amber`)
-  alongside the classic/sidebar rows. Plan 79.1 token additions (all
+  alongside the classic/sidebar rows. Later token additions (all
   additive, default = today's rendering): real `grouped` skills
   categories with `.skill-cat` subheadings, `show_heading_icons` +
   per-block `icon` (NULL = kind default, `""` = clear; glyphs from
@@ -178,7 +177,7 @@ There is no side door around it.
   `font_stack: "embedded-sans" / "embedded-serif"` — vendored OFL WOFF2
   subsets inlined as data URIs by `cv_fonts.py` (files missing ⇒ the
   system stack trails, capability-detected).
-- **CV polish loop** (plan 64) rides the same `cv_generate` background
+- **CV polish loop** rides the same `cv_generate` background
   job after the `cv_draft` assemble node: the `cv_build_review` vision
   task (`app/ai/agents/cv_build_reviewer.py`) critiques the rendered
   pages + lint + a deterministic coverage matrix
@@ -193,7 +192,7 @@ There is no side door around it.
   `ai_apply` version payload (`content["polish"]`) and in the job
   result — never in `working_content` (the builder replaces that
   dict).
-- **UI-driven builder ops** (plan 71): `POST /cv/{id}/ops` applies the
+- **UI-driven builder ops**: `POST /cv/{id}/ops` applies the
   same `BuilderOp` vocabulary through `cv_builder_chat.apply_operation`
   — buttons and the copilot converge on one audited code path (bank
   templates auto-customize to a private copy; every response carries
@@ -245,13 +244,13 @@ There is no side door around it.
   `cv_builder` audience — read-scope state/visual-review plus write-scope
   builder mutations, all executing the same `cv_builder_chat` agent
   functions the turn loop uses.
-- **Web tools** (plan 80) `web_search` / `fetch_url` / `github_repo` are
+- **Web tools**: `web_search` / `fetch_url` / `github_repo` are
   read-scope members with the `chat` + `mcp` audiences. `fetch_url`
   guards outbound requests (resolve-then-connect SSRF blocklist, manual
   redirect hops, size/time caps) and reduces HTML to text; JS-shell pages
-  escalate to the plan-76 persistent browser when present. `web_search`
-  runs the ordered web-search provider list from settings (plan 28,
-  `web.search_providers` in `app_settings` — SearXNG plus keyed providers,
+  escalate to the persistent browser when present. `web_search`
+  runs the ordered web-search provider list from settings
+  (`web.search_providers` in `app_settings` — SearXNG plus keyed providers,
   catalog `contracts/search-providers.json`; the first enabled provider
   that answers wins, and the tool answers "none configured" gracefully). `github_repo` uses the GitHub REST API with an optional
   Fernet-encrypted token (`web.github_token`). Fetched content is
@@ -279,9 +278,9 @@ There is no side door around it.
   the run's compact call ledger; an opt-in `with_audit_ref` on the
   gateway returns the audit row just written without a second SELECT.
   The read side over all the ledgers is the audit & monitoring surface
-  (`/settings/audit`, plans 151–157 — `app/services/audit/`,
-  `app/api/v1/audit.py`): the family reference implementation of
-  ADR-0044 / `guidelines/observability.md` in the family dev repo.
+  (`/settings/audit` — `app/services/audit/`,
+  `app/api/v1/audit.py`): the family reference implementation
+  (`guidelines/observability.md` in the family dev repo).
   `GET /cv/{id}/runs` assembles per-CV runs (generation + every polish
   re-run) from the job rows and their run-linked audit rows — the
   builder's "Runs & metrics" popup (65.5) reads this, not a new ledger.
@@ -297,7 +296,7 @@ There is no side door around it.
   registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py` (alignment R2). Bridge invocations are audited
   + budgeted as `mcp_tool_call`.
-- **Vector retrieval** (plan 50) is one logical store with two deployment
+- **Vector retrieval** is one logical store with two deployment
   backends: `vector_spaces` / `vector_documents` / `vector_records`
   (`app/models/vector_model.py`) plus a per-space physical index —
   pgvector + HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a
@@ -311,7 +310,7 @@ There is no side door around it.
   compares a stored job/posting document's views on pinned view pairs (the
   catalog matching read in `app/services/catalog/job_match_service.py`), and
   `app/services/postings/semantic_rescue.py` turns that match into the bounded
-  plan-185 rescue under the shared-skill gate. Semantic is a ranking signal,
+  semantic rescue under the shared-skill gate. Semantic is a ranking signal,
   never a filter gate; every failure degrades to lexical with a structured
   reason. The legacy `ai_embeddings` store is gone (absent from the v0.17
   baseline).
@@ -322,13 +321,37 @@ There is no side door around it.
   emitting through the notification funnel; sent-state lives in
   notification dedup keys, prefs in `preferences["followups"]`
   (`GET/PATCH /me/followups`).
-- **Applications are an event-sourced pipeline** (plan 113): the
+- **Applications are an event-sourced pipeline**: the
   `applications` row holds the current stage and the typed refs, while
   `application_events` is the append-only timeline — every stage
   transition goes through `app/services/postings/applications_service.py` and
   writes exactly one `stage_change` event. Future writers (116's
   follow-up sweep, 119's MCP proposals, 122's inbound webhooks) append
   events instead of introducing status columns.
+- **Posting hygiene and capture** — `services/postings/hygiene_service.py`
+  re-runs a deterministic cross-source duplicate scan (canonical URL, or
+  organisation + title + location + salary overlap), stores high-confidence
+  merges in `duplicate_of_id`, proposals in `trust_flags.duplicate_candidate`
+  and never labels a scam. `services/postings/capture_service.py` reuses the
+  manual-URL JSON-LD parser and the SSRF-guarded fetch, keyed by canonical
+  URL. Both writers are ordinary posting writes; the admin console is
+  `/admin/posting-hygiene`.
+- **Contacts and outreach** — `models/contact_model.py` +
+  `services/profile/contact_service.py`: one flat user-owned contact per
+  person, a typed interaction log, and copy-only drafts through the
+  existing `ASSIST` task. Application links are `SET NULL`, interactions
+  cascade, and there is no second follow-up cadence.
+- **One outbound guard core** — `services/integrations/webfetch.py` uses
+  `extensions/polite_http.is_blocked_ip` for the IP/range policy while keeping
+  its own no-robots/caps/SearXNG-loopback policy; connector fetches keep
+  `polite_get`'s robots/domain/retry policy. The split is intentional (the
+  two hosts fetch different things), but the blocking rules are shared.
+- **Interop imports** — `services/profile/json_resume_service.py`
+  exports/imports the JSON Resume shape review-first, and
+  `services/postings/ics_import_service.py` maps the family `ics_codec`
+  into proposed `interview_scheduled` events; the codec owns
+  UTC/Windows TZIDs, BOM, cancellation and caps. Neither introduces a
+  second ingest path.
 - **Notification channels are a registry**
   (`app/services/notification_channels.py`): the `NotificationChannel`
   vocabulary now spans `in_app`/`desktop`/`browser`/`email`/`webhook`
@@ -336,7 +359,7 @@ There is no side door around it.
   registers the email/webhook dispatchers without a schema change.
   SMS is a stated non-goal; nothing reserves a slot for it.
 
-## Deep extraction pipeline (extraction v5)
+## Deep extraction pipeline (extraction v6)
 
 - **Two speeds, one queue.** The sync path's fast alias/keyword mapping
   stays as it was; the queued deep pass
@@ -352,7 +375,7 @@ There is no side door around it.
 - **Deterministic candidate matcher**
   (`app/services/postings/skill_candidates.py`). Top-k candidates (at most
   5) come from the exact `_taxonomy_index` claim first (terminal; the
-  plan-138 precedence law —
+  precedence law —
   deprecated rows are unmatched-exact fallbacks, never shadows), then
   in-repo trigram similarity over key/label/aliases, then skill-embedding
   cosine as a **ranking signal only** (missing/degraded vectors leave the
@@ -360,7 +383,7 @@ There is no side door around it.
   corroborate a still-proposed skill.
 - **Apply, then promote.** Exact hits resolve without an AI call; matched
   keys tag `posting_skills` (level/priority from pass 1); unmatched labels
-  go through the existing `propose()` seam and plan-147 corroboration. The
+  go through the existing `propose()` seam and its corroboration. The
   corroborated auto-promote loop runs **after** the apply transaction
   commits (`TaxonomyService.promote` commits on its own terms), behind the
   near-duplicate dedup gate: an active skill at/above the trigram or
@@ -369,7 +392,11 @@ There is no side door around it.
 - **Stored shape and replay.** `posting.extract["skills"]` entries keep
   both `raw_label` and `skill_key` (null when new) plus bounded
   `resolution` provenance (`via` = exact|pass2|new, ≤5 candidates, verdict
-  confidence); `EXTRACT_VERSION = 5`. A `POSTING_EXTRACT` payload with
+  confidence); `EXTRACT_VERSION = 6`. Version 6 added the eligibility facts
+  (`work_authorization`, structured `language_requirements`, the
+  scale-scoped `grade_requirement`, `opportunity_type`, `application_deadline`)
+  with the same evidence/confidence discipline; the bounded backfill
+  re-queues older rows through `POSTING_EXTRACT`. A `POSTING_EXTRACT` payload with
   `mode: "resolve"` re-runs only the matcher + pass 2 over those stored
   labels, journaled as `extract_llm` with `operation.replay`, so taxonomy
   merges and promotions replay without pass-1 spend; pre-v5 rows carry no
@@ -387,9 +414,9 @@ There is no side door around it.
 
 ## Postings & Explore read path
 
-- **Filtering and paging happen in SQL** (`app/services/postings/explore_service.py`,
-  plan 120). Every filter dimension — including `education_min` (normalized
-  education tokens ranked by `EducationLevelOrder`) and `languages` (the
+- **Filtering and paging happen in SQL**
+  (`app/services/postings/explore_service.py`). Every filter dimension —
+  including `education_min` (normalized education tokens ranked by `EducationLevelOrder`) and `languages` (the
   posting's extracted language list) — compiles to a SQL predicate, so the
   database selects candidates instead of loading the whole table into
   Python. `total` is one exact count over the same predicate set.
@@ -425,8 +452,8 @@ carries the result and the SPA re-initialises i18next and `<html lang>`
 without a reload. UI chrome lives in `frontend/src/locales/`; catalog data
 is never JSON-translated.
 
-Catalog entity labels use **review-first overlays** (`label_overrides`,
-plan 113 shape): `app/services/catalog/label_overlay_service.py` resolves an
+Catalog entity labels use **review-first overlays** (`label_overrides`):
+`app/services/catalog/label_overlay_service.py` resolves an
 approved row per `(entity_kind, entity_id, locale, field)`, then falls
 back to the base label, then the stable key. Draft and rejected rows never
 render. `app/services/catalog/localized_view.py` is the single read-model seam for
@@ -449,8 +476,8 @@ from its last completed node via `ainvoke(None, config)`. Long runs
 execute on the job queue (`autopilot_run` job type,
 `user_autopilot` schedule slot); the scheduler only enqueues.
 
-The **main chat turn is itself a checkpointed graph** (ADR-0016,
-`app/ai/graphs/chat_turn.py`): `retrieve` (code-owned detections +
+The **main chat turn is itself a checkpointed graph**
+(`app/ai/graphs/chat_turn.py`): `retrieve` (code-owned detections +
 registry tools, digest cache) → `agent_round ⇄ execute_tools` (the model
 calls registry tools itself through the audited gateway funnel, bounded
 rounds + per-turn tool budgets, digest results persist into the session
@@ -480,14 +507,14 @@ no migration. For the builder copilot the trace is honest-by-construction:
 the one structured planning LLM call stays a node (no synthetic tools),
 the real work (state read, operations, visual review) shows as tool
 cards, and an error turn records the node windows it reached before
-failing. Plan 104 closes the loop to the Studio: a chat-side mutation
-(approved/reverted HITL card, finished write-scope tool) bumps a
+failing. The builder link closes the loop to the Studio: a chat-side
+mutation (approved/reverted HITL card, finished write-scope tool) bumps a
 `dataRevision` counter on the `cvBuilderLinkStore`, and the mounted CV
 Builder debounces it into a preview/meta/synth refetch — the open page
 tracks the resolved CV without a manual reload.
 
 **Chat-proposed profile mutations are HITL proposals, never
-auto-applied** (plan 77): the chatbot emits typed ops that land in
+auto-applied**: the chatbot emits typed ops that land in
 `profile_proposals` (kind/action/payload reusing the REST schemas,
 field-level `diff_json`, `base_updated_at` for conflict detection, full
 entity snapshots for deletes) as pending cards resolved via idempotent
@@ -500,7 +527,7 @@ TTL swept daily by the `system_proposal_sweep` schedule slot,
 (library `chat-hitl` module) and the Profile sidebar entry badges the
 pending count.
 
-**Plan 99 — grounded profile editing** hardens that flow
+**Grounded profile editing** hardens that flow
 structurally: a **server-side read-before-edit gate** (the model must
 open an item's full content with the `read_profile_item` /
 `read_profile_section` registry tools — digests truncate at 140 chars —
@@ -525,9 +552,9 @@ per-edit summary rows), an op-preview request (lazy snapshot endpoint
 after with the changed span highlighted, and an approved card can be
 **reverted in one click** through the same services (terminal
 `reverted` status; a moved-target guard 409s when the entity changed
-after the apply). Edit-before-approve card UX is plan 100.
+after the apply). The edit-before-approve card UX followed.
 
-**Plan 101 — every proposal kind renders like its edit surface**: the
+**Every proposal kind renders like its edit surface**: the
 cv_synth variant card resolves each context ref to a human label at
 card creation (`resolved_refs` in `payload_json`; abbreviated
 title `Add CV variants · <primary label> (+N) · <action>`, unreadable
@@ -543,7 +570,7 @@ per-kind `ProfileSnapshotCard` (labelled rows, chips for scalar lists,
 highlighted prose spans) instead of a generic dump; pre-101 rows keep
 the legacy rendering.
 
-**Plan 109 — CV entry-improvement scope honesty** (CHAT v13): the chat
+**CV entry-improvement scope honesty** (CHAT v13): the chat
 prompts carry a scope taxonomy for items-section entries because
 description and bullet list render as INDEPENDENT layers (both print
 when both exist — CV FACTS): a `cv_set_bullets` rewrite touches only
@@ -559,8 +586,8 @@ applicability `verdict` (rows without `cv_id` are status-only; a
 verdict-less list is an unfinished read). The prompt payload guard
 trails live in `tests/test_prompt_scope_rules.py`.
 
-**Profile-edit grounding persists in the session** (plan 81): the
-plan-77 read-only digests (`my_experience` / `my_skills` /
+**Profile-edit grounding persists in the session**: the
+read-only digests (`my_experience` / `my_skills` /
 `my_education` / `my_profile_digest`) are keyword-triggered only until
 the first one runs — then they are cached on
 `chat_sessions.context.profile_digests` (reserved key, server-written
@@ -573,10 +600,10 @@ digest next turn — no TTLs, no write-path hooks. Cached digests ride
 `tool_results` marked `_cached` (mock provider parity is free) and the
 turn trace records a `profile_digests` tool row with status `cached`.
 
-**One chat, CVs as references, builder on demand** (plan 78): chat
-sessions are never bound to a CV (plan 114 removed plan 53's
-`surface: "cv_builder"` context read path — a session's context is
-`interview` or nothing). CVs /
+**One chat, CVs as references, builder on demand**: chat
+sessions are never bound to a CV (the
+`surface: "cv_builder"` context read path was removed — a session's
+context is `interview` or nothing). CVs /
 cover letters enter as per-message **attachments** (`MessageIn
 .attachments`, ≤2, ownership-validated, snapshots on the user message
 metadata) and resolve into a deterministic `cv_references` prompt block
@@ -588,7 +615,7 @@ word gate) WITH an effective attachment delegates that single turn to
 `builder_turn_events` — the builder copilot loop is reused verbatim, the
 session context stays untouched; the copilot keeps auto-applying ops
 (immutable `cv_versions` + `ai_apply` recovery are the undo), while
-profile mutations stay HITL (plan 77). Copilot turns must make the user
+profile mutations stay HITL. Copilot turns must make the user
 message durable BEFORE ops (op failures roll the transaction back) and
 revive shared instances after rollbacks (rollbacks expire ORM identity —
 the on-demand path made both edges visible).
@@ -619,7 +646,7 @@ Three layers, one rule: **only our own words reach the screen.**
 
 Mechanical enforcement is partial by design — a `try/except` cannot be
 linted for intent — so review treats a new silent broad catch as a defect,
-and plan 124's sweep inventory lives in the wave record.
+and the sweep inventory lives in the wave record.
 
 ## AI configuration is data, not env
 

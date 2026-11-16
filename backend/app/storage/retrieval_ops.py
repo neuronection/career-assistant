@@ -1317,12 +1317,12 @@ def evaluate_quality_set(
 class QualityCompareDTO(_DTO):
     """Pre-cutover compare: old vs new space over the same golden set."""
 
-    old_space_id: str
+    baseline_space_id: str
     new_space_id: str
     set_version: int
     k: int
-    old_recall_at_k: float
-    old_precision_at_k: float
+    baseline_recall_at_k: float
+    baseline_precision_at_k: float
     new_recall_at_k: float
     new_precision_at_k: float
     passed: bool
@@ -1333,7 +1333,7 @@ class QualityCompareDTO(_DTO):
     generated_at: str | None = None
 
     def __post_init__(self) -> None:
-        for name in ("old_space_id", "new_space_id"):
+        for name in ("baseline_space_id", "new_space_id"):
             object.__setattr__(
                 self, name, _text(getattr(self, name), name, required=True, maximum=80)
             )
@@ -1342,8 +1342,8 @@ class QualityCompareDTO(_DTO):
         )
         object.__setattr__(self, "k", _int(self.k, "k", minimum=1))
         for name in (
-            "old_recall_at_k",
-            "old_precision_at_k",
+            "baseline_recall_at_k",
+            "baseline_precision_at_k",
             "new_recall_at_k",
             "new_precision_at_k",
             "floor_recall",
@@ -1367,29 +1367,29 @@ class QualityCompareDTO(_DTO):
 
     @property
     def recall_delta(self) -> float:
-        return self.new_recall_at_k - self.old_recall_at_k
+        return self.new_recall_at_k - self.baseline_recall_at_k
 
     @property
     def precision_delta(self) -> float:
-        return self.new_precision_at_k - self.old_precision_at_k
+        return self.new_precision_at_k - self.baseline_precision_at_k
 
 
 def evaluate_quality_compare(
-    old_space_id: str,
+    baseline_space_id: str,
     new_space_id: str,
     set_version: int,
     golden_queries: Sequence[GoldenQueryFixture],
-    old_retrieved: Mapping[str, Sequence[str]],
+    baseline_retrieved: Mapping[str, Sequence[str]],
     new_retrieved: Mapping[str, Sequence[str]],
     *,
     k: int = QUALITY_K_DEFAULT,
     generated_at: str | None = None,
 ) -> QualityCompareDTO:
     old = evaluate_quality(
-        old_space_id,
+        baseline_space_id,
         set_version,
         golden_queries,
-        old_retrieved,
+        baseline_retrieved,
         k=k,
         generated_at=generated_at,
     )
@@ -1402,12 +1402,12 @@ def evaluate_quality_compare(
         generated_at=generated_at,
     )
     return QualityCompareDTO(
-        old_space_id=old_space_id,
+        baseline_space_id=baseline_space_id,
         new_space_id=new_space_id,
         set_version=set_version,
         k=k,
-        old_recall_at_k=old.recall_at_k,
-        old_precision_at_k=old.precision_at_k,
+        baseline_recall_at_k=old.recall_at_k,
+        baseline_precision_at_k=old.precision_at_k,
         new_recall_at_k=new.recall_at_k,
         new_precision_at_k=new.precision_at_k,
         passed=new.passed,

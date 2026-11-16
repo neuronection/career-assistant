@@ -29,6 +29,15 @@ const BIRTH_MIN = CURRENT_YEAR - 80;
 const BIRTH_MAX = CURRENT_YEAR - 14;
 const MAX_LINKS = 8;
 
+const WORK_AUTH_OPTIONS = [
+  { value: "", labelKey: "profileSection.workAuth.unspecified" },
+  { value: "citizen", labelKey: "profileSection.workAuth.citizen" },
+  { value: "permanent_resident", labelKey: "profileSection.workAuth.permanentResident" },
+  { value: "student_visa", labelKey: "profileSection.workAuth.studentVisa" },
+  { value: "needs_sponsorship", labelKey: "profileSection.workAuth.needsSponsorship" },
+  { value: "other", labelKey: "profileSection.workAuth.other" },
+];
+
 export function validateBasics(draft: Profile["basics"]): {
   email?: string;
   linkRow: string[];
@@ -286,6 +295,20 @@ export const BasicsCard = forwardRef<SectionCardHandle, BasicsCardProps>(
             testId="basics-education-level"
             onChange={(v) =>
               patch({ education_level: v as Profile["basics"]["education_level"] })
+            }
+          />
+          <SelectField
+            label={t("profileSection.workAuthorization")}
+            value={draft.work_authorization ?? ""}
+            options={WORK_AUTH_OPTIONS.map((o) => ({
+              value: o.value,
+              label: t(o.labelKey),
+            }))}
+            testId="basics-work-authorization"
+            onChange={(v) =>
+              patch({
+                work_authorization: (v || null) as Profile["basics"]["work_authorization"],
+              })
             }
           />
           {gradeFields && (

@@ -161,7 +161,6 @@ def test_heuristic_counts_are_pinned_per_language():
 def _dev_canonical() -> Path | None:
     override = os.environ.get("CAREER_TOKENIZER_CONTRACT_CANONICAL")
     candidates = ([Path(override)] if override else []) + [
-        Path(__file__).resolve().parents[3] / "dev-vector-p0" / "contracts",
         Path(__file__).resolve().parents[3] / "dev" / "contracts",
     ]
     return next((path for path in candidates if (path / "tokenizer_contract.py").is_file()), None)

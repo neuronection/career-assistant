@@ -376,6 +376,27 @@ export interface CvLintReport {
   resolved_items: number;
 }
 
+/** Plan 212 S1.2 — what our own extractor sees in the printed PDF. */
+export interface CvParseViewPage {
+  index: number;
+  text: string;
+  line_count: number;
+}
+
+export interface CvParseViewFinding {
+  id: string;
+  level: "info" | "warn" | "fail";
+  message: string;
+}
+
+export interface CvParseViewOut {
+  pages: CvParseViewPage[];
+  findings: CvParseViewFinding[];
+  page_count: number;
+  text_layer: boolean;
+  engine: "pdf";
+}
+
 export interface CvProposal {
   ref?: CvContextRef;
   field?: string;
@@ -397,6 +418,13 @@ export interface CoverageEntry {
   label: string;
   priority: string;
   user_level: number | null;
+  /** Plan 212 S1.1: evidence-first rows (shared with the posting gap). */
+  raw_label?: string;
+  required_level?: number | null;
+  evidence_quote?: string;
+  user_evidence?: { source: string; label?: string }[];
+  kind?: string;
+  status?: "met" | "partial" | "missing";
 }
 
 export interface TailorCoverage {
@@ -417,6 +445,19 @@ export interface CvSuggestionOut {
   proposals: VerifiedProposal[];
   coverage: TailorCoverage | null;
   gaps: SectionGap[];
+  bullet_checks: BulletReview[];
+}
+
+export interface BulletCheck {
+  id: string;
+  level: "info" | "warn" | "fail";
+  message: string;
+}
+
+export interface BulletReview {
+  index: number;
+  checks: BulletCheck[];
+  competency_keys?: string[];
 }
 
 export interface LetterParagraph {

@@ -11,7 +11,7 @@ class InterestTagOut(BaseModel):
     label: str
     category: str
     description: str
-    deprecated: bool = False
+    deprecated: bool = False  # gate-allow: deprecated
     kind: Literal["topic", "industry"] = "topic"
 
     model_config = {"from_attributes": True}

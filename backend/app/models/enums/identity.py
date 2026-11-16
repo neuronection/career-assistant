@@ -58,10 +58,8 @@ class BackgroundJobType(StrEnum):
     # Plan 52 T2b: a bounded admin fetch of a pinned tokenizer asset. It is
     # deliberately not a VECTOR_* space run (no space lock, no run DTO).
     TOKENIZER_FETCH = "tokenizer_fetch"
-    JOB_PROPOSAL_BACKFILL = "job_proposal_backfill"
     # Plan 205 S2: one-shot derivation of the typed mapping outcome columns
     # for legacy rows (deterministic, no AI, bounded, idempotent).
-    MAPPING_OUTCOME_BACKFILL = "mapping_outcome_backfill"
     # Plan 205 S9: the daily coverage snapshot capture and the admin
     # mapping-alert sweep (the retrieval-alert pattern).
     MAPPING_COVERAGE_CAPTURE = "mapping_coverage_capture"

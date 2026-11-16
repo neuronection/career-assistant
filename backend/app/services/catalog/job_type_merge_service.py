@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes, selectinload
 
+from app.core.job_titles import job_type_key, normalize_job_type_title
 from app.models.career_path_model import CareerPath
 from app.models.enums import JobStatus
 from app.models.growth_model import GrowthPlan
@@ -32,9 +33,14 @@ from app.services.postings.change_journal import (
     snapshot,
 )
 from app.services.postings.job_proposal_service import JobTypeNotPublishedError
-from app.services.postings.job_type_text import normalize_job_type_title
+from app.services.postings.job_type_text import (
+    JOB_TYPE_NEAR_DUPLICATE_TRIGRAM,
+    contains_title_tokens,
+    trigram_similarity,
+)
 
 IMPORTANCE_RANK = {"core": 3, "important": 2, "bonus": 1}
+MAX_HYGIENE_GROUPS = 50
 
 
 class JobTypeMergeError(Exception):
@@ -49,22 +55,23 @@ class JobTypeMergeService:
         self.db = db
 
     async def duplicate_groups(self) -> list[dict]:
-        """Published types sharing a normalized title, with posting counts."""
+        """Non-retired exact and near title groups, with posting counts."""
         rows = (
             (
                 await self.db.execute(
                     select(Job)
                     .options(selectinload(Job.family))
-                    .where(Job.status == JobStatus.PUBLISHED.value)
+                    .where(Job.status != JobStatus.RETIRED.value)
                     .order_by(Job.title, Job.code)
                 )
             )
             .scalars()
             .all()
         )
-        groups: dict[str, list[Job]] = {}
+        exact: dict[str, list[Job]] = {}
         for job in rows:
-            groups.setdefault(normalize_job_type_title(job.title), []).append(job)
+            key = job.title_key or normalize_job_type_title(job.title)
+            exact.setdefault(key, []).append(job)
         counts = {}
         if rows:
             from sqlalchemy import func
@@ -75,28 +82,76 @@ class JobTypeMergeService:
                 )
             )
             counts = {job_id: int(count) for job_id, count in count_rows if job_id}
+
         out: list[dict] = []
-        for normalized, jobs in groups.items():
+        for jobs in exact.values():
             if len(jobs) < 2:
                 continue
             out.append(
-                {
-                    "normalized_title": normalized,
-                    "jobs": [
-                        {
-                            "id": str(job.id),
-                            "code": job.code,
-                            "title": job.title,
-                            "family_key": job.family.key if job.family else "",
-                            "created_at": job.created_at.isoformat() if job.created_at else None,
-                            "posting_count": counts.get(job.id, 0),
-                        }
-                        for job in jobs
-                    ],
-                }
+                self._group_payload(
+                    normalize_job_type_title(jobs[0].title), jobs, counts, kind="exact"
+                )
             )
-        out.sort(key=lambda group: group["normalized_title"])
-        return out
+
+        near_pairs: list[tuple[float, Job, Job]] = []
+        for index, left in enumerate(rows):
+            for right in rows[index + 1 :]:
+                if (left.title_key or normalize_job_type_title(left.title)) == (
+                    right.title_key or normalize_job_type_title(right.title)
+                ):
+                    continue
+                score = trigram_similarity(left.title, right.title)
+                if contains_title_tokens(left.title, right.title) or contains_title_tokens(
+                    right.title, left.title
+                ):
+                    score = max(score, JOB_TYPE_NEAR_DUPLICATE_TRIGRAM)
+                elif score < JOB_TYPE_NEAR_DUPLICATE_TRIGRAM:
+                    continue
+                near_pairs.append((round(score, 3), left, right))
+        near_pairs.sort(key=lambda pair: (-pair[0], pair[1].code, pair[2].code))
+        for score, left, right in near_pairs:
+            normalized = normalize_job_type_title(left.title)
+            out.append(
+                self._group_payload(
+                    normalized, [left, right], counts, kind="near", similarity=score
+                )
+            )
+
+        out.sort(
+            key=lambda group: (
+                group["kind"] != "exact",
+                -group["similarity"],
+                group["normalized_title"],
+            )
+        )
+        return out[:MAX_HYGIENE_GROUPS]
+
+    @staticmethod
+    def _group_payload(
+        normalized: str,
+        jobs: list[Job],
+        counts: dict,
+        *,
+        kind: str,
+        similarity: float = 1.0,
+    ) -> dict:
+        return {
+            "kind": kind,
+            "normalized_title": normalized,
+            "similarity": similarity,
+            "jobs": [
+                {
+                    "id": str(job.id),
+                    "code": job.code,
+                    "title": job.title,
+                    "status": job.status,
+                    "family_key": job.family.key if job.family else "",
+                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "posting_count": counts.get(job.id, 0),
+                }
+                for job in jobs
+            ],
+        }
 
     async def merge(self, duplicate_id: uuid.UUID, target_id: uuid.UUID, *, actor) -> dict:
         source = (
@@ -117,7 +172,7 @@ class JobTypeMergeService:
                 "Both job types must be published",
                 payload={"job_code": source.code, "title": source.title, "status": source.status},
             )
-        if normalize_job_type_title(source.title) != normalize_job_type_title(target.title):
+        if job_type_key(source.title) != job_type_key(target.title):
             raise JobTypeMergeError("Only exact normalized duplicate titles can be merged")
 
         report: dict[str, Any] = {

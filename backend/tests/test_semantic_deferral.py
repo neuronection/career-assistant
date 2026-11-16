@@ -150,6 +150,14 @@ async def _posting_skills(db, posting: JobPosting) -> set[uuid.UUID]:
     return set(rows.scalars().all())
 
 
+@pytest.fixture(autouse=True)
+async def _reset_semantic_switches(db):
+    """This module's tests commit switch rows; reset them after each test."""
+    yield
+    await set_switch(db, SEMANTIC_RERANK_KEY, False)
+    await set_switch(db, SEMANTIC_RESCUE_KEY, True)
+
+
 @pytest.fixture
 def vector_guard(monkeypatch) -> dict:
     """The vector layer must never be reached from the request path."""
@@ -367,7 +375,7 @@ async def test_rerank_on_rescue_off_queues_only_the_rerank(db, source, vector_gu
                 rerank_module.RerankCandidate(
                     job_id=top.job_id,
                     code=top.code,
-                    deterministic=top.score,
+                    deterministic=top.skill,
                     semantic=1.0,
                     blend=0.52,
                     shared_skill_ids=top.shared_skill_ids,

@@ -179,6 +179,64 @@ describe("PostingCard", () => {
     expect(screen.getByTestId("posting-apply")).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("links the catalog job chip without opening the posting card", () => {
+    const onOpen = vi.fn();
+    renderCard(
+      posting({
+        catalog_job: {
+          id: "j1",
+          code: "software-engineer",
+          title: "Software Engineer",
+          status: "published",
+          source: "seed",
+          short_description: "Builds software.",
+          attributes: {},
+          family_key: "technology",
+          family_label: "Technology",
+          interests: [],
+          skills: [],
+          links: [],
+          created_at: "2026-01-01T00:00:00Z",
+          open_roles: 3,
+          retired_into: null,
+        } as PostingOut["catalog_job"],
+      }),
+      onOpen,
+    );
+    const chip = screen.getByTestId("posting-job-type");
+    expect(chip.textContent).toContain("Software Engineer");
+    expect(chip.getAttribute("href")).toBe("/jobs/software-engineer");
+    fireEvent.click(chip);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("links a retired type chip to its successor", () => {
+    renderCard(
+      posting({
+        catalog_job: {
+          id: "j2",
+          code: "old-role",
+          title: "Old Role",
+          status: "retired",
+          source: "seed",
+          short_description: "",
+          attributes: {},
+          family_key: "technology",
+          family_label: "Technology",
+          interests: [],
+          skills: [],
+          links: [],
+          created_at: "2026-01-01T00:00:00Z",
+          open_roles: 0,
+          retired_into: { code: "new-role", title: "New Role" },
+        } as PostingOut["catalog_job"],
+      }),
+    );
+    const chip = screen.getByTestId("posting-job-type");
+    expect(chip.textContent).toContain("New Role");
+    expect(chip.getAttribute("href")).toBe("/jobs/new-role");
+  });
+
   it("opens the posting from the title and the card body", () => {
     const onOpen = vi.fn();
     renderCard(posting(), onOpen);

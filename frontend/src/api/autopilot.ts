@@ -3,7 +3,6 @@ import { api } from "@/api/client";
 export interface ProfileUsage {
   use_skills: boolean;
   use_education: boolean;
-  use_languages: boolean;
   use_location: boolean;
   use_experience: boolean;
   use_lifestyle: boolean;
@@ -13,7 +12,6 @@ export interface ProfileUsage {
 export const DEFAULT_PROFILE_USAGE: ProfileUsage = {
   use_skills: true,
   use_education: true,
-  use_languages: true,
   use_location: true,
   use_experience: true,
   use_lifestyle: true,

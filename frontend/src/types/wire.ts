@@ -125,9 +125,20 @@ export type EmailTransportConfig = Schemas["EmailTransportOut"];
 export type PostingOut = Schemas["PostingOut"];
 export type PostingDetailSkill = Schemas["PostingExtractSkillOut"];
 export type PostingDetailOut = Schemas["PostingDetailOut"];
+export type PostingGapOut = Schemas["PostingGapOut"];
+export type PostingGapRow = Schemas["PostingGapRowOut"];
 export type PostingsResponse = Schemas["PostingsOut"];
 export type ExploreResponse = Schemas["ExploreOut"];
 export type SmartSearchResponse = Schemas["SmartSearchOut"];
+
+// ------------------------------------------------------------------- kit
+export type PostingKit = Schemas["PostingKitOut"];
+export type ApplicationKit = Schemas["ApplicationKitOut"];
+export type KitPrepare = Schemas["KitPrepareOut"];
+export type KitDocumentRef = Schemas["KitDocumentRef"];
+export type KitChecklistItem = Schemas["KitChecklistItem"];
+export type KitAnswerPrompt = Schemas["KitAnswerPrompt"];
+export type ApplicationKitEvent = Schemas["ApplicationEventOut"];
 
 // ---------------------------------------------------------------- skills
 export type SkillDetail = Schemas["SkillJobsOut"];

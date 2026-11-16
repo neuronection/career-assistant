@@ -512,6 +512,24 @@
         "title": "ApplicationCloseIn",
         "type": "object"
       },
+      "ApplicationContactIn": {
+        "properties": {
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
+          }
+        },
+        "title": "ApplicationContactIn",
+        "type": "object"
+      },
       "ApplicationCreateIn": {
         "description": "Track an application (idempotent per posting).",
         "properties": {
@@ -625,10 +643,17 @@
             ],
             "title": "Closed At"
           },
-          "contact": {
-            "additionalProperties": true,
-            "title": "Contact",
-            "type": "object"
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
           },
           "cover_letter_id": {
             "anyOf": [
@@ -860,6 +885,77 @@
         "title": "ApplicationEventOut",
         "type": "object"
       },
+      "ApplicationKitOut": {
+        "description": "The kit plus the application timeline and the linked documents.",
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/KitAnswerPrompt"
+            },
+            "maxItems": 8,
+            "title": "Answers",
+            "type": "array"
+          },
+          "application": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitApplicationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/KitChecklistItem"
+            },
+            "maxItems": 10,
+            "title": "Checklist",
+            "type": "array"
+          },
+          "cover_letter": {
+            "$ref": "#/components/schemas/KitLetterState"
+          },
+          "cv": {
+            "$ref": "#/components/schemas/KitCvState"
+          },
+          "documents": {
+            "$ref": "#/components/schemas/KitLinkedDocuments"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingGapOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "posting": {
+            "$ref": "#/components/schemas/KitPostingOut"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationEventOut"
+            },
+            "maxItems": 50,
+            "title": "Timeline",
+            "type": "array"
+          },
+          "timeline_truncated": {
+            "default": false,
+            "title": "Timeline Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "posting"
+        ],
+        "title": "ApplicationKitOut",
+        "type": "object"
+      },
       "ApplicationListOut": {
         "description": "One tracker page of applications plus aggregate counts.",
         "properties": {
@@ -914,6 +1010,76 @@
         "title": "ApplicationNoteIn",
         "type": "object"
       },
+      "ApplicationOfferIn": {
+        "description": "One offer, stored as JSON on the application (plan 212 S3.6).",
+        "properties": {
+          "amount": {
+            "exclusiveMinimum": 0.0,
+            "title": "Amount",
+            "type": "number"
+          },
+          "benefits": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Benefits",
+            "type": "array"
+          },
+          "cost_of_living": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Of Living"
+          },
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "location": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Location",
+            "type": "string"
+          },
+          "period": {
+            "default": "year",
+            "enum": [
+              "year",
+              "month",
+              "hour"
+            ],
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "ApplicationOfferIn",
+        "type": "object"
+      },
       "ApplicationOut": {
         "description": "The application row as the tracker renders it.",
         "properties": {
@@ -951,10 +1117,17 @@
             ],
             "title": "Closed At"
           },
-          "contact": {
-            "additionalProperties": true,
-            "title": "Contact",
-            "type": "object"
+          "contact_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Id"
           },
           "cover_letter_id": {
             "anyOf": [
@@ -1863,6 +2036,24 @@
             "maxLength": 60,
             "title": "Timezone",
             "type": "string"
+          },
+          "work_authorization": {
+            "anyOf": [
+              {
+                "enum": [
+                  "citizen",
+                  "permanent_resident",
+                  "student_visa",
+                  "needs_sponsorship",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Authorization"
           }
         },
         "title": "BasicSection",
@@ -2727,6 +2918,61 @@
         "title": "BulkJobActionIn",
         "type": "object"
       },
+      "BulletCheck": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "info",
+              "warn",
+              "fail"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "message"
+        ],
+        "title": "BulletCheck",
+        "type": "object"
+      },
+      "BulletReview": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/BulletCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "competency_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Competency Keys",
+            "type": "array"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index"
+        ],
+        "title": "BulletReview",
+        "type": "object"
+      },
       "BulletTarget": {
         "properties": {
           "item_id": {
@@ -2780,6 +3026,21 @@
           "fit_score"
         ],
         "title": "CandidateOut",
+        "type": "object"
+      },
+      "CaptureIn": {
+        "properties": {
+          "url": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "CaptureIn",
         "type": "object"
       },
       "CardErrorOut": {
@@ -3740,6 +4001,20 @@
         "title": "CheckinStatusOut",
         "type": "object"
       },
+      "ClearIn": {
+        "properties": {
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "posting_id"
+        ],
+        "title": "ClearIn",
+        "type": "object"
+      },
       "ClockCellOut": {
         "description": "One weekday x hour cell of the posting clock \u2014 a complete,\nzero-filled matrix; ``delta_pct`` is null when the previous window\ncounted zero for the same cell.",
         "properties": {
@@ -4634,6 +4909,73 @@
         "title": "CompanyType",
         "type": "string"
       },
+      "CompetenciesOut": {
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyOut"
+            },
+            "title": "Competencies",
+            "type": "array"
+          }
+        },
+        "title": "CompetenciesOut",
+        "type": "object"
+      },
+      "CompetencyEvidenceOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "experience",
+              "achievement",
+              "skill",
+              "certification"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "quote": {
+            "default": "",
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label"
+        ],
+        "title": "CompetencyEvidenceOut",
+        "type": "object"
+      },
+      "CompetencyOut": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyEvidenceOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "CompetencyOut",
+        "type": "object"
+      },
       "CompletenessOut": {
         "properties": {
           "percent": {
@@ -4811,6 +5153,520 @@
           }
         },
         "title": "ConstraintsSection",
+        "type": "object"
+      },
+      "ContactDetailOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "interactions": {
+            "items": {
+              "$ref": "#/components/schemas/ContactInteractionOut"
+            },
+            "title": "Interactions",
+            "type": "array"
+          },
+          "last_contacted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contacted At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          },
+          "profile_url": {
+            "title": "Profile Url",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {},
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "org",
+          "role",
+          "email",
+          "profile_url",
+          "notes",
+          "tags",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ContactDetailOut",
+        "type": "object"
+      },
+      "ContactIn": {
+        "properties": {
+          "email": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Notes",
+            "type": "string"
+          },
+          "org": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Org",
+            "type": "string"
+          },
+          "profile_url": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Profile Url",
+            "type": "string"
+          },
+          "role": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Role",
+            "type": "string"
+          },
+          "source": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "application_migration",
+              "import"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ContactIn",
+        "type": "object"
+      },
+      "ContactInteractionIn": {
+        "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "channel": {
+            "default": "other",
+            "enum": [
+              "email",
+              "call",
+              "meeting",
+              "message",
+              "other"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "kind": {
+            "default": "other",
+            "enum": [
+              "intro",
+              "follow_up",
+              "thank_you",
+              "referral",
+              "informational",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "maxLength": 5000,
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "title": "ContactInteractionIn",
+        "type": "object"
+      },
+      "ContactInteractionOut": {
+        "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "contact_id": {
+            "format": "uuid",
+            "title": "Contact Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contact_id",
+          "kind",
+          "at",
+          "channel",
+          "notes",
+          "created_at"
+        ],
+        "title": "ContactInteractionOut",
+        "type": "object"
+      },
+      "ContactOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_contacted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contacted At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          },
+          "profile_url": {
+            "title": "Profile Url",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {},
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "org",
+          "role",
+          "email",
+          "profile_url",
+          "notes",
+          "tags",
+          "source",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ContactOut",
+        "type": "object"
+      },
+      "ContactPatch": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org"
+          },
+          "profile_url": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Url"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "ContactPatch",
+        "type": "object"
+      },
+      "CostRow": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_micros": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Micros"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "priced_calls": {
+            "title": "Priced Calls",
+            "type": "integer"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "tokens_in": {
+            "title": "Tokens In",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "title": "Tokens Out",
+            "type": "integer"
+          },
+          "unpriced_calls": {
+            "title": "Unpriced Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "calls",
+          "tokens_in",
+          "tokens_out",
+          "cost_micros",
+          "priced_calls",
+          "unpriced_calls"
+        ],
+        "title": "CostRow",
+        "type": "object"
+      },
+      "CostsOut": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window",
+          "rows"
+        ],
+        "title": "CostsOut",
         "type": "object"
       },
       "CoverLetterActionRequest": {
@@ -5034,7 +5890,20 @@
         "type": "object"
       },
       "CoverageEntry": {
+        "description": "One deterministic tailor-coverage row (plan 212 S1.1 v2).\n\nBeyond the key/priority/level facts each row carries the posting's\nown words: the verbatim `raw_label`, the `required_level`, the\nextract's `evidence_quote` (joined on the resolved skill key) and\nthe user's `user_evidence` refs \u2014 evidence-first, never a score.\n`status` compares the user's level to the requirement:\n`met` / `partial` (below the bar) / `missing` (no level recorded).\nLabels that never resolved to a key are the posting gap report's\nrows, not coverage's \u2014 the tailor table is keyed.",
         "properties": {
+          "evidence_quote": {
+            "default": "",
+            "maxLength": 400,
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "kind": {
+            "default": "skill",
+            "maxLength": 20,
+            "title": "Kind",
+            "type": "string"
+          },
           "label": {
             "default": "",
             "title": "Label",
@@ -5045,9 +5914,46 @@
             "title": "Priority",
             "type": "string"
           },
+          "raw_label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Raw Label",
+            "type": "string"
+          },
+          "required_level": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Level"
+          },
           "skill_key": {
             "title": "Skill Key",
             "type": "string"
+          },
+          "status": {
+            "default": "missing",
+            "enum": [
+              "met",
+              "partial",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PostingGapEvidenceOut"
+            },
+            "maxItems": 4,
+            "title": "User Evidence",
+            "type": "array"
           },
           "user_level": {
             "anyOf": [
@@ -5161,6 +6067,15 @@
       "CvActionRequest": {
         "description": "Action payload; only the fields an action needs are read.",
         "properties": {
+          "bullets": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Bullets",
+            "type": "array"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/CompactionItem"
@@ -6367,6 +7282,108 @@
         "title": "CvPageSize",
         "type": "string"
       },
+      "CvParseViewFinding": {
+        "description": "One deterministic finding \u2014 never a score, never a vendor name.",
+        "properties": {
+          "id": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "info",
+              "warn",
+              "fail"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "message"
+        ],
+        "title": "CvParseViewFinding",
+        "type": "object"
+      },
+      "CvParseViewOut": {
+        "description": "What our extractor sees in the exported PDF: per-page text,\nfindings, the page count and whether a text layer exists at all.\n`engine` names our own pipeline (\"pdf\" = printed through the server\nprint engine); this is explicitly NOT a vendor simulation.",
+        "properties": {
+          "engine": {
+            "const": "pdf",
+            "default": "pdf",
+            "title": "Engine",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/CvParseViewFinding"
+            },
+            "maxItems": 10,
+            "title": "Findings",
+            "type": "array"
+          },
+          "page_count": {
+            "minimum": 0.0,
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/CvParseViewPage"
+            },
+            "maxItems": 20,
+            "title": "Pages",
+            "type": "array"
+          },
+          "text_layer": {
+            "title": "Text Layer",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page_count",
+          "text_layer"
+        ],
+        "title": "CvParseViewOut",
+        "type": "object"
+      },
+      "CvParseViewPage": {
+        "description": "One printed page's extracted text \u2014 exactly what this app's own\nextractor sees, verbatim.",
+        "properties": {
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "line_count": {
+            "minimum": 0.0,
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 20000,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "text",
+          "line_count"
+        ],
+        "title": "CvParseViewPage",
+        "type": "object"
+      },
       "CvPreviewOut": {
         "properties": {
           "blocks": {
@@ -6812,6 +7829,13 @@
           "action": {
             "title": "Action",
             "type": "string"
+          },
+          "bullet_checks": {
+            "items": {
+              "$ref": "#/components/schemas/BulletReview"
+            },
+            "title": "Bullet Checks",
+            "type": "array"
           },
           "coverage": {
             "anyOf": [
@@ -7941,6 +8965,60 @@
         "title": "DegreeLevel",
         "type": "string"
       },
+      "DegreeRoleMatchOut": {
+        "properties": {
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "family_title": {
+            "title": "Family Title",
+            "type": "string"
+          },
+          "matched_terms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Terms",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "matched",
+              "parent",
+              "family_expansion"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family_key",
+          "family_title",
+          "reason",
+          "depth"
+        ],
+        "title": "DegreeRoleMatchOut",
+        "type": "object"
+      },
+      "DegreeRolesOut": {
+        "description": "Structured suggestions; the UI localizes reason codes into sentences.",
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/DegreeRoleMatchOut"
+            },
+            "title": "Matches",
+            "type": "array"
+          }
+        },
+        "title": "DegreeRolesOut",
+        "type": "object"
+      },
       "DeliveriesOut": {
         "properties": {
           "items": {
@@ -8546,16 +9624,16 @@
             "title": "Focus Subjects",
             "type": "array"
           },
-          "grade_band": {
+          "grade_scale": {
             "anyOf": [
               {
                 "enum": [
-                  "low",
-                  "below_average",
-                  "average",
-                  "good",
-                  "excellent",
-                  "unknown"
+                  "uk_honours",
+                  "gpa_4",
+                  "gpa_10",
+                  "de_note",
+                  "percentage",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -8563,7 +9641,20 @@
                 "type": "null"
               }
             ],
-            "title": "Grade Band"
+            "title": "Grade Scale"
+          },
+          "grade_value": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Value"
           },
           "in_progress": {
             "default": false,
@@ -8672,7 +9763,18 @@
             "title": "Focus Subjects",
             "type": "array"
           },
-          "grade_band": {
+          "grade_ordinal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Ordinal"
+          },
+          "grade_scale": {
             "anyOf": [
               {
                 "type": "string"
@@ -8681,7 +9783,18 @@
                 "type": "null"
               }
             ],
-            "title": "Grade Band"
+            "title": "Grade Scale"
+          },
+          "grade_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Value"
           },
           "id": {
             "format": "uuid",
@@ -8816,16 +9929,16 @@
             ],
             "title": "Focus Subjects"
           },
-          "grade_band": {
+          "grade_scale": {
             "anyOf": [
               {
                 "enum": [
-                  "low",
-                  "below_average",
-                  "average",
-                  "good",
-                  "excellent",
-                  "unknown"
+                  "uk_honours",
+                  "gpa_4",
+                  "gpa_10",
+                  "de_note",
+                  "percentage",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -8833,7 +9946,20 @@
                 "type": "null"
               }
             ],
-            "title": "Grade Band"
+            "title": "Grade Scale"
+          },
+          "grade_value": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Value"
           },
           "in_progress": {
             "anyOf": [
@@ -9009,6 +10135,85 @@
           "api_base"
         ],
         "title": "EffectiveAssignment",
+        "type": "object"
+      },
+      "EffectivePriceOut": {
+        "properties": {
+          "input_micros_per_million": {
+            "title": "Input Micros Per Million",
+            "type": "integer"
+          },
+          "metering": {
+            "title": "Metering",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_micros_per_million": {
+            "title": "Output Micros Per Million",
+            "type": "integer"
+          },
+          "price_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Version"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "provider_id",
+          "model",
+          "source",
+          "input_micros_per_million",
+          "output_micros_per_million",
+          "metering"
+        ],
+        "title": "EffectivePriceOut",
         "type": "object"
       },
       "EmailChannelConfigIn": {
@@ -10106,6 +11311,13 @@
             "title": "Items",
             "type": "array"
           },
+          "job_titles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Job Titles",
+            "type": "object"
+          },
           "next_cursor": {
             "anyOf": [
               {
@@ -11018,6 +12230,30 @@
         "title": "GapOut",
         "type": "object"
       },
+      "GateOverrideIn": {
+        "description": "One per-posting eligibility override (\"apply anyway\").",
+        "properties": {
+          "allow": {
+            "default": true,
+            "title": "Allow",
+            "type": "boolean"
+          },
+          "gate": {
+            "enum": [
+              "visa",
+              "language",
+              "grade"
+            ],
+            "title": "Gate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gate"
+        ],
+        "title": "GateOverrideIn",
+        "type": "object"
+      },
       "GithubApplyIn": {
         "properties": {
           "login": {
@@ -11445,6 +12681,26 @@
         "title": "HobbyItem",
         "type": "object"
       },
+      "IcsImportIn": {
+        "properties": {
+          "apply": {
+            "default": false,
+            "title": "Apply",
+            "type": "boolean"
+          },
+          "ics": {
+            "maxLength": 2000000,
+            "minLength": 10,
+            "title": "Ics",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ics"
+        ],
+        "title": "IcsImportIn",
+        "type": "object"
+      },
       "IndexRequest": {
         "description": "One document to (re)index; ``space`` defaults to the content space.",
         "properties": {
@@ -11566,6 +12822,16 @@
           "auth_mode": {
             "title": "Auth Mode",
             "type": "string"
+          },
+          "datastore_quarantine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuarantineOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "demo_mode": {
             "title": "Demo Mode",
@@ -11835,6 +13101,15 @@
               }
             ],
             "title": "Posting Ref"
+          },
+          "story_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Story Ids",
+            "type": "array"
           }
         },
         "title": "InterviewSessionCreate",
@@ -11932,6 +13207,260 @@
           "updated_at"
         ],
         "title": "InterviewSessionOut",
+        "type": "object"
+      },
+      "InterviewStoryIn": {
+        "properties": {
+          "action": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Action",
+            "type": "string"
+          },
+          "competency_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Competency Keys",
+            "type": "array"
+          },
+          "evidence_refs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 8,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "experience_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Item Id"
+          },
+          "result": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Result",
+            "type": "string"
+          },
+          "situation": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Situation",
+            "type": "string"
+          },
+          "task": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Task",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "InterviewStoryIn",
+        "type": "object"
+      },
+      "InterviewStoryOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "competency_keys": {
+            "items": {},
+            "title": "Competency Keys",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {},
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "experience_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Item Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "situation": {
+            "title": "Situation",
+            "type": "string"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "competency_keys",
+          "situation",
+          "task",
+          "action",
+          "result",
+          "evidence_refs",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InterviewStoryOut",
+        "type": "object"
+      },
+      "InterviewStoryPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "competency_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competency Keys"
+          },
+          "evidence_refs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Refs"
+          },
+          "experience_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Item Id"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "situation": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Situation"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "InterviewStoryPatch",
         "type": "object"
       },
       "JobAttributes": {
@@ -12925,7 +14454,7 @@
         "type": "object"
       },
       "JobProposalQueuePage": {
-        "description": "Keyset window plus the legacy-v1 banner count (plans 202/206).",
+        "description": "Keyset window over live v2 job proposals (plans 202/206).",
         "properties": {
           "items": {
             "items": {
@@ -12933,11 +14462,6 @@
             },
             "title": "Items",
             "type": "array"
-          },
-          "legacy_count": {
-            "default": 0,
-            "title": "Legacy Count",
-            "type": "integer"
           },
           "next_cursor": {
             "anyOf": [
@@ -12966,35 +14490,6 @@
           "items"
         ],
         "title": "JobProposalQueuePage",
-        "type": "object"
-      },
-      "JobProposalRegenerateIn": {
-        "properties": {
-          "limit": {
-            "default": 50,
-            "maximum": 200.0,
-            "minimum": 1.0,
-            "title": "Limit",
-            "type": "integer"
-          },
-          "posting_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 200,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Posting Ids"
-          }
-        },
-        "title": "JobProposalRegenerateIn",
         "type": "object"
       },
       "JobRequeueRequest": {
@@ -13355,6 +14850,25 @@
         "title": "JobsPageOut",
         "type": "object"
       },
+      "JsonResumeImportIn": {
+        "properties": {
+          "apply": {
+            "default": false,
+            "title": "Apply",
+            "type": "boolean"
+          },
+          "resume": {
+            "additionalProperties": true,
+            "title": "Resume",
+            "type": "object"
+          }
+        },
+        "required": [
+          "resume"
+        ],
+        "title": "JsonResumeImportIn",
+        "type": "object"
+      },
       "KindPrefIn": {
         "properties": {
           "channels": {
@@ -13482,6 +14996,434 @@
           "channels"
         ],
         "title": "KindPrefUpdateOut",
+        "type": "object"
+      },
+      "KitAnswerPrompt": {
+        "description": "One common screening prompt backed by the saved-answer library.\n\nDeterministic and bounded; `saved_answer` is the user's own text\n(null before they save one) \u2014 never a faked answer.",
+        "properties": {
+          "key": {
+            "maxLength": 80,
+            "title": "Key",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 300,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "saved_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Answer"
+          },
+          "saved_answer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Answer Id"
+          }
+        },
+        "required": [
+          "key",
+          "prompt"
+        ],
+        "title": "KitAnswerPrompt",
+        "type": "object"
+      },
+      "KitApplicationState": {
+        "description": "The application row's identity when one exists \u2014 id/stage only,\nso the kit can deep-link without duplicating the tracker.",
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "cover_letter_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Letter Id"
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "stage": {
+            "default": "applied",
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "KitApplicationState",
+        "type": "object"
+      },
+      "KitChecklistItem": {
+        "description": "One read-only checklist row with its source: a measured fact\n(page count, posting state), a lint finding, or a static hint.\n\nLabels are backend English strings like the lint's own messages \u2014\ndeterministic and quoted verbatim in the docs; the level badge text\nis localized client-side.",
+        "properties": {
+          "id": {
+            "maxLength": 60,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 400,
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "default": "info",
+            "enum": [
+              "pass",
+              "warn",
+              "fail",
+              "info"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 40,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "source"
+        ],
+        "title": "KitChecklistItem",
+        "type": "object"
+      },
+      "KitCvState": {
+        "description": "CV side of the kit: candidates (newest first, bounded), the\nposting-scoped variant when one exists, and `needs_cv` when the\nuser has no resume at all \u2014 the CV Studio CTA state.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/KitDocumentRef"
+            },
+            "maxItems": 10,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "needs_cv": {
+            "default": false,
+            "title": "Needs Cv",
+            "type": "boolean"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitDocumentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "KitCvState",
+        "type": "object"
+      },
+      "KitDocumentRef": {
+        "description": "One candidate document; `target_posting_id` set marks it as this\nposting's scoped variant.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "resume",
+            "title": "Kind",
+            "type": "string"
+          },
+          "target_posting_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Posting Id"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "KitDocumentRef",
+        "type": "object"
+      },
+      "KitLetterState": {
+        "description": "Cover-letter side: the posting-scoped letter when one exists plus\nthe user's other letters (bounded) for the link action.",
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/KitDocumentRef"
+            },
+            "maxItems": 10,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "doc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitDocumentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "KitLetterState",
+        "type": "object"
+      },
+      "KitLinkedDocuments": {
+        "description": "The documents actually linked to the application.",
+        "properties": {
+          "cover_letter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitDocumentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cv": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitDocumentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "KitLinkedDocuments",
+        "type": "object"
+      },
+      "KitPostingOut": {
+        "description": "The posting identity the kit hangs off (bounded on purpose \u2014 the\nfull detail stays on the posting-detail surface).",
+        "properties": {
+          "employment_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employment Type"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "extract_ready": {
+            "default": false,
+            "title": "Extract Ready",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingLocationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "org": {
+            "default": "",
+            "title": "Org",
+            "type": "string"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "ref": {
+            "default": "",
+            "title": "Ref",
+            "type": "string"
+          },
+          "seniority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seniority"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "default": "",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "KitPostingOut",
+        "type": "object"
+      },
+      "KitPrepareOut": {
+        "description": "Idempotent deterministic prep: the same computation every run,\nno writes \u2014 no CV, cover letter or application row is created.\n\n`needs_cv` asks for the CV Studio CTA; `extract_ready` false means\nthe posting has no deep extraction yet, so coverage is honestly\nabsent rather than guessed. AI proposals stay in CV Studio's own\ntailor action; this returns the deterministic coverage only.",
+        "properties": {
+          "cover_letter": {
+            "$ref": "#/components/schemas/KitLetterState"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TailorCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cv_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Id"
+          },
+          "extract_ready": {
+            "default": false,
+            "title": "Extract Ready",
+            "type": "boolean"
+          },
+          "needs_cv": {
+            "default": false,
+            "title": "Needs Cv",
+            "type": "boolean"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "ref": {
+            "default": "",
+            "title": "Ref",
+            "type": "string"
+          },
+          "section_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/SectionGap"
+            },
+            "maxItems": 20,
+            "title": "Section Gaps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "posting_id"
+        ],
+        "title": "KitPrepareOut",
         "type": "object"
       },
       "LabelEntityKind": {
@@ -13772,33 +15714,28 @@
         "title": "MappingAlertsIn",
         "type": "object"
       },
-      "MappingBackfillIn": {
+      "MappingBulkMapIn": {
         "properties": {
-          "limit": {
-            "default": 200,
-            "maximum": 500.0,
-            "minimum": 1.0,
-            "title": "Limit",
-            "type": "integer"
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
           },
           "posting_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 200,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Posting Ids"
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Posting Ids",
+            "type": "array"
           }
         },
-        "title": "MappingBackfillIn",
+        "required": [
+          "posting_ids",
+          "job_id"
+        ],
+        "title": "MappingBulkMapIn",
         "type": "object"
       },
       "MappingGoldenIn": {
@@ -14028,6 +15965,21 @@
           }
         },
         "title": "MappingPolicyIn",
+        "type": "object"
+      },
+      "MappingRedecideAllIn": {
+        "properties": {
+          "scope": {
+            "default": "stale",
+            "enum": [
+              "stale",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "title": "MappingRedecideAllIn",
         "type": "object"
       },
       "MappingResolveIn": {
@@ -14570,6 +16522,26 @@
           "supported"
         ],
         "title": "MeLocaleStateOut",
+        "type": "object"
+      },
+      "MergeIn": {
+        "properties": {
+          "canonical_id": {
+            "format": "uuid",
+            "title": "Canonical Id",
+            "type": "string"
+          },
+          "duplicate_id": {
+            "format": "uuid",
+            "title": "Duplicate Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "duplicate_id",
+          "canonical_id"
+        ],
+        "title": "MergeIn",
         "type": "object"
       },
       "Message": {
@@ -15466,6 +17438,140 @@
         "title": "NudgeOut",
         "type": "object"
       },
+      "OfferComparisonItem": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "annual_amount": {
+            "title": "Annual Amount",
+            "type": "number"
+          },
+          "annual_cost_of_living": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annual Cost Of Living"
+          },
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "benefits": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Benefits",
+            "type": "array"
+          },
+          "cost_of_living": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Of Living"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "location": {
+            "default": "",
+            "title": "Location",
+            "type": "string"
+          },
+          "monthly_amount": {
+            "title": "Monthly Amount",
+            "type": "number"
+          },
+          "net_annual_after_col": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Annual After Col"
+          },
+          "period": {
+            "enum": [
+              "year",
+              "month",
+              "hour"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "posting_org": {
+            "title": "Posting Org",
+            "type": "string"
+          },
+          "posting_title": {
+            "title": "Posting Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "application_id",
+          "posting_title",
+          "posting_org",
+          "currency",
+          "amount",
+          "period",
+          "annual_amount",
+          "monthly_amount"
+        ],
+        "title": "OfferComparisonItem",
+        "type": "object"
+      },
+      "OfferComparisonOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OfferComparisonItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "mixed_currencies": {
+            "default": false,
+            "title": "Mixed Currencies",
+            "type": "boolean"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "OfferComparisonOut",
+        "type": "object"
+      },
       "OnboardingPath": {
         "description": "Start-path choice from the /onboarding hero.\n\nDrives the wizard step list and the required-section scope;\nchangeable later, never a cage.",
         "enum": [
@@ -15630,6 +17736,128 @@
           "count"
         ],
         "title": "OpeningsBucketOut",
+        "type": "object"
+      },
+      "OutreachDraftIn": {
+        "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "kind": {
+            "enum": [
+              "intro",
+              "follow_up",
+              "thank_you",
+              "referral",
+              "informational"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "OutreachDraftIn",
+        "type": "object"
+      },
+      "OutreachDraftOut": {
+        "properties": {
+          "body": {
+            "maxLength": 6000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "draft_only": {
+            "default": true,
+            "title": "Draft Only",
+            "type": "boolean"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/OutreachEvidence"
+            },
+            "maxItems": 12,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "intro",
+              "follow_up",
+              "thank_you",
+              "referral",
+              "informational"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "subject",
+          "body",
+          "generated_at"
+        ],
+        "title": "OutreachDraftOut",
+        "type": "object"
+      },
+      "OutreachEvidence": {
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "quote": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Quote",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "contact",
+              "application",
+              "posting",
+              "profile"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "label"
+        ],
+        "title": "OutreachEvidence",
         "type": "object"
       },
       "OverlayBulkIn": {
@@ -16680,8 +18908,20 @@
         "type": "object"
       },
       "PostingDetailOut": {
-        "description": "Detail view: full extract, source attribution, the\nmatch-score card and the similar-postings rail.",
+        "description": "Detail view: full extract, source attribution, the\nmatch-score card, the evidence-first gap report and the\nsimilar-postings rail.",
         "properties": {
+          "application_deadline": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Deadline"
+          },
           "application_id": {
             "anyOf": [
               {
@@ -16767,6 +19007,18 @@
             "title": "Description",
             "type": "string"
           },
+          "duplicate_of_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Id"
+          },
           "education_level": {
             "anyOf": [
               {
@@ -16837,6 +19089,23 @@
             ],
             "title": "Fit"
           },
+          "gap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingGapOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gate_overrides": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Gate Overrides",
+            "type": "object"
+          },
           "hours_per_week_max": {
             "anyOf": [
               {
@@ -16863,6 +19132,18 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified At"
           },
           "location": {
             "$ref": "#/components/schemas/PostingLocationOut"
@@ -16924,6 +19205,17 @@
             ],
             "title": "Onsite Policy"
           },
+          "opportunity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opportunity Type"
+          },
           "org": {
             "title": "Org",
             "type": "string"
@@ -16960,6 +19252,18 @@
             "default": "",
             "title": "Ref",
             "type": "string"
+          },
+          "repost_count": {
+            "default": 0,
+            "title": "Repost Count",
+            "type": "integer"
+          },
+          "safety_flags": {
+            "items": {
+              "$ref": "#/components/schemas/PostingSafetyFlagOut"
+            },
+            "title": "Safety Flags",
+            "type": "array"
           },
           "salary_basis": {
             "anyOf": [
@@ -17135,6 +19439,11 @@
             ],
             "title": "Travel Class"
           },
+          "trust_flags": {
+            "additionalProperties": true,
+            "title": "Trust Flags",
+            "type": "object"
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -17150,6 +19459,17 @@
           "url": {
             "title": "Url",
             "type": "string"
+          },
+          "work_authorization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Authorization"
           },
           "work_hours": {
             "anyOf": [
@@ -17178,7 +19498,7 @@
         "type": "object"
       },
       "PostingExtractBenefitOut": {
-        "description": "Typed benefit: `kind` powers display grouping, `raw` keeps the\noriginal wording. Stored plain strings (legacy extract rows) coerce\nto `kind=\"other\"` at read \u2014 the extractor's `ExtractBenefit.coerce`\nprecedent.",
+        "description": "Typed benefit: `kind` powers display grouping, `raw` keeps the\noriginal wording. Stored plain strings (pre-migration extract rows) coerce\nto `kind=\"other\"` at read \u2014 the extractor's `ExtractBenefit.coerce`\nprecedent.",
         "properties": {
           "confidence": {
             "anyOf": [
@@ -17264,6 +19584,40 @@
         "title": "PostingExtractEducationOut",
         "type": "object"
       },
+      "PostingExtractGradeOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "scale": {
+            "title": "Scale",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "scale",
+          "value"
+        ],
+        "title": "PostingExtractGradeOut",
+        "type": "object"
+      },
       "PostingExtractHoursOut": {
         "properties": {
           "confidence": {
@@ -17313,6 +19667,40 @@
           "pattern"
         ],
         "title": "PostingExtractHoursOut",
+        "type": "object"
+      },
+      "PostingExtractLanguageOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "level"
+        ],
+        "title": "PostingExtractLanguageOut",
         "type": "object"
       },
       "PostingExtractLocationOut": {
@@ -17385,8 +19773,20 @@
       },
       "PostingExtractOut": {
         "additionalProperties": true,
-        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).\n\nRead coercion is part of the contract: ``apply_extract`` suppresses\nlow-confidence fields to ``null`` (``_suppressed_fields`` names\nthem) and legacy rows stored plain-string benefits, so lists\nnormalize to ``[]`` and benefit strings to ``kind=\"other\"`` instead\nof failing whole postings on read.",
+        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).\n\nRead coercion is part of the contract: ``apply_extract`` suppresses\nlow-confidence fields to ``null`` (``_suppressed_fields`` names\nthem) and pre-migration rows stored plain-string benefits, so lists\nnormalize to ``[]`` and benefit strings to ``kind=\"other\"`` instead\nof failing whole postings on read.",
         "properties": {
+          "application_deadline": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Deadline"
+          },
           "benefits": {
             "items": {
               "$ref": "#/components/schemas/PostingExtractBenefitOut"
@@ -17443,11 +19843,21 @@
             "title": "Field Confidence",
             "type": "object"
           },
-          "languages": {
+          "grade_requirement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractGradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language_requirements": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PostingExtractLanguageOut"
             },
-            "title": "Languages",
+            "title": "Language Requirements",
             "type": "array"
           },
           "location": {
@@ -17469,6 +19879,17 @@
                 "type": "null"
               }
             ]
+          },
+          "opportunity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opportunity Type"
           },
           "prerequisites": {
             "items": {
@@ -17557,6 +19978,16 @@
             },
             "title": "Values Cues",
             "type": "array"
+          },
+          "work_authorization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractWorkAuthorizationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "work_hours": {
             "anyOf": [
@@ -17823,6 +20254,242 @@
         "title": "PostingExtractTravelOut",
         "type": "object"
       },
+      "PostingExtractWorkAuthorizationOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "PostingExtractWorkAuthorizationOut",
+        "type": "object"
+      },
+      "PostingGapEvidenceOut": {
+        "description": "One user-side evidence ref on a gap row (plan 212 S1.1).\n\nA display ref, not a lookup key: `source` names the evidence ledger\nkind (experience / assessment / cv_document), `label` the item's\nown title when it has one. The frontend localizes the source kind;\nthe label is the user's own data.",
+        "properties": {
+          "label": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "PostingGapEvidenceOut",
+        "type": "object"
+      },
+      "PostingGapOut": {
+        "description": "The posting gap report (plan 212 S1.1): requirements grouped by\nthe extractor's closed priority vocabulary, each row evidence-backed\nor explicitly bare. NOT a match score \u2014 the match card lives on its\nown and is never duplicated here.",
+        "properties": {
+          "bonus": {
+            "items": {
+              "$ref": "#/components/schemas/PostingGapRowOut"
+            },
+            "maxItems": 40,
+            "title": "Bonus",
+            "type": "array"
+          },
+          "must_have": {
+            "items": {
+              "$ref": "#/components/schemas/PostingGapRowOut"
+            },
+            "maxItems": 40,
+            "title": "Must Have",
+            "type": "array"
+          },
+          "nice_to_have": {
+            "items": {
+              "$ref": "#/components/schemas/PostingGapRowOut"
+            },
+            "maxItems": 40,
+            "title": "Nice To Have",
+            "type": "array"
+          }
+        },
+        "title": "PostingGapOut",
+        "type": "object"
+      },
+      "PostingGapRowOut": {
+        "description": "One requirement row of the evidence-first gap report.\n\n`raw_label` is the posting's verbatim wording \u2014 a label that never\nresolved to a taxonomy key keeps its row (`skill_key`/`label` null)\nbut carries no quote: the quote joins on the resolved key. There is\ndeliberately no score field on this surface.",
+        "properties": {
+          "evidence_quote": {
+            "default": "",
+            "maxLength": 400,
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "kind": {
+            "default": "skill",
+            "maxLength": 20,
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "priority": {
+            "default": "bonus",
+            "maxLength": 20,
+            "title": "Priority",
+            "type": "string"
+          },
+          "raw_label": {
+            "maxLength": 200,
+            "title": "Raw Label",
+            "type": "string"
+          },
+          "required_level": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Level"
+          },
+          "skill_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Key"
+          },
+          "status": {
+            "enum": [
+              "met",
+              "partial",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PostingGapEvidenceOut"
+            },
+            "maxItems": 4,
+            "title": "User Evidence",
+            "type": "array"
+          },
+          "user_level": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Level"
+          }
+        },
+        "required": [
+          "raw_label",
+          "status"
+        ],
+        "title": "PostingGapRowOut",
+        "type": "object"
+      },
+      "PostingKitOut": {
+        "description": "The pre-application kit for one posting.",
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/KitAnswerPrompt"
+            },
+            "maxItems": 8,
+            "title": "Answers",
+            "type": "array"
+          },
+          "application": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitApplicationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/KitChecklistItem"
+            },
+            "maxItems": 10,
+            "title": "Checklist",
+            "type": "array"
+          },
+          "cover_letter": {
+            "$ref": "#/components/schemas/KitLetterState"
+          },
+          "cv": {
+            "$ref": "#/components/schemas/KitCvState"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingGapOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "posting": {
+            "$ref": "#/components/schemas/KitPostingOut"
+          }
+        },
+        "required": [
+          "posting"
+        ],
+        "title": "PostingKitOut",
+        "type": "object"
+      },
       "PostingLocationOut": {
         "properties": {
           "city": {
@@ -17914,6 +20581,18 @@
       },
       "PostingOut": {
         "properties": {
+          "application_deadline": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Deadline"
+          },
           "application_id": {
             "anyOf": [
               {
@@ -17993,6 +20672,18 @@
               }
             ],
             "title": "Created At"
+          },
+          "duplicate_of_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Id"
           },
           "education_level": {
             "anyOf": [
@@ -18081,6 +20772,18 @@
             "title": "Id",
             "type": "string"
           },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified At"
+          },
           "location": {
             "$ref": "#/components/schemas/PostingLocationOut"
           },
@@ -18131,6 +20834,17 @@
             ],
             "title": "Onsite Policy"
           },
+          "opportunity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opportunity Type"
+          },
           "org": {
             "title": "Org",
             "type": "string"
@@ -18167,6 +20881,11 @@
             "default": "",
             "title": "Ref",
             "type": "string"
+          },
+          "repost_count": {
+            "default": 0,
+            "title": "Repost Count",
+            "type": "integer"
           },
           "salary_basis": {
             "anyOf": [
@@ -18313,6 +21032,11 @@
             ],
             "title": "Travel Class"
           },
+          "trust_flags": {
+            "additionalProperties": true,
+            "title": "Trust Flags",
+            "type": "object"
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -18328,6 +21052,17 @@
           "url": {
             "title": "Url",
             "type": "string"
+          },
+          "work_authorization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Authorization"
           },
           "work_hours": {
             "anyOf": [
@@ -18353,6 +21088,29 @@
           "mapping_reason"
         ],
         "title": "PostingOut",
+        "type": "object"
+      },
+      "PostingSafetyFlagOut": {
+        "properties": {
+          "evidence": {
+            "default": "",
+            "title": "Evidence",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "PostingSafetyFlagOut",
         "type": "object"
       },
       "PostingSearchOut": {
@@ -19051,6 +21809,180 @@
           "content"
         ],
         "title": "PreviewDraftRequest",
+        "type": "object"
+      },
+      "PriceOverrideIn": {
+        "properties": {
+          "input_micros_per_million": {
+            "minimum": 0.0,
+            "title": "Input Micros Per Million",
+            "type": "integer"
+          },
+          "match": {
+            "default": "exact",
+            "enum": [
+              "exact",
+              "prefix"
+            ],
+            "title": "Match",
+            "type": "string"
+          },
+          "metering": {
+            "default": "tokens",
+            "enum": [
+              "tokens",
+              "input_only",
+              "output_only"
+            ],
+            "title": "Metering",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "output_micros_per_million": {
+            "minimum": 0.0,
+            "title": "Output Micros Per Million",
+            "type": "integer"
+          },
+          "provider_key": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Key"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          }
+        },
+        "required": [
+          "model",
+          "input_micros_per_million",
+          "output_micros_per_million"
+        ],
+        "title": "PriceOverrideIn",
+        "type": "object"
+      },
+      "PriceOverrideOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input_micros_per_million": {
+            "minimum": 0.0,
+            "title": "Input Micros Per Million",
+            "type": "integer"
+          },
+          "match": {
+            "default": "exact",
+            "enum": [
+              "exact",
+              "prefix"
+            ],
+            "title": "Match",
+            "type": "string"
+          },
+          "metering": {
+            "default": "tokens",
+            "enum": [
+              "tokens",
+              "input_only",
+              "output_only"
+            ],
+            "title": "Metering",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "output_micros_per_million": {
+            "minimum": 0.0,
+            "title": "Output Micros Per Million",
+            "type": "integer"
+          },
+          "provider_key": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Key"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "input_micros_per_million",
+          "output_micros_per_million",
+          "id",
+          "updated_at"
+        ],
+        "title": "PriceOverrideOut",
+        "type": "object"
+      },
+      "PricesOut": {
+        "properties": {
+          "effective": {
+            "items": {
+              "$ref": "#/components/schemas/EffectivePriceOut"
+            },
+            "title": "Effective",
+            "type": "array"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/PriceOverrideOut"
+            },
+            "title": "Overrides",
+            "type": "array"
+          }
+        },
+        "required": [
+          "overrides",
+          "effective"
+        ],
+        "title": "PricesOut",
         "type": "object"
       },
       "ProfileAchievementIn": {
@@ -19841,11 +22773,6 @@
             "title": "Use Experience",
             "type": "boolean"
           },
-          "use_languages": {
-            "default": true,
-            "title": "Use Languages",
-            "type": "boolean"
-          },
           "use_lifestyle": {
             "default": true,
             "title": "Use Lifestyle",
@@ -20231,6 +23158,51 @@
           "compare_space"
         ],
         "title": "QualityCompareRequest",
+        "type": "object"
+      },
+      "QuarantineOut": {
+        "properties": {
+          "from_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Version"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "quarantined_at": {
+            "title": "Quarantined At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "schema_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Revision"
+          }
+        },
+        "required": [
+          "path",
+          "reason",
+          "quarantined_at"
+        ],
+        "title": "QuarantineOut",
         "type": "object"
       },
       "QuietHoursIn": {
@@ -21591,6 +24563,224 @@
         "title": "RulesOut",
         "type": "object"
       },
+      "SalaryBenchmarkCellOut": {
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "family_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Title"
+          },
+          "job_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Code"
+          },
+          "job_title": {
+            "title": "Job Title",
+            "type": "string"
+          },
+          "n": {
+            "minimum": 0.0,
+            "title": "N",
+            "type": "integer"
+          },
+          "p25": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P25"
+          },
+          "p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "period": {
+            "default": "year",
+            "title": "Period",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "job",
+              "family"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "seniority": {
+            "title": "Seniority",
+            "type": "string"
+          },
+          "thin_sample": {
+            "title": "Thin Sample",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scope",
+          "job_title",
+          "country",
+          "seniority",
+          "currency",
+          "n",
+          "thin_sample"
+        ],
+        "title": "SalaryBenchmarkCellOut",
+        "type": "object"
+      },
+      "SalaryBenchmarksOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SalaryBenchmarkCellOut"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "floor": {
+            "title": "Floor",
+            "type": "integer"
+          },
+          "note_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Note Codes",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "reference_status": {
+            "default": "unavailable",
+            "enum": [
+              "unavailable",
+              "available"
+            ],
+            "title": "Reference Status",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "truncated": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Truncated",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end",
+          "floor"
+        ],
+        "title": "SalaryBenchmarksOut",
+        "type": "object"
+      },
       "SalaryBucketOut": {
         "properties": {
           "ceiling": {
@@ -21803,6 +24993,136 @@
           "count"
         ],
         "title": "SalarySeniorityOut",
+        "type": "object"
+      },
+      "SavedAnswerIn": {
+        "properties": {
+          "answer_text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Answer Text",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 8,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "question_key": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Question Key",
+            "type": "string"
+          },
+          "question_text": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Question Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_key",
+          "answer_text"
+        ],
+        "title": "SavedAnswerIn",
+        "type": "object"
+      },
+      "SavedAnswerOut": {
+        "properties": {
+          "answer_text": {
+            "title": "Answer Text",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {},
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "question_key": {
+            "title": "Question Key",
+            "type": "string"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "question_key",
+          "question_text",
+          "answer_text",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SavedAnswerOut",
+        "type": "object"
+      },
+      "SavedAnswerPatch": {
+        "properties": {
+          "answer_text": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Text"
+          },
+          "evidence_refs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Refs"
+          },
+          "question_text": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Text"
+          }
+        },
+        "title": "SavedAnswerPatch",
         "type": "object"
       },
       "SavedSearchScheduleIn": {
@@ -24574,6 +27894,171 @@
           "step"
         ],
         "title": "StepPatchOut",
+        "type": "object"
+      },
+      "StorageStatusOut": {
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bucket"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "cloud_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cloud Profile"
+          },
+          "container": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Container"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "endpoint_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Host"
+          },
+          "entrypoint": {
+            "title": "Entrypoint",
+            "type": "string"
+          },
+          "healthy": {
+            "title": "Healthy",
+            "type": "boolean"
+          },
+          "max_object_mb": {
+            "title": "Max Object Mb",
+            "type": "integer"
+          },
+          "prefix": {
+            "default": "",
+            "title": "Prefix",
+            "type": "string"
+          },
+          "presign_ttl_seconds": {
+            "title": "Presign Ttl Seconds",
+            "type": "integer"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "sse": {
+            "title": "Sse",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "backend",
+          "entrypoint",
+          "sse",
+          "max_object_mb",
+          "presign_ttl_seconds",
+          "required",
+          "status",
+          "healthy"
+        ],
+        "title": "StorageStatusOut",
+        "type": "object"
+      },
+      "StorySuggestionOut": {
+        "properties": {
+          "experience_item_id": {
+            "format": "uuid",
+            "title": "Experience Item Id",
+            "type": "string"
+          },
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "org": {
+            "title": "Org",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "experience_item_id",
+          "title",
+          "org",
+          "hint"
+        ],
+        "title": "StorySuggestionOut",
         "type": "object"
       },
       "SubscriptionIn": {
@@ -30217,50 +33702,6 @@
         ]
       }
     },
-    "/api/v1/admin/mappings/backfill": {
-      "post": {
-        "description": "Enqueue the bounded, idempotent outcome backfill (one queued/running run).",
-        "operationId": "enqueue_outcome_backfill_api_v1_admin_mappings_backfill_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MappingBackfillIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Enqueue Outcome Backfill Api V1 Admin Mappings Backfill Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Enqueue Outcome Backfill",
-        "tags": [
-          "mapping-admin"
-        ]
-      }
-    },
     "/api/v1/admin/mappings/extract": {
       "post": {
         "description": "Queue extraction for the selected postings (description-only;\nqueued skipped; unknown reported).",
@@ -30413,6 +33854,50 @@
         ]
       }
     },
+    "/api/v1/admin/mappings/map-bulk": {
+      "post": {
+        "description": "Map selected active postings onto one published catalog type.",
+        "operationId": "mappings_map_bulk_api_v1_admin_mappings_map_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingBulkMapIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mappings Map Bulk Api V1 Admin Mappings Map Bulk Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mappings Map Bulk",
+        "tags": [
+          "mapping-admin"
+        ]
+      }
+    },
     "/api/v1/admin/mappings/overview": {
       "get": {
         "description": "The funnel: active/described/extracted/mapped/accounted, gate,\nmethods, reasons, pending proposals, last remap, retrieval health and\nthe legacy (not yet derived) outcome count.",
@@ -30542,6 +34027,98 @@
           }
         },
         "summary": "Mappings Policy Dry Run",
+        "tags": [
+          "mapping-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/mappings/postings/{posting_id}/detail": {
+      "post": {
+        "description": "Fetch one posting's detail page now (one connector call, no run row).",
+        "operationId": "mappings_detail_now_api_v1_admin_mappings_postings__posting_id__detail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mappings Detail Now Api V1 Admin Mappings Postings  Posting Id  Detail Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mappings Detail Now",
+        "tags": [
+          "mapping-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/mappings/postings/{posting_id}/repropose": {
+      "post": {
+        "description": "Queue the existing refresh-redecision path for one posting.",
+        "operationId": "mappings_repropose_api_v1_admin_mappings_postings__posting_id__repropose_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mappings Repropose Api V1 Admin Mappings Postings  Posting Id  Repropose Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mappings Repropose",
         "tags": [
           "mapping-admin"
         ]
@@ -30800,6 +34377,57 @@
           }
         },
         "summary": "Mappings Redecide",
+        "tags": [
+          "mapping-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/mappings/redecide-all": {
+      "post": {
+        "description": "Owner-run re-decide: one bounded ``POSTING_REMAP`` run.\n\n``scope=\"stale\"`` (default) selects active non-manual rows whose\n``mapping_version`` is missing or below the current version \u2014 the after-S1\nbackfill; ``scope=\"all\"`` forces every active non-manual row.\nConfirmation/result count are the UI's.",
+        "operationId": "mappings_redecide_all_api_v1_admin_mappings_redecide_all_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MappingRedecideAllIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mappings Redecide All Api V1 Admin Mappings Redecide All Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mappings Redecide All",
         "tags": [
           "mapping-admin"
         ]
@@ -31100,6 +34728,22 @@
                 }
               ],
               "title": "Detail State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weak",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Weak"
             }
           },
           {
@@ -32302,6 +35946,138 @@
         ]
       }
     },
+    "/api/v1/admin/posting-hygiene": {
+      "get": {
+        "operationId": "hygiene_overview_api_v1_admin_posting_hygiene_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hygiene Overview Api V1 Admin Posting Hygiene Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Hygiene Overview",
+        "tags": [
+          "posting-hygiene"
+        ]
+      }
+    },
+    "/api/v1/admin/posting-hygiene/clear": {
+      "post": {
+        "operationId": "hygiene_clear_api_v1_admin_posting_hygiene_clear_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hygiene Clear Api V1 Admin Posting Hygiene Clear Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hygiene Clear",
+        "tags": [
+          "posting-hygiene"
+        ]
+      }
+    },
+    "/api/v1/admin/posting-hygiene/merge": {
+      "post": {
+        "operationId": "hygiene_merge_api_v1_admin_posting_hygiene_merge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hygiene Merge Api V1 Admin Posting Hygiene Merge Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Hygiene Merge",
+        "tags": [
+          "posting-hygiene"
+        ]
+      }
+    },
+    "/api/v1/admin/posting-hygiene/scan": {
+      "post": {
+        "operationId": "hygiene_scan_api_v1_admin_posting_hygiene_scan_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hygiene Scan Api V1 Admin Posting Hygiene Scan Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Hygiene Scan",
+        "tags": [
+          "posting-hygiene"
+        ]
+      }
+    },
     "/api/v1/admin/postings/connectors": {
       "get": {
         "description": "Registered connector engines (built-ins + allowlisted plugins).",
@@ -32432,7 +36208,7 @@
     },
     "/api/v1/admin/postings/job-proposals": {
       "get": {
-        "description": "Postings whose catalog join ended unmapped with a rich extract \u2014\nthe HITL \"create the job type\" queue (plan 202), keyset-paged since\nplan 206 (the old silent 50-row cap hid every later proposal):\nprovenance, the proposed type, actionable candidates and the\nlegacy-v1 banner count.",
+        "description": "Postings whose catalog join ended unmapped with a rich extract \u2014\nthe HITL \"create the job type\" queue (plan 202), keyset-paged since\nplan 206 (the old silent 50-row cap hid every later proposal):\nprovenance, the proposed type, actionable candidates.",
         "operationId": "job_proposal_queue_api_v1_admin_postings_job_proposals_get",
         "parameters": [
           {
@@ -32488,50 +36264,6 @@
           }
         },
         "summary": "Job Proposal Queue",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/v1/admin/postings/job-proposals/regenerate": {
-      "post": {
-        "description": "Enqueue the bounded v1 \u2192 v2 backfill (one queued/running run).",
-        "operationId": "regenerate_job_proposals_api_v1_admin_postings_job_proposals_regenerate_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JobProposalRegenerateIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Regenerate Job Proposals Api V1 Admin Postings Job Proposals Regenerate Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Regenerate Job Proposals",
         "tags": [
           "admin"
         ]
@@ -35937,6 +39669,50 @@
         ]
       }
     },
+    "/api/v1/admin/storage/status": {
+      "get": {
+        "description": "The resolved deployment target plus a cached live health row.\n\n``refresh=true`` drops the health cache before probing, so the operator\n\"test connection\" action is a real check instead of a repeat of a\nsnapshot up to 30 s old.",
+        "operationId": "get_storage_status_api_v1_admin_storage_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Storage Status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/taxonomy/resolution/stats": {
       "get": {
         "description": "Last-run summary + rolling resolution rates from the\nPOSTING_EXTRACT job results (plan 153 slice 4).",
@@ -37150,6 +40926,101 @@
         ]
       }
     },
+    "/api/v1/ai/prices": {
+      "get": {
+        "operationId": "list_prices_api_v1_ai_prices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Prices",
+        "tags": [
+          "ai"
+        ]
+      },
+      "put": {
+        "operationId": "put_price_api_v1_ai_prices_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceOverrideIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceOverrideOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Price",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/ai/prices/{override_id}": {
+      "delete": {
+        "operationId": "delete_price_api_v1_ai_prices__override_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "override_id",
+            "required": true,
+            "schema": {
+              "title": "Override Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Price",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/ai/providers": {
       "get": {
         "description": "Visible providers (global + personal), keys masked.",
@@ -37880,6 +41751,49 @@
           }
         },
         "summary": "Transcribe",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/ai/usage/costs": {
+      "get": {
+        "operationId": "usage_costs_api_v1_ai_usage_costs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Usage Costs",
         "tags": [
           "ai"
         ]
@@ -40215,7 +44129,7 @@
     },
     "/api/v1/background-jobs/{job_id}/download": {
       "get": {
-        "description": "Download a finished data-export archive (owner only, attachment).",
+        "description": "Download a finished data-export archive (owner only, attachment).\n\nNew exports are objects streamed through the store; pre-contract rows\ncarry a legacy local `export_path` and are served from the local tree\n(desktop/self-host only).",
         "operationId": "download_export_api_v1_background_jobs__job_id__download_get",
         "parameters": [
           {
@@ -43755,6 +47669,50 @@
         ]
       }
     },
+    "/api/v1/cv/{cv_id}/parse-view": {
+      "get": {
+        "description": "What our extractor sees (plan 212 S1.2): the current state printed\nthrough the export engine (no version created) and read back per page\nwith deterministic findings. 503 with the capability message when no\nprint engine is available \u2014 never a simulated answer. No AI, no\nvendor claims: the UI says \"what our extractor sees\".",
+        "operationId": "parse_view_cv_api_v1_cv__cv_id__parse_view_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cv_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cv Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CvParseViewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse View Cv",
+        "tags": [
+          "cv"
+        ]
+      }
+    },
     "/api/v1/cv/{cv_id}/polish": {
       "post": {
         "description": "Run the polish loop over a committed CV (plan 64 resume path).\n\n\"*Resume polish*\" after a failed/cap-stopped run and the manual\n\"run polish\" action on any generated CV; 404 for a foreign CV, 503\nwhen no AI provider is configured. `{\"resumed_from\": \"<job_id>\"}`\nchains the new trace onto the earlier run.",
@@ -44409,7 +48367,7 @@
     },
     "/api/v1/documents/{document_id}/file": {
       "get": {
-        "description": "The original upload, byte-exact.",
+        "description": "The original upload, byte-exact, streamed through the store.",
         "operationId": "download_document_api_v1_documents__document_id__file_get",
         "parameters": [
           {
@@ -47332,6 +51290,157 @@
         ]
       }
     },
+    "/api/v1/me/answers": {
+      "get": {
+        "operationId": "list_answers_api_v1_me_answers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedAnswerOut"
+                  },
+                  "title": "Response List Answers Api V1 Me Answers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Answers",
+        "tags": [
+          "answers"
+        ]
+      },
+      "post": {
+        "operationId": "upsert_answer_api_v1_me_answers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedAnswerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedAnswerOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Answer",
+        "tags": [
+          "answers"
+        ]
+      }
+    },
+    "/api/v1/me/answers/{answer_id}": {
+      "delete": {
+        "operationId": "delete_answer_api_v1_me_answers__answer_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "answer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Answer Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Answer",
+        "tags": [
+          "answers"
+        ]
+      },
+      "patch": {
+        "operationId": "update_answer_api_v1_me_answers__answer_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "answer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Answer Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedAnswerPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedAnswerOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Answer",
+        "tags": [
+          "answers"
+        ]
+      }
+    },
     "/api/v1/me/applications": {
       "get": {
         "description": "The tracker listing with the dashboard funnel counts.",
@@ -47448,6 +51557,96 @@
         ]
       }
     },
+    "/api/v1/me/applications/import/ics": {
+      "post": {
+        "description": "Review-first ICS import: VEVENTs \u2192 proposed interview links.",
+        "operationId": "applications_import_ics_api_v1_me_applications_import_ics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IcsImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Applications Import Ics Api V1 Me Applications Import Ics Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Applications Import Ics",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/insights": {
+      "get": {
+        "description": "Descriptive tailored/untailored response rates with n and suppression.",
+        "operationId": "applications_insights_api_v1_me_applications_insights_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Applications Insights Api V1 Me Applications Insights Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Applications Insights",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/offers/compare": {
+      "get": {
+        "description": "Normalized comp/benefits/location/CoL/deadline for up to four offers.",
+        "operationId": "compare_offers_api_v1_me_applications_offers_compare_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferComparisonOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Compare Offers",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
     "/api/v1/me/applications/{application_id}": {
       "get": {
         "description": "One application with its reverse-chronological timeline.",
@@ -47546,6 +51745,59 @@
         ]
       }
     },
+    "/api/v1/me/applications/{application_id}/contact": {
+      "post": {
+        "operationId": "set_application_contact_api_v1_me_applications__application_id__contact_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationContactIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Application Contact",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
     "/api/v1/me/applications/{application_id}/documents": {
       "post": {
         "description": "Attach the CV / cover letter actually sent.",
@@ -47600,6 +51852,50 @@
         ]
       }
     },
+    "/api/v1/me/applications/{application_id}/kit": {
+      "get": {
+        "description": "The application's kit (plan 212 S1.3): the posting kit plus the\nevent timeline and the linked documents. Ownership-checked \u2014 a\nforeign application is a 404 like every other application read.",
+        "operationId": "get_application_kit_api_v1_me_applications__application_id__kit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationKitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Application Kit",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
     "/api/v1/me/applications/{application_id}/notes": {
       "post": {
         "description": "Append a note event and refresh the rolling note column.",
@@ -47649,6 +51945,102 @@
           }
         },
         "summary": "Add Application Note",
+        "tags": [
+          "applications"
+        ]
+      }
+    },
+    "/api/v1/me/applications/{application_id}/offer": {
+      "delete": {
+        "description": "Remove offer details without touching the application stage.",
+        "operationId": "clear_application_offer_api_v1_me_applications__application_id__offer_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Application Offer",
+        "tags": [
+          "applications"
+        ]
+      },
+      "post": {
+        "description": "Store structured offer details; the stage is never changed automatically.",
+        "operationId": "set_application_offer_api_v1_me_applications__application_id__offer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationOfferIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Application Offer",
         "tags": [
           "applications"
         ]
@@ -48063,6 +52455,401 @@
         "summary": "Me Completeness",
         "tags": [
           "onboarding"
+        ]
+      }
+    },
+    "/api/v1/me/contacts": {
+      "get": {
+        "operationId": "list_contacts_api_v1_me_contacts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Org",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "application_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Application Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContactOut"
+                  },
+                  "title": "Response List Contacts Api V1 Me Contacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Contacts",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "post": {
+        "operationId": "create_contact_api_v1_me_contacts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Contact",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/v1/me/contacts/{contact_id}": {
+      "delete": {
+        "operationId": "delete_contact_api_v1_me_contacts__contact_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Contact",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "get": {
+        "operationId": "get_contact_api_v1_me_contacts__contact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Contact",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_contact_api_v1_me_contacts__contact_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Contact",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/v1/me/contacts/{contact_id}/draft": {
+      "post": {
+        "operationId": "draft_outreach_api_v1_me_contacts__contact_id__draft_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutreachDraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachDraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Outreach",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/v1/me/contacts/{contact_id}/interactions": {
+      "post": {
+        "operationId": "add_interaction_api_v1_me_contacts__contact_id__interactions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactInteractionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactInteractionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Interaction",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/v1/me/contacts/{contact_id}/interactions/{interaction_id}": {
+      "delete": {
+        "operationId": "delete_interaction_api_v1_me_contacts__contact_id__interactions__interaction_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "interaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Interaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Interaction",
+        "tags": [
+          "contacts"
         ]
       }
     },
@@ -48872,6 +53659,182 @@
         "summary": "Preview Github",
         "tags": [
           "intake"
+        ]
+      }
+    },
+    "/api/v1/me/interview/stories": {
+      "get": {
+        "operationId": "list_stories_api_v1_me_interview_stories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InterviewStoryOut"
+                  },
+                  "title": "Response List Stories Api V1 Me Interview Stories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Stories",
+        "tags": [
+          "interview-stories"
+        ]
+      },
+      "post": {
+        "operationId": "create_story_api_v1_me_interview_stories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewStoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewStoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Story",
+        "tags": [
+          "interview-stories"
+        ]
+      }
+    },
+    "/api/v1/me/interview/stories/suggestions": {
+      "get": {
+        "operationId": "story_suggestions_api_v1_me_interview_stories_suggestions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StorySuggestionOut"
+                  },
+                  "title": "Response Story Suggestions Api V1 Me Interview Stories Suggestions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Story Suggestions",
+        "tags": [
+          "interview-stories"
+        ]
+      }
+    },
+    "/api/v1/me/interview/stories/{story_id}": {
+      "delete": {
+        "operationId": "delete_story_api_v1_me_interview_stories__story_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Story",
+        "tags": [
+          "interview-stories"
+        ]
+      },
+      "patch": {
+        "operationId": "update_story_api_v1_me_interview_stories__story_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "story_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Story Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewStoryPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewStoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Story",
+        "tags": [
+          "interview-stories"
         ]
       }
     },
@@ -52850,6 +57813,50 @@
         ]
       }
     },
+    "/api/v1/postings/capture": {
+      "post": {
+        "description": "Capture one posting from a pasted URL through the manual-URL path.",
+        "operationId": "postings_capture_api_v1_postings_capture_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Postings Capture Api V1 Postings Capture Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Capture",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
     "/api/v1/postings/explore": {
       "get": {
         "description": "Explore: the full filter+facet surface. Query params are\nthe explore vocabulary \u2014 `skills=sql:4,python`, multi-value comma\nlists, `posted_within=7d`, `sort=fit|fresh|salary|relevance` and an\nopaque `cursor`.",
@@ -53929,6 +58936,96 @@
         ]
       }
     },
+    "/api/v1/postings/stats/salary-benchmarks": {
+      "get": {
+        "description": "Per job/family x country x seniority pay cells, with n and a floor.",
+        "operationId": "postings_stats_salary_benchmarks_api_v1_postings_stats_salary_benchmarks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryBenchmarksOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Salary Benchmarks",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
     "/api/v1/postings/stats/skills": {
       "get": {
         "description": "Top asked skills with trends, category mix, level histogram and\npriority mix.",
@@ -54078,7 +59175,7 @@
     },
     "/api/v1/postings/{posting_ref}": {
       "get": {
-        "description": "One posting by ref or id with the structured extract, source\nattribution, match-score card and the similar-postings rail.",
+        "description": "One posting by ref or id with the structured extract, source\nattribution, match-score card, evidence-first gap report and the\nsimilar-postings rail.",
         "operationId": "posting_detail_api_v1_postings__posting_ref__get",
         "parameters": [
           {
@@ -54114,6 +59211,112 @@
           }
         },
         "summary": "Posting Detail",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/{posting_ref}/gap": {
+      "get": {
+        "description": "Standalone evidence-first gap report (plan 212 S1.1).\n\nRequirements grouped must-have / nice-to-have / bonus; every row\ncarries the verbatim posting wording, the required level, the\ncaller's level, a status and \u2014 when the label resolved to a\ntaxonomy key \u2014 the posting's evidence quote and the user's evidence\nledger. `null` when the posting has no deep extraction yet. This is\ndeliberately NOT a score: the match card is a different surface.",
+        "operationId": "posting_gap_report_api_v1_postings__posting_ref__gap_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_ref",
+            "required": true,
+            "schema": {
+              "title": "Posting Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PostingGapOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Posting Gap Report Api V1 Postings  Posting Ref  Gap Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Posting Gap Report",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/{posting_ref}/gate-override": {
+      "post": {
+        "description": "Set or clear one per-posting eligibility override.\n\nOverrides are read fresh on every fit read (never part of the fit\ncache hash), so the flag applies immediately to both the score card\nand the feed. Unknown gates never exclude; this endpoint only records\nthe user's explicit \"apply anyway\" decision.",
+        "operationId": "posting_gate_override_api_v1_postings__posting_ref__gate_override_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_ref",
+            "required": true,
+            "schema": {
+              "title": "Posting Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GateOverrideIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Posting Gate Override Api V1 Postings  Posting Ref  Gate Override Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Posting Gate Override",
         "tags": [
           "postings"
         ]
@@ -54180,6 +59383,92 @@
           }
         },
         "summary": "Posting History",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/{posting_ref}/kit": {
+      "get": {
+        "description": "The pre-application kit (plan 212 S1.3): posting identity, the\nevidence-first gap report, the user's CV / cover-letter state\n(`needs_cv` when there is no resume at all), deterministic screening\nprompts backed by your saved answer library, a\nread-only sourced checklist (posting state, measured page count,\nlint facts, static guidance \u2014 never a vendor simulation) and the\napplication id/stage when one exists. Reads only.",
+        "operationId": "posting_kit_api_v1_postings__posting_ref__kit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_ref",
+            "required": true,
+            "schema": {
+              "title": "Posting Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingKitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Posting Kit",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/{posting_ref}/kit/prepare": {
+      "post": {
+        "description": "Idempotent deterministic prep for the kit's CV tab.\n\nRuns the existing deterministic computation \u2014 the tailor coverage\n(identical rows to the CV Studio tailor table) and the\nmissing-section report. Never calls AI, never creates a CV, a cover\nletter or an application row; `needs_cv` asks for the CV Studio CTA\nand `extract_ready=false` is the honest no-extract degradation.",
+        "operationId": "posting_kit_prepare_api_v1_postings__posting_ref__kit_prepare_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_ref",
+            "required": true,
+            "schema": {
+              "title": "Posting Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitPrepareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Posting Kit Prepare",
         "tags": [
           "postings"
         ]
@@ -54344,6 +59633,218 @@
           }
         },
         "summary": "Ai Analyze",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/api/v1/profile/competencies": {
+      "get": {
+        "description": "Evidence-derived NACE competencies; no self-rating or score.",
+        "operationId": "competencies_api_v1_profile_competencies_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetenciesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Competencies",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/api/v1/profile/degree-roles": {
+      "get": {
+        "description": "Deterministic programme/focus-subject -> family suggestions.",
+        "operationId": "degree_roles_api_v1_profile_degree_roles_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DegreeRolesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Degree Roles",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/api/v1/profile/export/jsonresume": {
+      "get": {
+        "operationId": "export_json_resume_api_v1_profile_export_jsonresume_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Export Json Resume Api V1 Profile Export Jsonresume Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Json Resume",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/api/v1/profile/import/jsonresume": {
+      "post": {
+        "operationId": "import_json_resume_api_v1_profile_import_jsonresume_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-profile-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Profile-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonResumeImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Json Resume Api V1 Profile Import Jsonresume Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Json Resume",
         "tags": [
           "profile"
         ]
@@ -55884,7 +61385,7 @@
     },
     "/health": {
       "get": {
-        "description": "Liveness probe.",
+        "description": "Liveness probe: dependency states ride the payload.\n\nA transient storage-provider failure degrades open (200,\n``storage.status: degraded``); the endpoint returns 503 only when\nobject storage is required or the failure has been sustained.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -55901,6 +61402,30 @@
           }
         },
         "summary": "Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "description": "Readiness probe (plan 64 \u00a71.4): hard checks only, 503 otherwise.\n\nHard: boot complete, the datastore is reachable **and at this\nrelease's Alembic head** (the one-shot migrate job finished), and\nrequired object storage is available. Soft signals \u2014 optional\nstorage degradation, Redis, queue age \u2014 never flip readiness, so a\ndegraded-but-serving instance stays ready while a half-migrated or\nstill-booting one is pulled out of rotation.",
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ready Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready",
         "tags": [
           "health"
         ]

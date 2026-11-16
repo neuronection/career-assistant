@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import suggest_relations
 from app.core.database import get_db
-from app.core.errors import DomainError
+from app.core.errors import ConflictError, DomainError
 from app.models.enums import BackgroundJobType, RelationType
 from app.schemas.common import Message
 from app.schemas.job import (
@@ -191,6 +191,9 @@ async def publish_job(
             status.HTTP_409_CONFLICT,
             "A retired job type cannot be republished",
         )
+    from app.services.catalog.job_service import ensure_job_type_title
+
+    await ensure_job_type_title(db, job.title, exclude_id=job.id)
     job.status = "published"
     await db.commit()
     await db.refresh(job)
@@ -297,6 +300,8 @@ async def create_job(
     """Manually add a job to the catalog."""
     try:
         job = await JobService(db).create(data, user, source="user")
+    except ConflictError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     from app.services.catalog.localized_view import job_out, resolve_locale
@@ -315,7 +320,9 @@ async def get_job(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     from app.services.catalog.localized_view import job_out, resolve_locale
 
-    return await job_out(db, job, await resolve_locale(db, user))
+    out = await job_out(db, job, await resolve_locale(db, user))
+    counts = await JobService(db).open_role_counts([job.id])
+    return out.model_copy(update={"open_roles": counts.get(job.id, 0)})
 
 
 @router.get("/{ref}/similar", response_model=SimilarJobsOut)
@@ -368,6 +375,8 @@ async def update_job(
     """Update a catalog job."""
     try:
         job = await JobService(db).update(ref, data, user)
+    except ConflictError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     await db.refresh(job)

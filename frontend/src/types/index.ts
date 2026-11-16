@@ -327,12 +327,18 @@ export interface ExploreParams {
   saved?: boolean;
   seen?: boolean;
   seen_exclude?: boolean;
+  hide_duplicates?: boolean;
   applied?: boolean;
   extracted_only?: boolean;
   contract?: string;
   contract_exclude?: string;
   travel?: string;
   travel_exclude?: string;
+  opportunity_type?: string;
+  opportunity_type_exclude?: string;
+  work_authorization?: string;
+  work_authorization_exclude?: string;
+  closing_within?: string;
   schedule?: string;
   schedule_exclude?: string;
   benefits?: string;
@@ -362,6 +368,13 @@ export interface Profile {
     birth_year: number | null;
     education_level: EducationLevel;
     grade: string | null;
+    work_authorization?:
+      | "citizen"
+      | "permanent_resident"
+      | "student_visa"
+      | "needs_sponsorship"
+      | "other"
+      | null;
     career_stage?: CareerStage | null;
     onboarding_path?: OnboardingPath | null;
     country: string;

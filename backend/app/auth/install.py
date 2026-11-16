@@ -118,6 +118,14 @@ def install_identity(application: FastAPI, settings: Settings) -> None:
         # never arm a gate no shell can answer).
         if name == "CAREER_REQUIRE_SHELL_SECRET":
             return shell_attached
+        # `CAREER_COOKIE_SECURE` routes the **resolved** value (plan 64
+        # §1.6 / ADR-0062 §9): `Settings.cookie_secure=None` means derive
+        # from the public scheme (`CAREER_PUBLIC_URL`) or `CAREER_TLS` —
+        # never hard-coded true, so LAN/VPN HTTP login keeps working. The
+        # raw env value already reached Settings (same env-prefix merge),
+        # so an explicit override wins inside the resolution.
+        if name == "CAREER_COOKIE_SECURE":
+            return settings.effective_cookie_secure
         return _settings_knob(settings, name)
 
     config = AuthConfig.from_env(

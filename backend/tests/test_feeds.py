@@ -1,14 +1,18 @@
 """Calendar + RSS feeds (plan 117.3/117.4): stable UIDs, token lifecycle,
 revocation, keyset paging and saved-search scoping."""
 
+import hashlib
+import re
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 
+from app.core.errors import NotFoundError
 from app.models.engagement_model import SearchHistory
 from app.models.enums import ApplicationEventKind
+from app.models.followup_model import UserFeedToken
 from app.models.posting_model import JobPosting
 from app.models.university_model import Department, University
 from app.models.user_model import User
@@ -17,6 +21,10 @@ from app.services.notification_channels import utcnow
 from app.services.postings import rss_feed
 from app.services.postings.applications_service import ApplicationService, record_event
 from tests.conftest import user_id_from_headers
+
+PRE_CHANGE_PLAINTEXT = "kR7mQ2vX9pZ4tW1yB6nC3jH8sL5aF0dG7eU2iO4rK9x"
+PRE_CHANGE_DIGEST = "52fe43a895b8679280e4b75721d4bc4e790a59dc02802be5188202232ea4497b"
+FEED_SECRET_SHAPE = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
 async def _user(db, headers) -> User:
@@ -184,8 +192,6 @@ async def test_bad_and_unknown_tokens_are_404(client, auth_headers):
 
 
 async def test_rotation_chain_links_rows(db, auth_headers):
-    from app.core.errors import NotFoundError
-
     user = await _user(db, auth_headers)
     row, plaintext = await feed_tokens.mint(db, user.id, kind="rss")
     await db.commit()
@@ -196,6 +202,77 @@ async def test_rotation_chain_links_rows(db, auth_headers):
     assert row.revoked_at is not None
     with pytest.raises(NotFoundError):
         await feed_tokens.resolve(db, plaintext, "rss")
+
+
+async def test_mint_keeps_the_brandless_urlsafe_32_byte_shape(db, auth_headers):
+    user = await _user(db, auth_headers)
+    row, plaintext = await feed_tokens.mint(db, user.id, kind="rss")
+    await db.commit()
+    assert FEED_SECRET_SHAPE.fullmatch(plaintext)
+    assert row.token_hash == hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+    assert feed_tokens.opaque.parse(plaintext) == (None, row.token_hash)
+    successor, other = await feed_tokens.mint(db, user.id, kind="rss")
+    assert other != plaintext
+    assert successor.token_hash != row.token_hash
+
+
+async def test_pre_change_token_still_verifies_and_resolves(client, auth_headers, db):
+    user = await _user(db, auth_headers)
+    assert feed_tokens.hash_token(PRE_CHANGE_PLAINTEXT) == PRE_CHANGE_DIGEST
+    row = UserFeedToken(user_id=user.id, kind="rss", token_hash=PRE_CHANGE_DIGEST, scope={})
+    db.add(row)
+    await db.commit()
+
+    resolved = await feed_tokens.resolve(db, PRE_CHANGE_PLAINTEXT, "rss")
+    assert resolved.id == row.id
+    assert resolved.last_used_at is not None
+
+    response = await client.get(f"/api/v1/me/feeds/rss?token={PRE_CHANGE_PLAINTEXT}")
+    assert response.status_code == 200, response.text
+
+    with pytest.raises(NotFoundError):
+        await feed_tokens.resolve(db, PRE_CHANGE_PLAINTEXT + "x", "rss")
+
+
+def test_hash_token_is_total_over_untrusted_values():
+    assert feed_tokens.hash_token(PRE_CHANGE_PLAINTEXT) == PRE_CHANGE_DIGEST
+    assert feed_tokens.hash_token("opaque-secret") == hashlib.sha256(b"opaque-secret").hexdigest()
+    assert feed_tokens.hash_token("") is None
+    assert feed_tokens.hash_token("   ") is None
+    assert feed_tokens.hash_token(None) is None  # type: ignore[arg-type]
+    assert feed_tokens.hash_token(b"bytes") is None  # type: ignore[arg-type]
+
+
+async def test_resolve_rejects_blank_tokens_before_a_lookup(db):
+    for blank in ("", "   "):
+        with pytest.raises(NotFoundError):
+            await feed_tokens.resolve(db, blank, "rss")
+
+
+def test_verify_hash_is_the_constant_time_comparison():
+    digest = hashlib.sha256(b"secret").hexdigest()
+    assert feed_tokens.verify_hash(digest, digest) is True
+    assert feed_tokens.verify_hash(digest, "0" * 64) is False
+    assert feed_tokens.verify_hash("", "") is False
+    assert feed_tokens.verify_hash(None, digest) is False
+    assert feed_tokens.verify_hash(digest, None) is False
+    assert feed_tokens.verify_hash("é" * 64, "é" * 64) is False
+
+
+async def test_resolve_compares_with_the_kit_verify(db, auth_headers, monkeypatch):
+    user = await _user(db, auth_headers)
+    row, plaintext = await feed_tokens.mint(db, user.id, kind="rss")
+    await db.commit()
+    calls: list[tuple[str, str]] = []
+    real_verify = feed_tokens.opaque.verify
+
+    def spy(stored: str, presented: str) -> bool:
+        calls.append((stored, presented))
+        return real_verify(stored, presented)
+
+    monkeypatch.setattr(feed_tokens.opaque, "verify", spy)
+    await feed_tokens.resolve(db, plaintext, "rss")
+    assert calls == [(row.token_hash, row.token_hash)]
 
 
 async def test_rss_scope_and_keyset(client, auth_headers, db, search_fixtures):

@@ -123,6 +123,7 @@ const POSITIONS: SkillPositionsResponse = {
       url: "https://jobs.example/1",
       status: "mapped",
       mapping_reason: "",
+      repost_count: 0,
       needs_review: false,
       notes: "",
       saved: false,
@@ -143,6 +144,7 @@ const POSITIONS: SkillPositionsResponse = {
       url: "https://jobs.example/2",
       status: "expired",
       mapping_reason: "",
+      repost_count: 0,
       needs_review: false,
       notes: "",
       saved: false,
@@ -224,7 +226,9 @@ describe("SkillPage", () => {
   it("renders the header, stat tiles and related chips", async () => {
     renderPage();
     expect(await screen.findByTestId("skill-page")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("SQL");
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "SQL"
+    );
     await waitFor(() => expect(screen.getByTestId("stat-tiles")).toBeInTheDocument());
     expect(screen.getAllByTestId("stat-tile-value")[0]).toHaveTextContent("12");
     expect(screen.getByTestId("skill-related")).toBeInTheDocument();

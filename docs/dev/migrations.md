@@ -22,7 +22,7 @@ app-specific delta.
 
 ## The rules
 
-> **Alignment doctrine (plan 16):** pre-release databases are dev
+> **Alignment doctrine:** pre-release databases are dev
 > artifacts to recreate — destructive migrations are fine (document
 > them), downgrades may be irreversible in spirit but must stay runnable
 > for the round-trip tests, and no backwards-compatibility shims are
@@ -47,7 +47,7 @@ app-specific delta.
 ### Baseline squash (v0.17)
 
 v0.16.0 → v0.17 is a declared **breaking release with no production users**.
-The plan-113 `0001` plus the `0002`–`0100` chain were replaced by one
+The earlier `0001` plus the `0002`–`0100` chain were replaced by one
 model-generated `0001_baseline_schema.py` (2026-11-06). The sanctioned
 destructive-baseline exception applies (declared in the revision header):
 `downgrade()` restores an **empty schema** by design, and the header says so.
@@ -82,13 +82,68 @@ result is now folded into the baseline; the lesson stays.
 ## Migration notes (newest first)
 
 - **`0001_baseline_schema`** (v0.17 no-BC squash): one model-generated
-  baseline replaces the plan-113 `0001` and the whole `0002`–`0100` chain.
+  baseline replaces the earlier `0001` and the whole `0002`–`0100` chain.
   The baseline seeds the company quality denylist (the old `0070`'s row set)
   and keeps the old chain's final CHECKs/indexes/server defaults as the
   models declare them. `downgrade()` is the sanctioned empty-schema restore;
   recreate dev/test databases. Verified by
   `tests/test_migrations.py::test_baseline_roundtrips_on_a_fresh_sqlite_database`
   and `test_baseline_matches_the_models` (both dialects in CI).
+
+## Mapping-truth revisions
+
+- `0002_mapping_truth` — adds `job_postings.mapping_margin`,
+  `extract_status` (`succeeded`/`failed`) and `proposal_proposed_at` plus
+  their three indexes. SQLite rebuilds the table through
+  `batch_alter_table` for the named CHECKs; the data backfill is
+  dialect-neutral Python row iteration (latest non-resolve extract job for
+  the status, v2 proposal JSON for the timestamp).
+- `0003_job_type_title_key` — adds `jobs.title_key` (`String(200)`, nullable)
+  and the **non-unique** `ix_jobs_title_key`; the self-contained Python
+  backfill uses the same normalization as `app/core/job_titles.py` (no app
+  import). Downgrade drops the index and column. The unique partial index is
+  deferred until live duplicate pairs are merged (§10); a fresh
+  migrate+seed must leave no non-retired row with a null key.
+
+Both revisions are covered by fresh SQLite and temp-Postgres round-trip/data
+tests; the head literals live in `test_migrations.py` and `test_autopilot.py`.
+
+## Later revisions (`0004`–`0012`, head `0012`)
+
+- `0004_ai_cost_provenance` — call-time cost columns on `ai_generations`
+  (cost, usage/price provenance, estimate method) and the new
+  `ai_price_overrides` table (system price rows, queried admin-only).
+- `0005_language_codes` — typed `job_postings.language_codes`; rows are
+  re-extracted by the bounded `EXTRACT_VERSION` 5 → 6 backfill rather than
+  parsed in SQL.
+- `0006_eligibility_columns` — `work_authorization`, `opportunity_type`,
+  `application_deadline` on postings and `gate_overrides` on
+  `posting_interactions`; dialect-neutral, no data fold.
+- `0007_grade_model` — `grade_scale`/`grade_value`/`grade_ordinal`, drops the
+  qualitative `grade_band`; existing qualitative values become NULL (never a
+  fabricated class).
+- `0008_fold_use_languages` — removes the retired autopilot language toggle.
+  The downgrade is a deliberate no-op: the folded preference has no honest
+  value to restore.
+- `0009_saved_answers` — reusable screening answers (user-owned, unique per
+  question key).
+- `0010_interview_stories` — STAR story library rows.
+- `0011_posting_trust_signals` — `trust_flags` JSONB plus the deterministic
+  identity columns/indexes used by the duplicate scan.
+- `0012_contacts_outreach` — `contacts` + `contact_interactions`
+  (`email_key` partial unique index), `applications.contact_id`
+  (`ON DELETE SET NULL`), and the fold of the old `applications.contact`
+  JSON into contact rows before dropping the column. The downgrade drops
+  contact rows without recreating them: the fold is one-way.
+- `0013` — drops the retired `legacy` price-source value from
+  `ai_generations` (residue maps to `unknown`; no users exist).
+- `0014` — removes stored v1 job proposals, retired backfill jobs and the
+  old first-boot marker (no users exist; downgrade is intentionally empty).
+
+Round-trip tests exist for each revision's upgrade; only `0004`, `0006`,
+`0007`, `0009`, `0010`, `0011` and `0012` are exercised by the migration
+suite today, and the `0012` fold is covered on SQLite. The Postgres fold and
+the remaining downgrade round-trips are tracked debt for the close-out pass.
 
 ## Running migrations
 

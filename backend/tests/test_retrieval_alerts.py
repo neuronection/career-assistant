@@ -173,12 +173,12 @@ def _rollup(
 def _quality_result(space: VectorSpaceRow, *, passed: bool) -> dict:
     return {
         "quality": {
-            "old_space_id": str(space.id),
+            "baseline_space_id": str(space.id),
             "new_space_id": str(space.id),
             "set_version": 1,
             "k": 5,
-            "old_recall_at_k": 0.9,
-            "old_precision_at_k": 0.8,
+            "baseline_recall_at_k": 0.9,
+            "baseline_precision_at_k": 0.8,
             "new_recall_at_k": 0.9 if passed else 0.4,
             "new_precision_at_k": 0.8 if passed else 0.2,
             "passed": passed,

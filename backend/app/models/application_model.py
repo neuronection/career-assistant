@@ -73,8 +73,10 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     deadline_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     # Scheduler-facing: maintained by the follow-up sweep (116).
     next_followup_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
-    # {name, email, role, channel} — recruiter/contact person.
-    contact: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    # Plan 213: the person around this application (structured contact row).
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
     # {currency, amount, period, benefits[]} — the money triple on offer.
     offer: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)

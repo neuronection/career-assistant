@@ -4,7 +4,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Link, useLocation, useMatch } from "react-router-dom";
+import { Link, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
 
@@ -42,8 +42,10 @@ import { Button, PopoverButton } from "@/components/ui";
 import {
   DictationButton,
   DictationStrip,
+  DictationUnavailable,
   useDictation,
 } from "@/components/ui/dictation";
+import { useConfigSummary } from "@/hooks/useConfigSummary";
 import { fetchChatTree, type ChatTree } from "@/api/universities";
 import { transcribeAudio, classifyDictationError } from "@/api/ai";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
@@ -516,7 +518,15 @@ function MessageList({
 
 function ComposerBar() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const chat = useCareerChatContext();
+  const configSummary = useConfigSummary();
+  const transcribeAssignment = configSummary.data?.tasks.find(
+    (task) => task.task_type === "transcribe",
+  );
+  const dictationUnavailable =
+    configSummary.error === null &&
+    transcribeAssignment?.source === "unconfigured";
   const draftRef = useRef(chat.draft);
   draftRef.current = chat.draft;
   const dictation = useDictation({
@@ -566,7 +576,16 @@ function ComposerBar() {
       placeholder={t("chat.composerPlaceholder")}
       toolbarStart={<CvAttachButton />}
       toolbarEnd={
-        micHidden ? undefined : (
+        dictationUnavailable ? (
+          <DictationUnavailable
+            label={t("dictation.unavailable")}
+            detail={t("dictation.notConfigured")}
+            action={{
+              label: t("dictation.openSettings"),
+              onClick: () => navigate("/settings/ai?tab=tasks"),
+            }}
+          />
+        ) : micHidden ? undefined : (
           <DictationButton
             status={dictation.status}
             onStart={() => void dictation.start()}

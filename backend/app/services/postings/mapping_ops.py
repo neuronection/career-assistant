@@ -96,6 +96,7 @@ async def capture_snapshot(
         extracted=counts["total"]
         - counts["states"].get("not_extracted", 0)
         - counts["states"].get("no_description", 0)
+        - counts["states"].get("detail_failed", 0)
         - counts["states"].get("detail_not_fetched", 0)
         - counts["states"].get("extract_failed", 0),
         mapped=accounted["mapped"],
@@ -219,6 +220,32 @@ async def _sources_breakdown(db: AsyncSession) -> list[dict[str, Any]]:
     from app.services.postings.mapping_console_service import sources_breakdown
 
     return await sources_breakdown(db)
+
+
+async def proposal_aging_count(db: AsyncSession, *, now: datetime | None = None) -> int:
+    """Count active postings whose live v2 proposal is older than the window.
+
+    The typed proposal time wins; ``created_at`` is the fallback for rows the
+    migration could not parse (the v1/v2 legacy shape).
+    """
+    from app.services.postings.job_proposal_service import pending_predicate
+
+    now = now or datetime.now(UTC)
+    aging_cutoff = now - timedelta(days=PROPOSAL_AGING_DAYS)
+    return int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(JobPosting)
+                .where(
+                    JobPosting.status.in_(("new", "mapped")),
+                    func.coalesce(JobPosting.proposal_proposed_at, JobPosting.created_at)
+                    < aging_cutoff,
+                    pending_predicate(db.get_bind().dialect.name),
+                )
+            )
+        ).scalar_one()
+    )
 
 
 async def evaluate_mapping_alerts(
@@ -358,20 +385,7 @@ async def evaluate_mapping_alerts(
             )
         )
 
-    aging_cutoff = now - timedelta(days=PROPOSAL_AGING_DAYS)
-    from app.services.postings.job_proposal_service import pending_predicate
-
-    aging = (
-        await db.execute(
-            select(func.count())
-            .select_from(JobPosting)
-            .where(
-                JobPosting.status.in_(("new", "mapped")),
-                JobPosting.created_at < aging_cutoff,
-                pending_predicate(db.get_bind().dialect.name),
-            )
-        )
-    ).scalar_one()
+    aging = await proposal_aging_count(db, now=now)
     if aging > 0:
         candidates.append(
             AlertCandidate(
@@ -465,6 +479,7 @@ __all__ = [
     "capture_snapshot",
     "evaluate_mapping_alerts",
     "load_coverage_floor",
+    "proposal_aging_count",
     "prune_snapshots",
     "save_coverage_floor",
     "trend",

@@ -30,14 +30,14 @@ digest, and the tier's disclosure. Capability growth, configSchema
 changes, tier changes and any code update **re-consent**. The charter
 copies, rendered everywhere:
 
-**T3 perimeter (ADR-0040 clause 21):**
+**T3 perimeter:**
 
 > This extension runs as a separate process outside the app's network
 > perimeter. It opens its own network connections, with no SSRF guard,
 > robots.txt check or rate limiting by the app. The app governs only
 > what it returns: outputs are validated and capped.
 
-**T2 sandbox (ADR-0030 clause 2):**
+**T2 sandbox:**
 
 > This extension's code runs sandboxed, not reviewed. Sandboxing limits
 > the blast radius of this code; it is not a review of its intent. The
@@ -133,7 +133,7 @@ vendored `app/extensions/polite_http.py`):
   transport; a robots 5xx or any failure to obtain a verdict **denies**
   the fetch (fail-closed). This was the remotive story: `Disallow:
   /api/*` ⇒ typed `net-denied`, so the connector was repointed to the
-  robots-allowed `/remote-jobs/feed` (plan 182) — the law itself is
+  robots-allowed `/remote-jobs/feed` — the law itself is
   unchanged, and the per-deployment escape hatch is an admin decision
   (`CAREER_CONNECTOR_RESPECT_ROBOTS`), never a connector-side bypass.
 - **Rate caps** — per-host token buckets sized by each connector's
@@ -154,7 +154,7 @@ reads, and default to the closed posture.
 
 ## The sandbox residuals (disclosed, not mitigated)
 
-ADR-0030: containment is not trust — these are the honest edges of the
+Containment is not trust — these are the honest edges of the
 T2 sandbox:
 
 - **Windows memory posture**: POSIX enforces the address-space cap
@@ -188,7 +188,7 @@ drift). The registry key is the charter namespacing
   your enablement" section of the chat tools dialog); without the
   grant the call fails with a typed, model-visible error.
 - **destructive** — **cannot execute through `run_tool` at all**. The
-  call becomes an ADR-0015 Class-B proposal card (`tool_execution`)
+  call becomes a Class-B proposal card (`tool_execution`)
   with a two-step confirm in chat; approval re-validates the tool +
   args at apply time, runs at most once (terminal-first commit), and
   approves that call's stored args — never the tool in general.
@@ -202,7 +202,7 @@ The user-facing guide to the badges and cards:
 ## The model never authors this subsystem
 
 No model output may register, enable, schedule or import an extension
-or source (ADR-0011 §7 / ADR-0030 §6): source registration and the
+or source: source registration and the
 desired-state document are admin acts; destructive tool calls become
 cards; state-changing ones need grants. When you add a new surface to
 this subsystem, keep that boundary — it is charter law

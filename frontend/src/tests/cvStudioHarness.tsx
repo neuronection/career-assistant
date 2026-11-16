@@ -58,6 +58,7 @@ export const fetchContextSources = vi.fn();
 export const previewCv = vi.fn();
 export const fetchVersions = vi.fn();
 export const fetchLint = vi.fn();
+export const fetchParseView = vi.fn();
 export const fetchContextStatus = vi.fn();
 export const compileCv = vi.fn();
 export const patchCv = vi.fn();
@@ -180,6 +181,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     previewCv: (...args: unknown[]) => previewCv(...args),
     fetchVersions: (...args: unknown[]) => fetchVersions(...args),
     fetchLint: (...args: unknown[]) => fetchLint(...args),
+    fetchParseView: (...args: unknown[]) => fetchParseView(...args),
     fetchContextStatus: (...args: unknown[]) => fetchContextStatus(...args),
     compileCv: (...args: unknown[]) => compileCv(...args),
     patchCv: (...args: unknown[]) => patchCv(...args),
@@ -481,6 +483,15 @@ export async function resetCvStudioMocks() {
   fetchVersions.mockResolvedValue([]);
   fetchCvRuns.mockResolvedValue([]);
   fetchLint.mockResolvedValue(lint);
+  fetchParseView.mockResolvedValue({
+    pages: [{ index: 0, text: "Experience\nBuilt the thing", line_count: 2 }],
+    findings: [
+      { id: "welded_lines", level: "warn", message: "1 line(s) over 200 characters" },
+    ],
+    page_count: 1,
+    text_layer: true,
+    engine: "pdf",
+  });
   fetchContextStatus.mockResolvedValue({ has_baseline: false, stale: false, changed: [], added: [], removed: [] });
   compileCv.mockResolvedValue({
     version: { id: "v1", version: 1, content: {}, context_resolution: {}, content_hash: "h", created_by: "user_save", created_at: "2026-09-04T10:00:00Z" },

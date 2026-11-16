@@ -18,6 +18,7 @@ from app.models.interview_model import InterviewSession
 from app.schemas.interview import (
     InterviewPlan,
     InterviewPlanPatch,
+    InterviewQuestion,
     InterviewSessionCreate,
 )
 
@@ -61,6 +62,30 @@ class InterviewService:
             job=job,
             kind=payload.kind,
         )
+        if payload.story_ids:
+            from app.models.interview_model import MAX_PLAN_ITEMS
+            from app.services.chat.story_service import StoryService
+
+            stories = await StoryService(self.db).get_many(user_id, payload.story_ids)
+            story_items = [
+                InterviewQuestion(
+                    id=f"story-{story.id.hex[:12]}",
+                    kind="behavioral",
+                    question=f"Walk me through this story: {story.title}.",
+                    focus=" · ".join(
+                        part
+                        for part in (
+                            story.situation,
+                            story.task,
+                            story.action,
+                            story.result,
+                        )
+                        if part
+                    )[:400],
+                )
+                for story in stories
+            ]
+            plan.items = [*story_items, *plan.items][:MAX_PLAN_ITEMS]
         session = InterviewSession(
             user_id=user_id,
             posting_id=posting.id if posting is not None else None,

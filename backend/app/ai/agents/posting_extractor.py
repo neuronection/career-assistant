@@ -7,9 +7,11 @@ of storing guesses. Pass 1 is taxonomy-blind (plan 153): skills come back
 as verbatim `raw_label` rows — no resolution, no key anchoring; the
 deterministic matcher + pass-2 resolver own resolution."""
 
+import re
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
@@ -58,6 +60,39 @@ class ExtractPrerequisite(BaseModel):
 class ExtractLocation(BaseModel):
     city: str | None = Field(default=None, max_length=120)
     country: str | None = Field(default=None, max_length=120)
+
+
+class ExtractWorkAuthorization(BaseModel):
+    """Work-authorization signal, only when the posting states it."""
+
+    status: Literal["none", "sponsors", "case_by_case", "citizens_only"]
+    evidence_quote: str = Field(min_length=3, max_length=400)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ExtractLanguageRequirement(BaseModel):
+    """A spoken-language requirement with the posting's own level cue."""
+
+    code: str = Field(min_length=2, max_length=20)
+    level: Literal["basic", "intermediate", "advanced", "native"]
+    evidence_quote: str = Field(min_length=3, max_length=400)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_code(cls, value: str) -> str:
+        from app.services.postings.language_codes import normalize_language_code
+
+        return normalize_language_code(value) or str(value).strip().lower()
+
+
+class ExtractGradeRequirement(BaseModel):
+    """A stated academic-grade cutoff, scale-scoped (never converted)."""
+
+    scale: Literal["uk_honours", "gpa_4", "gpa_10", "de_note", "percentage", "other"]
+    value: float = Field(ge=0.0, le=100.0)
+    evidence_quote: str = Field(min_length=3, max_length=400)
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
 _EDUCATION_LEVEL_MAP: dict[str, str] = {
@@ -234,11 +269,31 @@ class PostingExtract(BaseModel):
     location: ExtractLocation | None = None
     salary: ExtractSalary | None = None
     education: ExtractEducation | None = None
-    languages: list[str] = Field(default_factory=list, max_length=12)
+    language_requirements: list[ExtractLanguageRequirement] = Field(
+        default_factory=list, max_length=12
+    )
     prerequisites: list[ExtractPrerequisite] = Field(default_factory=list, max_length=12)
     benefits: list[ExtractBenefit] = Field(default_factory=list, max_length=20)
     responsibilities: list[ExtractResponsibility] = Field(default_factory=list, max_length=20)
     skills: list[ExtractSkill] = Field(default_factory=list, max_length=40)
+    # ---- v6: eligibility facts, only when the posting states them
+    work_authorization: ExtractWorkAuthorization | None = None
+    grade_requirement: ExtractGradeRequirement | None = None
+    opportunity_type: (
+        Literal[
+            "internship",
+            "placement_year",
+            "apprenticeship",
+            "graduate_scheme",
+            "insight_programme",
+            "part_time",
+            "full_time",
+            "contract",
+            "unknown",
+        ]
+        | None
+    ) = None
+    application_deadline: date | None = None
     # ---- v2: optional-with-confidence + evidence, never guessed
     contract_type: ExtractContract | None = None
     work_hours: ExtractHours | None = None
@@ -251,7 +306,7 @@ class PostingExtract(BaseModel):
     field_confidence: dict[str, float] = Field(default_factory=dict)
 
     @field_validator(
-        "languages",
+        "language_requirements",
         "prerequisites",
         "responsibilities",
         "skills",
@@ -276,6 +331,15 @@ class PostingExtract(BaseModel):
     @classmethod
     def _coerce_confidence(cls, value):
         return {} if value is None else value
+
+    @model_validator(mode="after")
+    def _drop_unmapped_language_codes(self):
+        from app.services.postings.language_codes import is_language_code
+
+        self.language_requirements = [
+            row for row in self.language_requirements if is_language_code(row.code)
+        ]
+        return self
 
 
 def _quote_around(text: str, needle: str) -> str:
@@ -339,6 +403,11 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
         "schedule_cues": _mock_schedule(lowered),
         "travel_required": _mock_travel(lowered),
         "onsite_policy": _mock_onsite(lowered),
+        "work_authorization": _mock_work_authorization(lowered),
+        "language_requirements": _mock_language_requirements(lowered),
+        "grade_requirement": _mock_grade(lowered),
+        "opportunity_type": _mock_opportunity_type(lowered),
+        "application_deadline": _mock_deadline(text),
         "field_confidence": {
             "title_norm": 0.9,
             "seniority": 0.9,
@@ -351,6 +420,11 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
             "schedule_cues": 0.8,
             "travel_required": 0.8,
             "onsite_policy": 0.8,
+            "work_authorization": 0.8,
+            "language_requirements": 0.8,
+            "grade_requirement": 0.8,
+            "opportunity_type": 0.8,
+            "application_deadline": 0.8,
         },
     }
 
@@ -457,6 +531,98 @@ def _mock_onsite(lowered: str) -> dict | None:
             "policy": "remote",
             "office_days_per_week": 0,
             "evidence_quote": _quote(lowered, "fully remote"),
+            "confidence": 0.8,
+        }
+    return None
+
+
+def _mock_language_requirements(lowered: str) -> list[dict]:
+    from app.services.postings.language_codes import LANGUAGE_ALIASES
+
+    rows: list[dict] = []
+    for name, code in LANGUAGE_ALIASES.items():
+        if name not in lowered:
+            continue
+        if "fluent" in lowered or "c1" in lowered or "native" in lowered:
+            level = "advanced"
+        elif "b1" in lowered:
+            level = "intermediate"
+        else:
+            level = "basic"
+        rows.append(
+            {
+                "code": code,
+                "level": level,
+                "evidence_quote": _quote(lowered, name),
+                "confidence": 0.8,
+            }
+        )
+    return rows[:4]
+
+
+def _mock_work_authorization(lowered: str) -> dict | None:
+    cues = (
+        ("citizens only", "citizens_only"),
+        ("must be a citizen", "citizens_only"),
+        ("unable to sponsor", "none"),
+        ("cannot sponsor", "none"),
+        ("no sponsorship", "none"),
+        ("case-by-case", "case_by_case"),
+        ("case by case", "case_by_case"),
+        ("sponsorship available", "sponsors"),
+        ("we sponsor", "sponsors"),
+    )
+    for needle, status in cues:
+        if needle in lowered:
+            return {
+                "status": status,
+                "evidence_quote": _quote(lowered, needle),
+                "confidence": 0.8,
+            }
+    return None
+
+
+def _mock_opportunity_type(lowered: str) -> str | None:
+    cues = (
+        ("graduate scheme", "graduate_scheme"),
+        ("placement year", "placement_year"),
+        ("industrial placement", "placement_year"),
+        ("apprenticeship", "apprenticeship"),
+        ("insight programme", "insight_programme"),
+        ("insight program", "insight_programme"),
+        ("internship", "internship"),
+        ("part-time", "part_time"),
+        ("full-time", "full_time"),
+        ("contract", "contract"),
+    )
+    for needle, value in cues:
+        if needle in lowered:
+            return value
+    return None
+
+
+def _mock_deadline(text: str) -> str | None:
+    match = re.search(r"apply by (\d{4}-\d{2}-\d{2})", text, re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _mock_grade(lowered: str) -> dict | None:
+    patterns = (
+        (r"first-class", "uk_honours", 1.0),
+        (r"2:1|2\.1", "uk_honours", 2.1),
+        (r"2:2|2\.2", "uk_honours", 2.2),
+        (r"gpa\s*(\d(?:\.\d+)?)", "gpa_4", None),
+        (r"note\s*(\d(?:\.\d+)?)", "de_note", None),
+    )
+    for pattern, scale, fixed in patterns:
+        match = re.search(pattern, lowered)
+        if match is None:
+            continue
+        value = fixed if fixed is not None else float(match.group(1))
+        return {
+            "scale": scale,
+            "value": value,
+            "evidence_quote": _quote(lowered, match.group(0)),
             "confidence": 0.8,
         }
     return None

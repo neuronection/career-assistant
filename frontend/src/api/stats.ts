@@ -388,3 +388,45 @@ export async function fetchPostingStatsDashboard(
   });
   return data;
 }
+
+export interface SalaryBenchmarkCell {
+  scope: "job" | "family";
+  job_code: string | null;
+  job_title: string;
+  family_key: string | null;
+  family_title: string | null;
+  country: string;
+  seniority: string;
+  currency: string;
+  period: string;
+  n: number;
+  thin_sample: boolean;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+}
+
+export interface SalaryBenchmarks {
+  as_of: string;
+  window: string;
+  status_basis: StatsStatusBasis;
+  start: string | null;
+  end: string;
+  floor: number;
+  cells: SalaryBenchmarkCell[];
+  truncated: number;
+  note_codes: string[];
+  reference: Record<string, unknown> | null;
+  reference_status: "unavailable" | "available";
+  notes: string[];
+}
+
+export async function fetchSalaryBenchmarks(
+  params: Record<string, string | string[] | number | boolean>
+): Promise<SalaryBenchmarks> {
+  const { data } = await api.get<SalaryBenchmarks>(
+    "/postings/stats/salary-benchmarks",
+    { params }
+  );
+  return data;
+}

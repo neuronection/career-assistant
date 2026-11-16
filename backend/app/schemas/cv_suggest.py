@@ -7,11 +7,13 @@ flagged in the reviewer, never auto-applied.
 """
 
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-SuggestionAction = Literal["summary", "bullet", "compaction", "tailor", "gaps"]
+from app.schemas.posting import GapStatus, PostingGapEvidenceOut
+
+SuggestionAction = Literal["summary", "bullet", "bullet_review", "compaction", "tailor", "gaps"]
 
 
 class CvEvidenceRef(BaseModel):
@@ -51,10 +53,27 @@ class CvSuggestion(BaseModel):
 
 
 class CoverageEntry(BaseModel):
+    """One deterministic tailor-coverage row (plan 212 S1.1 v2).
+
+    Beyond the key/priority/level facts each row carries the posting's
+    own words: the verbatim `raw_label`, the `required_level`, the
+    extract's `evidence_quote` (joined on the resolved skill key) and
+    the user's `user_evidence` refs — evidence-first, never a score.
+    `status` compares the user's level to the requirement:
+    `met` / `partial` (below the bar) / `missing` (no level recorded).
+    Labels that never resolved to a key are the posting gap report's
+    rows, not coverage's — the tailor table is keyed."""
+
     skill_key: str
     label: str = ""
     priority: str = ""
     user_level: int | None = None
+    raw_label: str = Field(default="", max_length=200)
+    required_level: int | None = Field(default=None, ge=0, le=10)
+    evidence_quote: str = Field(default="", max_length=400)
+    user_evidence: list[PostingGapEvidenceOut] = Field(default_factory=list, max_length=4)
+    kind: str = Field(default="skill", max_length=20)
+    status: GapStatus = "missing"
 
 
 class TailorCoverage(BaseModel):
@@ -82,6 +101,9 @@ class CvActionRequest(BaseModel):
     posting_id: uuid.UUID | None = None
     ref: BulletTarget | None = None
     items: list[CompactionItem] = Field(default_factory=list, max_length=25)
+    bullets: list[Annotated[str, Field(max_length=500)]] = Field(
+        default_factory=list, max_length=20
+    )
     tone: Literal["professional", "warm", "concise", "confident"] | None = None
     length: Literal["short", "medium", "long"] | None = None
     target_language: str | None = Field(default=None, min_length=2, max_length=10)
@@ -99,10 +121,23 @@ class SectionGap(BaseModel):
     candidate_count: int
 
 
+class BulletCheck(BaseModel):
+    id: str
+    level: Literal["info", "warn", "fail"]
+    message: str
+
+
+class BulletReview(BaseModel):
+    index: int
+    checks: list[BulletCheck] = Field(default_factory=list)
+    competency_keys: list[str] = Field(default_factory=list)
+
+
 class CvSuggestionOut(BaseModel):
     action: str
     notes: str = ""
     proposals: list[VerifiedProposal] = Field(default_factory=list)
     coverage: TailorCoverage | None = None
     gaps: list[SectionGap] = Field(default_factory=list)
+    bullet_checks: list[BulletReview] = Field(default_factory=list)
     target_language: str | None = None

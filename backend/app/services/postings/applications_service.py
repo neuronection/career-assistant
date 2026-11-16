@@ -208,6 +208,51 @@ class ApplicationService:
         """One owned application or 404."""
         return await self._owned(user_id, application_id)
 
+    async def set_offer(
+        self, user_id: uuid.UUID, application_id: uuid.UUID, offer: dict
+    ) -> Application:
+        """Store structured offer details and record the offer event."""
+        application = await self._owned(user_id, application_id)
+        application.offer = offer
+        record_event(
+            self.db,
+            application,
+            kind=ApplicationEventKind.OFFER_RECEIVED,
+            actor=ApplicationActor.USER,
+            meta={"offer": offer},
+        )
+        await self.db.commit()
+        await self.db.refresh(application)
+        return application
+
+    async def clear_offer(self, user_id: uuid.UUID, application_id: uuid.UUID) -> Application:
+        """Remove structured offer details without changing the stage."""
+        application = await self._owned(user_id, application_id)
+        application.offer = {}
+        record_event(
+            self.db,
+            application,
+            kind=ApplicationEventKind.NOTE,
+            actor=ApplicationActor.USER,
+        )
+        await self.db.commit()
+        await self.db.refresh(application)
+        return application
+
+    async def set_contact(
+        self, user_id: uuid.UUID, application_id: uuid.UUID, contact_id: uuid.UUID | None
+    ) -> Application:
+        """Attach/clear the person around an application (owned both sides)."""
+        application = await self._owned(user_id, application_id)
+        if contact_id is not None:
+            from app.services.profile.contact_service import ContactService
+
+            await ContactService(self.db).get(user_id, contact_id)
+        application.contact_id = contact_id
+        await self.db.commit()
+        await self.db.refresh(application)
+        return application
+
     async def list_applications(
         self,
         user_id: uuid.UUID,

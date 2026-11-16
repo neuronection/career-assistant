@@ -1,0 +1,28 @@
+# Career Assistant — cloud object-storage overlay (ADR-0057 / plan 55 P2).
+#
+# Combine with the prod or standalone stack for an AWS/Azure deployment:
+#
+#   docker compose -f docker/docker-compose.prod.yml \
+#                  -f docker/docker-compose.cloud.yml up -d
+#
+# The overlay turns the base stack's "empty defaults keep local" pass-through
+# into hard interpolation guards: a cloud deployment cannot start with an
+# unset profile or backend. Provider values (CAREER_S3_*,
+# CAREER_AZURE_STORAGE_*) stay in docker/.env; the app's boot validator
+# rejects a missing bucket/container, credential pair, non-TLS endpoint or
+# SSE=none before serving traffic.
+#
+# Object bytes live in the provider, so the app container is stateless for
+# them: the uploads volume is reset (Compose >= 2.24 for `!reset`). The
+# compose `backup` sidecar is database-only in this stack — there is no
+# uploads tar to skip; provider durability/versioning covers document bytes.
+
+name: career-assistant
+
+services:
+  app:
+    environment:
+      CAREER_CLOUD_PROFILE: ${CAREER_CLOUD_PROFILE:?Set CAREER_CLOUD_PROFILE to aws, azure, gcp or cloud}
+      CAREER_OBJECT_STORAGE_BACKEND: ${CAREER_OBJECT_STORAGE_BACKEND:?Set CAREER_OBJECT_STORAGE_BACKEND to s3 or azure_blob}
+      CAREER_OBJECT_STORAGE_REQUIRED: "true"
+    volumes: !reset []

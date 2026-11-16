@@ -55,6 +55,14 @@ to the builder copilot on build intent. The copilot:
 
 See [CV Studio overview](cv-studio.md) for the workspace it operates.
 
+## Dictation
+
+The composer's mic turns speech into draft text. It appears unless the
+effective `transcribe` assignment is explicitly unconfigured; in that case
+the composer shows **Dictation unavailable** with a direct link to
+Settings → AI → Tasks. If the configuration cannot be read, the mic stays
+visible rather than locking the feature out on a guess.
+
 ## Postings in chat
 
 Every posting has a short **ref id** the chatbot understands. You can ask for

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
+from app.ai.agents.context import context_json
 from app.ai.agents.posting_extractor import PostingExtract
 from app.ai.agents.skill_relation_suggest import SkillEdgeVerdictSet
 from app.ai.agents.skill_resolver import SkillResolution
@@ -30,6 +31,7 @@ from app.ai.schemas import (
     UniversityExtraction,
 )
 from app.models.enums import AITaskType
+from app.schemas.contact import OutreachDraftAI
 from app.schemas.cv_extract import CvExtract
 
 if TYPE_CHECKING:
@@ -90,6 +92,13 @@ def _check_chat_cv_reference(reply: ChatReply) -> None:
     assert "Backend CV" in reply.answer
     assert "Reference only" in reply.answer
     assert not reply.profile_ops
+
+
+def _check_outreach(draft: OutreachDraftAI) -> None:
+    assert draft.subject and draft.body
+    assert draft.evidence_refs
+    allowed = {"contact", "application", "posting", "profile"}
+    assert all(ref.source in allowed for ref in draft.evidence_refs)
 
 
 def _check_match(result: MatchResult) -> None:
@@ -156,7 +165,7 @@ def _check_job_type_map_existing(proposal) -> None:
 def _check_job_type_create(expected_title: str):
     def check(proposal) -> None:
         from app.ai.agents.job_type_proposer import JobTypeDecision
-        from app.services.postings.job_type_text import job_type_key
+        from app.core.job_titles import job_type_key
 
         assert proposal.action is JobTypeDecision.CREATE
         assert job_type_key(proposal.title or "") == job_type_key(expected_title)
@@ -389,11 +398,9 @@ def _build_cases() -> list[GoldenCase]:
         JobTypeProposalOut,
         build_user_prompt,
     )
-    from app.ai.agents.posting_extractor import PostingExtract
     from app.ai.agents.prompts import CHATBOT, MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
     from app.ai.agents.skill_relation_suggest import build_pair_prompt
     from app.ai.agents.skill_resolver import build_labels_prompt
-    from app.schemas.cv_extract import CvExtract
     from app.services.postings.job_type_candidates import JobTypeCandidate
 
     cases = [
@@ -822,6 +829,25 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.POSTING_SKILL_RESOLVE.value),
             check=_check_skill_resolution,
+        ),
+        GoldenCase(
+            task=AITaskType.ASSIST.value,
+            schema=OutreachDraftAI,
+            system="Draft one short outreach message from supplied facts only.",
+            user=context_json(
+                {
+                    "kind": "intro",
+                    "contact": {"name": "Ada", "org": "Acme", "role": "Talent"},
+                    "application": {"stage": "applied"},
+                    "posting": {"org": "Acme", "title": "Data Analyst"},
+                    "evidence": [
+                        {"source": "contact", "label": "contact", "quote": "Ada"},
+                        {"source": "posting", "label": "role", "quote": "Data Analyst"},
+                    ],
+                }
+            ),
+            prompt_version=_blessed(AITaskType.ASSIST.value),
+            check=_check_outreach,
         ),
     ]
     planner_system, planner_user = _autopilot_planner_prompt()

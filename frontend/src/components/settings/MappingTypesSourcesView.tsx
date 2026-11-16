@@ -7,6 +7,7 @@ import { apiDetail } from "@/api/client";
 import { Badge, EmptyState, Spinner } from "@/components/ui";
 
 const STATE_ORDER = [
+  "detail_failed",
   "no_description",
   "detail_not_fetched",
   "extract_failed",
@@ -83,12 +84,15 @@ export function MappingTypesSourcesView() {
             <tbody>
               {sources.map((source) => {
                 const topReason = STATE_ORDER.map(
-                  (state) =>
-                    [state, source.states[state] ?? 0] as [
+                  (state, index) =>
+                    [state, source.states[state] ?? 0, index] as [
                       (typeof STATE_ORDER)[number],
                       number,
+                      number,
                     ],
-                ).filter(([, count]) => count > 0)[0];
+                )
+                  .filter(([, count]) => count > 0)
+                  .sort((left, right) => right[1] - left[1] || left[2] - right[2])[0];
                 return (
                   <tr key={source.source_id} data-testid="mappings-source-row">
                     <td className="px-3 py-2">

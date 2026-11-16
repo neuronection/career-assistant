@@ -37,6 +37,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     apt-get update \
     && apt-get install -y --no-install-recommends git \
     && uv sync --frozen --no-dev \
+        --extra object-storage-s3 \
+        --extra object-storage-azure \
     && apt-get purge -y git \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*

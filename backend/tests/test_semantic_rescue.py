@@ -525,7 +525,7 @@ async def test_a_degraded_signal_keeps_the_overlap_only_verdict(db, source, stub
 
     assert posting.mapping_method is None
     assert posting.status == "new"
-    assert posting.mapping_reason == "best overlap 0.05 below 0.34 — moderation"
+    assert posting.mapping_reason == "best overlap 0.09 below 0.34 — moderation"
     semantic = posting.posting_facts["mapping_signals"]["semantic"]
     assert semantic["degraded"] == "provider_unassigned"
     assert semantic["candidates"] == []
@@ -597,7 +597,7 @@ async def test_both_signals_weak_stays_in_moderation(db, source, stub_signal):
 
     assert posting.mapping_method is None
     assert posting.status == "new"
-    assert "best overlap 0.05 below 0.34" in posting.mapping_reason
+    assert "best overlap 0.09 below 0.34" in posting.mapping_reason
     assert "semantic top 0.31 below 0.6" in posting.mapping_reason
     assert posting.posting_facts["mapping_signals"]["semantic"]["candidates"]
 

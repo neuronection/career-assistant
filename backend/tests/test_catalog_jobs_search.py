@@ -358,7 +358,7 @@ async def test_open_roles_is_one_batch_and_list_only(client, auth_headers, db):
 
     detail = await client.get("/api/v1/jobs/alpha-role", headers=auth_headers)
     assert detail.status_code == 200
-    assert detail.json()["open_roles"] is None
+    assert detail.json()["open_roles"] == 2
 
 
 async def test_facets_never_leak_job_text(client, auth_headers, db):

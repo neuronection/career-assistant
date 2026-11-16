@@ -8,6 +8,8 @@ fresh timeline) so the drawer never needs a second round-trip.
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -22,13 +24,20 @@ from app.schemas.application import (
     ApplicationEventOut,
     ApplicationListOut,
     ApplicationNoteIn,
+    ApplicationOfferIn,
     ApplicationOut,
     ApplicationSnoozeIn,
     ApplicationTransitionIn,
     FunnelOut,
+    OfferComparisonItem,
+    OfferComparisonOut,
 )
+from app.schemas.kit import ApplicationKitOut
 from app.services.deps import get_current_user
+from app.services.postings.application_insights_service import application_insights
 from app.services.postings.applications_service import ApplicationService
+from app.services.postings.ics_import_service import import_ics
+from app.services.postings.offer_compare_service import offer_comparison
 
 router = APIRouter(prefix="/me/applications", tags=["applications"])
 
@@ -47,7 +56,7 @@ def _out(application: Application, posting: JobPosting | None) -> ApplicationOut
         applied_via_url=application.applied_via_url,
         deadline_at=application.deadline_at,
         next_followup_at=application.next_followup_at,
-        contact=application.contact or {},
+        contact_id=application.contact_id,
         offer=application.offer or {},
         outcome=application.outcome,
         closed_at=application.closed_at,
@@ -123,6 +132,87 @@ async def create_application(
     return await _detail(db, user.id, application.id)
 
 
+class ApplicationContactIn(BaseModel):
+    contact_id: UUID | None = None
+
+
+@router.post("/{application_id}/contact", response_model=ApplicationOut)
+async def set_application_contact(
+    application_id: UUID,
+    payload: ApplicationContactIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    application = await ApplicationService(db).set_contact(
+        user.id, application_id, payload.contact_id
+    )
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.id == application.posting_id)))
+        .scalars()
+        .first()
+    )
+    return _out(application, posting)
+
+
+class IcsImportIn(BaseModel):
+    ics: str = Field(min_length=10, max_length=2_000_000)
+    apply: bool = False
+
+
+@router.post("/import/ics")
+async def applications_import_ics(
+    payload: IcsImportIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Review-first ICS import: VEVENTs → proposed interview links."""
+    return await import_ics(db, user.id, payload.ics, apply=payload.apply)
+
+
+@router.get("/insights")
+async def applications_insights(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Descriptive tailored/untailored response rates with n and suppression."""
+    return await application_insights(db, user.id)
+
+
+@router.get("/offers/compare", response_model=OfferComparisonOut)
+async def compare_offers(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> OfferComparisonOut:
+    """Normalized comp/benefits/location/CoL/deadline for up to four offers."""
+    items, total, mixed = await offer_comparison(db, user.id)
+    return OfferComparisonOut(
+        items=[OfferComparisonItem(**item) for item in items],
+        total=total,
+        mixed_currencies=mixed,
+    )
+
+
+@router.post("/{application_id}/offer", response_model=ApplicationDetailOut)
+async def set_application_offer(
+    application_id: UUID,
+    data: ApplicationOfferIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ApplicationDetailOut:
+    """Store structured offer details; the stage is never changed automatically."""
+    await ApplicationService(db).set_offer(user.id, application_id, data.model_dump(mode="json"))
+    return await _detail(db, user.id, application_id)
+
+
+@router.delete("/{application_id}/offer", response_model=ApplicationDetailOut)
+async def clear_application_offer(
+    application_id: UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ApplicationDetailOut:
+    """Remove offer details without touching the application stage."""
+    await ApplicationService(db).clear_offer(user.id, application_id)
+    return await _detail(db, user.id, application_id)
+
+
 @router.get("/{application_id}", response_model=ApplicationDetailOut)
 async def get_application(
     application_id: UUID,
@@ -131,6 +221,20 @@ async def get_application(
 ) -> ApplicationDetailOut:
     """One application with its reverse-chronological timeline."""
     return await _detail(db, user.id, application_id)
+
+
+@router.get("/{application_id}/kit", response_model=ApplicationKitOut)
+async def get_application_kit(
+    application_id: UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ApplicationKitOut:
+    """The application's kit (plan 212 S1.3): the posting kit plus the
+    event timeline and the linked documents. Ownership-checked — a
+    foreign application is a 404 like every other application read."""
+    from app.services.postings.application_kit_service import ApplicationKitService
+
+    return await ApplicationKitService(db).application_kit(user.id, application_id)
 
 
 @router.post("/{application_id}/transition", response_model=ApplicationDetailOut)

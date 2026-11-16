@@ -138,6 +138,22 @@ describe("ItemBulletsEditorModal", () => {
     expect(screen.queryByTestId("bullet-chip-0")).toBeNull();
   });
 
+  it("checks bullets and renders the deterministic findings", async () => {
+    const user = userEvent.setup();
+    const onCheck = vi.fn().mockResolvedValue([
+      {
+        index: 0,
+        checks: [{ id: "no_number", level: "warn", message: "No number — add a metric." }],
+      },
+    ]);
+    mount({ onCheck });
+    await user.click(screen.getByTestId("bullets-editor-check"));
+    expect(await screen.findByTestId("bullet-checks-0")).toHaveTextContent(
+      "No number"
+    );
+    expect(onCheck).toHaveBeenCalledWith(["Shipped the QA harness"]);
+  });
+
   it("generate is dirty-guarded when the editor has unsaved edits", async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);

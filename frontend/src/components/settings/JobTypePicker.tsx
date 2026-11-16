@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { fetchModerationQueue } from "@/api/admin";
+import { fetchJobs } from "@/api/jobs";
 import type { MappingCandidate } from "@/api/mappings";
 import { Input } from "@neuronection/assistant-ui";
 import type { Job } from "@/types/wire";
@@ -39,10 +39,26 @@ export function JobTypePicker({
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetchModerationQueue("published", 200)
-      .then(setJobs)
-      .catch(() => setLoadError(true));
-  }, []);
+    let active = true;
+    const timer = window.setTimeout(() => {
+      fetchJobs({
+        q: query.trim() || undefined,
+        status: "published",
+        page_size: 50,
+        with_facets: false,
+      })
+        .then((page) => {
+          if (active) setJobs(page.items ?? []);
+        })
+        .catch(() => {
+          if (active) setLoadError(true);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
 
   const options = useMemo<PickerOption[]>(() => {
     const seen = new Set<string>();
@@ -53,7 +69,7 @@ export function JobTypePicker({
       rows.push({
         id: candidate.job_id,
         code: candidate.job_code,
-        title: "",
+        title: candidate.job_title ?? "",
         candidate: true,
       });
     }
@@ -84,11 +100,7 @@ export function JobTypePicker({
           {t("mappingsConsole.triage.pickerLoadError")}
         </p>
       )}
-      {jobs.length >= 200 && (
-        <p className="text-xs text-slate-500" data-testid="job-type-picker-truncated">
-          {t("mappingsConsole.triage.pickerTruncated")}
-        </p>
-      )}
+
       <select
         className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm text-[var(--as-fg)]"
         value={value ?? ""}

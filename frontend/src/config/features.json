@@ -1,10 +1,64 @@
 {
   "features": [
     {
+      "key": "/",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/workspace.md"
+    },
+    {
+      "key": "/chat",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/assistant-chat.md"
+    },
+    {
+      "key": "/onboarding",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/onboarding-and-profile.md"
+    },
+    {
       "key": "/onboarding/setup",
       "state": "on",
       "since": "2026-10-21",
       "docs": "docs/user/ai-setup.md"
+    },
+    {
+      "key": "/onboarding/express",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/onboarding-and-profile.md"
+    },
+    {
+      "key": "/catalog",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/explore-the-catalog.md"
+    },
+    {
+      "key": "/catalog/universities",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/universities.md"
+    },
+    {
+      "key": "/jobs",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/explore-the-catalog.md"
+    },
+    {
+      "key": "/rankings",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/matching-and-rankings.md"
+    },
+    {
+      "key": "/compare",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/matching-and-rankings.md"
     },
     {
       "key": "/postings",
@@ -17,6 +71,24 @@
       "state": "on",
       "since": "2026-10-21",
       "docs": "docs/user/applications.md"
+    },
+    {
+      "key": "/applications/offers",
+      "state": "on",
+      "since": "2026-11-12",
+      "docs": "docs/user/applications.md"
+    },
+    {
+      "key": "/contacts",
+      "state": "beta",
+      "since": "2026-11-12",
+      "docs": "docs/user/outreach.md"
+    },
+    {
+      "key": "/radar",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/job-radar.md"
     },
     {
       "key": "/autopilot",
@@ -53,6 +125,60 @@
       "state": "beta",
       "since": "2026-10-31",
       "docs": "docs/user/market-stats.md"
+    },
+    {
+      "key": "/postings/capture-help",
+      "state": "on",
+      "since": "2026-11-12",
+      "docs": "docs/user/capture.md"
+    },
+    {
+      "key": "/cv",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/cv-studio.md"
+    },
+    {
+      "key": "/guides/market",
+      "state": "on",
+      "since": "2026-11-12",
+      "docs": "docs/user/market-guide.md"
+    },
+    {
+      "key": "/profile",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/onboarding-and-profile.md"
+    },
+    {
+      "key": "/skills",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/skills.md"
+    },
+    {
+      "key": "/sources",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/add-a-job-source.md"
+    },
+    {
+      "key": "/extensions",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/add-a-job-source.md"
+    },
+    {
+      "key": "/about",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/README.md"
+    },
+    {
+      "key": "/settings",
+      "state": "on",
+      "since": "2026-11-11",
+      "docs": "docs/user/settings.md"
     },
     {
       "key": "/settings/taxonomy",

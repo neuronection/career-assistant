@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-06",
+  "updated": "2026-11-13",
   "capabilities": [
     {
       "id": "update-checks",
@@ -30,11 +30,11 @@
     {
       "id": "job-catalog",
       "verb": "Discover careers you didn't know exist",
-      "summary": "A structured job catalog you browse as a family tree, a typed relation graph and a filterable card grid, extendable with AI-generated careers that map onto the same taxonomy.",
+      "summary": "A structured job catalog you browse as a family tree, a family-packed relation graph with relation filters, search and job focus, plus a filterable card grid, extendable with AI-generated careers on the same taxonomy.",
       "category": "discover",
       "status": "shipped",
       "proofs": [
-        "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
+        "Typed edges render as a family-packed constellation with relation filters, title search, node focus and an explicit Open job action",
         "Rich structured attributes per job: skills with requirement levels, salary bands, demand, education, schedule, travel and work hours",
         "Catalog cards show open live-role counts (one aggregate per page), salary band, skill levels and a mapped-postings link",
         "Catalog filters cover family, skills, education, demand, salary, contract, schedule, travel and environment, with facet counts and URL state",
@@ -91,7 +91,9 @@
       "proofs": [
         "Exports to PDF, DOCX, Markdown, JSON and ATS text; the PDF is the page-count truth",
         "Versions carry diff, image-diff and one-click restore for every AI edit",
-        "Live ATS lint and a page-count meter run inside the builder"
+        "Parser view shows what our own extractor reads from the printed PDF - text, order and contact - never a vendor simulation",
+        "Live ATS lint and a page-count meter run inside the builder",
+        "The posting kit reuses your documents: requirement report, deterministic prep and the measured checklist before you apply"
       ],
       "metric": {
         "value": "5",
@@ -124,9 +126,9 @@
       "status": "shipped",
       "proofs": [
         "Answers ground in your own data via tool-calling; long runs show a readable progress trace",
-        "Profile edits are anchored proposal cards with rendered before/after previews and one-click revert",
-        "A read-before-edit gate makes the assistant open an item's full content before proposing edits",
+        "Profile edits are anchored proposal cards with before/after previews and one-click revert, behind a read-before-edit gate",
         "The builder copilot sees rendered CV pages and applies validated operations on one audited path",
+        "Dictation appears unless the effective speech-to-text assignment is explicitly unconfigured, where a settings link replaces the mic",
         "Postings carry short ref ids — ask by board, recency or reference and get Explore deep-links"
       ],
       "links": [
@@ -167,7 +169,7 @@
       "links": [
         {
           "kind": "guide",
-          "href": "docs/career/user/postings-and-search"
+          "href": "docs/career/user/applications"
         }
       ],
       "platforms": [
@@ -180,7 +182,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted, employer names resolved; card menus filter with undo; catalogs layer operator/community presets.",
+      "summary": "Seventeen connectors pull deep-extracted postings with resolved employers, eligibility signals and an evidence-backed gap report; Explore filters by opportunity type, visa and closing window, plus trust signals.",
       "category": "integrate",
       "status": "beta",
       "links": [
@@ -199,6 +201,215 @@
         "desktop"
       ],
       "order": 40
+    },
+    {
+      "id": "posting-capture",
+      "verb": "Capture a posting from any job board",
+      "summary": "A bookmarklet and confirmation dialog land one page through the existing paste-a-URL path; the canonical URL makes a second capture return the same posting.",
+      "category": "integrate",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/capture"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 41
+    },
+    {
+      "id": "json-resume",
+      "verb": "Move your profile in and out as JSON Resume",
+      "summary": "Export the structured profile in the community shape and import a file through a review report that lists mapped fields, dropped keys and warnings; nothing writes until you apply.",
+      "category": "integrate",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/onboarding-and-profile"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 42
+    },
+    {
+      "id": "ics-import",
+      "verb": "Bring interview invitations in from your calendar",
+      "summary": "A Google/Outlook .ics export is parsed into reviewable interview proposals linked to applications; timezones normalize to UTC, duplicates are flagged, and nothing writes until you apply.",
+      "category": "integrate",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/applications"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 43
+    },
+    {
+      "id": "application-insights",
+      "verb": "Learn from your own application response rates",
+      "summary": "A descriptive tailored-vs-untailored response card over your applications, with n disclosed, suppression below 10 per group, one next action and no causal or cross-user claim.",
+      "category": "analyze",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/applications"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 44
+    },
+    {
+      "id": "salary-benchmarks",
+      "verb": "Read posted-pay benchmarks with an honest sample",
+      "summary": "Per job or family, country and seniority cells with n, p25/p50/p75, suppression below 10, per-currency only, posted-range bias and no invented reference line.",
+      "category": "analyze",
+      "status": "beta",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-stats"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 46
+    },
+    {
+      "id": "posting-safety",
+      "verb": "Check a posting before you apply",
+      "summary": "Six deterministic signals from the posting text — fee, personal email, messenger contact, vague org, pay outlier, short link — each with a quote or factual value and no scam verdict.",
+      "category": "analyze",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 47
+    },
+    {
+      "id": "degree-roles",
+      "verb": "Find roles that fit your degree",
+      "summary": "Deterministic programme/focus-subject mapping to job families with a bounded one-level family-tree expansion (matched family, parent and siblings), shown as an opt-in Explore filter with a localized reason.",
+      "category": "discover",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 48
+    },
+    {
+      "id": "market-guide",
+      "verb": "Prepare for the market you are applying in",
+      "summary": "Claim-linked UK and DACH guidance for grade orientation (German decimal and Austrian whole-number scales), CV conventions, application norms and hiring cycles, with dated sources and locale-aware copy.",
+      "category": "analyze",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-guide"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 49
+    },
+    {
+      "id": "nace-competencies",
+      "verb": "Show the competencies your evidence supports",
+      "summary": "Evidence-derived NACE career-readiness view over experiences, achievements, skills and certifications: every competency cites evidence or says none, with no self-rating or score.",
+      "category": "analyze",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/growth"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 50
+    },
+    {
+      "id": "offer-comparison",
+      "verb": "Compare offers side by side",
+      "summary": "Annualize up to four recorded offers and compare pay, benefits, location, cost of living and deadline, with mixed currencies flagged and no invented benefits or negotiation advice.",
+      "category": "analyze",
+      "status": "shipped",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/applications"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 51
+    },
+    {
+      "id": "contacts-outreach",
+      "verb": "Keep the people around your applications in reach",
+      "summary": "A flat contact list with an interaction log and copy-only grounded drafts; no sending, scraping or enrichment, and no second follow-up cadence.",
+      "category": "analyze",
+      "status": "beta",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/outreach"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 45
     },
     {
       "id": "market-stats",
@@ -298,7 +509,7 @@
       "links": [
         {
           "kind": "guide",
-          "href": "docs/career/user/explore-the-catalog"
+          "href": "docs/career/user/career-paths"
         }
       ],
       "platforms": [
@@ -392,15 +603,15 @@
     {
       "id": "catalog-mapping-ops",
       "verb": "Get every job post honestly mapped or accounted for",
-      "summary": "An admin console for the job-post → job-type mapping: the honest funnel, a filterable triage queue with typed outcomes and a decision trace, per-source and per-type breakdowns, and read-only run controls.",
+      "summary": "An admin console and consumer surfaces for the job-post → job-type correlation: two-way coverage, honest funnel, weak-review queue, recorded extract truth, guarded type identity, bulk actions and visible catalog links.",
       "category": "analyze",
       "status": "shipped",
       "proofs": [
-        "The accounted-for gate separates mapped, machine-terminal and human-reviewed postings — a floor, never a forced 100% mapped",
-        "The triage queue filters by funnel state (not extracted, no description, needs review…) with bounded bulk extract/re-decide/ignore/unmap",
-        "Every decision writes a typed outcome (mapped/unmapped + closed reason); the ignore overlay answers 409 unmap-first on a mapped posting",
-        "Per-source and per-job-type breakdowns flag zero-posting types and cluster the proposed types waiting in the queue",
-        "The decision trace shows outcome, signals, top candidates and the journal — never prompt or response text"
+        "Two-way coverage plus title ordering: titles only reorder gated candidates, never map one",
+        "Weak-review queue: deterministic margin below δ or semantic confidence below 0.65, filterable and sampled",
+        "Recorded extract status: success/failed latest attempt; terminal failure wins, retryable keeps the prior status",
+        "One-transaction bulk map (200 cap, per-row journal) plus detail-now and re-propose row actions",
+        "Title-key guard and exact-only merge; near duplicates informational; cards/Explore link type titles and successors"
       ],
       "platforms": [
         "selfhosted",
@@ -462,7 +673,8 @@
         "POST /api/v1/me/export builds the archive as a background job; the account page polls and offers the download",
         "GDPR-style full export: profiles, applications, documents and settings as JSON inside a zip",
         "Signed-in devices list with per-device sign-out, sign-out-everywhere and password change (identity-auth §12)",
-        "Account deletion cascades everything, confirmed by password with an armed two-step control"
+        "Account deletion cascades everything, confirmed by password with an armed two-step control",
+        "A pre-v0.17 desktop datastore is moved aside on upgrade, never deleted; a one-time notice shows where"
       ],
       "order": 65
     },
@@ -543,6 +755,119 @@
         "desktop"
       ],
       "order": 73
+    },
+    {
+      "id": "application-kit",
+      "verb": "Turn a saved posting into one reviewable application",
+      "summary": "One workspace per posting: the evidence-first gap report, a tailored CV variant, a cover letter, reusable screening answers and a sourced checklist, with every step an explicit review action.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "The gap report lists each requirement with the posting's quote and your evidence, never a headline percentage",
+        "Answers are user-written and reused per prompt key; nothing is generated or auto-filled",
+        "The checklist reads the posting's expiry, the measured PDF page count and static guidance"
+      ],
+      "order": 25,
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/application-kit"
+        }
+      ]
+    },
+    {
+      "id": "eligibility-gates",
+      "verb": "See the visa, language and grade gates before you apply",
+      "summary": "A posting that states sponsorship, language or grade requirements is checked against your profile; unknown signals never exclude, and an explicit override removes the gate without invalidating your cached fit.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Unknown posting or profile signals stay neutral; only a stated requirement gates",
+        "A per-posting override is stored and audited; the fit recomputes only when your data changes",
+        "Grades compare only within the same scale (UK honours, GPA 4/10, German Note, percentage)"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 44
+    },
+    {
+      "id": "interview-stories",
+      "verb": "Walk into behavioral interviews with your own STAR stories",
+      "summary": "A story library with competency tags and situation/task/action/result blocks; suggestions come from experience items you have not linked yet, and up to three stories feed your practice plan.",
+      "category": "ai",
+      "status": "shipped",
+      "proofs": [
+        "Stories are yours — the assistant suggests which experience to turn into one, never writes the STAR text",
+        "Up to three stories are prepended to an interview plan as behavioral questions citing the story"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/interviews"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 61
+    },
+    {
+      "id": "bullet-coach",
+      "verb": "Turn weak CV bullets into specific, verifiable lines",
+      "summary": "A deterministic checklist flags vague verbs, missing outcomes and unsupported claims, then offers cited rewrites for review; nothing is applied without you.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "The check is deterministic and runs without AI; AI rewrites cite the evidence they use",
+        "Every suggestion is a review card — the bullet changes only when you apply it"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/cv-variants"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 62
+    },
+    {
+      "id": "ai-cost-controls",
+      "verb": "Know what every AI call costs — and override the price",
+      "summary": "Each audited call records tokens, latency and a cost from the provider's usage, built-in list prices or an admin override; an unknown price stays empty rather than showing zero.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Cost provenance names the source: provider-reported, built-in list price, local (zero), user override or unknown",
+        "Price overrides are an admin-only surface; the per-model cost view aggregates the audit rows",
+        "Unpriced calls count separately and are never guessed"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 70
     }
   ],
   "useCases": [

@@ -53,6 +53,9 @@ class FakeResponse:
     async def aiter_bytes(self):
         yield self._content
 
+    async def aclose(self):
+        return None
+
     @property
     def text(self):
         if self._json_data is None:
@@ -65,12 +68,20 @@ class FakeResponse:
         return self._json_data
 
 
+class _FakeRequest:
+    def __init__(self, method, url, headers):
+        self.method = method
+        self.url = url
+        self.headers = headers
+        self.extensions: dict = {}
+
+
 def _route(monkeypatch, routes: dict):
     from httpx import ConnectError
 
-    async def get(url, params=None, headers=None):
+    async def pick(url, host, params=None, headers=None):
         for key, resp in routes.items():
-            if key in url:
+            if key in url or key in host:
                 if callable(resp):
                     result = resp(url, params, headers)
                     if getattr(type(result), "__await__", None):
@@ -79,10 +90,21 @@ def _route(monkeypatch, routes: dict):
                 return resp
         raise ConnectError(f"no route for {url!r}")
 
-    client = type("FakeClient", (), {})()
-    client.is_closed = False
-    client.get = get
-    monkeypatch.setattr(webfetch, "_client", lambda: client)
+    class FakeClient:
+        is_closed = False
+
+        def build_request(self, method, url, headers=None):
+            return _FakeRequest(method, str(url), dict(headers or {}))
+
+        async def send(self, request, stream=False):
+            return await pick(
+                str(request.url), request.headers.get("host", ""), None, request.headers
+            )
+
+        async def get(self, url, params=None, headers=None):
+            return await pick(str(url), "", params, headers)
+
+    monkeypatch.setattr(webfetch, "_client", lambda: FakeClient())
 
 
 _PUBLIC = "93.184.216.34"

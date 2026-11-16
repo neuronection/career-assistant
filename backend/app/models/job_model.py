@@ -10,9 +10,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.job_titles import job_type_key
 from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
@@ -50,6 +52,7 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     code: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
+    title_key: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     family_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("job_families.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -162,3 +165,10 @@ class JobTag(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     job: Mapped[Job] = relationship(back_populates="tag_links")
     tag: Mapped["InterestTag"] = relationship()
+
+
+@event.listens_for(Job, "before_insert")
+@event.listens_for(Job, "before_update")
+def _derive_job_title_key(_mapper, _connection, target: Job) -> None:
+    """Keep ``title_key`` derived from the title on every ORM write."""
+    target.title_key = job_type_key(target.title)[:200]

@@ -99,7 +99,6 @@ function constraintChips(goal: AutopilotGoal): string[] {
   const offKeys: (keyof ProfileUsage)[] = [
     "use_skills",
     "use_education",
-    "use_languages",
     "use_location",
     "use_experience",
     "use_lifestyle",
@@ -160,11 +159,6 @@ const USAGE_TOGGLE_KEYS: { key: keyof ProfileUsage; labelKey: string; hintKey: s
     hintKey: "autopilot.profileUsage.toggles.use_education.description",
   },
   {
-    key: "use_languages",
-    labelKey: "autopilot.profileUsage.toggles.use_languages.label",
-    hintKey: "autopilot.profileUsage.toggles.use_languages.description",
-  },
-  {
     key: "use_location",
     labelKey: "autopilot.profileUsage.toggles.use_location.label",
     hintKey: "autopilot.profileUsage.toggles.use_location.description",
@@ -205,11 +199,9 @@ function usageSummary(
   );
   const languages = snapshot?.languages?.map((row) => row.code) ?? [];
   lines.push(
-    profile.use_languages
-      ? languages.length
-        ? t("autopilot.summary.languages", { items: languages.join(", ") })
-        : t("autopilot.summary.languagesNone")
-      : t("autopilot.summary.languagesUnused")
+    languages.length
+      ? t("autopilot.summary.languages", { items: languages.join(", ") })
+      : t("autopilot.summary.languagesNone")
   );
   if (!profile.use_experience) {
     lines.push(t("autopilot.summary.stageUnused"));
@@ -464,7 +456,6 @@ function GoalModal({
               <div className="mt-3 space-y-3" data-testid="usage-section">
                 {draft.profile.use_skills &&
                 draft.profile.use_education &&
-                draft.profile.use_languages &&
                 draft.profile.use_location &&
                 draft.profile.use_experience &&
                 draft.profile.use_lifestyle ? null : (

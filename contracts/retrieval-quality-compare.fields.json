@@ -1,0 +1,28 @@
+{
+  "$comment": "Wire field names for the retrieval quality-compare payload (QualityCompareDTO.to_dict()). The admin retrieval API returns untyped dicts, so this list is the single cross-language pin: backend/tests/test_retrieval_quality_contract.py asserts the vendored DTO keys exactly, and frontend/src/tests/retrievalQualityContract.test.tsx builds the rendered payload from this list. Rename the fields in the vendored canonical, this file and every consumer in the same commit.",
+  "fields": [
+    "baseline_space_id",
+    "new_space_id",
+    "set_version",
+    "k",
+    "baseline_recall_at_k",
+    "baseline_precision_at_k",
+    "new_recall_at_k",
+    "new_precision_at_k",
+    "passed",
+    "floor_recall",
+    "floor_precision",
+    "required_for_activation",
+    "queries",
+    "generated_at"
+  ],
+  "query_fields": [
+    "query_id",
+    "expected_document_ids",
+    "retrieved_document_ids",
+    "recall_at_k",
+    "precision_at_k",
+    "missing_document_ids",
+    "passed"
+  ]
+}

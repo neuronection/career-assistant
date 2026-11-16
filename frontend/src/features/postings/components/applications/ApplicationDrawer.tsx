@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import { PackageCheck } from "lucide-react";
 import { Textarea } from "@neuronection/assistant-ui/textarea";
 
 import {
   addApplicationNote,
+  clearApplicationOffer,
   closeApplication,
   fetchApplication,
   linkApplicationDocument,
+  setApplicationOffer,
   snoozeApplicationFollowup,
   transitionApplication,
 } from "@/api/applications";
 import { fetchCvs } from "@/api/cv";
+import { fetchContacts, setApplicationContact, type Contact } from "@/api/contacts";
 import { apiDetail } from "@/api/client";
 import { Button, PanelModal, Spinner } from "@/components/ui";
 import { SelectField, StepperRow, TextareaField } from "@/features/cv/components/cv/formPrimitives";
 import type {
   ApplicationDetail,
+  ApplicationOffer,
   ApplicationOutcome,
   ApplicationStage,
 } from "@/types/application";
@@ -58,6 +64,39 @@ function stageLabel(stage: string, t: (key: string) => string): string {
 /** The application detail drawer (plan 116.4): reverse-chron timeline,
  * note composer, stage control, document links, follow-up snooze and
  * close-with-outcome. Every mutation resolves through the service API. */
+interface OfferForm {
+  currency: string;
+  amount: string;
+  period: ApplicationOffer["period"];
+  benefits: string;
+  location: string;
+  cost_of_living: string;
+  deadline: string;
+}
+
+const EMPTY_OFFER: OfferForm = {
+  currency: "EUR",
+  amount: "",
+  period: "year",
+  benefits: "",
+  location: "",
+  cost_of_living: "",
+  deadline: "",
+};
+
+function offerFormFrom(offer: Partial<ApplicationOffer>): OfferForm {
+  return {
+    currency: offer.currency ?? "EUR",
+    amount: offer.amount == null ? "" : String(offer.amount),
+    period: offer.period ?? "year",
+    benefits: (offer.benefits ?? []).join(", "),
+    location: offer.location ?? "",
+    cost_of_living:
+      offer.cost_of_living == null ? "" : String(offer.cost_of_living),
+    deadline: offer.deadline ?? "",
+  };
+}
+
 export function ApplicationDrawer({
   applicationId,
   open,
@@ -81,6 +120,9 @@ export function ApplicationDrawer({
   const [closeNote, setCloseNote] = useState("");
   const [cvId, setCvId] = useState("");
   const [coverLetterId, setCoverLetterId] = useState("");
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactId, setContactId] = useState("");
+  const [offerForm, setOfferForm] = useState<OfferForm>(EMPTY_OFFER);
 
   useEffect(() => {
     if (applicationId === null) {
@@ -93,9 +135,18 @@ export function ApplicationDrawer({
         setStage(row.stage);
         setCvId(row.cv_id ?? "");
         setCoverLetterId(row.cover_letter_id ?? "");
+        setContactId(row.contact_id ?? "");
+        setOfferForm(offerFormFrom(row.offer));
       })
       .catch((exc) => setError(apiDetail(exc)));
   }, [applicationId]);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetchContacts()
+      .then(setContacts)
+      .catch(() => setContacts([]));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +167,7 @@ export function ApplicationDrawer({
       setStage(next.stage);
       setCvId(next.cv_id ?? "");
       setCoverLetterId(next.cover_letter_id ?? "");
+      setOfferForm(offerFormFrom(next.offer));
       onChanged();
     } catch (exc) {
       setError(apiDetail(exc));
@@ -155,6 +207,14 @@ export function ApplicationDrawer({
                 {t(`applications.outcome.${detail.outcome}`)}
               </span>
             )}
+            <Link
+              to={`/applications/${detail.id}`}
+              className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[var(--as-accent)] hover:underline"
+              data-testid="application-drawer-kit"
+            >
+              <PackageCheck className="size-3.5" aria-hidden />
+              {t("applications.kit.drawerAction")}
+            </Link>
           </div>
 
           <section className="grid gap-3 sm:grid-cols-3">
@@ -300,6 +360,191 @@ export function ApplicationDrawer({
             </Button>
           </section>
 
+          <section className="space-y-2" data-testid="application-contact">
+            <h3 className="text-sm font-semibold text-[var(--as-fg)]">
+              {t("applications.contactTitle")}
+            </h3>
+            <select
+              value={contactId}
+              onChange={(event) => {
+                const next = event.target.value;
+                setContactId(next);
+                void setApplicationContact(detail.id, next || null)
+                  .then(onChanged)
+                  .catch((exc) => setError(apiDetail(exc)));
+              }}
+              aria-label={t("applications.contactTitle")}
+              className="w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm"
+              data-testid="application-contact-select"
+            >
+              <option value="">{t("applications.noContact")}</option>
+              {contacts.map((contact) => (
+                <option key={contact.id} value={contact.id}>
+                  {[contact.name, contact.org].filter(Boolean).join(" · ")}
+                </option>
+              ))}
+            </select>
+            <Link to="/contacts" className="text-xs text-[var(--as-accent)] underline">
+              {t("applications.manageContacts")}
+            </Link>
+          </section>
+
+          <section className="space-y-2" data-testid="application-offer">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-[var(--as-fg)]">
+                {t("applications.offer.title")}
+              </h3>
+              <Link
+                to="/applications/offers"
+                className="text-xs text-[var(--as-accent)] underline"
+                data-testid="application-offer-compare-link"
+              >
+                {t("applications.offer.compare")}
+              </Link>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs text-[var(--as-muted-fg)]">
+                {t("applications.offer.currency")}
+                <input
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.currency}
+                  maxLength={3}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({
+                      ...prev,
+                      currency: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  data-testid="application-offer-currency"
+                />
+              </label>
+              <label className="text-xs text-[var(--as-muted-fg)]">
+                {t("applications.offer.amount")}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.amount}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({ ...prev, amount: event.target.value }))
+                  }
+                  data-testid="application-offer-amount"
+                />
+              </label>
+              <SelectField
+                label={t("applications.offer.period")}
+                value={offerForm.period}
+                onChange={(value) =>
+                  setOfferForm((prev) => ({
+                    ...prev,
+                    period: value as ApplicationOffer["period"],
+                  }))
+                }
+                options={(["year", "month", "hour"] as const).map((value) => ({
+                  value,
+                  label: t(`applications.offer.periods.${value}`),
+                }))}
+                testId="application-offer-period"
+              />
+              <label className="text-xs text-[var(--as-muted-fg)]">
+                {t("applications.offer.location")}
+                <input
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.location}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({ ...prev, location: event.target.value }))
+                  }
+                  data-testid="application-offer-location"
+                />
+              </label>
+              <label className="text-xs text-[var(--as-muted-fg)]">
+                {t("applications.offer.costOfLiving")}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.cost_of_living}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({
+                      ...prev,
+                      cost_of_living: event.target.value,
+                    }))
+                  }
+                  data-testid="application-offer-col"
+                />
+              </label>
+              <label className="text-xs text-[var(--as-muted-fg)]">
+                {t("applications.offer.deadline")}
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.deadline}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({ ...prev, deadline: event.target.value }))
+                  }
+                  data-testid="application-offer-deadline"
+                />
+              </label>
+              <label className="text-xs text-[var(--as-muted-fg)] sm:col-span-2">
+                {t("applications.offer.benefits")}
+                <textarea
+                  rows={2}
+                  className="mt-1 w-full rounded border border-[var(--as-border)] bg-[var(--as-surface)] p-2 text-sm text-[var(--as-fg)]"
+                  value={offerForm.benefits}
+                  onChange={(event) =>
+                    setOfferForm((prev) => ({ ...prev, benefits: event.target.value }))
+                  }
+                  data-testid="application-offer-benefits"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={busy || !offerForm.currency || !offerForm.amount}
+                data-testid="application-offer-save"
+                onClick={() =>
+                  void run(() =>
+                    setApplicationOffer(detail.id, {
+                      currency: offerForm.currency,
+                      amount: Number(offerForm.amount),
+                      period: offerForm.period,
+                      benefits: offerForm.benefits
+                        .split(",")
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                      location: offerForm.location.trim(),
+                      cost_of_living:
+                        offerForm.cost_of_living.trim() === ""
+                          ? null
+                          : Number(offerForm.cost_of_living),
+                      deadline: offerForm.deadline || null,
+                    })
+                  )
+                }
+              >
+                {t("applications.offer.save")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                data-testid="application-offer-clear"
+                onClick={() =>
+                  void run(async () => {
+                    const next = await clearApplicationOffer(detail.id);
+                    setOfferForm(EMPTY_OFFER);
+                    return next;
+                  })
+                }
+              >
+                {t("applications.offer.clear")}
+              </Button>
+            </div>
+          </section>
+
           <section className="space-y-2" data-testid="application-close">
             <h3 className="text-sm font-semibold text-[var(--as-fg)]">
               {t("applications.closeTitle")}
@@ -380,7 +625,12 @@ export function ApplicationDrawer({
                           : event.body || t(`applications.event.${event.kind}`)}
                       </p>
                       <p className="text-[10px] uppercase tracking-wide text-[var(--as-muted-fg)]">
-                        {new Date(event.at).toLocaleString()} · {event.actor}
+                        {event.meta?.all_day
+                          ? new Date(event.at).toLocaleDateString(undefined, {
+                              timeZone: "UTC",
+                            })
+                          : new Date(event.at).toLocaleString()}{" "}
+                        · {event.actor}
                       </p>
                     </div>
                   </li>

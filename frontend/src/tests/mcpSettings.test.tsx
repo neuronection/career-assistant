@@ -148,8 +148,13 @@ describe("MCP server settings (plan 119.2/119.4)", () => {
     expect(screen.getByText("ok")).toBeInTheDocument();
   });
 
-  it("mints a token and shows the secret exactly once", async () => {
+  it("mints a token, shows the secret exactly once and copies it", async () => {
     const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
     render(<McpServerSection />);
     await screen.findByTestId("mcp-endpoint");
     await user.type(await screen.findByTestId("mcp-token-label"), "Laptop");
@@ -157,8 +162,11 @@ describe("MCP server settings (plan 119.2/119.4)", () => {
     expect(api.mintMcpToken).toHaveBeenCalledWith({ label: "Laptop", scopes: ["read"] });
     const minted = await screen.findByTestId("mcp-minted-token");
     expect(minted).toHaveTextContent("secret-value");
-    await user.click(screen.getByTestId("mcp-copy-token"));
-    expect(await screen.findByTestId("mcp-copy-token")).toHaveTextContent("Copy token");
+    expect(minted).toHaveTextContent("Copy this token now — it is shown exactly once.");
+    const copyButton = screen.getByRole("button", { name: "Copy token" });
+    await user.click(copyButton);
+    expect(writeText).toHaveBeenCalledWith("secret-value");
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
   });
 
   it("blocks the write scope until the admin switch is on", async () => {

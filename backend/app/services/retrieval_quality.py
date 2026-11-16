@@ -95,7 +95,7 @@ class QualityCompareOutcome:
     compare: ops.QualityCompareDTO
     set_version: int
     k: int
-    old_degraded: str | None = None
+    baseline_degraded: str | None = None
     new_degraded: str | None = None
     no_baseline: bool = False
 
@@ -108,7 +108,7 @@ class QualityCompareOutcome:
             "quality": self.compare.to_dict(),
             "set_version": self.set_version,
             "k": self.k,
-            "old_degraded": self.old_degraded,
+            "baseline_degraded": self.baseline_degraded,
             "new_degraded": self.new_degraded,
             "no_baseline": self.no_baseline,
             "gate": ops.GateStatus.PASS.value if self.passed else ops.GateStatus.FAIL.value,
@@ -145,7 +145,7 @@ async def _retrieve(
 
 async def compare_spaces(
     db: AsyncSession,
-    old_space: VectorSpaceRow | None,
+    baseline_space: VectorSpaceRow | None,
     new_space: VectorSpaceRow,
     *,
     golden_sets: Sequence[ops.GoldenQuerySet] | None = None,
@@ -154,14 +154,14 @@ async def compare_spaces(
 ) -> QualityCompareOutcome:
     """Score the versioned golden set on the old and new space.
 
-    ``old_space=None`` is the first activation: the candidate is scored on its
+    ``baseline_space=None`` is the first activation: the candidate is scored on its
     own and the compare reports no baseline (the two score columns match).
     Missing golden set raises :class:`GoldenSetMissing`; the caller refuses
     instead of inventing a score. Query text never leaves this function.
     """
     sets = tuple(golden_sets) if golden_sets is not None else load_golden_sets()
     golden = select_golden_set(new_space, sets) or (
-        select_golden_set(old_space, sets) if old_space is not None else None
+        select_golden_set(baseline_space, sets) if baseline_space is not None else None
     )
     if golden is None:
         raise GoldenSetMissing(
@@ -172,15 +172,15 @@ async def compare_spaces(
     new_retrieved, new_degraded = await _retrieve(
         db, new_space, golden, store=store, retriever_factory=retriever_factory
     )
-    if old_space is None:
+    if baseline_space is None:
         new_quality = ops.evaluate_quality_set(golden, new_retrieved, generated_at=generated_at)
         compare = ops.QualityCompareDTO(
-            old_space_id=str(new_space.id),
+            baseline_space_id=str(new_space.id),
             new_space_id=str(new_space.id),
             set_version=golden.set_version,
             k=golden.k,
-            old_recall_at_k=new_quality.recall_at_k,
-            old_precision_at_k=new_quality.precision_at_k,
+            baseline_recall_at_k=new_quality.recall_at_k,
+            baseline_precision_at_k=new_quality.precision_at_k,
             new_recall_at_k=new_quality.recall_at_k,
             new_precision_at_k=new_quality.precision_at_k,
             passed=new_quality.passed,
@@ -193,22 +193,22 @@ async def compare_spaces(
             compare=compare,
             set_version=golden.set_version,
             k=golden.k,
-            old_degraded=new_degraded,
+            baseline_degraded=new_degraded,
             new_degraded=new_degraded,
             no_baseline=True,
         )
         ops.assert_no_raw_text(outcome.to_dict())
         return outcome
 
-    old_retrieved, old_degraded = await _retrieve(
-        db, old_space, golden, store=store, retriever_factory=retriever_factory
+    baseline_retrieved, baseline_degraded = await _retrieve(
+        db, baseline_space, golden, store=store, retriever_factory=retriever_factory
     )
     compare = ops.evaluate_quality_compare(
-        str(old_space.id),
+        str(baseline_space.id),
         str(new_space.id),
         golden.set_version,
         golden.queries,
-        old_retrieved,
+        baseline_retrieved,
         new_retrieved,
         k=golden.k,
         generated_at=generated_at,
@@ -217,7 +217,7 @@ async def compare_spaces(
         compare=compare,
         set_version=golden.set_version,
         k=golden.k,
-        old_degraded=old_degraded,
+        baseline_degraded=baseline_degraded,
         new_degraded=new_degraded,
     )
     ops.assert_no_raw_text(outcome.to_dict())
@@ -233,7 +233,7 @@ def persisted_compare_payload(
         "quality": outcome.compare.to_dict(),
         "set_version": outcome.set_version,
         "k": outcome.k,
-        "old_degraded": outcome.old_degraded,
+        "baseline_degraded": outcome.baseline_degraded,
         "new_degraded": outcome.new_degraded,
         "no_baseline": outcome.no_baseline,
     }

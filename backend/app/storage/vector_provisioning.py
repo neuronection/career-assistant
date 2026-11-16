@@ -4,6 +4,10 @@ P1b).
 This is the only seam allowed to issue ``CREATE TABLE`` for a vector index.
 It never runs on a request path: a migration or the (P1c) reindex job calls
 :func:`provision_space` off the request; desktop users never run the CLI.
+Under the split credential model (plan 64 / ADR-0064) even those job paths
+raise the typed :class:`ProvisioningRequiredError` — only the one-shot
+``migrate`` job (owner role) may provision, via ``allow_split=True``.
+
 The metadata row and the DDL commit together, so ``vector_spaces.index_table``
 is never true while the physical table is missing (or vice versa).
 
@@ -25,6 +29,7 @@ from sqlalchemy import Connection, Engine, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import settings
 from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.storage.vector_contract import (
     BACKEND_LINEAR,
@@ -50,6 +55,17 @@ PGVECTOR_HNSW_MAX_DIM = 2000
 
 class VectorProvisioningError(RuntimeError):
     """Provisioning could not create a usable physical store."""
+
+
+class ProvisioningRequiredError(VectorProvisioningError):
+    """Runtime provisioning was refused under the split credential model.
+
+    The serving process holds the DML-only app role (ADR-0064): vector
+    spaces/extensions belong to the one-shot `migrate` job, which runs the
+    same provisioning seam as the owner role. Run the migrate service (it
+    provisions every known space), then let the app heal the space on its
+    next write — never grant the app role DDL rights to work around this.
+    """
 
 
 class VectorDimensionMismatch(VectorProvisioningError):
@@ -331,6 +347,7 @@ def provision_space(
     *,
     backend: str | None = None,
     commit: bool = True,
+    allow_split: bool = False,
 ) -> SpaceProvision:
     """Create/verify one space's physical index, idempotently.
 
@@ -338,7 +355,19 @@ def provision_space(
     sqlite-vec on SQLite); ``linear`` is available for an explicit fallback.
     The metadata ``index_table`` write commits in the same transaction as the
     DDL, so the two can never disagree.
+
+    ``allow_split`` is the provisioning seam (plan 64 / ADR-0064 §3): only
+    the one-shot ``migrate`` job passes it. Serving processes run under the
+    DML-only app role in split mode, and a request/job path that needs DDL
+    must raise the typed :class:`ProvisioningRequiredError` instead of
+    attempting it.
     """
+    if not allow_split and settings.db_credential_mode == "split":
+        raise ProvisioningRequiredError(
+            "runtime provisioning is refused under the split credential model "
+            "(ADR-0064): run the one-shot migrate job — it provisions vector "
+            "spaces as the owner role"
+        )
     row = _row_for(session, space)
     dialect = session.get_bind().dialect.name
     if backend == BACKEND_LINEAR:
@@ -449,7 +478,8 @@ def provision_for_bind(
     space: VectorSpace | VectorSpaceRow | uuid.UUID | str,
     *,
     backend: str | None = None,
+    allow_split: bool = False,
 ) -> SpaceProvision:
     """Session-owning wrapper for a CLI/job call site (P1c)."""
     with _sessionmaker(bind)() as session:
-        return provision_space(session, space, backend=backend)
+        return provision_space(session, space, backend=backend, allow_split=allow_split)

@@ -32,10 +32,12 @@ export function useNotificationStream(): NotificationStreamState {
   refreshRef.current = refresh;
 
   useEffect(() => {
+    let mounted = true;
     const controller = new AbortController();
     void refreshRef.current();
     void streamNotifications(
       (event) => {
+        if (!mounted) return;
         setConnected(true);
         if (event.event === "unread") {
           setUnreadCount(event.data.unread_count);
@@ -45,8 +47,15 @@ export function useNotificationStream(): NotificationStreamState {
         }
       },
       controller.signal,
-    ).finally(() => setConnected(false));
-    return () => controller.abort();
+    )
+      .catch(() => undefined)
+      .finally(() => {
+        if (mounted) setConnected(false);
+      });
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
   }, []);
 
   return { unreadCount, lastEvent, connected, refresh };

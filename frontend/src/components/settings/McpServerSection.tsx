@@ -26,6 +26,7 @@ import {
 } from "@/api/profileProposals";
 import { Badge, Button } from "@/components/ui";
 import { Input } from "@neuronection/assistant-ui";
+import { SecretOnceBlock } from "@neuronection/assistant-ui/secret-once-block";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { SegmentedTabs } from "@/components/ui";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
@@ -403,29 +404,19 @@ export function McpServerSection() {
 
         {minted ? (
           <div
-            className="mb-3 space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--as-warning)_45%,var(--as-border))] bg-[color-mix(in_srgb,var(--as-warning)_14%,var(--as-surface-raised))] p-3"
+            className="mb-3 space-y-2 rounded-lg border border-[color-mix(in_srgb,var(--as-warning)_45%,var(--as-border))] bg-[color-mix(in_srgb,var(--as-warning)_14%,var(--as-surface-raised))] p-3"
             data-testid="mcp-minted-token"
           >
-            <p className="text-xs font-medium text-[var(--as-fg)]">
-              {t("toolsSettings.mcp.shownOnce")}
-            </p>
-            <code className="block break-all rounded bg-[var(--as-surface-raised)] px-2 py-1 text-xs text-[var(--as-fg)]">
-              {minted.token}
-            </code>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void copy("token", minted.token)}
-                data-testid="mcp-copy-token"
-              >
-                {copied === "token" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {t("toolsSettings.mcp.copyToken")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setMinted(null)}>
-                {t("toolsSettings.mcp.dismiss")}
-              </Button>
-            </div>
+            <SecretOnceBlock
+              secret={minted.token}
+              warning={t("toolsSettings.mcp.shownOnce")}
+              copyLabel={t("toolsSettings.mcp.copyToken")}
+              copiedLabel={t("toolsSettings.mcp.copied")}
+              testId="mcp-minted-secret"
+            />
+            <Button size="sm" variant="ghost" onClick={() => setMinted(null)}>
+              {t("toolsSettings.mcp.dismiss")}
+            </Button>
           </div>
         ) : null}
 

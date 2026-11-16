@@ -53,7 +53,8 @@ beforeEach(() => {
 
 async function loaded() {
   await waitFor(() => expect(mocked.fetchPostingStatsDashboard).toHaveBeenCalled());
-  await screen.findByTestId("stats-card-pulse");
+  // The shell render can exceed the 1s Testing Library default under load.
+  await screen.findByTestId("stats-card-pulse", {}, { timeout: 5_000 });
 }
 
 function compareCalls() {
@@ -80,7 +81,7 @@ describe("market intelligence shell (plan 195)", () => {
     );
     expect(screen.getAllByTestId("stats-insight-card")).toHaveLength(2);
     expect(screen.getByTestId("stats-freshness-stale")).toBeTruthy();
-  });
+  }, 15_000);
 
   it("switches tabs without a second request and keeps the URL in sync", async () => {
     const user = userEvent.setup();

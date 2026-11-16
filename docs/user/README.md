@@ -26,12 +26,16 @@ the tour below. For the exhaustive list of everything the app does, see the
 | [Universities and pathways](universities.md) | Admission-PDF intake, reviewable drafts, degree-to-job pathways |
 | [Assessment and metrics](assessment.md) | The JobTypeMatch assessment, the metric model, career stages |
 | [Postings and search](postings-and-search.md) | Connectors, live postings, deep extraction, the Explore page |
+| [Capture a posting](capture.md) | The confirmation dialog, the bookmarklet, canonical-URL idempotency |
 | [Add a job source](add-a-job-source.md) | Enable the zero-config job boards and the other bundled engines |
 | [Career Autopilot](career-autopilot.md) | Goal-driven agent searches with budgets and explainable shortlists |
 | [Growth toolkit](growth.md) | Roadmaps, near-miss radar, market snapshots, check-ins |
 | [CV Studio overview](cv-studio.md) | Three ways to a CV, the builder, context, versions and exports |
+| [Market guide](market-guide.md) | UK and DACH grade orientation, CV conventions, application norms and hiring cycles |
 | [Templates and design](cv-design-and-templates.md) | Template bank, the design-token editor and visual review |
 | [Variant library](cv-variants.md) | AI and manual item variants, bullets, staleness and pins |
+| [Application kit](application-kit.md) | Posting → gap report → tailored kit → checklist, review-first |
+| [Contacts and outreach](outreach.md) | The people around your applications, the interaction log and cited outreach drafts |
 | [Cover letters](cover-letters.md) | Per-posting cover letters and their evidence trail |
 | [Chat and proposals](assistant-chat.md) | The assistant, review-card profile edits, the builder copilot, MCP |
 | [Chat tools, risk badges and approval](chat-tools-and-approval.md) | Why some tools run freely, some need enablement, destructive ones always card |

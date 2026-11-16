@@ -10,7 +10,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.models.job_model import Job, JobFamily, JobSkill
 from app.models.posting_model import JobPosting, PostingChange
+from app.models.taxonomy_model import Skill
 from app.services.postings.change_journal import (
     DIFF_STRING_CAP,
     PostingChangeJournal,
@@ -244,8 +246,33 @@ async def test_sync_writer_journals_creation_and_change(db, source, seeded_catal
     assert "content_hash" not in changed.diff
 
 
-async def test_retag_writer_journals_skills_set_diff(db, source, seeded_catalog):
+async def test_retag_writer_journals_skills_set_diff(db, source):
     from tests.conftest import _make_posting
+
+    skills = []
+    for key in ("programming", "problem-solving"):
+        skill = Skill(key=key, label=key.title(), category="test")
+        db.add(skill)
+        skills.append(skill)
+    fillers = [
+        Skill(key=f"journal-filler-{index}", label=f"Filler {index}", category="test")
+        for index in range(4)
+    ]
+    db.add_all(fillers)
+    family = JobFamily(key="journal-family", label="Journal", path="journal-family")
+    db.add(family)
+    await db.flush()
+    job = Job(
+        code="journal-role",
+        title="Journal Role",
+        family_id=family.id,
+        status="published",
+    )
+    db.add(job)
+    await db.flush()
+    for skill in [*skills, *fillers]:
+        db.add(JobSkill(job_id=job.id, skill_id=skill.id, required_level=10, importance="core"))
+    await db.flush()
 
     posting = await _make_posting(
         db, source, skills_raw=["programming"], raw={"description": "We need programming."}
@@ -306,7 +333,7 @@ async def test_extract_writer_journals_envelope_and_skills(db, source, seeded_ca
     assert fields_row.actor_ref.get("ai_generation_id"), "the audit row is linked"
     assert fields_row.actor_ref["ai_generation_id"] != ""
     assert fields_row.duration_ms is not None
-    assert fields_row.diff["extract_version"] == {"from": None, "to": 5}
+    assert fields_row.diff["extract_version"] == {"from": None, "to": 6}
     assert "description_clean" in fields_row.diff, "the envelope's cleaned text diffs top-level"
     assert "skills_count" in fields_row.diff
     assert fields_row.outcome in ("ok", "partial")

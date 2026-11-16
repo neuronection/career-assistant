@@ -5,6 +5,7 @@ export interface ExploreListSnapshot {
   total: number;
   facets: ExploreFacets;
   nextCursor: string | null;
+  jobTitles?: Record<string, string>;
 }
 
 const snapshots = new Map<string, ExploreListSnapshot>();

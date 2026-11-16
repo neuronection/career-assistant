@@ -19,11 +19,11 @@ prompt text: counts, ids, scores, reasons, latencies and token usage only.
 
 Embed audit rows carry caller tags (`space_id`, `kind`, `view`,
 `chunk_index`, `document_id` for registered documents, `phase`, and
-`documents` for a window's spanning batch — plan 201 S7). The Failures
+`documents` for a window's spanning batch). The Failures
 drawer counts **document-level** rows only (`phase=index`; a window's
 spanning batch row is `phase=batch` and stays ledger history), collects the
 failed document ids without requiring a space filter, and works for legacy
-rows with no phase (plan 51 Q1a seam, plan 201 S7).
+rows with no phase.
 | Usage | `/settings/audit?tab=usage` | Embed calls/tokens and the token budget |
 | Jobs & runs | `/settings/audit?tab=jobs` | The underlying `background_jobs` rows, including `VECTOR_*` |
 
@@ -51,7 +51,7 @@ state and the run history.
 - **Force** — re-embed unchanged content instead of hash-skipping it.
 - **Auto-continue** — queue the next bounded batch when this one is partial.
 - **Window** — documents per shared-batch embedding window (`window_documents`,
-  default 128, max 512; plan 201). The window's records are deduped by content
+  default 128, max 512). The window's records are deduped by content
   hash and embedded through as few provider requests as the profile's limits
   allow, so a 200-document run costs a handful of requests instead of one per
   document; shared boilerplate across postings is sent once per window.
@@ -145,7 +145,7 @@ missed recall/precision (inspect the per-query misses in Quality and fix the
 content, views or golden set, then re-compare). Never lower the floor to force
 a cutover.
 
-## 4. Embedding tokenizer profiles (plan 52 T2a/T2b)
+## 4. Embedding tokenizer profiles
 
 The **Tokenizer & limits** card on Tools → Retrieval owns the embedding
 model's tokenizer/limit profile. Resolution is deterministic and keyed on
@@ -172,7 +172,7 @@ source, exact flag, availability, max input tokens, per-request batch limits
 and the default token chunk budget; a fallback or unfetched asset is called
 out with a warning before the space is built.
 
-### Hugging Face tokenizer fetch (plan 52 T2b)
+### Hugging Face tokenizer fetch
 
 An admin may pin a Hugging Face repository, a full 40-character commit
 revision and the `tokenizer.json` SHA-256. The fetch is a bounded
@@ -213,7 +213,7 @@ resource — the existing group, no second ledger.
 re-embed, re-key or cut over any space; an existing space keeps exactly the
 chunker it was built with.
 
-### Token-aware build and cutover (plan 52 T3b/T3c)
+### Token-aware build and cutover
 
 The **Build new space** dialog (and `POST /admin/retrieval/spaces`) accepts a
 v2 identity in two additive forms:
@@ -350,9 +350,8 @@ time; nothing is stored or backfilled. The five states:
 | `off` | `no_active_space` | No active content space, so nothing is indexed. Cold is not zero — build and activate a space first. |
 
 None of these states gates serving: an unindexed posting is fully returned,
-and the semantic paths degrade to the lexical order. That is ADR-0051 §7
-(the family vector-retrieval ADR in the dev repo) — semantic is a ranking
-signal, never a gate.
+and the semantic paths degrade to the lexical order. That is the family
+vector-retrieval law — semantic is a ranking signal, never a gate.
 
 | Symptom | Check | Fix |
 |---|---|---|
@@ -364,17 +363,17 @@ signal, never a gate.
 | **Queued but nothing moves** | Audit → Jobs & runs; scheduler/worker health | Confirm the worker and `retrieval_alert_sweep` are running; cancel and retry if the row is wedged. |
 | **Another run holds the space** (`409`) | Audit → Runs (queued/running for the space) | Wait for it, or cancel it, then retry. One active run per space is intentional. |
 | **Idempotency replay mismatch** (`409`) | The key and body | Use a new key for a different request; replay the same key+body to read the original result. |
-| **Budget exhausted** (`retrieval.budget_exhausted`) | Audit → Usage: embed tokens vs `AIBudget(task_type='embed')` | Wait for the next budget window or raise the embed budget; the per-run **Budget** field caps a single reindex separately. Embedding calls record their real token count (plan 201), so this budget and its alert reflect actual spend: a run that hits it **defers** the remaining documents (they stay missing; the run is not marked failed) and an AI request answers **429** instead of 400. |
+| **Budget exhausted** (`retrieval.budget_exhausted`) | Audit → Usage: embed tokens vs `AIBudget(task_type='embed')` | Wait for the next budget window or raise the embed budget; the per-run **Budget** field caps a single reindex separately. Embedding calls record their real token count, so this budget and its alert reflect actual spend: a run that hits it **defers** the remaining documents (they stay missing; the run is not marked failed) and an AI request answers **429** instead of 400. |
 | **Degraded queries** (`retrieval.degraded_rate`) | Query health reasons | Fix the named cause (assignment, index, space mismatch, cap); lexical fallback is expected while degraded. |
 | **403/404 on a surface** | Admin session | Retrieval is instance-admin only; the desktop owner is admin by first-user provisioning. |
-| **Desktop: `database is locked` from `semantic_rescue`** | Backend log: `sqlite3.OperationalError: database is locked` at a `vector_documents` INSERT, ~30s after startup | The vector store commits through its own connection and SQLite has one writer; the inline index now releases the caller's transaction before indexing **and again after the embed** (the gateway audits by flushing an `ai_generations` row into the same session, which re-takes the lock) — plans 192/194. If it still appears, check for another long-running writer (an import or a raw `sqlite3` session) and restart. |
+| **Desktop: `database is locked` from `semantic_rescue`** | Backend log: `sqlite3.OperationalError: database is locked` at a `vector_documents` INSERT, ~30s after startup | The vector store commits through its own connection and SQLite has one writer; the inline index now releases the caller's transaction before indexing **and again after the embed** (the gateway audits by flushing an `ai_generations` row into the same session, which re-takes the lock) — the single-writer SQLite rule. If it still appears, check for another long-running writer (an import or a raw `sqlite3` session) and restart. |
 
 After any fix, re-run the smallest scoped action that proves it (one kind or
 one view), read the run result, then widen the scope. Record the run id and
 the audit event in the incident note; the Changes section already has the
 `vector.*` trail.
 
-## 10. Plan 52 handoff (T2b / T3)
+## 10. Tokenizer handoff (T2b / T3)
 
 **T2b — provider/HF fetch and a wider curated catalog (implemented).**
 
@@ -399,7 +398,7 @@ the audit event in the incident note; the Changes section already has the
 **T3b — token-aware chunk writes and cutover (backend/contract/schema implemented).**
 
 - The contract now has a v2 identity: `VectorSpace.tokenizer` + `VectorSpace.chunk`
-  are both-or-neither, `space_key_v2` folds the tokenizer
+  are both-or-neither, `space_key_token_aware` folds the tokenizer
   kind/identifier/revision/artifact sha/exact and the
   `ChunkConfig.fingerprint` after a version marker, and `space_key` keeps
   the frozen v1 pre-image. A stored key always wins; a legacy row is never
@@ -449,7 +448,7 @@ the audit event in the incident note; the Changes section already has the
 
 **T5 handoff (Study parity + rollout).**
 
-- Port the same tokenizer registry, chunk identity and `space_key_v2` to
+- Port the same tokenizer registry, chunk identity and `space_key_token_aware` to
   Study; replace its `len//4` token heuristic and add DTO/fixture parity.
 - Roll out a candidate space on real corpora: backfill, compare coverage and
   the golden-query quality gate, activate, confirm the `POSTING_REMAP` for the

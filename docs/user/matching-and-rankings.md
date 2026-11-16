@@ -65,7 +65,10 @@ its evidence, and the curator sees it too when it explains the shortlist.
 
 The **Rankings** page (`/rankings`) lists jobs by score, and you can slice by
 filters and by your own status. Rankings combine AI score, your score and
-interest status.
+interest status. Catalog **job cards** link their title to the type page, so
+a ranked type opens directly; the posting-side match card stays on the
+posting, and the Explore **Job** facet labels types by title while keeping the
+code as the tooltip/fallback.
 
 ## Compare tray
 

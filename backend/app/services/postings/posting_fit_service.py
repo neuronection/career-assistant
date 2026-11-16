@@ -26,10 +26,12 @@ from sqlalchemy import Table, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import CareerStage, EducationLevel, EducationLevelOrder, PostingSkillPriority
-from app.models.posting_model import JobPosting, PostingFit, PostingSkill
+from app.models.posting_model import JobPosting, PostingFit, PostingInteraction, PostingSkill
 from app.models.user_model import UserSkill
 from app.schemas.autopilot import ProfileUsage
-from app.services.postings.fit.dimensions import FIT_VERSION, NEUTRAL
+from app.services.postings.fit.dimensions import FIT_VERSION, NEUTRAL, PRIORITY_WEIGHT
+from app.services.postings.language_codes import is_language_code, normalize_language_code
+from app.services.profile.grades import grade_ordinal
 
 FRESH_WEIGHT = 1.0
 FRESH_DECAY_PER_WEEK = 0.5
@@ -43,11 +45,6 @@ SENIORITY_RANKS = {
     "principal": 5,
 }
 LANGUAGE_ORDER = {"basic": 0, "intermediate": 1, "advanced": 2, "native": 3}
-PRIORITY_WEIGHT = {
-    PostingSkillPriority.MUST_HAVE.value: 3.0,
-    PostingSkillPriority.NICE_TO_HAVE.value: 2.0,
-    PostingSkillPriority.BONUS.value: 1.0,
-}
 
 # The posting engine's dimension list as one code-referenced spec
 # — the breakdown keys above and the metrics API read this.
@@ -149,7 +146,7 @@ def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
 
 
 def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dict[str, dict]:
-    """The three prerequisite inputs as per-part sub-scores (plan 169).
+    """The two prerequisite inputs as per-part sub-scores (plan 169).
 
     Each part carries ``kind`` (its stable key), ``cap`` (its min-cap
     contribution; 10.0 = no penalty), ``scored`` (whether it can make the
@@ -157,13 +154,14 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
     comparison caps WITHOUT scoring, every other requirement scores) and
     ``detail`` (its evidence lines). The public five-dimension contract
     and the pre-plan merged score are unchanged when every part is on.
+    Language moved to a hard gate in plan 212 S1.4c — it is no longer a
+    scored prerequisite, so the same requirement cannot both cap and gate.
     """
     parts: dict[str, dict] = {
         "education": {"kind": "education", "cap": 10.0, "detail": "", "scored": False},
-        "languages": {"kind": "languages", "cap": 10.0, "detail": "", "scored": False},
         "certificates": {"kind": "certificates", "cap": 10.0, "detail": "", "scored": False},
     }
-    details: dict[str, list[str]] = {"education": [], "languages": [], "certificates": []}
+    details: dict[str, list[str]] = {"education": [], "certificates": []}
 
     required_education = (posting.extract or {}).get("education", {}) or {}
     level = required_education.get("level") or posting.education_level
@@ -193,26 +191,6 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
                 f"education {'meets' if met else 'below'} requirement ({level})"
             )
 
-    required_languages = [
-        str(lang).lower() for lang in (posting.extract or {}).get("languages") or []
-    ]
-    if required_languages:
-        academics = profile.academics or {}
-        user_languages = {
-            str(lang.get("code", "")).lower(): LANGUAGE_ORDER.get(
-                str(lang.get("level", "basic")), 0
-            )
-            for lang in academics.get("languages") or []
-        }
-        unmet = 0
-        for lang in required_languages:
-            if lang not in user_languages or user_languages[lang] < 1:
-                details["languages"].append(f"language {lang} not evidenced")
-                unmet += 1
-            else:
-                details["languages"].append(f"language {lang} evidenced")
-        parts["languages"].update(cap=5.0 if unmet else 10.0, scored=True)
-
     unevidenced = 0
     for row in (posting.extract or {}).get("prerequisites") or []:
         kind = str(row.get("kind", ""))
@@ -237,24 +215,22 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
     return parts
 
 
-def _merge_prereqs(
-    parts: dict[str, dict], *, use_education: bool = True, use_languages: bool = True
-) -> dict:
+def _merge_prereqs(parts: dict[str, dict], *, use_education: bool = True) -> dict:
     """The pre-plan accumulator as a merge over the parts (plan 169).
 
     A ``scored`` part makes the dimension non-neutral; the merged score is
     then the min over ALL enabled parts' caps — an unscored education cap
     still shifts the min (the pre-plan engine assigned the education score
-    before the languages/certificates min-caps lowered it). With no scored
-    part the dimension reads neutral 7.0 with its details — exactly the
-    pre-plan ``scored`` gate: a recognized education comparison alone
-    (met or below) stays neutral. A disabled part is excluded from BOTH
-    the min and the scored-any check — it never contributes a penalty, so
-    the merged score can only rise or stay — and is stored neutral-7 with
-    a ``disabled`` marker for display. ``parts`` stays internal: the typed
+    before the certificates min-cap lowered it). With no scored part the
+    dimension reads neutral 7.0 with its details — exactly the pre-plan
+    ``scored`` gate: a recognized education comparison alone (met or
+    below) stays neutral. A disabled part is excluded from BOTH the min
+    and the scored-any check — it never contributes a penalty, so the
+    merged score can only rise or stay — and is stored neutral-7 with a
+    ``disabled`` marker for display. ``parts`` stays internal: the typed
     posting envelope strips it.
     """
-    flags = {"education": use_education, "languages": use_languages, "certificates": use_education}
+    flags = {"education": use_education, "certificates": use_education}
     display: dict[str, dict] = {}
     caps: list[float] = []
     any_scored = False
@@ -343,6 +319,28 @@ def _freshness_dimension(posting: JobPosting) -> dict:
     }
 
 
+async def _grade_ordinals(db: AsyncSession, user_id: UUID) -> dict[str, float]:
+    """Best normalized grade ordinal per scale from the active education
+    rows (plan 212 S1.4c). Draft rows never evidence a cutoff."""
+    from app.models.profile_entities_model import EducationItem
+
+    rows = await db.execute(
+        select(EducationItem.grade_scale, EducationItem.grade_ordinal).where(
+            EducationItem.user_id == user_id,
+            EducationItem.status == "active",
+            EducationItem.grade_ordinal.is_not(None),
+        )
+    )
+    best: dict[str, float] = {}
+    for scale, ordinal in rows.all():
+        if not scale or ordinal is None:
+            continue
+        value = float(ordinal)
+        if value > best.get(str(scale), -1.0):
+            best[str(scale)] = value
+    return best
+
+
 async def _load_context(db: AsyncSession, user_id: UUID) -> dict:
     """Shared per-user inputs (profile, stage, skill levels, weights) —
     loaded once per request, never per posting."""
@@ -361,6 +359,7 @@ async def _load_context(db: AsyncSession, user_id: UUID) -> dict:
         "user_levels": user_levels,
         "weights": weights,
         "certifications": certification_names,
+        "grade_ordinals": await _grade_ordinals(db, user_id),
     }
 
 
@@ -426,7 +425,6 @@ class FitOverrides:
 
     use_skills: bool = True
     use_education: bool = True
-    use_languages: bool = True
     use_location: bool = True
     use_experience: bool = True
     use_lifestyle: bool = True
@@ -439,7 +437,6 @@ class FitOverrides:
         return cls(
             use_skills=usage.use_skills,
             use_education=usage.use_education,
-            use_languages=usage.use_languages,
             use_location=usage.use_location,
             use_experience=usage.use_experience,
             use_lifestyle=usage.use_lifestyle,
@@ -453,7 +450,6 @@ class FitOverrides:
         all_on = (
             self.use_skills
             and self.use_education
-            and self.use_languages
             and self.use_location
             and self.use_experience
             and self.use_lifestyle
@@ -502,6 +498,85 @@ def lifestyle_gates(posting: JobPosting, constraints: dict | None) -> list[str]:
         if minimum is not None and int(minimum) > int(hours_available):
             gates.append("hours")
     return gates
+
+
+def eligibility_gates(
+    posting: JobPosting,
+    profile,
+    overrides: dict | None = None,
+    grade_ordinals: dict | None = None,
+) -> list[str]:
+    """Work-authorization, language and grade gates (plan 212 S1.4b/c).
+
+    Unknown never excludes: a missing posting signal, a missing profile
+    signal, or a case-by-case sponsorship answer produces no hard gate.
+    A per-user override (``"visa": true`` / ``"language": true`` /
+    ``"grade": true``) drops the gate for that posting without touching
+    the cached fit.
+    """
+    overrides = overrides or {}
+    gates: list[str] = []
+    status = str(posting.work_authorization or "").lower()
+    user_auth = str((profile.basics or {}).get("work_authorization") or "").lower()
+    if (
+        user_auth == "needs_sponsorship"
+        and status in ("none", "citizens_only")
+        and not overrides.get("visa")
+    ):
+        gates.append("visa")
+
+    requirements = [
+        (
+            str(row.get("code", "")).lower(),
+            LANGUAGE_ORDER.get(str(row.get("level", "basic")).lower(), 0),
+        )
+        for row in (posting.extract or {}).get("language_requirements") or []
+        if is_language_code(row.get("code"))
+    ]
+    if requirements:
+        user_languages: dict[str, int] = {}
+        for lang in (profile.academics or {}).get("languages") or []:
+            code = normalize_language_code(lang.get("code"))
+            if not code:
+                continue
+            level = LANGUAGE_ORDER.get(str(lang.get("level", "basic")), 0)
+            user_languages[code] = max(user_languages.get(code, 0), level)
+        blocked = [
+            code
+            for code, required_level in requirements
+            if required_level >= LANGUAGE_ORDER["intermediate"]
+            and user_languages.get(code, -1) < required_level
+        ]
+        if blocked and not overrides.get("language"):
+            gates.append("language")
+
+    grade = (posting.extract or {}).get("grade_requirement") or {}
+    scale = str(grade.get("scale") or "")
+    required = grade_ordinal(scale or None, grade.get("value"))
+    best = (grade_ordinals or {}).get(scale)
+    if (
+        required is not None
+        and best is not None
+        and float(best) < float(required)
+        and not overrides.get("grade")
+    ):
+        gates.append("grade")
+    return gates
+
+
+async def _gate_overrides_for(
+    db: AsyncSession, user_id: UUID, posting_ids: Sequence[UUID]
+) -> dict[UUID, dict]:
+    """One bounded read of the per-user override map for a fit call."""
+    if not posting_ids:
+        return {}
+    rows = await db.execute(
+        select(PostingInteraction.posting_id, PostingInteraction.gate_overrides).where(
+            PostingInteraction.user_id == user_id,
+            PostingInteraction.posting_id.in_(list(posting_ids)),
+        )
+    )
+    return {posting_id: (value or {}) for posting_id, value in rows.all()}
 
 
 async def compute_posting_fit(
@@ -588,7 +663,6 @@ async def compute_posting_fit(
         "prereqs": _merge_prereqs(
             _prereq_parts(posting, profile, set(certifications)),
             use_education=flags.use_education,
-            use_languages=flags.use_languages,
         ),
         "location_remote": (
             _disabled_dimension("location_remote")
@@ -616,7 +690,15 @@ async def compute_posting_fit(
         "breakdown": breakdown,
         "extracted": True,
         "estimate": False,
-        "gates": ([] if not flags.use_lifestyle else lifestyle_gates(posting, profile.constraints)),
+        "gates": (
+            ([] if not flags.use_lifestyle else lifestyle_gates(posting, profile.constraints))
+            + eligibility_gates(
+                posting,
+                profile,
+                (context.get("gate_overrides") or {}).get(posting.id),
+                context.get("grade_ordinals"),
+            )
+        ),
         "inputs_hash": inputs_hash,
     }
 
@@ -650,7 +732,13 @@ def _cached_result(cached: PostingFit, posting: JobPosting, context: dict) -> di
         "breakdown": breakdown,
         "extracted": breakdown.get("archetype_estimate") is None if breakdown else False,
         "estimate": "archetype_estimate" in breakdown,
-        "gates": lifestyle_gates(posting, context["profile"].constraints),
+        "gates": lifestyle_gates(posting, context["profile"].constraints)
+        + eligibility_gates(
+            posting,
+            context["profile"],
+            (context.get("gate_overrides") or {}).get(posting.id),
+            context.get("grade_ordinals"),
+        ),
         "inputs_hash": cached.inputs_hash,
     }
 
@@ -687,7 +775,6 @@ def _rescore_cached(
                 _merge_prereqs(
                     stored_parts,
                     use_education=overrides.use_education,
-                    use_languages=overrides.use_languages,
                 ),
                 stored.get("prereqs"),
             )
@@ -717,7 +804,13 @@ def _rescore_cached(
         "extracted": base.get("extracted", True),
         "estimate": False,
         "gates": (
-            [] if not overrides.use_lifestyle else lifestyle_gates(posting, profile.constraints)
+            ([] if not overrides.use_lifestyle else lifestyle_gates(posting, profile.constraints))
+            + eligibility_gates(
+                posting,
+                profile,
+                (context.get("gate_overrides") or {}).get(posting.id),
+                context.get("grade_ordinals"),
+            )
         ),
         "inputs_hash": base.get("inputs_hash", ""),
     }
@@ -777,6 +870,7 @@ async def get_posting_fit(
     """Cached read: cheap inputs load → hash → cached row is a hit when
     the hash matches; stale (or missing) rows recompute and persist."""
     context = await _load_context(db, user_id)
+    context["gate_overrides"] = await _gate_overrides_for(db, user_id, [posting.id])
     inputs_hash = _expected_hash(user_id, posting, context)
 
     rows = await db.execute(
@@ -815,6 +909,7 @@ async def get_posting_fits_batch(
         return {}
     context = await _load_context(db, user_id)
     ids = [posting.id for posting in postings]
+    context["gate_overrides"] = await _gate_overrides_for(db, user_id, ids)
     cached_rows = (
         (
             await db.execute(

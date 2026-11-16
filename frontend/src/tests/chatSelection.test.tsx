@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 import { copyText } from "@/lib/clipboard";
 
@@ -40,6 +41,11 @@ vi.mock("@/api/universities", () => ({
 
 vi.mock("@/api/ai", () => ({
   fetchAiTools: vi.fn().mockResolvedValue([]),
+  fetchConfigSummary: vi.fn().mockResolvedValue({
+    tasks: [],
+    can_manage_global: false,
+    mock_allowed: false,
+  }),
   transcribeAudio: vi.fn(),
   classifyDictationError: vi.fn(),
 }));
@@ -120,6 +126,7 @@ async function openBubbleWithMessage() {
 describe("chat selection context menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetConfigSummaryCache();
     window.getSelection()?.removeAllRanges();
   });
 

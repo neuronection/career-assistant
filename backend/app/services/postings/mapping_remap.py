@@ -17,9 +17,16 @@ that action, after the new space is active::
 
 ``space_key=None`` (or ``all_postings=True``) is the taxonomy/catalog-wide
 variant: re-decide every semantic row regardless of the space it recorded.
-The job pages by posting id, excludes ``manual`` (the query only selects
-semantic methods) and terminal statuses, and re-runs ``decide_catalog``
-without touching ``PostingSkill`` rows.
+The job pages by posting id, excludes ``manual`` and terminal statuses, and
+re-runs ``decide_catalog`` without touching ``PostingSkill`` rows.
+
+Plan 210 adds an explicit ``redecide_scope`` payload:
+``"stale"`` selects every active non-manual row whose ``mapping_version`` is
+missing or below ``MAPPING_VERSION`` (the after-score-change backfill), and
+``"all"`` selects every active non-manual row (forced recompute/rollback).
+An absent scope keeps the semantic-space cutover selection byte-identical;
+the continuation key includes the scope, so concurrent stale/all and
+space-cutover runs never dedupe against each other.
 """
 
 from __future__ import annotations
@@ -40,6 +47,9 @@ logger = logging.getLogger(__name__)
 
 #: The mapping methods that depend on a semantic space (never ``manual``).
 REMAP_METHODS = (MappingMethod.SEMANTIC.value, MappingMethod.SEMANTIC_RERANK.value)
+#: Explicit full-recompute scopes (plan 210 S2); absent = the legacy
+#: semantic-space cutover mode.
+REDECIDE_SCOPES = ("stale", "all")
 DEFAULT_REMAP_BATCH = 50
 TERMINAL_POSTING_STATUSES = ("expired", "hidden")
 #: Single-posting payload markers (plan 50 P2c.3): the request path defers the
@@ -51,8 +61,48 @@ ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelledCb = Callable[[], Awaitable[bool]]
 
 
-def _continuation_key(*, space_key: str | None, all_postings: bool, after_id: str | None) -> str:
+def _continuation_key(
+    *,
+    space_key: str | None,
+    all_postings: bool,
+    after_id: str | None,
+    redecide_scope: str | None = None,
+) -> str:
+    if redecide_scope is not None:
+        return f"redecide|{redecide_scope}|{after_id or 'start'}"
     return f"{space_key or '*'}|{'all' if all_postings else 'space'}|{after_id or 'start'}"
+
+
+def redecide_scope_clause(scope: str):
+    """The selected population for an explicit full-recompute run.
+
+    ``manual`` is always excluded (a human decision is never overwritten) and
+    terminal statuses stay outside the remap domain. ``stale`` additionally
+    selects rows whose ``mapping_version`` is missing or below the current
+    score version — the after-S1 backfill; ``all`` selects every active
+    non-manual row for a forced recompute/rollback.
+    """
+    from sqlalchemy import and_, or_
+
+    from app.services.postings.postings_service import MAPPING_VERSION
+
+    if scope not in REDECIDE_SCOPES:
+        raise ValueError(f"unknown redecide scope: {scope}")
+    conditions = [
+        JobPosting.status.not_in(TERMINAL_POSTING_STATUSES),
+        or_(
+            JobPosting.mapping_method.is_(None),
+            JobPosting.mapping_method != MappingMethod.MANUAL.value,
+        ),
+    ]
+    if scope == "stale":
+        conditions.append(
+            or_(
+                JobPosting.mapping_version.is_(None),
+                JobPosting.mapping_version < MAPPING_VERSION,
+            )
+        )
+    return and_(*conditions)
 
 
 def _semantic_continuation_key(posting_id: str) -> str:
@@ -159,10 +209,18 @@ async def enqueue_posting_remap(
     batch_size: int = DEFAULT_REMAP_BATCH,
     after_id: str | None = None,
     auto_continue: bool = True,
+    redecide_scope: str | None = None,
 ) -> BackgroundJob:
-    """Queue one bounded ``POSTING_REMAP`` run (the single invalidation sweep)."""
+    """Queue one bounded ``POSTING_REMAP`` run (the single invalidation sweep).
+
+    ``redecide_scope`` adds the plan-210 full-recompute modes (``stale`` or
+    ``all``); leaving it absent keeps the legacy semantic-space cutover
+    selection byte-identical.
+    """
     from app.services.job_worker import enqueue
 
+    if redecide_scope is not None and redecide_scope not in REDECIDE_SCOPES:
+        raise ValueError(f"unknown redecide scope: {redecide_scope}")
     payload: dict[str, Any] = {
         "space_key": space_key,
         "all_postings": bool(all_postings),
@@ -170,9 +228,14 @@ async def enqueue_posting_remap(
         "after_id": after_id,
         "auto_continue": bool(auto_continue),
         "continuation_key": _continuation_key(
-            space_key=space_key, all_postings=all_postings, after_id=after_id
+            space_key=space_key,
+            all_postings=all_postings,
+            after_id=after_id,
+            redecide_scope=redecide_scope,
         ),
     }
+    if redecide_scope is not None:
+        payload["redecide_scope"] = redecide_scope
     return await enqueue(db, BackgroundJobType.POSTING_REMAP.value, payload)
 
 
@@ -228,19 +291,30 @@ async def run_posting_remap(
 
     space_key = payload.get("space_key")
     all_postings = bool(payload.get("all_postings"))
+    redecide_scope = payload.get("redecide_scope")
+    if redecide_scope is not None and redecide_scope not in REDECIDE_SCOPES:
+        raise ValueError(f"unknown redecide scope: {redecide_scope}")
     batch_size = max(int(payload.get("batch_size") or DEFAULT_REMAP_BATCH), 1)
     after_id = _parse_uuid(payload.get("after_id"))
     auto_continue = bool(payload.get("auto_continue", True))
 
-    statement = (
-        select(JobPosting)
-        .where(
-            JobPosting.mapping_method.in_(REMAP_METHODS),
-            JobPosting.status.not_in(TERMINAL_POSTING_STATUSES),
+    if redecide_scope is not None:
+        statement = (
+            select(JobPosting)
+            .where(redecide_scope_clause(redecide_scope))
+            .order_by(JobPosting.id)
+            .limit(batch_size)
         )
-        .order_by(JobPosting.id)
-        .limit(batch_size)
-    )
+    else:
+        statement = (
+            select(JobPosting)
+            .where(
+                JobPosting.mapping_method.in_(REMAP_METHODS),
+                JobPosting.status.not_in(TERMINAL_POSTING_STATUSES),
+            )
+            .order_by(JobPosting.id)
+            .limit(batch_size)
+        )
     if after_id is not None:
         statement = statement.where(JobPosting.id > after_id)
     postings = list((await db.execute(statement)).scalars().all())
@@ -294,7 +368,10 @@ async def run_posting_remap(
     next_after_id = str(last_id) if len(postings) >= batch_size and last_id is not None else None
     if next_after_id is not None and auto_continue and (cancelled is None or not await cancelled()):
         continuation = _continuation_key(
-            space_key=space_key, all_postings=all_postings, after_id=next_after_id
+            space_key=space_key,
+            all_postings=all_postings,
+            after_id=next_after_id,
+            redecide_scope=redecide_scope,
         )
         if not await has_pending_remap(db, continuation):
             await enqueue_posting_remap(
@@ -303,6 +380,7 @@ async def run_posting_remap(
                 all_postings=all_postings,
                 batch_size=batch_size,
                 after_id=next_after_id,
+                redecide_scope=redecide_scope,
             )
     if progress is not None:
         await progress(100, "remapped")
@@ -312,6 +390,7 @@ async def run_posting_remap(
         "skipped": skipped,
         "next_after_id": next_after_id,
         "space_key": space_key,
+        "redecide_scope": redecide_scope,
         "cancelled": False,
     }
 

@@ -47,6 +47,8 @@ from app.schemas.stats import (
     PostingStatsSkills,
     PostingStatsSummary,
     PostingStatsTimeseries,
+    SalaryBenchmarkCellOut,
+    SalaryBenchmarksOut,
     SalaryBucketOut,
     SalaryCurrencyOut,
     SalarySeniorityOut,
@@ -997,6 +999,7 @@ async def salary(
                     JobPosting.salary_normalized_max.is_not(None),
                 ),
             )
+            .order_by(JobPosting.id)
             .limit(SALARY_SAMPLE_LIMIT)
         )
     ).all()
@@ -1021,6 +1024,190 @@ async def salary(
         end=ctx.end,
         primary_currency=primary,
         currencies=currencies,
+    )
+
+
+async def salary_benchmarks(
+    db: AsyncSession,
+    *,
+    window: str = "30d",
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    status_basis: str = "all",
+    now: datetime | None = None,
+    ctx: WindowContext | None = None,
+    extra: Sequence = (),
+) -> SalaryBenchmarksOut:
+    """Per job/family x country x seniority pay cells from the live corpus.
+
+    Cells are per-currency on the annualized normalized basis (no FX, never
+    cross-country conversion). A job cell below the floor falls back to its
+    family cell when that cell is thick enough; otherwise it is shown as a
+    thin job cell with `n` and no percentiles. There is no reference line
+    until a sourced OEWS/Eurostat adapter exists — never a blended guess.
+    """
+    _check_basis(status_basis)
+    ctx = ctx or window_context(window, date_from, date_to, now)
+    conditions = current_conditions(ctx, status_basis, extra)
+    rows = (
+        await db.execute(
+            select(
+                JobPosting.catalog_job_id,
+                JobPosting.salary_currency,
+                JobPosting.salary_normalized_min,
+                JobPosting.salary_normalized_max,
+                JobPosting.seniority,
+                JobPosting.location,
+                Job.code,
+                Job.title,
+                JobFamily.key,
+                JobFamily.label,
+            )
+            .outerjoin(Job, Job.id == JobPosting.catalog_job_id)
+            .outerjoin(JobFamily, JobFamily.id == Job.family_id)
+            .where(
+                *conditions,
+                JobPosting.catalog_job_id.is_not(None),
+                or_(
+                    JobPosting.salary_normalized_min.is_not(None),
+                    JobPosting.salary_normalized_max.is_not(None),
+                ),
+            )
+            .order_by(JobPosting.id)
+            .limit(SALARY_SAMPLE_LIMIT)
+        )
+    ).all()
+
+    def country_of(value: Any) -> str:
+        loc = value if isinstance(value, dict) else {}
+        return str(loc.get("country") or "unspecified")[:80]
+
+    job_groups: dict[tuple, list[float]] = {}
+    family_groups: dict[tuple, list[float]] = {}
+    job_meta: dict[tuple, tuple] = {}
+    for row in rows:
+        values = [
+            float(v)
+            for v in (row.salary_normalized_min, row.salary_normalized_max)
+            if v is not None
+        ]
+        if not values:
+            continue
+        value = sum(values) / len(values)
+        currency = (row.salary_currency or "").upper()
+        country = country_of(row.location)
+        if not currency or country == "unspecified":
+            continue
+        seniority = row.seniority or "unspecified"
+        job_key = (row.catalog_job_id, country, seniority, currency)
+        family_key = (row.key, country, seniority, currency)
+        job_groups.setdefault(job_key, []).append(value)
+        family_groups.setdefault(family_key, []).append(value)
+        job_meta[job_key] = (row.code, row.title, row.key, row.label)
+
+    cells: list[SalaryBenchmarkCellOut] = []
+    emitted_family: set[tuple] = set()
+    for key, values in job_groups.items():
+        _job_id, country, seniority, currency = key
+        code, title, family_key, family_title = job_meta[key]
+        family_values = family_groups.get((family_key, country, seniority, currency), [])
+        if len(values) < SALARY_THIN_FLOOR and len(family_values) >= SALARY_THIN_FLOOR:
+            family_key_tuple = (family_key, country, seniority, currency)
+            if family_key_tuple in emitted_family:
+                continue
+            emitted_family.add(family_key_tuple)
+            cells.append(
+                _salary_cell(
+                    scope="family",
+                    job_code=None,
+                    job_title=title or code or "Role",
+                    family_key=family_key,
+                    family_title=family_title,
+                    country=country,
+                    seniority=seniority,
+                    currency=currency,
+                    values=family_values,
+                )
+            )
+        else:
+            cells.append(
+                _salary_cell(
+                    scope="job",
+                    job_code=code,
+                    job_title=title or code or "Role",
+                    family_key=family_key,
+                    family_title=family_title,
+                    country=country,
+                    seniority=seniority,
+                    currency=currency,
+                    values=values,
+                )
+            )
+    cells.sort(key=lambda cell: (-cell.n, cell.job_title, cell.country, cell.seniority))
+    truncated = max(0, len(cells) - 40)
+    notes = [
+        "Per currency only: no FX conversion and no cross-country blending.",
+        "Posted ranges skew high: this is the median of posted ranges, not measured pay.",
+        "Not adjusted for local cost of living; compare cells within the same country.",
+        "OEWS/Eurostat reference line is not configured yet; no reference "
+        "number is invented or blended.",
+        "Cells are computed from a deterministic sample of up to 5,000 postings.",
+    ]
+    codes = [
+        "currency_only",
+        "posted_range_bias",
+        "col_note",
+        "reference_unavailable",
+        "sample_bounded",
+    ]
+    if truncated:
+        notes.append(f"{truncated} further cells are not shown.")
+        codes.append("cells_truncated")
+    return SalaryBenchmarksOut(
+        as_of=ctx.as_of,
+        window=ctx.window,
+        status_basis=cast(StatusBasis, status_basis),
+        start=ctx.start,
+        end=ctx.end,
+        floor=SALARY_THIN_FLOOR,
+        cells=cells[:40],
+        truncated=truncated,
+        reference=None,
+        reference_status="unavailable",
+        notes=notes,
+        note_codes=codes,
+    )
+
+
+def _salary_cell(
+    *,
+    scope: str,
+    job_code: str | None,
+    job_title: str,
+    family_key: str | None,
+    family_title: str | None,
+    country: str,
+    seniority: str,
+    currency: str,
+    values: list[float],
+) -> SalaryBenchmarkCellOut:
+    ordered = sorted(values)
+    thin = len(ordered) < SALARY_THIN_FLOOR
+    return SalaryBenchmarkCellOut(
+        scope=cast(Any, scope),
+        job_code=job_code,
+        job_title=job_title,
+        family_key=family_key,
+        family_title=family_title,
+        country=country,
+        seniority=seniority,
+        currency=currency,
+        period="year",
+        n=len(ordered),
+        thin_sample=thin,
+        p25=None if thin else round(_percentile(ordered, 0.25), 2),
+        p50=None if thin else round(_percentile(ordered, 0.5), 2),
+        p75=None if thin else round(_percentile(ordered, 0.75), 2),
     )
 
 

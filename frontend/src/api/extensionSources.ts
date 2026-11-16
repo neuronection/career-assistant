@@ -82,6 +82,7 @@ export type ExtensionInstallView = {
   originClass: "bundled" | "imported" | "listed";
   state: "installed" | "disabled" | "self-disabled" | "removed";
   enabled: boolean;
+  conditions?: string[];
   managedBy: "manual" | "gitops";
   parked: boolean;
   sourceKey: string | null;

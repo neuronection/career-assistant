@@ -25,23 +25,67 @@ accounted for — never as mapped.
 
 The **Triage** view lists active postings with their funnel state, source,
 top candidate and age, filterable by state, source, detail state, review
-flag and title. The decision trace (the eye icon) shows the outcome,
-matching signals, top candidates and the journal — never AI prompt text.
+flag, weak mapping and title. The decision trace (the eye icon) shows the
+outcome, matching signals, top candidates, the latest extract attempt, a
+proposal failure marker and the journal — never AI prompt text.
+
+The state order is **mapped → ignored → detail failed → no description →
+detail not fetched → extract failed → not extracted → needs review →
+actionable reasons → machine-terminal → unknown**. `detail failed` means
+the detail page was never fetched and the fetch-attempt budget is
+exhausted; a fetched posting whose extraction failed is `extract failed`.
+
+**Latest recorded attempt.** The funnel reads the extract outcome recorded
+on the posting, not whether an extract job ever failed. A successful
+extraction (including the already-extracted skip) sets `succeeded` and
+overwrites a previous failure; a **terminal** failure records `failed`; a
+retryable failure leaves the previous status, and a queued/running retry is
+shown as a pending chip in the trace. A `resolve` replay never changes the
+status.
 
 Bulk actions (bounded at 200 per action):
 
 - **Extract** — queue the deep extraction for postings that have a
-  description (already-queued ones are skipped).
+  description (already-queued ones are skipped). The result note reports
+  the **queued** count.
 - **Re-decide** — re-run the mapping decision (deduped while a run is
-  pending).
-- **Map** — one posting at a time from its trace: pick **any published
-  catalog type** (the trace's candidates are pinned first; search the
-  catalog for the rest) and map it (draft/retired types are refused; the
-  trace then shows the manual outcome).
+  pending). The result note reports the **queued** count.
+- **Map selected to…** — one published, non-retired catalog type for the
+  whole selection, resolved once. Rows already on that type are reported
+  **already**, unknown or terminal (`expired`/`hidden`) rows are **blocked**,
+  and the rest map **manual** with the ignore overlay, margin and proposal
+  cleared. One audit event carries the mapped/already/blocked counts and
+  every mapped row keeps its own journal entry; the result note reports the
+  **affected** (mapped) count.
 - **Ignore / Unignore** — the reviewed "no good type" overlay; a mapped
   posting must be unmapped first.
 - **Unmap** — clear a wrong mapping; the posting returns to triage.
 - **Mark reviewed** — clear the extraction-confidence flag.
+
+Each row also carries three direct actions: **Fetch detail now** (one
+connector call, no enrichment run and no attempt-budget increment; a changed
+description resets the stale extract and queues the normal re-extract),
+**Retry extract** (the existing one-posting extract action) and
+**Re-propose** (queues the refresh-redecision path, so a failed proposal can
+be retried without waiting for the next sweep).
+
+The trace's picker searches the **server-side published catalog** with a
+debounced query and a 50-row page; the trace's candidates stay pinned first
+with their titles. There is no 200-row truncation disclaimer.
+
+### Weak mappings
+
+A mapping is **weak** when the deterministic coverage margin is below the
+policy's δ (δ defaults to 0.08) or when a semantic mapping's confidence is
+below 0.65 — two candidates were close enough that a human should look.
+Weak rows stay **mapped** (the funnel does not add a new state); the triage
+queue marks them with a **Weak** chip and filters on `weak`. New
+deterministic mappings write the margin immediately; pre-existing rows stay
+empty until the owner runs **Re-decide stale mappings**, and semantic/manual
+mappings deliberately leave it null. The quality sample reserves half its batch for weak rows
+before the source-stratified remainder, and the Quality view reports the
+weak bucket (including the empty-until-sweep note). Nothing is unmapped
+automatically.
 
 ## Types & sources
 
@@ -60,6 +104,15 @@ semantic rescue, semantic rerank) **read-only** — they live in
 the embeddings index lives in
 [Tools → Retrieval](/settings/tools?section=retrieval). The console never
 duplicates them.
+
+The Runs view also carries the owner-run **Re-decide stale mappings**
+action: after confirmation it queues one bounded `POSTING_REMAP` sweep over
+active non-manual mappings whose `mapping_version` is missing or older than
+the current score version (the after-S1 backfill), and reports how many rows
+are in the run. **Force all** re-decides every active non-manual mapping,
+including current ones (a forced recompute/rollback); it has its own
+confirmation. Neither action is automatic, and neither touches manual or
+terminal postings.
 
 ## Policy, quality and alerts
 

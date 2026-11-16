@@ -24,13 +24,16 @@ from dataclasses import dataclass, field
 #    catalog MatchInsight rows (FIT_REFIT queue).
 # 7: parts carry the scored/cap gate flags (plan 169 round 2) — the merge
 #    reproduces the pre-plan accumulator from stored parts.
-FIT_VERSION = 7
+FIT_VERSION = 8
 
 # Neutral score for "no signal on either side" — never 0, never 10.
 NEUTRAL = 7.0
 
 # Importance → weight used by the skills dimension.
 IMPORTANCE_WEIGHT = {"core": 3.0, "important": 2.0, "bonus": 1.0}
+
+# Posting-side priority → weight (the job-side mirror of IMPORTANCE_WEIGHT).
+PRIORITY_WEIGHT = {"must_have": 3.0, "nice_to_have": 2.0, "bonus": 1.0}
 
 # Education levels → typical years of study (for the max_education_years gate).
 EDUCATION_YEARS = {

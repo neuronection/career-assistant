@@ -8,6 +8,7 @@ import { useCareerChatContext, CareerChatProvider } from "@/features/chat/compon
 import { buildChatMarkdownFromRows } from "@/features/chat/components/chat/exportChat";
 import { getDraft, writeDraft } from "@/features/chat/components/chat/drafts";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
 const streamChatMessage = vi.hoisted(() => vi.fn());
@@ -94,6 +95,7 @@ function RetryProbe() {
 describe("retry of failed turns", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    resetConfigSummaryCache();
     streamChatMessage.mockReset();
     streamChatRegenerate.mockReset();
     // Error turns now refresh the transcript (the user message is

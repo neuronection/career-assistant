@@ -15,7 +15,12 @@ from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
+from app.core.database import (
+    AsyncSessionLocal,
+    get_db,
+    json_serializer,
+    sqlite_pragmas,
+)
 from app.extensions.registry import register_connector, reset_registry
 from app.extensions.sdk import (
     ConnectorCapabilities,
@@ -29,7 +34,7 @@ from app.models.posting_model import JobPosting, JobSource, PostingSkill
 TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
 
-_engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True)
+_engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True, json_serializer=json_serializer)
 if IS_SQLITE:
     # Same pragmas as the app engine — the WAL switch must happen before a
     # second engine connects, or the first exclusive-lock attempt races.
@@ -44,6 +49,7 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "backup_runs",
     "retrieval_query_rollups",
     "retrieval_coverage_snapshots",
     "vector_records",
@@ -61,8 +67,10 @@ TABLES = [
     "code_crosswalks",
     "geo_region_aliases",
     "geo_regions",
+    "contact_interactions",
     "application_events",
     "applications",
+    "contacts",
     "user_path_flags",
     "label_overrides",
     "mcp_tokens",
@@ -79,10 +87,12 @@ TABLES = [
     "skill_evidence",
     "experience_skills",
     "experience_achievements",
+    "interview_stories",
     "experience_items",
     "education_items",
     "certifications",
     "profile_achievements",
+    "saved_answers",
     "autopilot_findings",
     "autopilot_runs",
     "autopilot_goals",
@@ -132,6 +142,7 @@ TABLES = [
     "embedding_model_profiles",
     "ai_task_assignments",
     "ai_models",
+    "ai_price_overrides",
     "ai_providers",
     "profile_proposals",
     "user_tool_grants",

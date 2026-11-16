@@ -281,6 +281,123 @@ async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots,
     assert len(audit) == 2, "one audit row per tool call"
 
 
+# ------------------------------------------- needs-config condition (plan 214)
+
+
+async def _install_view(db, source_id, install_id) -> dict:
+    views = [s for s in await list_sources(db) if s["id"] == str(source_id)]
+    assert views, "the extension source is listed"
+    return next(i for i in views[0]["installs"] if i["id"] == str(install_id))
+
+
+async def test_install_reports_needs_config_until_the_bundle_schema_is_satisfied(
+    db, local_roots, mcp_allowlist
+):
+    """A fresh T3 install mints an empty options bag — the bundle's required
+    fields are unmet, so the install carries the charter's needs-config
+    condition (never silently defaulted) and loses it once the admin's
+    options satisfy the schema."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    install_id = uuid.UUID(installed["id"])
+
+    view = await _install_view(db, source.id, install_id)
+    assert view["conditions"] == ["needs-config"]
+
+    await _compliant_options(db, install_id, board="jobs")
+    assert (await _install_view(db, source.id, install_id))["conditions"] == []
+
+
+async def test_needs_config_is_skipped_when_the_minted_source_is_gone(
+    db, local_roots, mcp_allowlist
+):
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .first()
+    )
+    await db.delete(minted)
+    await db.commit()
+
+    view = await _install_view(db, source.id, uuid.UUID(installed["id"]))
+    assert view["conditions"] == [], "no job source behind the install — nothing to validate"
+
+
+async def test_install_seeds_tool_options_from_the_manifest_defaults(
+    db, local_roots, mcp_allowlist
+):
+    """Plan 214 (T2 `_default_config` parity): a bundle that declares its
+    initial configuration installs with those options already stored — the
+    admin can enable it without a configure step."""
+    repo = make_repo(local_roots, manifest={**template_manifest(), "defaults": {"board": "jobs"}})
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .first()
+    )
+    assert json.loads(minted.config["options"]) == {"board": "jobs"}
+    assert (await _install_view(db, source.id, uuid.UUID(installed["id"])))["conditions"] == []
+
+    _pin_static(minted)
+    enabled = await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
+    assert enabled["enabled"] is True
+    await db.refresh(minted)
+    assert minted.enabled is True
+
+
+async def test_install_rejects_manifest_defaults_that_fail_the_schema(
+    db, local_roots, mcp_allowlist
+):
+    """The vendored manifest contract validates `defaults` against
+    `configSchema` at registration; the mint's own seed check is the second
+    line (T2 `_default_config` parity) — either way nothing is minted."""
+    repo = make_repo(local_roots, manifest={**template_manifest(), "defaults": {"board": 5}})
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    with pytest.raises(LifecycleError) as invalid:
+        await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            actor_id=await _actor_id(db),
+        )
+    assert "defaults" in invalid.value.detail
+    rows = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .all()
+    )
+    assert rows == [], "a rejected install mints nothing"
+
+
 # ---------------------------------------------------------------- consent
 
 

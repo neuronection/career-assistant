@@ -57,10 +57,27 @@ def validate_boot_config() -> list[str]:
     """Validate config via `nx_auth.boot`; raise ``BootConfigError`` on
     fatal problems.
 
-    Returns a list of non-fatal warnings (for the lifespan to log).
-    Runs real checks only in production; dev/test always returns [].
+    Returns a list of non-fatal warnings (for the lifespan to log). Runs
+    the kit checks only in production; dev/test always returns [] — except
+    the credential-split tri-state (ADR-0064 §4), which is a config error
+    in every environment: `CAREER_DB_SPLIT=1` without the migrations URL
+    refuses to boot, and legacy single-role credentials warn loudly in
+    production (allowed, not managed-ready).
     """
+    from app.core.config import SplitCredentialConfigError
     from app.core.keys import data_key_previous
+
+    warnings: list[str] = []
+    try:
+        credential_mode = settings.db_credential_mode
+    except SplitCredentialConfigError as exc:
+        raise BootConfigError(str(exc)) from exc
+    if credential_mode == "legacy" and settings.is_production:
+        warnings.append(
+            "legacy DB credentials: one role serves and may DDL (no "
+            "CAREER_MIGRATIONS_DATABASE_URL + CAREER_DB_SPLIT=1) — allowed, "
+            "not managed-ready (ADR-0064)"
+        )
 
     if settings.is_production:
         if settings.mail_transport != "smtp":
@@ -73,15 +90,18 @@ def validate_boot_config() -> list[str]:
                 "must stay SSRF-guarded in production"
             )
 
-    return _kit_validate(
-        production=settings.is_production,
-        identity_mode=settings.identity_mode,
-        session_key=settings.session_key,
-        refresh_key=settings.refresh_key,
-        data_key=settings.data_key,
-        data_key_previous=data_key_previous(),
-        key_env_prefix="CAREER",
-        debug=settings.debug,
-        demo_mode=settings.demo_mode,
-        weak_secrets=WEAK_SECRETS,
+    warnings.extend(
+        _kit_validate(
+            production=settings.is_production,
+            identity_mode=settings.identity_mode,
+            session_key=settings.session_key,
+            refresh_key=settings.refresh_key,
+            data_key=settings.data_key,
+            data_key_previous=data_key_previous(),
+            key_env_prefix="CAREER",
+            debug=settings.debug,
+            demo_mode=settings.demo_mode,
+            weak_secrets=WEAK_SECRETS,
+        )
     )
+    return warnings

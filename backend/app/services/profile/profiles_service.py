@@ -11,7 +11,7 @@ request/unit-of-work style).
 
 from __future__ import annotations
 
-import contextlib
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.profile_context import active_profile_id, active_user_id
 from app.models.user_model import Profile
+
+logger = logging.getLogger(__name__)
 
 
 def _norm(value: str | UUID | None) -> UUID | None:
@@ -179,15 +181,16 @@ async def _delete_photo_document(db: AsyncSession, profile: Profile) -> None:
     if profile.photo_document_id is None:
         return
     from app.models.document_model import Document
-    from app.services.profile.document_service import DocumentService
+    from app.services.profile.document_storage import document_storage
+    from app.storage.object_storage import StorageError
 
     document = await db.get(Document, profile.photo_document_id)
     if document is None:
         return
-    file_path = DocumentService.upload_file_path(document)
-    if file_path is not None and file_path.is_file():
-        with contextlib.suppress(OSError):
-            file_path.unlink()
+    try:
+        await document_storage().adelete(document, db=db)
+    except (StorageError, OSError):
+        logger.warning("photo %s bytes could not be deleted", document.id, exc_info=True)
     await db.delete(document)
 
 

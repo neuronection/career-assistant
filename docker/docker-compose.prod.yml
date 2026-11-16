@@ -6,20 +6,34 @@
 #
 # Registry images (built by the release workflow): set
 # CAREER_IMAGE=ghcr.io/<owner>/<repo>:<tag> instead of building locally.
+#
+# Credential split (ADR-0064): the stack runs two DB roles. The one-shot
+# `migrate` service provisions and migrates as the OWNER (DDL); the app
+# serves with the DML-only app role and never receives the owner DSN or
+# password. Set `CAREER_DB_OWNER_PASSWORD` (db bootstrap + migrate) and a
+# distinct `CAREER_DB_PASSWORD` (app role). Do not reuse one for both.
+# keep booting; the roles are still separated at the server).
 
 name: career-assistant
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${LOG_MAX_SIZE:-10m}"
+    max-file: "${LOG_MAX_FILE:-3}"
+
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector provisioned: migrate creates the `vector` extension here
+    # (the embeddings index needs it; the demo/dev stacks use the same image).
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      # ADR-0022 (amended): the bootstrap role is `neuronection_career_owner`
-      # — career keeps its single-role layout (this role runs migrations AND
-      # serves runtime DML); there is no separate least-privilege `_app` role.
+      # The bootstrap role is the OWNER (ADR-0064): it exists so the DB
+      # volume can be created and migrate can run; the app never uses it.
       POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
       POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+      POSTGRES_PASSWORD: ${CAREER_DB_OWNER_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD in docker/.env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,19 +42,64 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging: *default-logging
+
+  migrate:
+    # One-shot provisioning job (ADR-0062 §3 / ADR-0064 §3): app role +
+    # grants + default privileges, `vector` extension, Alembic, the
+    # LangGraph checkpoint schema, every known vector space, re-grant +
+    # verify. Exits non-zero on failure; the app does not start until it
+    # has completed successfully. This is the ONLY service holding the
+    # owner credential.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ${CAREER_IMAGE:-career-assistant:local}
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CAREER_APP_ENV: production
+      # Owner DSN — provisioning + migrations run under this role only.
+      CAREER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}@db:5432/${POSTGRES_DB:-neuronection_career}
+      # The explicit owner-DSN seam marker (ADR-0064): the migrate process
+      # rebinds to it; serving services must never receive it.
+      CAREER_MIGRATIONS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD}}@db:5432/${POSTGRES_DB:-neuronection_career}
+      # The DML-only app role to create/grant (the app connects with these).
+      CAREER_DB_APP_USER: ${CAREER_DB_APP_USER:-neuronection_career_app}
+      CAREER_DB_PASSWORD: ${CAREER_DB_PASSWORD:?Set CAREER_DB_PASSWORD (distinct from POSTGRES_PASSWORD)}
+      CAREER_DB_SPLIT: "1"
+    logging: *default-logging
 
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: ${CAREER_IMAGE:-career-assistant:local}
+    command: ["serve"]
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       CAREER_APP_ENV: production
-      CAREER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-neuronection_career_owner}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-neuronection_career}
+      # App (DML-only) role DSN — provisioned by the migrate service. The
+      # owner password/DSN deliberately never enters this container.
+      CAREER_DATABASE_URL: postgresql+asyncpg://${CAREER_DB_APP_USER:-neuronection_career_app}:${CAREER_DB_PASSWORD:?Set CAREER_DB_PASSWORD}@db:5432/${POSTGRES_DB:-neuronection_career}
+      # Split marker (ADR-0064): serving code skips runtime DDL (checkpointer
+      # setup, vector provisioning) — the migrate job owns the schema.
+      CAREER_DB_APP_ROLE: "1"
+      # Cookie `Secure` derives from the public scheme (plan 64 §1.6): set
+      # CAREER_PUBLIC_URL (https://… → Secure, http://… → not) or flip
+      # CAREER_TLS=1. Never hard-coded true, so LAN/VPN HTTP login works;
+      # an explicit CAREER_COOKIE_SECURE overrides both.
+      CAREER_COOKIE_SECURE: ${CAREER_COOKIE_SECURE:-}
+      CAREER_PUBLIC_URL: ${CAREER_PUBLIC_URL:-}
+      CAREER_TLS: ${CAREER_TLS:-0}
       # Per-purpose key family (identity-auth §8) — generate each with:
       #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
       CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
@@ -51,6 +110,43 @@ services:
       # so per-IP limits key on real clients.
       CAREER_TRUSTED_PROXY_COUNT: ${CAREER_TRUSTED_PROXY_COUNT:-1}
       CAREER_MAX_UPLOAD_MB: ${CAREER_MAX_UPLOAD_MB:-25}
+      # Data exports are capped independently of the per-upload ceiling.
+      CAREER_EXPORT_MAX_MB: ${CAREER_EXPORT_MAX_MB:-1024}
+      # Family object storage (ADR-0057 / plan 55 P2). Empty defaults keep
+      # the local volume; a cloud profile sets its provider block (see
+      # docker/.env.production.example and docker/docker-compose.cloud.yml).
+      # The app validates the resolved config at boot and fails loud.
+      CAREER_CLOUD_PROFILE: ${CAREER_CLOUD_PROFILE:-}
+      CAREER_OBJECT_STORAGE_BACKEND: ${CAREER_OBJECT_STORAGE_BACKEND:-}
+      CAREER_OBJECT_STORAGE_REQUIRED: ${CAREER_OBJECT_STORAGE_REQUIRED:-false}
+      CAREER_OBJECT_STORAGE_LOCAL_ROOT: ${CAREER_OBJECT_STORAGE_LOCAL_ROOT:-/app/uploads}
+      # Intentionally unset by default: the bootstrap binds an unset cap to
+      # max_upload_mb (25 MB), not the contract's 100 MB default.
+      CAREER_OBJECT_STORAGE_MAX_MB: ${CAREER_OBJECT_STORAGE_MAX_MB:-}
+      CAREER_OBJECT_STORAGE_PRESIGN_TTL: ${CAREER_OBJECT_STORAGE_PRESIGN_TTL:-300}
+      CAREER_S3_BUCKET: ${CAREER_S3_BUCKET:-}
+      CAREER_S3_REGION: ${CAREER_S3_REGION:-}
+      CAREER_S3_ENDPOINT_URL: ${CAREER_S3_ENDPOINT_URL:-}
+      CAREER_S3_ACCESS_KEY_ID: ${CAREER_S3_ACCESS_KEY_ID:-}
+      CAREER_S3_SECRET_ACCESS_KEY: ${CAREER_S3_SECRET_ACCESS_KEY:-}
+      CAREER_S3_SESSION_TOKEN: ${CAREER_S3_SESSION_TOKEN:-}
+      CAREER_S3_PATH_STYLE: ${CAREER_S3_PATH_STYLE:-}
+      CAREER_S3_SSE: ${CAREER_S3_SSE:-}
+      CAREER_S3_KMS_KEY_ID: ${CAREER_S3_KMS_KEY_ID:-}
+      CAREER_S3_PREFIX: ${CAREER_S3_PREFIX:-}
+      CAREER_S3_VERIFY_TLS: ${CAREER_S3_VERIFY_TLS:-}
+      CAREER_S3_CONNECT_TIMEOUT: ${CAREER_S3_CONNECT_TIMEOUT:-}
+      CAREER_S3_READ_TIMEOUT: ${CAREER_S3_READ_TIMEOUT:-}
+      CAREER_S3_MAX_ATTEMPTS: ${CAREER_S3_MAX_ATTEMPTS:-}
+      CAREER_AZURE_STORAGE_CONTAINER: ${CAREER_AZURE_STORAGE_CONTAINER:-}
+      CAREER_AZURE_STORAGE_CONNECTION_STRING: ${CAREER_AZURE_STORAGE_CONNECTION_STRING:-}
+      CAREER_AZURE_STORAGE_ACCOUNT_URL: ${CAREER_AZURE_STORAGE_ACCOUNT_URL:-}
+      CAREER_AZURE_STORAGE_ACCOUNT_NAME: ${CAREER_AZURE_STORAGE_ACCOUNT_NAME:-}
+      CAREER_AZURE_STORAGE_CREDENTIAL: ${CAREER_AZURE_STORAGE_CREDENTIAL:-}
+      CAREER_AZURE_STORAGE_PREFIX: ${CAREER_AZURE_STORAGE_PREFIX:-}
+      CAREER_AZURE_CONNECT_TIMEOUT: ${CAREER_AZURE_CONNECT_TIMEOUT:-}
+      CAREER_AZURE_READ_TIMEOUT: ${CAREER_AZURE_READ_TIMEOUT:-}
+      CAREER_AZURE_MAX_ATTEMPTS: ${CAREER_AZURE_MAX_ATTEMPTS:-}
       # Ingest runs in its own serial worker lane, so a source sync or an
       # extraction backlog drain never blocks digests, CV generation or the
       # vector reconcile (plan 203). Each lane is serial: 1 is the intended
@@ -65,10 +161,22 @@ services:
       - "127.0.0.1:${CAREER_API_PORT:-8100}:8100"
     volumes:
       - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3); sys.exit(0 if r.status < 500 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *default-logging
 
   backup:
-    # Scheduled instance backups (database dump + uploads) written to the
-    # ./backups bind mount. Enable with --profile backup.
+    # Scheduled database dumps written to the ./backups bind mount. Enable
+    # with --profile backup. Each run records a row in `backup_runs`
+    # (ADR-0063 §2). This sidecar is same-host by design — scripts/backup.sh
+    # owns the off-host upload (and the ledger row) for T1; label a
+    # local-only install non-DR. Document bytes are not archived here: the
+    # local uploads volume is host-local, and under a cloud profile the
+    # provider's durability/versioning owns them (ADR-0057).
     image: postgres:16-alpine
     profiles: ["backup"]
     restart: unless-stopped
@@ -76,20 +184,17 @@ services:
       db:
         condition: service_healthy
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${CAREER_DB_OWNER_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD}
+      PGHOST: db
       POSTGRES_DB: ${POSTGRES_DB:-neuronection_career}
       POSTGRES_USER: ${POSTGRES_USER:-neuronection_career_owner}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
     volumes:
       - ./backups:/backups
-    command: >
-      sh -c 'while true; do
-        ts=$$(date -u +%Y%m%d-%H%M%S);
-        pg_dump -U $$POSTGRES_USER -Fc $$POSTGRES_DB > /backups/db-$$ts.dump;
-        find /backups -name "db-*.dump" | sort | head -n -$$BACKUP_KEEP | xargs -r rm --;
-        sleep $$((BACKUP_INTERVAL_HOURS * 3600));
-      done'
+      - ./backup-sidecar.sh:/usr/local/bin/backup-sidecar.sh:ro
+    command: ["sh", "/usr/local/bin/backup-sidecar.sh"]
+    logging: *default-logging
 
 volumes:
   db_data:

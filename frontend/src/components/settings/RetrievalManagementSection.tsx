@@ -369,7 +369,7 @@ function QualitySummary({
         <p className="text-xs text-[var(--as-muted-fg)]">
           {t("retrieval.quality.candidateVsBaseline", {
             candidate: shortId(compare.new_space_id),
-            baseline: shortId(compare.old_space_id),
+            baseline: shortId(compare.baseline_space_id),
           })}
         </p>
       </div>

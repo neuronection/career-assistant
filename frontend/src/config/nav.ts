@@ -6,6 +6,7 @@ import {
   Radar,
 
   Bot,
+  BookOpen,
   Briefcase,
   GraduationCap,
   MessageCircle,
@@ -18,6 +19,7 @@ import {
   Settings2,
   Trophy,
   UserRound,
+  Users,
 } from "lucide-react";
 
 import { featureFor, isVisible } from "@/config/features";
@@ -52,11 +54,13 @@ export const NAV: AppNavItem[] = [
     studentOnly: false,
   },
   { to: "/applications", labelKey: "nav.applications", icon: KanbanSquare, studentOnly: false },
+  { to: "/contacts", labelKey: "nav.contacts", icon: Users, studentOnly: false },
   { to: "/radar", labelKey: "nav.radar", icon: Radar, studentOnly: false },
   { to: "/autopilot", labelKey: "nav.autopilot", icon: Bot, studentOnly: false },
   { to: "/interviews", labelKey: "nav.interviews", icon: GraduationCap, studentOnly: false },
   { to: "/growth", labelKey: "nav.growth", icon: Route, studentOnly: false, section: "nav.sectionPrepare" },
   { to: "/paths", labelKey: "nav.paths", icon: Milestone, studentOnly: false },
+  { to: "/guides/market", labelKey: "nav.marketGuide", icon: BookOpen, studentOnly: false },
   { to: "/cv", labelKey: "nav.cvStudio", icon: FileText, studentOnly: false },
   { to: "/profile", labelKey: "nav.profile", icon: UserRound, studentOnly: false, section: "nav.sectionAccount" },
   { to: "/settings/ai", labelKey: "nav.settings", icon: Settings2, studentOnly: false, matchPrefix: "/settings" },

@@ -217,7 +217,7 @@ async def collect_profile_context(db: AsyncSession, user_id: UUID, constraints: 
     goal's profile-usage flags (plan 169).
 
     A disabled input is DROPPED (the planner plans from the goal text and
-    the vocabulary alone); languages join when ``use_languages``; the
+    the vocabulary alone); languages are always included; the
     stage is the effective one — ``stage_source="goal"`` derives it from
     the seniority selection (its max rank), ``use_experience=False``
     omits it entirely. ``target_seniority`` is the goal's own constraint
@@ -249,12 +249,11 @@ async def collect_profile_context(db: AsyncSession, user_id: UUID, constraints: 
     if usage.use_location:
         context["country"] = basics.get("country") or None
         context["city"] = basics.get("city") or None
-    if usage.use_languages:
-        context["languages"] = [
-            {"code": str(row.get("code", "")).lower(), "level": str(row.get("level", "basic"))}
-            for row in (profile.academics or {}).get("languages") or []
-            if row.get("code")
-        ]
+    context["languages"] = [
+        {"code": str(row.get("code", "")).lower(), "level": str(row.get("level", "basic"))}
+        for row in (profile.academics or {}).get("languages") or []
+        if row.get("code")
+    ]
     if usage.use_experience:
         stage, _source = await stage_for_user(db, user_id)
         effective = overrides.stage if overrides.stage is not None else stage

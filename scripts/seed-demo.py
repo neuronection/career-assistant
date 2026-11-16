@@ -252,6 +252,19 @@ class UserSpec:
 
 
 @dataclass(frozen=True)
+class PostingSkillSpec:
+    """One requirement edge of a synthetic posting.
+
+    `skill_key` must be a reference `SKILL_TAGS` key (`taxonomy.json`);
+    the seeder resolves it to a real `skills` row and never writes one.
+    """
+
+    skill_key: str
+    required_level: int
+    priority: str
+
+
+@dataclass(frozen=True)
 class PostingSpec:
     key: str
     ref: str
@@ -271,11 +284,14 @@ class PostingSpec:
     salary_max: float | None
     posted_days_ago: int
     expires_in_days: int
+    skills: tuple[PostingSkillSpec, ...] = ()
 
 
 # The shared synthetic posting pool (a fictional job board the personas
 # apply to). `catalog_job_code` links onto the reference catalog when the
-# code exists — mapping is a lookup, never a catalog write.
+# code exists — mapping is a lookup, never a catalog write. Postings are
+# spread over the current and the previous 30-day window so Market → Skills
+# has top, rising and falling examples; skills stay within `SKILL_TAGS`.
 DEMO_POSTINGS: tuple[PostingSpec, ...] = (
     PostingSpec(
         key="data-analyst",
@@ -299,6 +315,11 @@ DEMO_POSTINGS: tuple[PostingSpec, ...] = (
         salary_max=42000,
         posted_days_ago=12,
         expires_in_days=30,
+        skills=(
+            PostingSkillSpec("data-analysis", 6, "must_have"),
+            PostingSkillSpec("programming", 3, "nice_to_have"),
+            PostingSkillSpec("attention-to-detail", 5, "nice_to_have"),
+        ),
     ),
     PostingSpec(
         key="dev-starter",
@@ -322,6 +343,11 @@ DEMO_POSTINGS: tuple[PostingSpec, ...] = (
         salary_max=34000,
         posted_days_ago=7,
         expires_in_days=45,
+        skills=(
+            PostingSkillSpec("programming", 5, "must_have"),
+            PostingSkillSpec("problem-solving", 5, "must_have"),
+            PostingSkillSpec("teamwork", 4, "must_have"),
+        ),
     ),
     PostingSpec(
         key="sustainability-intern",
@@ -339,12 +365,17 @@ DEMO_POSTINGS: tuple[PostingSpec, ...] = (
         remote=False,
         seniority="intern",
         employment_type="internship",
-        onsite_policy="on_site",
+        onsite_policy="onsite",
         education_level="bachelor",
         salary_min=None,
         salary_max=None,
         posted_days_ago=3,
         expires_in_days=60,
+        skills=(
+            PostingSkillSpec("engineering-design", 3, "nice_to_have"),
+            PostingSkillSpec("data-analysis", 3, "bonus"),
+            PostingSkillSpec("writing", 3, "must_have"),
+        ),
     ),
     PostingSpec(
         key="ux-junior",
@@ -368,6 +399,303 @@ DEMO_POSTINGS: tuple[PostingSpec, ...] = (
         salary_max=38000,
         posted_days_ago=20,
         expires_in_days=14,
+        skills=(
+            PostingSkillSpec("visual-design", 5, "must_have"),
+            PostingSkillSpec("empathy", 5, "must_have"),
+            PostingSkillSpec("organization", 5, "must_have"),
+            PostingSkillSpec("storytelling", 4, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="accountant",
+        ref="DE000005",
+        external_id="DEMO-005",
+        title="Junior Accountant",
+        org="Northlight Ledger AB",
+        catalog_job_code="accountant",
+        description=(
+            "Fictional bookkeeping team seeks a junior accountant for monthly "
+            "closings, reconciliations and audit preparation."
+        ),
+        city="Stockholm",
+        country="Sweden",
+        remote=False,
+        seniority="junior",
+        employment_type="full_time",
+        onsite_policy="hybrid",
+        education_level="bachelor",
+        salary_min=33000,
+        salary_max=41000,
+        posted_days_ago=5,
+        expires_in_days=40,
+        skills=(
+            PostingSkillSpec("attention-to-detail", 8, "must_have"),
+            PostingSkillSpec("organization", 7, "must_have"),
+            PostingSkillSpec("data-analysis", 5, "nice_to_have"),
+            PostingSkillSpec("negotiation", 4, "bonus"),
+        ),
+    ),
+    PostingSpec(
+        key="teacher",
+        ref="DE000006",
+        external_id="DEMO-006",
+        title="Mathematics Teacher (Grades 7-9)",
+        org="Vikstrand School Foundation",
+        catalog_job_code="teacher",
+        description=(
+            "A fictional lower-secondary school needs a maths teacher for "
+            "three classes, with a mentor for the first term."
+        ),
+        city="Gothenburg",
+        country="Sweden",
+        remote=False,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="onsite",
+        education_level="master",
+        salary_min=36000,
+        salary_max=44000,
+        posted_days_ago=38,
+        expires_in_days=35,
+        skills=(
+            PostingSkillSpec("teaching", 8, "must_have"),
+            PostingSkillSpec("public-speaking", 6, "must_have"),
+            PostingSkillSpec("empathy", 7, "must_have"),
+            PostingSkillSpec("organization", 6, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="nurse",
+        ref="DE000007",
+        external_id="DEMO-007",
+        title="Registered Nurse, Ward 4",
+        org="Solbacken Care Clinic",
+        catalog_job_code="nurse",
+        description=(
+            "Fictional clinic ward with a mixed adult roster — day and "
+            "evening shifts, structured onboarding for new graduates."
+        ),
+        city="Uppsala",
+        country="Sweden",
+        remote=False,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="onsite",
+        education_level="bachelor",
+        salary_min=37000,
+        salary_max=45000,
+        posted_days_ago=2,
+        expires_in_days=50,
+        skills=(
+            PostingSkillSpec("empathy", 8, "must_have"),
+            PostingSkillSpec("first-aid", 8, "must_have"),
+            PostingSkillSpec("attention-to-detail", 7, "must_have"),
+            PostingSkillSpec("physical-stamina", 6, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="graphic-designer",
+        ref="DE000008",
+        external_id="DEMO-008",
+        title="Graphic Designer",
+        org="Paper Moth Studio",
+        catalog_job_code="graphic-designer",
+        description=(
+            "Fictional brand studio hiring a graphic designer for campaign "
+            "systems, packaging and social templates."
+        ),
+        city="Malmö",
+        country="Sweden",
+        remote=False,
+        seniority="junior",
+        employment_type="full_time",
+        onsite_policy="hybrid",
+        education_level="vocational",
+        salary_min=30000,
+        salary_max=39000,
+        posted_days_ago=16,
+        expires_in_days=28,
+        skills=(
+            PostingSkillSpec("visual-design", 7, "must_have"),
+            PostingSkillSpec("storytelling", 6, "must_have"),
+            PostingSkillSpec("attention-to-detail", 5, "nice_to_have"),
+            PostingSkillSpec("video-editing", 3, "bonus"),
+        ),
+    ),
+    PostingSpec(
+        key="financial-analyst",
+        ref="DE000009",
+        external_id="DEMO-009",
+        title="Financial Analyst",
+        org="Harbourline Capital",
+        catalog_job_code="financial-analyst",
+        description=(
+            "Fictional investment office seeks a financial analyst for "
+            "forecasting, variance reviews and board reporting."
+        ),
+        city="Stockholm",
+        country="Sweden",
+        remote=False,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="hybrid",
+        education_level="master",
+        salary_min=42000,
+        salary_max=54000,
+        posted_days_ago=33,
+        expires_in_days=42,
+        skills=(
+            PostingSkillSpec("data-analysis", 7, "must_have"),
+            PostingSkillSpec("critical-thinking", 7, "must_have"),
+            PostingSkillSpec("organization", 6, "must_have"),
+            PostingSkillSpec("negotiation", 5, "nice_to_have"),
+            PostingSkillSpec("attention-to-detail", 5, "bonus"),
+        ),
+    ),
+    PostingSpec(
+        key="data-scientist",
+        ref="DE000010",
+        external_id="DEMO-010",
+        title="Data Scientist",
+        org="Tidewater Insights AB",
+        catalog_job_code="data-scientist",
+        description=(
+            "Fictional research team building demand models for municipal "
+            "planning — notebooks today, scheduled pipelines next."
+        ),
+        city="Gothenburg",
+        country="Sweden",
+        remote=True,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="remote",
+        education_level="master",
+        salary_min=45000,
+        salary_max=58000,
+        posted_days_ago=35,
+        expires_in_days=30,
+        skills=(
+            PostingSkillSpec("data-analysis", 8, "must_have"),
+            PostingSkillSpec("programming", 6, "must_have"),
+            PostingSkillSpec("mathematics", 6, "nice_to_have"),
+            PostingSkillSpec("organization", 4, "bonus"),
+        ),
+    ),
+    PostingSpec(
+        key="software-developer",
+        ref="DE000011",
+        external_id="DEMO-011",
+        title="Full-stack Software Developer",
+        org="Pinevale Labs",
+        catalog_job_code="software-developer",
+        description=(
+            "Fictional product team shipping a scheduling tool — TypeScript "
+            "front end, Python services, pair reviews every day."
+        ),
+        city="Stockholm",
+        country="Sweden",
+        remote=True,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="remote",
+        education_level="bachelor",
+        salary_min=43000,
+        salary_max=56000,
+        posted_days_ago=6,
+        expires_in_days=45,
+        skills=(
+            PostingSkillSpec("programming", 7, "must_have"),
+            PostingSkillSpec("problem-solving", 6, "must_have"),
+            PostingSkillSpec("teamwork", 5, "must_have"),
+            PostingSkillSpec("critical-thinking", 5, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="marketing-specialist",
+        ref="DE000012",
+        external_id="DEMO-012",
+        title="Marketing Specialist",
+        org="Bright Fern Media",
+        catalog_job_code="marketing-specialist",
+        description=(
+            "Fictional content studio wants a marketing specialist for "
+            "campaign copy, launch calendars and channel reporting."
+        ),
+        city="Malmö",
+        country="Sweden",
+        remote=False,
+        seniority="junior",
+        employment_type="full_time",
+        onsite_policy="hybrid",
+        education_level="bachelor",
+        salary_min=31000,
+        salary_max=40000,
+        posted_days_ago=37,
+        expires_in_days=34,
+        skills=(
+            PostingSkillSpec("writing", 6, "must_have"),
+            PostingSkillSpec("visual-design", 4, "nice_to_have"),
+            PostingSkillSpec("organization", 5, "must_have"),
+            PostingSkillSpec("data-analysis", 4, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="electrician",
+        ref="DE000013",
+        external_id="DEMO-013",
+        title="Service Electrician",
+        org="Volt & Vine Electrical",
+        catalog_job_code="electrician",
+        description=(
+            "Fictional electrical contractor hiring for service calls and "
+            "small installations across the region."
+        ),
+        city="Örebro",
+        country="Sweden",
+        remote=False,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="onsite",
+        education_level="vocational",
+        salary_min=34000,
+        salary_max=42000,
+        posted_days_ago=11,
+        expires_in_days=38,
+        skills=(
+            PostingSkillSpec("electronics", 7, "must_have"),
+            PostingSkillSpec("dexterity", 6, "must_have"),
+            PostingSkillSpec("problem-solving", 5, "nice_to_have"),
+            PostingSkillSpec("organization", 4, "nice_to_have"),
+        ),
+    ),
+    PostingSpec(
+        key="chef",
+        ref="DE000014",
+        external_id="DEMO-014",
+        title="Chef de Partie",
+        org="Copper Kettle Kitchen",
+        catalog_job_code="chef",
+        description=(
+            "Fictional neighbourhood restaurant seeks a chef de partie for "
+            "the evening line — seasonal menu, no split shifts."
+        ),
+        city="Gothenburg",
+        country="Sweden",
+        remote=False,
+        seniority="mid",
+        employment_type="full_time",
+        onsite_policy="onsite",
+        education_level="vocational",
+        salary_min=30000,
+        salary_max=37000,
+        posted_days_ago=31,
+        expires_in_days=36,
+        skills=(
+            PostingSkillSpec("cooking", 8, "must_have"),
+            PostingSkillSpec("problem-solving", 5, "must_have"),
+            PostingSkillSpec("leadership", 5, "nice_to_have"),
+            PostingSkillSpec("organization", 5, "nice_to_have"),
+        ),
     ),
 )
 
@@ -1184,7 +1512,9 @@ def purge_seeded(session: Session) -> dict[str, int]:
     run(delete(PostingInteraction).where(PostingInteraction.user_id.in_(user_ids)))
     run(delete(PostingFit).where(PostingFit.user_id.in_(user_ids)))
     if posting_ids:
-        run(delete(PostingSkill).where(PostingSkill.posting_id.in_(posting_ids)))
+        counts["posting_skills"] = run(
+            delete(PostingSkill).where(PostingSkill.posting_id.in_(posting_ids))
+        )
         run(
             delete(Application).where(
                 Application.posting_id.in_(posting_ids)
@@ -1529,6 +1859,62 @@ def _posting_content_hash(spec: PostingSpec) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _skill_ids_by_key(session: Session) -> dict[str, Any]:
+    """Reference `skills` rows by stable key (demo skills never invent one)."""
+    rows = session.execute(select(Skill.key, Skill.id)).all()
+    return dict(rows)
+
+
+def _ensure_posting_skills(
+    session: Session,
+    spec: PostingSpec,
+    counts: SeedCounts,
+    skill_ids: dict[str, Any],
+) -> None:
+    """Idempotent requirement edges for one synthetic posting.
+
+    Runs for already-seeded postings too, so a demo dir seeded before the
+    pool grew still gains its skills. Unknown keys are skipped with a
+    warning — the reference taxonomy, never a demo write, owns skill rows.
+    """
+    posting_id = demo_id("posting", spec.key)
+    seen: set[str] = set()
+    for skill_spec in spec.skills:
+        if skill_spec.skill_key in seen:
+            continue
+        seen.add(skill_spec.skill_key)
+        skill_id = skill_ids.get(skill_spec.skill_key)
+        if skill_id is None:
+            print(
+                f"warning: posting {spec.key!r} references unknown skill "
+                f"{skill_spec.skill_key!r} — skipped",
+                file=sys.stderr,
+            )
+            continue
+        exists = session.scalar(
+            select(PostingSkill.id).where(
+                PostingSkill.posting_id == posting_id,
+                PostingSkill.skill_id == skill_id,
+            )
+        )
+        if exists is not None:
+            counts.add("posting_skills", False)
+            continue
+        session.add(
+            PostingSkill(
+                id=demo_id("posting-skill", f"{spec.key}:{skill_spec.skill_key}"),
+                posting_id=posting_id,
+                skill_id=skill_id,
+                evidence="explicit",
+                confidence=1.0,
+                required_level=skill_spec.required_level,
+                priority=skill_spec.priority,
+            )
+        )
+        counts.add("posting_skills", True)
+    session.flush()
+
+
 def _ensure_postings(session: Session, counts: SeedCounts) -> None:
     """The fictional posting pool (and its fictional source)."""
     source_id = demo_id("source", DEMO_SOURCE_KEY)
@@ -1545,10 +1931,13 @@ def _ensure_postings(session: Session, counts: SeedCounts) -> None:
         )
         session.flush()
     counts.totals["postings"] = 0
+    counts.totals["posting_skills"] = 0
+    skill_ids = _skill_ids_by_key(session)
     for spec in DEMO_POSTINGS:
         row = session.get(JobPosting, demo_id("posting", spec.key))
         if row is not None:
             counts.add("postings", False)
+            _ensure_posting_skills(session, spec, counts, skill_ids)
             continue
         catalog_job_id = None
         if spec.catalog_job_code:
@@ -1594,6 +1983,7 @@ def _ensure_postings(session: Session, counts: SeedCounts) -> None:
             )
         )
         counts.add("postings", True)
+        _ensure_posting_skills(session, spec, counts, skill_ids)
     session.flush()
 
 
@@ -1675,6 +2065,7 @@ _ENTITIES = (
     "honors",
     "cvs",
     "postings",
+    "posting_skills",
     "applications",
 )
 
@@ -1755,6 +2146,13 @@ def scope_totals(session: Session) -> dict[str, int]:
             select(func.count())
             .select_from(JobPosting)
             .where(JobPosting.id.in_(posting_ids))
+        )
+        if posting_ids
+        else 0,
+        "posting_skills": count(
+            select(func.count())
+            .select_from(PostingSkill)
+            .where(PostingSkill.posting_id.in_(posting_ids))
         )
         if posting_ids
         else 0,

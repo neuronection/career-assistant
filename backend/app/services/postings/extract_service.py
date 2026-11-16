@@ -22,7 +22,7 @@ resolution over the stored raw labels — no pass-1 spend."""
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -42,6 +42,7 @@ from app.models.enums import (
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.settings_model import AppSetting
 from app.models.taxonomy_model import Skill
+from app.services.postings.language_codes import is_language_code
 from app.services.postings.salary import BASIS_VALUES, annualized
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-EXTRACT_VERSION = 5
+EXTRACT_VERSION = 6
 CONFIDENCE_THRESHOLD = 0.6
 
 # A proposed extraction label seen again from a different posting is
@@ -160,7 +161,11 @@ FIELD_NAMES = (
     "location",
     "salary",
     "education",
-    "languages",
+    "language_requirements",
+    "work_authorization",
+    "grade_requirement",
+    "opportunity_type",
+    "application_deadline",
     "prerequisites",
     "benefits",
     "responsibilities",
@@ -432,13 +437,21 @@ async def apply_extract(
         for r in (data.get("prerequisites") or [])
         if float(r.get("confidence", 1.0)) >= CONFIDENCE_THRESHOLD
     ]
+    kept_languages = [
+        r
+        for r in (data.get("language_requirements") or [])
+        if float(r.get("confidence", 1.0)) >= CONFIDENCE_THRESHOLD
+    ]
     needs_review = (
         bool(suppressed)
         or len(kept_skills) != len(data.get("skills") or [])
         or len(kept_prerequisites) != len(data.get("prerequisites") or [])
+        or len(kept_languages) != len(data.get("language_requirements") or [])
     )
     data["skills"] = kept_skills
     data["prerequisites"] = kept_prerequisites
+    if data.get("language_requirements") is not None:
+        data["language_requirements"] = kept_languages
     data["_suppressed_fields"] = suppressed
     posting.extract_version = EXTRACT_VERSION
     posting.needs_review = needs_review
@@ -447,6 +460,12 @@ async def apply_extract(
         posting.seniority = data["seniority"]
     if data.get("employment_type"):
         posting.employment_type = data["employment_type"]
+    posting.work_authorization = (data.get("work_authorization") or {}).get("status")
+    posting.opportunity_type = data.get("opportunity_type")
+    deadline = data.get("application_deadline")
+    posting.application_deadline = (
+        date.fromisoformat(deadline) if isinstance(deadline, str) and deadline else None
+    )
     if data.get("remote_policy"):
         posting.onsite_policy = data["remote_policy"]
     if data.get("education") and data["education"].get("level"):
@@ -474,7 +493,8 @@ async def apply_extract(
         }
 
     facts = {**(posting.posting_facts or {})}
-    for key in ("languages", "benefits", "responsibilities", "values_cues"):
+    facts.pop("languages", None)
+    for key in ("language_requirements", "benefits", "responsibilities", "values_cues"):
         if data.get(key):
             facts[key] = data[key]
     lifestyle = {key: data[key] for key in LIFESTYLE_FACT_KEYS if data.get(key)}
@@ -487,6 +507,15 @@ async def apply_extract(
         db, posting, data["skills"], actor_ref=actor_ref, run=run, thresholds=thresholds
     )
     posting.extract = data
+    codes = sorted(
+        {
+            str(row.get("code", "")).strip().lower()
+            for row in (data.get("language_requirements") or [])
+            if is_language_code(row.get("code"))
+        }
+    )
+    posting.language_codes = f",{','.join(codes)},"[:120] if codes else None
+    posting.extract_status = "succeeded"
     outcome = "partial" if posting.needs_review else "ok"
     PostingChangeJournal.record(
         db,
@@ -949,13 +978,72 @@ async def run_extract_job(db: AsyncSession, payload: dict, *, job_id=None) -> di
     if payload.get("mode") == "resolve":
         return await replay_posting_resolution(db, posting, job_id=job_id)
     if posting.extract_version == EXTRACT_VERSION:
+        if posting.extract_status != "succeeded":
+            previous_status = posting.extract_status
+            posting.extract_status = "succeeded"
+            from app.services.postings.change_journal import PostingChangeJournal
+
+            PostingChangeJournal.record(
+                db,
+                posting.id,
+                "extract_llm",
+                operation={
+                    "extract_status": "succeeded",
+                    "reason": "already_extracted",
+                },
+                before={"extract_status": previous_status},
+                after={"extract_status": "succeeded"},
+            )
         return {"skipped": "already extracted"}
     # A previously-extracted posting reaching the queue again IS the
     # re-extract wave (manual bulk enqueue; the auto pass only queues
     # never-extracted rows) — the trigger rides `actor_ref`
     # (plan 142 amendment 4), not a separate actor kind.
     trigger = "bulk" if posting.extract_version is not None else "auto"
-    return await extract_posting_now(db, posting, trigger=trigger, job_id=job_id)
+    try:
+        return await extract_posting_now(db, posting, trigger=trigger, job_id=job_id)
+    except Exception:
+        await db.rollback()
+        job = await db.get(BackgroundJob, UUID(str(job_id))) if job_id is not None else None
+        # claim_next increments attempts before the handler runs; the terminal
+        # check below depends on that committed attempt count.
+        if job is not None and not job.cancel_requested and job.attempts >= job.max_attempts:
+            await record_terminal_extract_failure(db, posting_id, commit=True)
+        raise
+
+
+async def record_terminal_extract_failure(
+    db: AsyncSession, posting_id, *, commit: bool = False
+) -> bool:
+    """Mirror a terminal extract failure onto the posting's typed status.
+
+    Callers pass ``commit=False`` when their own transaction owns the write
+    (the orphan recovery loop); the handler commits immediately because the
+    job failure follows on a separate connection.
+    """
+    if not posting_id:
+        return False
+    fresh = await db.get(JobPosting, UUID(str(posting_id)))
+    if fresh is None:
+        return False
+    previous_status = fresh.extract_status
+    fresh.extract_status = "failed"
+    from app.services.postings.change_journal import PostingChangeJournal
+
+    PostingChangeJournal.record(
+        db,
+        fresh.id,
+        "extract_llm",
+        operation={
+            "extract_status": "failed",
+            "reason": "terminal_extract_failure",
+        },
+        before={"extract_status": previous_status},
+        after={"extract_status": "failed"},
+    )
+    if commit:
+        await db.commit()
+    return True
 
 
 async def extract_posting_now(

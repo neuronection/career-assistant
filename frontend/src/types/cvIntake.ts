@@ -71,14 +71,15 @@ export interface ExtractedEducation {
   level: string;
   start: string;
   end: string;
-  grade_band:
-    | "low"
-    | "below_average"
-    | "average"
-    | "good"
-    | "excellent"
-    | "unknown"
+  grade_scale:
+    | "uk_honours"
+    | "gpa_4"
+    | "gpa_10"
+    | "de_note"
+    | "percentage"
+    | "other"
     | null;
+  grade_value: number | null;
   evidence: FieldEvidence;
 }
 

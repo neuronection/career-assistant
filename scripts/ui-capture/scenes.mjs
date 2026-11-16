@@ -149,6 +149,16 @@ export const scenes = [
     waitForSelector: "[data-testid='market-stats']",
   },
   {
+    name: "contacts",
+    group: "Applications",
+    caption: "Outreach contacts — people around applications with a flat interaction log.",
+    narration: "Keep the humans around each application in one place, with a reviewable draft when you need to reach out.",
+    path: "/contacts",
+    fullPage: false,
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid=contacts-page]",
+  },
+  {
     name: "autopilot",
     group: "Working life",
     caption: "Career Autopilot — goal-driven agent searches with budgets.",

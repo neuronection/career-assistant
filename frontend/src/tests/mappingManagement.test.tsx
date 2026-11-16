@@ -16,7 +16,6 @@ vi.mock("@/api/mappings", async (importOriginal) => {
     fetchMappingsOverview: vi.fn().mockResolvedValue({
       active: 0,
       last_remap: null,
-      legacy_outcome_count: 0,
     }),
     fetchMappingsQueue: vi.fn().mockResolvedValue({ items: [], total: 0, states: {} }),
   };

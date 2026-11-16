@@ -47,6 +47,7 @@ Read this page for the map, then jump into the page you need. The
 | [ui-conventions.md](ui-conventions.md) | Workspace pattern, primitives, tokens, motion, drag, previews, testids |
 | [security.md](security.md) | Secrets, auth, the AI trust boundary, SSRF/uploads, rate limiting |
 | [migrations.md](migrations.md) | Alembic discipline, sequential ids, dialect-aware and data migrations |
+| [storage.md](storage.md) | Document bytes through the object-storage contract: keys, backends, CV page objects, exports, desktop backups |
 | [deployment.md](deployment.md) | Compose stacks, TLS, upgrades, backups, bare metal |
 | [desktop-packaging.md](desktop-packaging.md) | PyInstaller, deb/AppImage/Windows, the PDF engine, enginecheck |
 | [adding-features.md](adding-features.md) | End-to-end recipes for the common change types |

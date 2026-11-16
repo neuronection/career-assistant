@@ -20,8 +20,15 @@ population.
 | **Overview** | What changed (deterministic insights), the pulse tiles, the in-range count and the status mix. |
 | **Demand** | Postings over time (split and compare), when the market posts (the 24-hour clock), and market structure by one dimension. |
 | **Skills** | The most-demanded skills, rising and cooling lists, the volume × momentum quadrant, the category mix, the demand-level histogram and the priority mix. |
-| **Pay** | Per-currency salary bands on the annualized normalized basis, distribution buckets and medians by seniority. |
+| **Pay** | Per-currency salary bands on the annualized normalized basis, distribution buckets and medians by seniority, plus per job/family × country × seniority benchmark cells with `n` and a disclosure floor. |
 | **Companies** | Companies hiring, new companies, the top hiring list, the industry mix and openings per company. |
+
+The Pay tab's **benchmark cells** show the median posted range per job (or
+family when the job cell is thin), country and seniority. Every cell discloses
+`n`; percentiles stay hidden below **10** samples, currencies are never mixed or
+converted, and the notes state the posted-range bias and the missing local
+cost-of-living adjustment. The OEWS/Eurostat reference line is not shown until a
+sourced adapter exists — no reference number is invented or blended.
 
 ## Filters
 

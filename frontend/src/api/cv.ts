@@ -14,6 +14,7 @@ import type {
   CvGenerateRequest,
   CvGeneratePreviewOut,
   CvLintReport,
+  CvParseViewOut,
   CvPreviewOut,
   CvRunOut,
   CvSuggestionOut,
@@ -143,9 +144,14 @@ export async function fetchLint(id: string): Promise<CvLintReport> {
   return data;
 }
 
+export async function fetchParseView(id: string): Promise<CvParseViewOut> {
+  const { data } = await api.get<CvParseViewOut>(`/cv/${id}/parse-view`);
+  return data;
+}
+
 export async function aiAction(
   id: string,
-  action: "summary" | "bullet" | "compaction" | "tailor" | "gaps" | "translate",
+  action: "summary" | "bullet" | "bullet_review" | "compaction" | "tailor" | "gaps" | "translate",
   body: Record<string, unknown> = {}
 ): Promise<CvSuggestionOut> {
   const { data } = await api.post<CvSuggestionOut>(`/cv/${id}/ai/${action}`, body);

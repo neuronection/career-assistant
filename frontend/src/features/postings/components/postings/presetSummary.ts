@@ -1,4 +1,5 @@
 import {
+  CLOSING_WINDOWS,
   POSTED_WINDOWS,
   SORT_OPTIONS,
   filtersFromRecord,
@@ -18,6 +19,16 @@ const FACET_LABELS: Array<{
   { includeKey: "remotePolicy", excludeKey: "remotePolicyExclude", labelKey: "explore.facet.workMode" },
   { includeKey: "contract", excludeKey: "contractExclude", labelKey: "explore.facet.contract" },
   { includeKey: "travel", excludeKey: "travelExclude", labelKey: "explore.facet.travel" },
+  {
+    includeKey: "opportunityType",
+    excludeKey: "opportunityTypeExclude",
+    labelKey: "explore.facet.opportunityType",
+  },
+  {
+    includeKey: "workAuthorization",
+    excludeKey: "workAuthorizationExclude",
+    labelKey: "explore.facet.workAuthorization",
+  },
   { includeKey: "schedule", excludeKey: "scheduleExclude", labelKey: "explore.facet.schedule" },
   { includeKey: "source", excludeKey: "sourceExclude", labelKey: "explore.facet.sources" },
   { includeKey: "orgs", excludeKey: "orgsExclude", labelKey: "explore.facet.organization" },
@@ -80,12 +91,21 @@ export function describeFilters(filters: Filters, t: Translate): string[] {
       })
     );
   }
+  if (filters.closingWithin) {
+    const window = CLOSING_WINDOWS.find((entry) => entry.value === filters.closingWithin);
+    lines.push(
+      t("presets.summary.closing", {
+        value: window ? t(window.labelKey) : filters.closingWithin,
+      })
+    );
+  }
   if (filters.salaryMin) {
     lines.push(t("presets.summary.salary", { value: filters.salaryMin }));
   }
   if (filters.extractedOnly) lines.push(t("explore.deepExtractedOnly"));
   if (filters.saved) lines.push(t("explore.savedOnly"));
   if (filters.seenExclude) lines.push(t("explore.hideSeen"));
+  if (filters.hideDuplicates) lines.push(t("explore.hideDuplicates"));
   const sort = sortLabel(filters.sort);
   if (sort && filters.sort !== "fit") lines.push(t("presets.summary.sort", { value: t(sort) }));
   return lines;
@@ -184,6 +204,10 @@ export function exploreFilterChips(filters: Filters, t: Translate): ExploreFilte
     const window = POSTED_WINDOWS.find((entry) => entry.value === filters.postedWithin);
     push("posted", t(window ? window.labelKey : "explore.facet.posted"), { postedWithin: "" });
   }
+  if (filters.closingWithin) {
+    const window = CLOSING_WINDOWS.find((entry) => entry.value === filters.closingWithin);
+    push("closing", t(window ? window.labelKey : "explore.facet.closing"), { closingWithin: "" });
+  }
   if (filters.salaryMin) {
     push("salary", t("presets.summary.salary", { value: filters.salaryMin }), { salaryMin: "" });
   }
@@ -194,5 +218,7 @@ export function exploreFilterChips(filters: Filters, t: Translate): ExploreFilte
   }
   if (filters.saved) push("saved", t("explore.savedOnly"), { saved: false });
   if (filters.seenExclude) push("seen", t("explore.hideSeen"), { seenExclude: false });
+  if (filters.hideDuplicates)
+    push("duplicates", t("explore.hideDuplicates"), { hideDuplicates: false });
   return chips;
 }

@@ -6,6 +6,15 @@
     "badge": "Demo — synthetic data",
     "description": "This instance runs on fictional data and resets periodically."
   },
+  "datastoreQuarantine": {
+    "title": "Your previous data was kept",
+    "bodyUnreadable": "Your previous database could not be read, so this version started with a new one. Nothing was deleted — the unreadable file and your other data were moved to the folder below.",
+    "body": "This version uses a new database and cannot read your previous one. Nothing was deleted — your old data was moved to the folder below and is safe there.",
+    "pathLabel": "Previous data folder",
+    "copy": "Copy path",
+    "rollback": "To go back, reinstall the previous release and restore that folder. You can dismiss this notice; it will not appear again.",
+    "dismiss": "Continue"
+  },
   "update": {
     "tooltip": "Version {{version}} is available",
     "releaseNotes": "Release notes",
@@ -34,7 +43,9 @@
     "paths": "Career paths",
     "companies": "Companies",
     "radar": "Job radar",
-    "marketStats": "Market intelligence"
+    "marketStats": "Market intelligence",
+    "contacts": "Contacts",
+    "marketGuide": "Market guide"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -181,6 +192,17 @@
     "hide": "Hide",
     "hidden": "Hidden",
     "hideTitle": "Hide from your feed (curation only — your status stays)",
+    "retiredBanner": "This job type has been retired.",
+    "retiredSuccessor": "Merged into {{title}}",
+    "openRoles": "{{count}} open role(s)",
+    "browsePostings": "Browse postings",
+    "education": "Education",
+    "linkKind": {
+      "apply": "Apply",
+      "learn": "Learn more",
+      "certification": "Certification",
+      "video": "Video"
+    },
     "scoring": "Scoring…",
     "scoreForMe": "Score for me",
     "positivesForYou": "Positives for you",
@@ -196,7 +218,6 @@
     "baseline": "Baseline",
     "units": "Units",
     "subjects": "Subjects",
-    "education": "Education",
     "marketSnapshot": "Market snapshot",
     "salary": "Salary (per year)",
     "physicalEnvironment": "Physical & environment",
@@ -274,6 +295,15 @@
       "responsibilities": "Responsibilities",
       "skills": "Skills",
       "body": "Body"
+    },
+    "educationLevel": {
+      "no_formal": "No formal education",
+      "middle_school": "Middle school",
+      "high_school": "High school",
+      "vocational": "Vocational training",
+      "bachelor": "Bachelor's degree",
+      "master": "Master's degree",
+      "doctorate": "Doctorate"
     }
   },
   "families": {
@@ -361,6 +391,24 @@
     "generate": "Generate",
     "universities": "Universities",
     "searchPlaceholder": "Search jobs…",
+    "graphViewer": {
+      "title": "Job relation graph",
+      "summary": "{{visible}} of {{total}} jobs",
+      "relations_one": "{{count}} relation",
+      "relations_other": "{{count}} relations",
+      "filterLabel": "Filter by relation",
+      "filterAll": "All",
+      "filterSimilar": "Similar",
+      "filterLeads": "Leads to",
+      "filterAlternative": "Alternative",
+      "filterPrerequisite": "Prerequisite",
+      "filterSpecialises": "Specialises",
+      "search": "Search jobs by title",
+      "openJob": "Open job →",
+      "reset": "Reset",
+      "showAll": "Show all {{count}}",
+      "showDefault": "Show {{count}}"
+    },
     "filters": {
       "skills": "Skills",
       "addSkill": "Add skill…",
@@ -487,7 +535,28 @@
     "roadmapsTitle": "Your roadmaps",
     "skip": "skip",
     "radarOpenJob": "Open job",
-    "radarOpenPaths": "See career paths"
+    "radarOpenPaths": "See career paths",
+    "competencies": {
+      "title": "NACE career-readiness competencies",
+      "subtitle": "Derived from your own evidence. No self-rating and no score — every competency cites evidence or says there is none.",
+      "noEvidence": "No evidence yet. Add an experience, achievement, skill or certification.",
+      "kinds": {
+        "experience": "Experience",
+        "achievement": "Achievement",
+        "skill": "Skill",
+        "certification": "Certification"
+      },
+      "items": {
+        "critical_thinking": "Critical thinking & problem solving",
+        "communication": "Oral & written communication",
+        "teamwork": "Teamwork & collaboration",
+        "digital_technology": "Digital technology",
+        "leadership": "Leadership",
+        "professionalism": "Professionalism & work ethic",
+        "career_management": "Career management",
+        "intercultural": "Global & intercultural fluency"
+      }
+    }
   },
   "about": {
     "tagline": "Open-source, self-hosted career explorer",
@@ -527,6 +596,7 @@
     "loadMore": "Load more",
     "loadingMore": "Loading more postings…",
     "intro": "Every open vacancy across your sources — filter, facet, deep-extract.",
+    "capture": "Add by URL",
     "facet": {
       "skills": "Skills",
       "workMode": "Work mode",
@@ -536,7 +606,10 @@
       "organization": "Organization",
       "sources": "Sources",
       "posted": "Posted",
-      "job": "Job"
+      "job": "Job",
+      "opportunityType": "Opportunity type",
+      "workAuthorization": "Work authorization",
+      "closing": "Closing"
     },
     "removeSkill": "Remove {{skill}}",
     "noSources": "No sources connected yet.",
@@ -575,7 +648,15 @@
       "lead": "Lead",
       "principal": "Principal",
       "full_time": "Full time",
-      "part_time": "Part time"
+      "part_time": "Part time",
+      "placement_year": "Placement year",
+      "graduate_scheme": "Graduate scheme",
+      "insight_programme": "Insight programme",
+      "unknown": "Unknown",
+      "sponsors": "Sponsors visa",
+      "case_by_case": "Case-by-case",
+      "citizens_only": "Citizens only",
+      "cannot_sponsor": "Cannot sponsor"
     },
     "radarApply": "My radar",
     "radarClear": "Clear radar",
@@ -593,7 +674,14 @@
     "smartSearchSubmit": "Search",
     "interpretedAs": "Interpreted as",
     "removeInterpreted": "Remove the {key} filter",
-    "dismissInterpreted": "Dismiss"
+    "dismissInterpreted": "Dismiss",
+    "closing": {
+      "d7": "Within 7 days",
+      "d30": "Within 30 days",
+      "d90": "Within 90 days"
+    },
+    "hideDuplicates": "Hide likely duplicates",
+    "hideDuplicatesTitle": "Hide postings merged as duplicates of another source"
   },
   "applications": {
     "title": "My applications",
@@ -665,6 +753,125 @@
       "offer_received": "Offer received",
       "external_update": "External update",
       "imported": "Imported"
+    },
+    "kit": {
+      "cardAction": "Kit",
+      "drawerAction": "Open kit",
+      "openApplication": "Open application",
+      "openPosting": "Open posting",
+      "openOriginal": "Open original",
+      "backToPosting": "Back to posting",
+      "backToApplications": "Back to applications",
+      "loadError": "The kit could not be loaded",
+      "linkToApplication": "Link to application",
+      "tabs": {
+        "aria": "Application kit sections",
+        "cv": "CV variant",
+        "letter": "Cover letter",
+        "answers": "Answers",
+        "checklist": "Checklist",
+        "timeline": "Timeline"
+      },
+      "cv": {
+        "untitled": "Untitled CV",
+        "variantBadge": "For this posting",
+        "openInStudio": "Open in CV Studio",
+        "candidates_one": "{{count}} CV on file",
+        "candidates_other": "{{count}} CVs on file",
+        "prepHeading": "Prepare",
+        "prepare": "Prepare",
+        "preparing": "Preparing…",
+        "coverageSummary": "{{covered}} covered · {{missing}} missing",
+        "noExtract": "This posting has no deep extraction yet — the requirement table shows the fast-mapped view; a full extraction adds quotes and levels.",
+        "sectionCandidates_one": "{{count}} item from your profile",
+        "sectionCandidates_other": "{{count}} items from your profile",
+        "sectionsOk": "Every profile section with items is already in this CV.",
+        "needsCvTitle": "No CV yet",
+        "needsCvBody": "Create a CV in CV Studio first — then this kit can tailor it for the posting.",
+        "openCvStudio": "Open CV Studio"
+      },
+      "letter": {
+        "noneTitle": "No cover letter for this posting",
+        "noneBody": "Create a letter workspace for this posting, then draft and approve the paragraphs in CV Studio.",
+        "create": "Create cover letter",
+        "openInStudio": "Open in CV Studio",
+        "scopedBadge": "For this posting",
+        "untitled": "Untitled letter",
+        "others": "Your other letters",
+        "verifiedNote": "Paragraphs cite profile evidence; anything unbacked is flagged in the reviewer — nothing is auto-applied."
+      },
+      "answers": {
+        "note": "Common screening prompts for this posting. Answers you save here are reused on other postings; nothing is auto-filled.",
+        "notSaved": "Not saved",
+        "key": {
+          "availability": "When can you start?",
+          "work_authorization": "Are you legally authorized to work in the job's location?",
+          "salary_expectation": "What are your salary expectations?",
+          "notice_period": "How much notice does your current role require?",
+          "languages": "Which languages do you speak, and at what level?",
+          "relocation": "Are you willing to relocate for this role?",
+          "languages_posting": "Do you meet the languages this posting mentions?"
+        },
+        "saved": "Saved",
+        "save": "Save answer",
+        "clear": "Clear",
+        "placeholder": "Write your answer…"
+      },
+      "checklist": {
+        "col": {
+          "status": "Status",
+          "item": "Item",
+          "source": "Source"
+        },
+        "level": {
+          "pass": "Pass",
+          "warn": "Check",
+          "fail": "Fix",
+          "info": "Info"
+        },
+        "note": "Read-only facts and general guidance — not a simulation of any ATS product."
+      },
+      "review": {
+        "apply": "Open in CV Studio",
+        "dismiss": "Dismiss"
+      },
+      "markApplied": {
+        "title": "Mark as applied",
+        "note": "Records the application in your tracker with the documents you choose. Nothing is sent anywhere — you apply on the original site.",
+        "submit": "Mark as applied",
+        "cancel": "Cancel"
+      },
+      "timeline": {
+        "notTrackedTitle": "Not tracked yet",
+        "notTrackedBody": "Mark the application as applied to start the timeline — the kit stays right here.",
+        "appliedOn": "Applied {{date}}",
+        "truncated": "Showing the latest 50 events.",
+        "trackedTitle": "Already tracked",
+        "trackedBody": "This posting is in your application tracker — open the application for its timeline and documents."
+      }
+    },
+    "importIcs": "Import .ics",
+    "contactTitle": "Contact",
+    "noContact": "No contact linked",
+    "manageContacts": "Manage contacts",
+    "compareOffers": "Compare offers",
+    "offer": {
+      "title": "Offer details",
+      "compare": "Compare offers",
+      "currency": "Currency (ISO)",
+      "amount": "Amount",
+      "period": "Period",
+      "periods": {
+        "year": "per year",
+        "month": "per month",
+        "hour": "per hour"
+      },
+      "location": "Location",
+      "costOfLiving": "Cost of living (monthly)",
+      "deadline": "Deadline",
+      "benefits": "Benefits (comma-separated)",
+      "save": "Save offer",
+      "clear": "Clear offer"
     }
   },
   "followupRules": {
@@ -812,7 +1019,8 @@
       "inYears_one": "in {{count}} year",
       "inYears_other": "in {{count}} years"
     },
-    "clear": "Clear"
+    "clear": "Clear",
+    "edit": "Edit"
   },
   "selection": {
     "entry": "Select",
@@ -1170,7 +1378,6 @@
       "educationUnused": "Education: not used",
       "languages": "Languages: {{items}}",
       "languagesNone": "Languages: none recorded",
-      "languagesUnused": "Languages: not used",
       "stage": "Stage: {{stage}}",
       "stageFromProfile": "Stage: from your profile",
       "stageNone": "Stage: not recorded",
@@ -1200,10 +1407,6 @@
           "label": "Education & certificates",
           "description": "Education and certificate requirements check your profile."
         },
-        "use_languages": {
-          "label": "Languages",
-          "description": "Language requirements check the languages in your profile."
-        },
         "use_location": {
           "label": "Location",
           "description": "Your city and remote preference shape the location score."
@@ -1220,7 +1423,6 @@
       "chips": {
         "use_skills": "no skills",
         "use_education": "no education",
-        "use_languages": "no languages",
         "use_location": "no location",
         "use_experience": "no experience",
         "use_lifestyle": "no lifestyle flags",
@@ -1494,6 +1696,7 @@
     "sessionExpires": "expires {{when}}",
     "sessionRevoked": "Signed out",
     "revoke": "Sign out",
+    "revoking": "Signing out…",
     "revokeConfirmTitle": "Sign out this device?",
     "revokeConfirmBody": "The device will need to sign in again.",
     "revokeCurrentBody": "This is the device you are using — you will be returned to the login screen.",
@@ -1928,11 +2131,7 @@
       "mapFailed": "Mapping the posting failed.",
       "allowInvalidTitle": "Override the naming guard",
       "invalidTitleOverride": "The naming guard override is journaled with this apply.",
-      "remapQueuedNote": "Re-decision queued — the proposal refreshes in the background.",
-      "legacyBanner_one": "{{count}} old job proposal is no longer shown. Regenerate it as a catalog job type, or clear it if it cannot be regenerated.",
-      "legacyBanner_other": "{{count}} old job proposals are no longer shown. Regenerate them as catalog job types, or clear the ones that cannot be regenerated.",
-      "legacyRegenerate": "Regenerate",
-      "legacyQueued": "Backfill queued for {{count}} old proposals (job {{jobId}}). Progress is in the jobs rail."
+      "remapQueuedNote": "Re-decision queued — the proposal refreshes in the background."
     },
     "openDetails": "Open {{label}}",
     "bulkPaths": {
@@ -1953,6 +2152,8 @@
       "confirmTitle": "Merge these catalog job types?",
       "confirmBody": "Retire {{source}} into {{target}}. Postings are repointed and re-decided; skills, tags, relations, fits and plans move to the survivor. The retired row is kept as a merge record.",
       "confirm": "Merge and retire",
+      "nearOnly": "Near-duplicate titles — merge exact only.",
+      "draftExact": "Exact duplicate includes drafts — publish them before merging.",
       "mergedNote": "Merged: {{count}} posting(s) repointed, {{remap}} re-decision(s) queued."
     }
   },
@@ -2192,7 +2393,8 @@
       "mcp": "MCP",
       "sources": "Sources",
       "retrieval": "Retrieval",
-      "mappings": "Mappings"
+      "mappings": "Mappings",
+      "hygiene": "Posting hygiene"
     },
     "webSearch": {
       "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. SearXNG rides the SSRF-guarded client; keyed providers (Tavily, Brave, Exa, Serper, Google PSE) ride the guarded POST transport.",
@@ -2436,6 +2638,8 @@
         "updateAvailableShort": "Update available",
         "digestDriftShort": "Digest drift — refused",
         "needsConfig": "needs config",
+        "configure": "Configure",
+        "configureMissingSource": "This install's source settings could not be found — reopen the job sources list.",
         "capabilities": "Capabilities",
         "decline": "Decline",
         "close": "Close",
@@ -2484,6 +2688,7 @@
       "mint": "Mint token",
       "shownOnce": "Copy this token now — it is shown exactly once.",
       "copyToken": "Copy token",
+      "copied": "Copied",
       "dismiss": "Hide",
       "active": "active",
       "revoked": "revoked",
@@ -3047,7 +3252,16 @@
     "placeholderGithub": "https://github.com/…",
     "placeholderPortfolio": "Portfolio",
     "regularShifts": "Regular shifts are fine",
-    "selected": "selected"
+    "selected": "selected",
+    "workAuthorization": "Work authorization",
+    "workAuth": {
+      "unspecified": "Prefer not to say",
+      "citizen": "Citizen",
+      "permanentResident": "Permanent resident",
+      "studentVisa": "Student visa",
+      "needsSponsorship": "Needs sponsorship",
+      "other": "Other"
+    }
   },
   "cvBuilder": {
     "bulletsTitle": "Edit bullets",
@@ -3484,7 +3698,27 @@
       "previous": "Previous variant",
       "removeBullet": "Remove bullet {{n}}",
       "targetLanguage": "Target language"
-    }
+    },
+    "parseView": {
+      "buttonLabel": "Parser view",
+      "buttonTitle": "What our extractor sees in the exported PDF",
+      "buttonAria": "Open the parser view",
+      "title": "What a parser sees",
+      "disclaimer": "This is our own extractor reading our printed PDF — not a simulation of any ATS product.",
+      "loading": "Printing and reading the PDF…",
+      "engine": "engine: {{engine}}",
+      "textLayerOk": "text layer present",
+      "textLayerMissing": "no text layer",
+      "pageCount_one": "{{count}} page",
+      "pageCount_other": "{{count}} pages",
+      "copy": "copy text",
+      "noFindings": "No findings — every page carries a text layer, the contact survived extraction and the reading order matches the document.",
+      "pageHeading": "Page {{number}} · {{lines}} lines",
+      "emptyPage": "(no text on this page)"
+    },
+    "checkBullets": "Check bullets",
+    "checkingBullets": "Checking…",
+    "competencyTags": "Competencies:"
   },
   "templateEditor": {
     "notFound": "Template not found",
@@ -3852,7 +4086,9 @@
       "month": "mo",
       "week": "wk",
       "day": "day"
-    }
+    },
+    "reposted": "Reposted ×{{count}}",
+    "verified": "Verified {{date}}"
   },
   "postingDetail": {
     "unknown": "unknown",
@@ -3881,6 +4117,7 @@
     "practiceInterview": "Practice interview",
     "trackApplication": "Track application",
     "openApplication": "Open in tracker",
+    "tailorAndApply": "Tailor & apply",
     "sourceLabel": "Source:",
     "synced": "synced {{date}}",
     "originalListing": "original listing",
@@ -3891,7 +4128,10 @@
       "travel": "travel exceeds your tolerance",
       "shift": "shift/on-call work conflicts with your settings",
       "hours": "more hours than you have available",
-      "salaryMin": "below your salary minimum"
+      "salaryMin": "below your salary minimum",
+      "visa": "sponsorship",
+      "language": "language requirement",
+      "grade": "grade cutoff"
     },
     "skillsHeading": "Skills",
     "responsibilitiesHeading": "Responsibilities",
@@ -3991,7 +4231,84 @@
     "openRoles_one": "{{count}} open role",
     "openRoles_other": "{{count}} open roles",
     "retiredType": "Catalog type retired",
-    "retiredSeeSuccessor": "See {{title}}"
+    "retiredSeeSuccessor": "See {{title}}",
+    "gap": {
+      "heading": "What's missing",
+      "note": "Deterministic and evidence-backed — what this posting asks vs what you can show. Not a match score.",
+      "noExtractTitle": "No deep extraction yet",
+      "noExtractBody": "This posting has not been deep-extracted, so there are no requirement rows to compare against your evidence yet.",
+      "noRequirementsTitle": "No skill requirements recorded",
+      "noRequirementsBody": "The extraction found no skills for this posting — nothing to list. This is not a pass or a score.",
+      "col": {
+        "requirement": "Requirement",
+        "asks": "Asks",
+        "you": "You",
+        "evidence": "Evidence"
+      },
+      "asksLevel": "level {{level}}",
+      "youLevel": "level {{level}}",
+      "noLevel": "no level",
+      "notInTaxonomy": "not in your skill taxonomy — shown as written in the posting",
+      "noEvidence": "no quote, no evidence",
+      "status": {
+        "met": "met",
+        "partial": "partial",
+        "missing": "missing"
+      },
+      "showMoreQuote": "show more",
+      "showLessQuote": "show less",
+      "copyQuote": "copy quote"
+    },
+    "eligibility": {
+      "heading": "Eligibility & logistics",
+      "honesty": "Our extractor's read — check the original",
+      "workAuthorizationLabel": "Work authorization",
+      "languagesLabel": "Language requirements",
+      "level": {
+        "basic": "Basic",
+        "intermediate": "Intermediate",
+        "advanced": "Advanced",
+        "native": "Native"
+      },
+      "gradeLabel": "Grade cutoff",
+      "gradeScale": {
+        "uk_honours": "UK honours",
+        "gpa_4": "GPA (4.0)",
+        "gpa_10": "GPA (10)",
+        "de_note": "German Note",
+        "percentage": "Percentage",
+        "other": "Other"
+      },
+      "opportunityTypeLabel": "Opportunity",
+      "opportunityType": {
+        "internship": "Internship",
+        "placement_year": "Placement year",
+        "apprenticeship": "Apprenticeship",
+        "graduate_scheme": "Graduate scheme",
+        "insight_programme": "Insight programme",
+        "part_time": "Part-time",
+        "full_time": "Full-time",
+        "contract": "Contract",
+        "unknown": "Not stated"
+      },
+      "deadlineLabel": "Apply by",
+      "gatesLabel": "Gates",
+      "gate": {
+        "visa": "Sponsorship needed — this posting says it cannot sponsor.",
+        "language": "A required language is not on your profile at the required level.",
+        "grade": "Your grade is below the stated cutoff."
+      },
+      "applyAnyway": "Apply anyway",
+      "overridden": "You chose to apply anyway",
+      "undo": "Undo",
+      "gateHint": "Gates are warnings, not verdicts. Check the original posting.",
+      "workAuthorization": {
+        "none": "Cannot sponsor",
+        "sponsors": "Sponsorship available",
+        "case_by_case": "Sponsorship case-by-case",
+        "citizens_only": "Citizens only"
+      }
+    }
   },
   "sessionList": {
     "renameChat": "Rename chat",
@@ -4014,6 +4331,11 @@
     "sidePanel": "Side panel",
     "popup": "Popup",
     "openChatPage": "Open in chat page"
+  },
+  "dictation": {
+    "unavailable": "Dictation unavailable",
+    "notConfigured": "No speech-to-text model is assigned.",
+    "openSettings": "Open AI settings"
   },
   "chat": {
     "openAiSettings": "Open AI settings",
@@ -4078,7 +4400,6 @@
         "institution": "Institution",
         "program": "Program",
         "level": "Level",
-        "grade_band": "Grade band",
         "focus_subjects": "Focus subjects",
         "start": "Start",
         "end": "End",
@@ -4098,7 +4419,9 @@
         "date": "Date",
         "detail": "Detail",
         "removed_bullet": "Removed bullet",
-        "added_bullet": "Added bullet"
+        "added_bullet": "Added bullet",
+        "grade_scale": "Grade scale",
+        "grade_value": "Grade value"
       },
       "sourceKinds": {
         "experience": "Work experience",
@@ -4284,15 +4607,7 @@
     "endLabel": "End date",
     "endHint": "In progress — no end date.",
     "inProgressToggle": "In progress",
-    "gradeLabel": "Grade band",
     "gradeUnspecified": "Prefer not to say",
-    "grade": {
-      "low": "Low",
-      "below_average": "Below average",
-      "average": "Average",
-      "good": "Good",
-      "excellent": "Excellent"
-    },
     "focusLabel": "Focus fields",
     "subject": {
       "mathematics": "mathematics",
@@ -4378,7 +4693,20 @@
     "deptDescriptionPlaceholder": "What the department covers (optional).",
     "saveDepartment": "Save department",
     "emptyAll": "Nothing here yet — add your first entry.",
-    "urlPlaceholder": "https://…"
+    "urlPlaceholder": "https://…",
+    "gradeScaleLabel": "Grade scale",
+    "gradeValueLabel": "Grade value",
+    "gradeValueHint": "Use the scale's own value (e.g. 2.1, 3.7, 1.7, 75).",
+    "gradeScale": {
+      "uk_honours": "UK honours class",
+      "gpa_4": "GPA (4.0)",
+      "gpa_10": "GPA (10)",
+      "de_note": "German Note (1–5)",
+      "percentage": "Percentage",
+      "other": "Other"
+    },
+    "gradeNudge": "Older grade bands were cleared in the numeric-grade upgrade. Enter your formal grade (scale + value) to match postings with a grade cutoff.",
+    "marketGuideLink": "Compare UK/DACH grades"
   },
   "interviews": {
     "title": "Interview practice",
@@ -4426,7 +4754,26 @@
     "useCode": "Use code \"{{code}}\"",
     "roleHint": "Pick a catalog role — or start from a posting with its Practice button.",
     "preparing": "Preparing…",
-    "createPlan": "Create plan"
+    "createPlan": "Create plan",
+    "stories": {
+      "open": "Stories",
+      "title": "STAR story library",
+      "note": "Your own STAR stories. Practice can prepend them as behavioral questions; nothing is generated and nothing is auto-filled.",
+      "empty": "No stories yet — add one below or start from an experience suggestion.",
+      "suggestions": "From your experience",
+      "new": "New story",
+      "edit": "Edit story",
+      "titlePlaceholder": "Story title",
+      "competenciesPlaceholder": "Competencies (comma-separated)",
+      "situation": "Situation",
+      "task": "Task",
+      "action": "Action",
+      "result": "Result",
+      "pick": "Practice with stories",
+      "deleteConfirm": "Delete “{{title}}”?",
+      "deleteTitle": "Delete story",
+      "delete": "Delete {{title}}"
+    }
   },
   "entityEditor": {
     "notFound": "This entry no longer exists."
@@ -4896,6 +5243,10 @@
     "companies": {
       "label": "Companies",
       "description": "Company matching rules: aliases, exclusions, suggestions"
+    },
+    "storage": {
+      "label": "Storage",
+      "description": "Read-only deployment object storage facts"
     }
   },
   "paths": {
@@ -5797,7 +6148,25 @@
       "jobsCreated": "{{count}} created",
       "postingActivity": "Posting processing activity",
       "skillEvents": "Skill lifecycle events",
-      "noActivity": "No activity in this range"
+      "noActivity": "No activity in this range",
+      "model": "Model",
+      "calls": "Calls",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "noCostData": "No billable calls in this range.",
+      "priceOverrides": "Price overrides",
+      "addOverride": "Add",
+      "modelId": "Model id",
+      "providerKey": "Preset key",
+      "noPriceOverrides": "No overrides — built-in prices apply where known.",
+      "dataCost": "Data & cost",
+      "dataCostHint": "Cost is recorded at call time from the price in effect then. Unknown prices stay unpriced.",
+      "pricedCalls": "{{priced}} priced · {{unpriced}} unpriced",
+      "unpriced": "{{count}} unpriced",
+      "inputPricePlaceholder": "$ / 1M in",
+      "outputPricePlaceholder": "$ / 1M out",
+      "perMillion": "per 1M",
+      "deleteOverride": "Delete override for {{model}}"
     },
     "autoRefresh": "Auto-refresh 30s",
     "retrieval": {
@@ -6085,7 +6454,8 @@
       "posted": "Posted: {{value}}",
       "salary": "Salary from: {{value}}",
       "sort": "Sorted by: {{value}}",
-      "empty": "No filters — shows every open posting."
+      "empty": "No filters — shows every open posting.",
+      "closing": "Closing: {{value}}"
     }
   },
   "marketStats": {
@@ -6327,6 +6697,30 @@
     },
     "drill": {
       "nearestPreset": "The list drill uses the nearest preset window."
+    },
+    "benchmarks": {
+      "title": "Pay benchmarks",
+      "hint": "Per job or family, country and seniority — posted ranges only.",
+      "floor": "Minimum sample: {{floor}}",
+      "error": "Could not load pay benchmarks.",
+      "empty": "No thick enough benchmark cell yet.",
+      "role": "Role",
+      "country": "Country",
+      "seniority": "Seniority",
+      "n": "n",
+      "p25": "P25",
+      "p50": "P50",
+      "p75": "P75",
+      "family": "family",
+      "annual": "Annualized",
+      "notes": {
+        "currency_only": "Per currency only: no FX conversion and no cross-country blending.",
+        "posted_range_bias": "Posted ranges skew high: this is the median of posted ranges, not measured pay.",
+        "col_note": "Not adjusted for local cost of living; compare cells within the same country.",
+        "reference_unavailable": "OEWS/Eurostat reference line is not configured yet; no reference number is invented or blended.",
+        "cells_truncated": "Further cells are not shown; narrow the filters to see them.",
+        "sample_bounded": "Cells are computed from a deterministic sample of up to 5,000 postings."
+      }
     }
   },
   "retrieval": {
@@ -6727,7 +7121,23 @@
       "pickerEmpty": "Select a catalog type…",
       "pickerCandidate": "candidate",
       "pickerLoadError": "The published catalog could not be loaded — retry shortly.",
-      "pickerTruncated": "Showing the first 200 published types; narrow the search if yours is missing."
+      "weakFilter": "Weak mappings",
+      "weakAll": "All mappings",
+      "weakOnly": "Weak only",
+      "weakExclude": "Exclude weak",
+      "weakChip": "Weak",
+      "proposalState": "Proposal: {{state}}",
+      "lastExtract": "Last extract: {{status}}",
+      "extractQueued": "Extract queued",
+      "proposalFailure": "Proposal failed: {{reason}}",
+      "detailNow": "Fetch detail now",
+      "retryExtract": "Retry extract",
+      "repropose": "Re-propose",
+      "detailDone": "Fetched {{fetched}} detail row(s).",
+      "reproposeDone": "{{count}} re-proposal(s) queued.",
+      "mapSelected": "Map selected to…",
+      "mapSelectedAction": "Map selected",
+      "confirmMapSelected": "Map the selected postings onto the chosen catalog type?"
     },
     "state": {
       "mapped": "Mapped",
@@ -6743,7 +7153,8 @@
       "below_threshold": "Below threshold",
       "no_candidate": "No candidate",
       "unmapped_by_admin": "Unmapped by admin",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "detail_failed": "Detail fetch failed"
     },
     "reviewReason": {
       "no_good_type": "No good type",
@@ -6806,9 +7217,6 @@
       "runbookLink": "Retrieval runbook",
       "lastRemap": "Last re-decide run: {{status}}",
       "proposals": "{{count}} posting(s) waiting in the proposal queue",
-      "legacy": "{{count}} postings without a derived outcome",
-      "backfill": "Backfill outcomes",
-      "backfillQueued": "Backfill queued",
       "snapshot": "Capture snapshot",
       "snapshotDone": "Snapshot captured"
     },
@@ -6849,7 +7257,10 @@
         "rejected": "rejected",
         "pending": "pending"
       },
-      "resolve": "Resolve"
+      "resolve": "Resolve",
+      "weakTitle": "Weak mappings",
+      "weakLine": "{{count}} weak · margin below {{margin}}% · semantic confidence below {{semantic}}%",
+      "weakEmpty": "No weak rows yet — either the corpus is clean or it has not been swept (run Re-decide stale mappings)."
     },
     "policy": {
       "title": "Mapping policy",
@@ -6873,6 +7284,327 @@
       "save": "Save floor",
       "saved": "Saved",
       "note": "The daily alert sweep reads this floor."
+    },
+    "runs": {
+      "redecideAll": "Re-decide stale mappings",
+      "redecideAllNote": "Owner-run; queues one bounded sweep of mappings older than the current score version.",
+      "confirm": "Re-decide stale mappings?",
+      "queued": "Re-decision queued for {{count}} {{scope}} mappings.",
+      "forceAll": "Force all",
+      "forceConfirm": "Force re-decision of ALL {{count}} active mappings, including current ones?"
     }
+  },
+  "postingHygiene": {
+    "title": "Posting hygiene",
+    "subtitle": "A deterministic cross-source duplicate scan. Proposals stay proposals until you merge them, and clearing a merge restores the posting — never a scam verdict.",
+    "scan": "Run scan",
+    "candidates": "Possible duplicates",
+    "suggests": "suggested duplicate of {{title}}",
+    "merge": "Merge",
+    "noCandidates": "No low-confidence duplicates.",
+    "merged": "Merged duplicates",
+    "clear": "Clear",
+    "noMerged": "No duplicates merged.",
+    "canonical": "Canonical postings with reposts",
+    "reposts": "{{count}} reposts",
+    "noCanonical": "No reposts.",
+    "counts": {
+      "canonical": "Canonical postings",
+      "duplicates": "Merged duplicates",
+      "candidates": "Open proposals"
+    },
+    "lastVerified": "Last verified {{date}}"
+  },
+  "capture": {
+    "title": "Capture a posting",
+    "intro": "Paste the posting URL. It is fetched once through the same guarded path as the paste-a-URL connector; confirming is the only way a posting lands.",
+    "urlLabel": "Posting URL",
+    "confirm": "Capture",
+    "saving": "Capturing…",
+    "helpLink": "Set up the bookmarklet",
+    "helpTitle": "Capture from any job board",
+    "helpIntro": "A bookmarklet opens this page with the URL of the posting you are reading. You still confirm in the dialog — no secret, no automatic capture.",
+    "helpDrag": "Drag this button to your bookmarks bar:",
+    "bookmarklet": "Capture to Career Assistant",
+    "helpStep1": "Open a posting on any job board.",
+    "helpStep2": "Click the bookmarklet in your bookmarks bar.",
+    "helpStep3": "Confirm the URL in the dialog; nothing is captured until you confirm.",
+    "back": "Back to postings"
+  },
+  "jsonResume": {
+    "title": "JSON Resume",
+    "intro": "Export your profile in the community JSON Resume shape, or import a file: every mapped field and every dropped key is listed before you apply. No runtime schema dependency.",
+    "export": "Export JSON",
+    "choose": "Import file",
+    "apply": "Apply import",
+    "applied": "Applied",
+    "done": "Import applied. Review the profile and experience lists.",
+    "mapped": "Mapped: {{basics}} basics, {{work}} work, {{education}} education.",
+    "conflicts": "These existing profile values will be replaced on Apply:",
+    "basics": "Basics",
+    "work": "Work",
+    "education": "Education",
+    "droppedLabel": "Dropped",
+    "created": "created",
+    "warnings": "Review notes"
+  },
+  "icsImport": {
+    "title": "Import calendar (.ics)",
+    "intro": "Pick a Google/Outlook calendar export. Events are only proposed until you apply; timezones are converted to UTC and duplicates are flagged.",
+    "choose": "Choose .ics file",
+    "apply": "Apply import",
+    "applied": "Imported {{count}} interview event(s).",
+    "allDay": "All day",
+    "unmatched": "No matching application",
+    "duplicate": "Already imported",
+    "events": "Events",
+    "drop": "Dropped",
+    "warnings": "Review notes",
+    "conflicts": "Conflicts",
+    "created": "created"
+  },
+  "applicationInsights": {
+    "title": "Application response rates",
+    "tailored": "Tailored",
+    "untailored": "Untailored",
+    "responses": "responses",
+    "suppressed": "Each group needs at least {{floor}} applications before a rate is shown.",
+    "caveat": "Descriptive association only — your own applications, not a controlled study."
+  },
+  "contacts": {
+    "title": "Contacts",
+    "count": "{{count}} contacts",
+    "search": "Search contacts",
+    "new": "New contact",
+    "errorTitle": "Could not load contacts",
+    "retry": "Try again",
+    "logKindLabel": "Interaction type",
+    "emptyTitle": "No contacts yet",
+    "emptyBody": "Add the people around your applications — recruiters, hiring managers, referrers.",
+    "noOrg": "No organisation yet",
+    "lastContacted": "Last contacted {{date}}",
+    "neverContacted": "Never contacted",
+    "edit": "Edit contact",
+    "name": "Name",
+    "org": "Organisation",
+    "role": "Role",
+    "email": "Email",
+    "notes": "Notes",
+    "deleteConfirm": "Delete this contact?",
+    "deleteTitle": "Delete contact",
+    "interactions": "Interaction log",
+    "noInteractions": "No interactions logged yet.",
+    "log": "Log {{channel}}",
+    "kind": {
+      "intro": "Intro",
+      "follow_up": "Follow-up",
+      "thank_you": "Thank you",
+      "referral": "Referral",
+      "informational": "Informational",
+      "other": "Other"
+    },
+    "channel": {
+      "email": "email",
+      "call": "call",
+      "meeting": "meeting",
+      "message": "message"
+    },
+    "draft": "Outreach draft",
+    "draftKindLabel": "Draft kind",
+    "draftKind": {
+      "intro": "Intro",
+      "follow_up": "Follow-up",
+      "thank_you": "Thank you",
+      "referral": "Referral",
+      "informational": "Informational"
+    },
+    "draftCta": "Draft message",
+    "evidence": "{{count}} evidence refs · copy or mailto; nothing is sent",
+    "copy": "Copy",
+    "mailto": "Open mail app"
+  },
+  "postingSafety": {
+    "title": "Check before applying",
+    "intro": "These are factual signals from the posting text, not a verdict. Read the quote and use your own judgement.",
+    "caveat": "No flag means we found none of these patterns — it does not mean the posting is safe. Never send money or identity documents to an employer.",
+    "flag": {
+      "fee_requested": "Payment or fee mentioned",
+      "personal_email_domain": "Personal email domain",
+      "messaging_app_contact": "Messaging-app contact",
+      "vague_org": "Organisation is vague",
+      "salary_outlier": "Pay far above the catalog band",
+      "url_mismatch": "Shortened or personal link"
+    }
+  },
+  "degreeRoles": {
+    "title": "Roles for your degree",
+    "apply": "Filter these families",
+    "clear": "Clear degree filter",
+    "parent": "parent family",
+    "note": "Suggestions only, based on your programme and focus subjects. Applying them never excludes a posting.",
+    "related": "related family",
+    "reason": {
+      "matched": "Matched {{terms}} in your programme or focus subjects.",
+      "parent": "Parent family included by a one-level catalog expansion.",
+      "family_expansion": "Related family included by a one-level catalog expansion."
+    }
+  },
+  "marketGuide": {
+    "title": "Applying in the UK and DACH",
+    "subtitle": "Practical conventions for grades, CVs, applications and hiring cycles. Choose a market; the guidance is general, not a rulebook.",
+    "marketAria": "Choose a market",
+    "cvTitle": "CV conventions",
+    "normsTitle": "Application norms",
+    "cycleTitle": "Hiring cycle",
+    "disclaimer": "General guidance, not legal or immigration advice. Requirements vary by employer and change; verify against the advert and an official source before you apply.",
+    "reviewed": "Sources reviewed {{date}}.",
+    "grades": {
+      "title": "Grade orientation: UK and DACH",
+      "intro": "A rough orientation for conversations with employers. It is not an official conversion and does not replace a credential assessment.",
+      "uk": "UK classification",
+      "note": "Orientation",
+      "disclaimer": "German Noten run from 1.0 (best) to 4.0 (pass); 5.0 is a fail. Austrian grades use whole numbers — see the note below. Employers and credential services make the formal decision.",
+      "rows": {
+        "first": {
+          "uk": "First (70–100%)",
+          "note": "Strongest band; check the role's stated requirement.",
+          "de": "1.0–1.5",
+          "at": "1"
+        },
+        "upperSecond": {
+          "uk": "Upper second 2:1 (60–69%)",
+          "note": "Common graduate-programme baseline in the UK.",
+          "de": "1.6–2.5",
+          "at": "2"
+        },
+        "lowerSecond": {
+          "uk": "Lower second 2:2 (50–59%)",
+          "note": "Some schemes accept 2:2; read the advert.",
+          "de": "2.6–3.5",
+          "at": "3"
+        },
+        "third": {
+          "uk": "Third (40–49%)",
+          "note": "Meets the degree threshold; competitive schemes may still filter.",
+          "de": "3.6–4.0",
+          "at": "4"
+        }
+      },
+      "germany": "German grade",
+      "austria": "Austrian grade",
+      "austriaNote": "Austrian university grades are whole numbers from 1 (best) to 4 (pass); 5 is a fail.",
+      "sourceLabel": "Scale sources:",
+      "sources": {
+        "enic": "UK ENIC",
+        "anabin": "anabin"
+      }
+    },
+    "markets": {
+      "uk": {
+        "label": "United Kingdom",
+        "cv1": "Use a clear, consistent layout and tailor the CV to the advert.",
+        "cv2": "Do not include age, date of birth, marital status or nationality.",
+        "norms1": "Apply directly through the employer’s careers website; expect an online application.",
+        "norms2": "Graduate schemes often include online tests, interviews and an assessment centre.",
+        "cycle1": "Autumn is the main graduate-scheme season for roles starting the following summer or autumn; many deadlines fall between September and December.",
+        "cycle2": "Graduate schemes often advertise six to twelve months ahead; some employers recruit on a rolling basis."
+      },
+      "de": {
+        "label": "Germany",
+        "cv1": "A tabular CV (tabellarischer Lebenslauf) in reverse chronological order is standard; include dates.",
+        "cv2": "German CVs often include a photo.",
+        "norms1": "Send a complete Bewerbung: cover letter, CV and the requested certificates.",
+        "norms2": "A cover letter is often expected; follow the advert because some online portals do not require one.",
+        "cycle1": "Ausbildung places usually start in August or September; larger employers may advertise twelve to eighteen months ahead.",
+        "cycle2": "Smaller employers often start in the final school year; check each advert’s deadline and start date."
+      },
+      "at": {
+        "label": "Austria",
+        "cv1": "Austrian applications usually expect a tabular CV with a cover letter; keep the chronology complete and dated.",
+        "cv2": "References and certificates are part of a complete application dossier.",
+        "norms1": "Many employers ask for one PDF dossier; follow the channel and file format named in the advert.",
+        "norms2": "A short, role-specific cover letter is still common.",
+        "cycle1": "Apprenticeships usually start in August or September; start looking about a year ahead, and by autumn of the final school year.",
+        "cycle2": "Apprenticeship applications often open around a year ahead; check the employer’s deadline."
+      },
+      "ch": {
+        "label": "Switzerland",
+        "cv1": "Swiss CVs usually include personal details, education, languages and references; a recent photo is common.",
+        "cv2": "List languages with levels; diplomas and references belong in the application dossier.",
+        "norms1": "Apply through the employer's portal with a tailored letter, CV and the requested certificates.",
+        "norms2": "Work-permit questions are common; answer factually and check the official rules.",
+        "cycle1": "Apprenticeships combine a training company and a vocational school; the training company decides on the place.",
+        "cycle2": "Training companies advertise vacancies; check the advert for the documents and deadline.",
+        "gradeNote": "Swiss grades run from 6.0 (best) to 4.0 (pass). Do not map them one-to-one to UK classes; ask the employer or an official credential service."
+      }
+    },
+    "sources": {
+      "nationalCareers": "National Careers Service",
+      "migrationAustria": "migration.gv.at",
+      "prospectsSchemes": "Prospects: graduate schemes",
+      "arbeitsagenturCv": "Federal Employment Agency: CV",
+      "arbeitsagenturLetter": "Federal Employment Agency: cover letter",
+      "arbeitsagenturTraining": "Federal Employment Agency: training",
+      "amsCv": "AMS: CV",
+      "amsDossier": "AMS: application dossier",
+      "amsApprenticeship": "AMS: apprenticeship application",
+      "orientationCv": "orientation.ch: CV",
+      "orientationDossier": "orientation.ch: dossier",
+      "swissWorking": "ch.ch: working in Switzerland",
+      "orientationApprenticeship": "orientation.ch: apprenticeship",
+      "arbeitsagenturAttachments": "Federal Employment Agency: attachments",
+      "arbeitsagenturCalendar": "Federal Employment Agency: training calendar"
+    },
+    "headerDisclaimer": "A short orientation for applying in these markets — general guidance, not legal or immigration advice.",
+    "sourceLabel": "Source:"
+  },
+  "offers": {
+    "title": "Compare offers",
+    "subtitle": "Annualized pay, benefits, location, cost of living and deadline from the offers you recorded. Amounts are not converted between currencies.",
+    "truncated": "Showing {{count}} of {{total}} offers.",
+    "mixedCurrency": "These offers use different currencies. Amounts are shown per currency and are not converted; compare within one currency.",
+    "rowLabel": "Offer",
+    "annual": "Annual pay",
+    "monthly": "Monthly equivalent",
+    "location": "Location",
+    "costOfLiving": "Cost of living (annual)",
+    "netAfterCol": "Net after cost of living",
+    "benefits": "Benefits",
+    "deadline": "Deadline",
+    "disclaimer": "This is arithmetic on the details you entered, not negotiation advice or a recommendation.",
+    "back": "Back to applications",
+    "errorTitle": "Could not load your offers",
+    "errorBody": "Something went wrong while loading the offers. Nothing was changed.",
+    "retry": "Try again",
+    "emptyTitle": "No offers to compare yet",
+    "emptyBody": "Record an offer in an application’s details, then come back here.",
+    "openTracker": "Open the tracker"
+  },
+  "storageStatus": {
+    "title": "Storage status",
+    "description": "Read-only deployment facts. Credentials live in the environment and switching backends is a verified migration, not a settings save.",
+    "backend": "Backend",
+    "target": "Bucket / container",
+    "prefix": "Key prefix",
+    "location": "Region / endpoint",
+    "sse": "Encryption",
+    "maxObject": "Max object size",
+    "presignTtl": "Presign TTL",
+    "health": "Connection",
+    "healthy": "Healthy",
+    "degraded": "Degraded",
+    "unavailable": "Unavailable",
+    "notChecked": "Not checked",
+    "test": "Test connection",
+    "checkedAt": "Checked {{time}}",
+    "loading": "Reading deployment storage status…",
+    "error": "Could not read deployment storage status.",
+    "localVolume": "Local volume",
+    "none": "None",
+    "notApplicable": "n/a",
+    "providerDefault": "Provider default",
+    "megabytes": "{{value}} MB",
+    "seconds": "{{value}} s",
+    "readOnly": "Read-only. A backend switch runs migrate-objects; it is never a save button."
   }
 }

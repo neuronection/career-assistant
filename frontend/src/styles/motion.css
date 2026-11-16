@@ -176,3 +176,56 @@
   outline: 2px solid var(--as-focus-ring);
   outline-offset: 2px;
 }
+
+/* Catalog graph constellation motion: entry stagger, filter fade, dim. */
+
+@keyframes ca-graph-node-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ca-graph-node-rise {
+  from {
+    transform: translateY(6px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.ca-graph-node,
+.ca-graph-node-surface,
+.ca-graph-edge {
+  transition:
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* The box fades, only the label rises: React Flow 11 measures handle
+   rectangles, so the node box must not move while it is measured. */
+/* The box itself never animates: an `animation-fill-mode: both` opacity on it
+   would pin it at 1 and swallow `.ca-graph-node-dim`, and a translated box
+   would be measured with offset handles. Both keyframes run on the surface. */
+.ca-graph-node-enter .ca-graph-node-surface {
+  animation:
+    ca-graph-node-in 180ms ease-out both,
+    ca-graph-node-rise 180ms ease-out both;
+  animation-delay: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ca-graph-node,
+  .ca-graph-node-surface,
+  .ca-graph-edge {
+    transition: none;
+  }
+
+  .ca-graph-node-enter,
+  .ca-graph-node-enter .ca-graph-node-surface {
+    animation: none;
+  }
+}

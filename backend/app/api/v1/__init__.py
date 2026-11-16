@@ -4,10 +4,12 @@ from app.api.v1 import (
     admin,
     ai,
     ai_admin,
+    ai_pricing,
     assessments,
     audit,
     autopilot,
     background_jobs,
+    contacts,
     cv_intake,
     cv_templates,
     github_intake,
@@ -17,10 +19,12 @@ from app.api.v1 import (
     mcp_admin,
     me,
     metrics,
+    posting_hygiene_admin,
     profiles,
     retrieval_admin,
     scheduler,
     skill_relation_admin,
+    storage_admin,
 )
 from app.api.v1.catalog import companies as companies
 from app.api.v1.catalog import jobs as jobs
@@ -40,6 +44,7 @@ from app.api.v1.postings import engagement as engagement
 from app.api.v1.postings import history as history
 from app.api.v1.postings import postings as postings
 from app.api.v1.postings import stats as stats
+from app.api.v1.profile import answers as answers
 from app.api.v1.profile import documents as documents
 from app.api.v1.profile import experience as experience
 from app.api.v1.profile import me_cv_data as me_cv_data
@@ -48,6 +53,7 @@ from app.api.v1.profile import notifications as notifications
 from app.api.v1.profile import onboarding as onboarding
 from app.api.v1.profile import profile as profile
 from app.api.v1.profile import profile_proposals as profile_proposals
+from app.api.v1.profile import stories as stories
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)
@@ -69,6 +75,9 @@ api_router.include_router(jobs.router)
 api_router.include_router(companies.router)
 api_router.include_router(universities.router)
 api_router.include_router(documents.router)
+api_router.include_router(answers.router)
+api_router.include_router(stories.router)
+api_router.include_router(contacts.router)
 api_router.include_router(cv_templates.router)
 api_router.include_router(cv_intake.router)
 api_router.include_router(github_intake.router)
@@ -89,10 +98,13 @@ api_router.include_router(interview.router)
 api_router.include_router(background_jobs.router)
 api_router.include_router(ai.router)
 api_router.include_router(ai_admin.router)
+api_router.include_router(ai_pricing.router)
 api_router.include_router(mcp_admin.router)
+api_router.include_router(posting_hygiene_admin.router)
 api_router.include_router(admin.router)
 api_router.include_router(audit.router)
 api_router.include_router(skill_relation_admin.router)
 api_router.include_router(retrieval_admin.router)
 api_router.include_router(mapping_admin.router)
+api_router.include_router(storage_admin.router)
 api_router.include_router(extensions.router)

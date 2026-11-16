@@ -7,8 +7,15 @@ import { McpServerSection } from "@/components/settings/McpServerSection";
 import { SourcesSection } from "@/components/settings/SourcesSection";
 import { RetrievalManagementSection } from "@/components/settings/RetrievalManagementSection";
 import { MappingManagementSection } from "@/components/settings/MappingManagementSection";
+import { PostingHygieneSection } from "@/components/settings/PostingHygieneSection";
 
-type ToolsSection = "web-search" | "mcp" | "sources" | "retrieval" | "mappings";
+type ToolsSection =
+  | "web-search"
+  | "mcp"
+  | "sources"
+  | "retrieval"
+  | "mappings"
+  | "hygiene";
 
 // Settings structure follows the family contract (contracts/settings-map.json,
 // ADR-0033): tools.* domains live in the tools tab, never under AI
@@ -25,6 +32,7 @@ export const TOOLS_TAB_SECTIONS: readonly ToolsSection[] = [
   "sources",
   "retrieval",
   "mappings",
+  "hygiene",
 ];
 
 export function parseToolsSection(raw: string | null): ToolsSection {
@@ -86,6 +94,7 @@ export function ToolsConfig() {
       {activeSection === "sources" && <SourcesSection />}
       {activeSection === "retrieval" && <RetrievalManagementSection />}
       {activeSection === "mappings" && <MappingManagementSection />}
+      {activeSection === "hygiene" && <PostingHygieneSection />}
     </div>
   );
 }

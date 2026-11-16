@@ -35,6 +35,23 @@ def _psycopg_uri() -> str:
     return url
 
 
+def should_setup_checkpoints(url: str | None = None, *, split_mode: bool | None = None) -> bool:
+    """Whether this process may run the saver's first-run migration.
+
+    Under the split credential model (ADR-0064) the serving process holds
+    the DML-only app role: the checkpoint schema was created by the
+    one-shot `migrate` job (owner) and `setup()` would fail — or, on a
+    legacy single-role install, it is simply still allowed (backward
+    compat). Desktop SQLite keeps its local setup either way.
+    """
+    source = url if url is not None else settings.database_url
+    if source.startswith("sqlite"):
+        return True
+    if split_mode is None:
+        split_mode = settings.db_credential_mode == "split"
+    return not split_mode
+
+
 def _sqlite_path() -> str:
     """The checkpoint DB of the desktop profile.
 
@@ -97,7 +114,12 @@ async def get_checkpointer() -> BaseCheckpointSaver:
         saver = AsyncPostgresSaver(
             cast("AsyncConnectionPool[AsyncConnection[dict[str, Any]]]", pool)
         )
-    await saver.setup()
+    if should_setup_checkpoints():
+        # Legacy single-role installs (and desktop SQLite) keep the
+        # lazy first-run migration. Split mode skips it: the schema was
+        # provisioned by the one-shot `migrate` job under the owner role
+        # (ADR-0064) and the serving app role must never issue DDL.
+        await saver.setup()
     _checkpointer = saver
     _stack = stack
     return saver
@@ -174,6 +196,44 @@ def prune_desktop_checkpoints() -> int:
     except Exception:
         logger.warning("Checkpoint prune failed", exc_info=True)
         return 0
+
+
+async def provision_postgres_checkpoints(url: str | None = None) -> str:
+    """Create/verify the LangGraph checkpoint schema as the OWNER (one-shot
+    `migrate` job, ADR-0064 §3).
+
+    Idempotent: ``setup()`` creates any missing table/index and leaves
+    existing ones alone. Serving processes never call this — they open the
+    pre-provisioned schema through :func:`get_checkpointer` (setup skipped
+    under the split credential model). Returns the PostgreSQL URL used.
+    """
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg.rows import dict_row
+
+    source = url if url is not None else settings.database_url
+    if source.startswith("sqlite"):
+        raise RuntimeError("checkpoint provisioning is the PostgreSQL (server) path")
+    conninfo = source
+    if conninfo.startswith("postgresql+asyncpg://"):
+        conninfo = conninfo.replace("postgresql+asyncpg://", "postgresql://", 1)
+    pool = AsyncConnectionPool(
+        conninfo=conninfo,
+        min_size=1,
+        max_size=1,
+        timeout=30,
+        open=False,
+        check=AsyncConnectionPool.check_connection,
+        kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
+    )
+    try:
+        await pool.open()
+        saver = AsyncPostgresSaver(
+            cast("AsyncConnectionPool[AsyncConnection[dict[str, Any]]]", pool)
+        )
+        await saver.setup()
+    finally:
+        await pool.close()
+    return source
 
 
 async def prune_postgres_checkpoints(db: AsyncSession, ttl_days: int) -> int:

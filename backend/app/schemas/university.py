@@ -1,9 +1,47 @@
+import re
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from app.models.enums import DegreeLevel, DocumentKind, DocumentStatus, UniversityType
+from app.storage.object_storage import InvalidObjectKey, normalize_key
+
+_OBJECT_KEY_ROOT = "tenants/"
+_ABSOLUTE_PATH_TOKEN = re.compile(r"(?<![\w:/])(?:[A-Za-z]:[\\/]|/)[^\s'\"<>]+")
+_RELATIVE_LOCAL_TOKEN = re.compile(
+    r"\b(?:uploads|derived|career-cv-pages|career-legacy)/[^\s'\"<>]+"
+)
+
+
+def _is_object_key(value: object, owner_id: object | None = None) -> bool:
+    """Only the owner's tenant keys are publishable.
+
+    With an owner id (the API passes the row's `user_id` as validation
+    context) the key must live under `tenants/<owner>/`; without one, the
+    structural family prefix is the best the schema can enforce. A relative
+    legacy path is never a key.
+    """
+    text = str(value or "")
+    prefix = f"{_OBJECT_KEY_ROOT}{owner_id}/" if owner_id is not None else _OBJECT_KEY_ROOT
+    if not text.startswith(prefix):
+        return False
+    try:
+        normalize_key(text)
+    except InvalidObjectKey:
+        return False
+    return True
+
+
+def _scrub_local_paths(text: str) -> str:
+    """Replace absolute path tokens and relative local trees with `<path>`.
+
+    Every absolute token is treated as a path even when it sits outside a
+    configured root (`/home/...`, `C:\\Users\\...`): an error string is
+    never the place to expose where the server keeps files.
+    """
+    text = _ABSOLUTE_PATH_TOKEN.sub("<path>", text)
+    return _RELATIVE_LOCAL_TOKEN.sub("<path>", text)
 
 
 class AdmissionOut(BaseModel):
@@ -120,3 +158,45 @@ class DocumentOut(BaseModel):
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("extraction")
+    @classmethod
+    def _scrub_extraction_paths(cls, value: dict | None, info: ValidationInfo) -> dict | None:
+        """Never expose a filesystem path from the stored extraction.
+
+        Pre-contract CV rows carry `pages[].image_path` as an absolute
+        `/…/uploads/derived/…` path or a relative `uploads/derived/…` one.
+        The migration rewrites them to tenant object keys, but the response
+        stays safe for any row that has not been migrated yet (or was
+        written by an older process): only `tenants/…` keys pass.
+        """
+        if not isinstance(value, dict) or "pages" not in value:
+            return value
+        pages = value.get("pages")
+        if not isinstance(pages, list):
+            return value
+        owner_id = (info.context or {}).get("user_id")
+        scrubbed: list = []
+        for page in pages:
+            if (
+                isinstance(page, dict)
+                and page.get("image_path")
+                and not _is_object_key(page["image_path"], owner_id)
+            ):
+                page = {**page, "image_path": None}
+            scrubbed.append(page)
+        return {**value, "pages": scrubbed}
+
+    @field_validator("error")
+    @classmethod
+    def _scrub_error_paths(cls, value: str) -> str:
+        """Redact local path fragments a processor/provider error may carry."""
+        if not value:
+            return value
+        from app.core.config import settings
+
+        text = value
+        for root in {str(settings.upload_root), str(settings.data_dir)}:
+            if root and root not in (".", "/"):
+                text = text.replace(root.rstrip("/"), "<path>")
+        return _scrub_local_paths(text)

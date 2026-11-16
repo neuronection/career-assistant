@@ -23,7 +23,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.UNIVERSITY_PARSE.value: 1,
     AITaskType.CHAT.value: 14,
     AITaskType.CHAT_OPS.value: 2,
-    AITaskType.ASSIST.value: 1,
+    AITaskType.ASSIST.value: 2,
     AITaskType.PATH_SUGGEST.value: 1,
     AITaskType.POSTING_MAP.value: 1,
     AITaskType.JOB_TYPE_PROPOSAL.value: 1,

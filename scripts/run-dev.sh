@@ -175,12 +175,15 @@ dc_migrate() {
     dc_warn "skipping alembic upgrade (--no-migrate)"
     return 0
   fi
+  dc_step "checking the dev datastore schema"
+  (cd backend && uv run python -m careerassistant preflight) \
+    || dc_die "the dev database predates this release's schema — recreate it with: ./scripts/run-dev.sh --reset --web --yes"
   dc_step "applying backend migrations"
   (cd backend && PYTHONPATH="$(pwd)" uv run alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
 }
 
 dc_bootstrap_desktop() {
-  # The desktop boot path exactly: corrupt-DB guard + migrations + the
+  # The desktop boot path exactly: datastore break guard + migrations + the
   # idempotent starter catalog, against the local SQLite profile.
   if [[ "$NO_MIGRATE" = true ]]; then
     dc_warn "skipping desktop migrations + seed (--no-migrate)"

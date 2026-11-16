@@ -700,7 +700,7 @@ async def _latest_persisted_compare(
         if compare.set_version != golden.set_version or compare.k != golden.k:
             continue
         expected_old = str(active.id) if active is not None else str(candidate.id)
-        if compare.old_space_id != expected_old:
+        if compare.baseline_space_id != expected_old:
             continue
         return compare
     return None
@@ -1402,13 +1402,13 @@ async def compare_quality(
 ) -> dict[str, Any]:
     """Run the versioned golden set against old and new space; persist the result."""
     new_space = await _space(db, space_ref)
-    old_space = await _space(db, compare_space_ref)
-    if new_space.id == old_space.id:
+    baseline_space = await _space(db, compare_space_ref)
+    if new_space.id == baseline_space.id:
         raise ValidationError("compare spaces must differ")
     payload = {
         "action": QUALITY_COMPARE_ACTION,
         "space_id": str(new_space.id),
-        "compare_space_id": str(old_space.id),
+        "compare_space_id": str(baseline_space.id),
     }
     key = idempotency_key or _auto_key("quality-compare", payload)
     job, deduplicated = await jobs.begin_action_run(
@@ -1427,7 +1427,7 @@ async def compare_quality(
         if job.status == ops.RunStatus.RUNNING.value:
             raise ConflictError("this quality compare is already running")
     try:
-        outcome = await quality.compare_spaces(db, old_space, new_space)
+        outcome = await quality.compare_spaces(db, baseline_space, new_space)
     except quality.GoldenSetMissing as exc:
         refusal = _refusal(
             ops.RetrievalAction.QUALITY_COMPARE,
@@ -1443,7 +1443,7 @@ async def compare_quality(
                 actor=actor,
                 action="vector.gate.failed",
                 resource_ref=emitter.resource(
-                    f"space:{new_space.id}", baseline=str(old_space.id), reason="no_golden_set"
+                    f"space:{new_space.id}", baseline=str(baseline_space.id), reason="no_golden_set"
                 ),
                 outcome="error",
             ),
@@ -1458,7 +1458,9 @@ async def compare_quality(
             audit=emitter.audit_event(
                 actor=actor,
                 action="vector.gate.failed",
-                resource_ref=emitter.resource(f"space:{new_space.id}", baseline=str(old_space.id)),
+                resource_ref=emitter.resource(
+                    f"space:{new_space.id}", baseline=str(baseline_space.id)
+                ),
                 outcome="error",
             ),
         )
@@ -1475,7 +1477,7 @@ async def compare_quality(
         extra={
             "quality": outcome.compare.to_dict(),
             "space_id": str(new_space.id),
-            "baseline_space_id": str(old_space.id),
+            "baseline_space_id": str(baseline_space.id),
             "gate": gate,
             "audit_emitted": not outcome.passed,
         },
@@ -1485,7 +1487,7 @@ async def compare_quality(
         audit = emitter.audit_event(
             actor=actor,
             action="vector.gate.failed",
-            resource_ref=emitter.resource(f"space:{new_space.id}", baseline=str(old_space.id)),
+            resource_ref=emitter.resource(f"space:{new_space.id}", baseline=str(baseline_space.id)),
             outcome="error",
         )
     await jobs.finish_action_run(

@@ -4,12 +4,13 @@ hot field is a real indexed column; money is NUMERIC + ISO currency +
 period; JSONB keeps content only."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     Float,
     ForeignKey,
     Index,
@@ -201,6 +202,14 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'no_good_type', 'multi_role', 'not_a_job', 'duplicate', 'other')",
             name="mapping_review_reason_allowed",
         ),
+        CheckConstraint(
+            "mapping_margin IS NULL OR (mapping_margin >= 0 AND mapping_margin <= 1)",
+            name="mapping_margin_range",
+        ),
+        CheckConstraint(
+            "extract_status IS NULL OR extract_status IN ('succeeded', 'failed')",
+            name="extract_status_allowed",
+        ),
         Index("ix_postings_status_posted", "status", "posted_at"),
         Index("ix_postings_detail", "source_id", "detail_fetched_at"),
         Index("ix_postings_catalog_job", "catalog_job_id"),
@@ -208,9 +217,13 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_postings_mapping_method", "mapping_method"),
         Index("ix_postings_mapping_outcome_reason", "mapping_outcome_reason"),
         Index("ix_postings_mapping_review_state", "mapping_review_state"),
+        Index("ix_postings_mapping_margin", "mapping_margin"),
+        Index("ix_postings_proposal_proposed_at", "proposal_proposed_at"),
+        Index("ix_postings_status_extract", "status", "extract_status"),
         Index("ix_postings_expires_at", "expires_at"),
         Index("ix_postings_salary_min", "salary_min"),
         Index("ix_postings_org_match_state", "org_match_state"),
+        Index("ix_postings_duplicate_of", "duplicate_of_id"),
     )
 
     source_id: Mapped[uuid.UUID] = mapped_column(
@@ -240,6 +253,10 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # hot fields as columns (postings is the high-volume table).
     seniority: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     employment_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    language_codes: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    work_authorization: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    opportunity_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    application_deadline: Mapped[date | None] = mapped_column(Date(), nullable=True)
     contract_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
     onsite_policy: Mapped[str | None] = mapped_column(String(20), nullable=True)
     work_hours: Mapped[str | None] = mapped_column(String(60), nullable=True)
@@ -268,6 +285,18 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extract_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # A field fell below the confidence threshold — moderation attention.
     needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Plan 212 S2.2 trust signals: cross-source duplicate collapse. A
+    # duplicate points at its canonical row; clearing it is the undo.
+    duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="SET NULL"), nullable=True
+    )
+    repost_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Last successful detail fetch (not the list sync).
+    last_verified_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    # Typed signals: {"duplicate_candidate": [{posting_id, ref, title, org,
+    # score, reason}], "duplicate_suppressed": [canonical_id]} — proposals
+    # and undo memory only, never a scam verdict.
+    trust_flags: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Detail enrichment: NULL = the job description page was never
     # fetched; attempts counts tried fetches (a permanently failing id
     # stops being queued).
@@ -302,6 +331,16 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     mapping_outcome_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
     mapping_review_state: Mapped[str | None] = mapped_column(String(12), nullable=True)
     mapping_review_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Plan 210: the skill-ranked top-minus-second margin of a deterministic
+    # mapping (weak-review input; NULL for manual/semantic and until the
+    # re-decide sweep writes it).
+    mapping_margin: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Plan 210: the recorded extract outcome (succeeded/failed), written by
+    # the extract queue paths in S3; NULL until then / for never-attempted rows.
+    extract_status: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    # Plan 210: the typed proposal timestamp the v2 writer stores; aging and
+    # the queue display read it instead of the JSON text.
+    proposal_proposed_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
 
 
 class MappingReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -464,7 +503,8 @@ class PostingFilterPreset(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Per-user posting engagement state — seen / saved / hidden only.
+    """Per-user posting engagement state — seen / saved / hidden plus the
+    eligibility gate overrides (plan 212).
 
     Application state (stage, applied date, notes, documents) lives in
     `applications` since plan 113; this table never carries it again.
@@ -485,6 +525,10 @@ class PostingInteraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     seen_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     saved_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     hidden_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    # Plan 212 S1.4b: per-user "apply anyway" decisions for eligibility
+    # gates, e.g. {"visa": true, "grade": false}. Read fresh on every fit
+    # read, never part of the fit cache hash.
+    gate_overrides: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
 
 
 class WebhookEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):

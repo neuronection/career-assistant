@@ -4,10 +4,11 @@ The list row carries the application plus the posting identity it
 belongs to; the detail row adds the reverse-chron event timeline.
 """
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import ApplicationOutcome, ApplicationStage, ApplicationVia
 
@@ -43,7 +44,7 @@ class ApplicationOut(BaseModel):
     applied_via_url: str = ""
     deadline_at: datetime | None = None
     next_followup_at: datetime | None = None
-    contact: dict = Field(default_factory=dict)
+    contact_id: UUID | None = None
     offer: dict = Field(default_factory=dict)
     outcome: str | None = None
     closed_at: datetime | None = None
@@ -60,6 +61,61 @@ class ApplicationDetailOut(ApplicationOut):
     """The list row plus the newest-first event timeline."""
 
     timeline: list[ApplicationEventOut] = Field(default_factory=list)
+
+
+OfferPeriod = Literal["year", "month", "hour"]
+
+
+class ApplicationOfferIn(BaseModel):
+    """One offer, stored as JSON on the application (plan 212 S3.6)."""
+
+    currency: str = Field(min_length=3, max_length=3)
+    amount: float = Field(gt=0, allow_inf_nan=False)
+    period: OfferPeriod = "year"
+    benefits: list[str] = Field(default_factory=list, max_length=20)
+    location: str = Field(default="", max_length=200)
+    cost_of_living: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    deadline: date | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def _currency(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @field_validator("benefits")
+    @classmethod
+    def _benefits(cls, value: list[str]) -> list[str]:
+        seen: set[str] = set()
+        clean: list[str] = []
+        for item in value:
+            text = " ".join(item.split())[:120]
+            if text and text.lower() not in seen:
+                clean.append(text)
+                seen.add(text.lower())
+        return clean
+
+
+class OfferComparisonItem(BaseModel):
+    application_id: UUID
+    posting_title: str
+    posting_org: str
+    currency: str
+    amount: float
+    period: OfferPeriod
+    annual_amount: float
+    monthly_amount: float
+    cost_of_living: float | None = None
+    annual_cost_of_living: float | None = None
+    net_annual_after_col: float | None = None
+    benefits: list[str] = Field(default_factory=list)
+    location: str = ""
+    deadline: date | None = None
+
+
+class OfferComparisonOut(BaseModel):
+    items: list[OfferComparisonItem] = Field(default_factory=list)
+    total: int = 0
+    mixed_currencies: bool = False
 
 
 class FunnelOut(BaseModel):

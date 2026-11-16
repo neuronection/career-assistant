@@ -29,7 +29,7 @@ system stack — capability-detected). The template bank seeds live in
 profile entity to a typed resolver. Selection resolves **deterministically**
 into the renderer snapshot with per-item traceability; ineligible profile data
 is never registered, so it cannot reach a CV. The experience table splits into
-three sources (plan 70): `experience` (paid work only), `projects`
+three sources: `experience` (paid work only), `projects`
 (kind=project) and `volunteer` (kind=volunteer) — preserving the generate
 machinery's `section kind == source_key` invariant.
 
@@ -43,7 +43,7 @@ overrides. Precedence is always **override > synth > source**, and every
 application is traced via `synth_applied` in the version's
 `context_resolution` and the live resolution payloads.
 
-- **Plan 110 (one variant per item)** collapsed the two-layer pin slots into a
+- **One variant per item** collapsed the two-layer pin slots into a
   single pin. `swap_variant_payload` applies by **field presence**
   (description → text layer; `achievements` → bullets; both → full entry)
   regardless of the row's `scope` (now pure provenance). `_supersede_slot` is
@@ -68,7 +68,7 @@ templates auto-customize to a private copy on first edit.
 `app/services/cv/cv_generate_service.py` runs the `cv_generate` background job,
 which drives the `cv_draft` LangGraph (`app/ai/graphs/cv_draft.py`):
 plan → enrich (fetch a few of your own linked pages) → synthesize → assemble.
-After the assemble node, the **polish loop** (plan 64) runs the
+After the assemble node, the **polish loop** runs the
 `cv_build_review` vision task (`app/ai/agents/cv_build_reviewer.py`), which
 critiques the rendered pages + lint + a deterministic coverage matrix
 (`build_coverage_matrix`), and a bounded fix/applicant node applies its
@@ -107,9 +107,43 @@ avoid` on semantic units, `break-after: avoid` on headings).
 for Markdown/ATS/DOCX exports, keeping every format consistent with the
 preview. PDF goes through the print engine.
 
+## The parser view
+
+`app/services/cv/cv_parse_view_service.py` answers "what does
+our extractor see": `CvBuilderService.render_state` renders the current state
+(**no version**), `html_to_pdf` prints it through the same engine as the
+export, and pypdfium2 — the same library that counts pages — extracts each
+printed page's text. The response is `pages[]` (index, verbatim text, line
+count), `findings[]` (`id`, `level` `info|warn|fail`, `message`), `page_count`,
+`text_layer` and `engine: "pdf"` — `GET /cv/{id}/parse-view` in
+`app/api/v1/cv/cvs.py` (503 with the capability message when no engine; no AI
+anywhere).
+
+Findings are deterministic and bounded: `text_layer` (fail — image-only
+pages), `header_contact` (email/phone from the snapshot basics absent from
+the extracted text), `welded_lines` (lines over 200 characters),
+`reading_order` (rendered heading order vs first-occurrence order in the
+extracted text — the column suspicion), `page_overflow` (measured pages vs
+`cv.max_pages`) and `empty_page`. A clean CV emits none; there is no score
+and, deliberately, no vendor name anywhere — the UI copy says "our own
+extractor", never "like Workday". Tests build fixture PDFs with real text
+operators (`tests/test_cv_parse_view.py`) so pdfium's extraction is
+exercised, and mock `html_to_pdf` at the service seam the way the export
+tests do.
+
 ## Related
 
 - [AI layer](ai-layer.md) — the gateway the CV flows use
 - [Data model](data-model.md) — `cv_documents`, `cv_versions`, `cv_templates`, `cv_synth_items`
 - [UI conventions](ui-conventions.md) — the CV workspace patterns
 - [User: CV Studio](../user/cv-studio.md)
+
+## Bullet review
+
+`POST /api/v1/cv/{id}/ai/bullet_review` with `{bullets: string[]}` runs
+`bullet_reviews` (`app/services/cv/cv_suggestion_service.py`): a
+deterministic check set — empty, over-long, very short, missing number,
+duty-phrase opening, passive voice, duplicate opening word — returned as
+`bullet_checks: [{index, checks: [{id, level, message}]}]`. No model call,
+no version, no write; the bullets editor renders the findings under each
+line. `Generate` remains the separate AI action.

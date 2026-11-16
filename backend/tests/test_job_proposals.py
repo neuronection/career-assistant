@@ -10,14 +10,16 @@ P2, which indexes catalog jobs through the same vector writer as everything
 else."""
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import joinedload
 
 from app.extensions.sdk import RawPosting
 from app.models.job_model import Job, JobFamily, JobSkill
-from app.models.posting_model import JobPosting, PostingChange
+from app.models.posting_model import JobPosting, PostingChange, PostingSkill
 from app.models.taxonomy_model import Skill
 from app.services.postings.extract_service import extract_posting_now
+from app.services.postings.job_proposal_service import JobProposalService
+from app.services.postings.job_type_candidates import TitleCatalog, TitleCatalogEntry
 from app.services.postings.postings_service import upsert_posting
 from tests.conftest import session_headers
 
@@ -97,8 +99,10 @@ async def test_rich_unmapped_extract_stores_the_proposal(db, client, auth_header
         "programming",
         "problem-solving",
     }
-    assert proposal["extract_version"] == 5
+    assert proposal["extract_version"] == 6
     assert proposal["proposed_at"]
+    assert posting.proposal_proposed_at is not None
+    assert posting.proposal_proposed_at.isoformat() == proposal["proposed_at"]
     assert len(proposal["short_description"]) <= 500
     stored_rows = (
         (
@@ -304,6 +308,7 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
     assert queue[0]["proposal"]["title_norm"] == "Observability Engineer"
     assert "mapping_signals" in queue[0]
     assert queue[0]["proposal"] == proposal
+    assert queue[0]["proposed_at"] == posting.proposal_proposed_at.isoformat()
 
     applied = await client.post(
         f"/api/v1/admin/postings/{posting.id}/job-proposal/apply",
@@ -319,6 +324,7 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
     facts = posting.posting_facts or {}
     assert facts["job_proposal"] is None, "an applied proposal clears explicitly"
     assert facts["job_proposal_applied_at"]
+    assert posting.proposal_proposed_at is None
     assert posting.status == "mapped"
     job = (await db.execute(select(Job).where(Job.code == body["job_code"]))).scalars().one()
     assert job.status == "published"
@@ -373,6 +379,7 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
     facts2 = posting2.posting_facts or {}
     assert facts2["job_proposal"] is None
     assert facts2["job_proposal_rejected_at"]
+    assert posting2.proposal_proposed_at is None
     pending_after = (
         await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
     ).json()
@@ -391,6 +398,120 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
         .all()
     )
     assert journal.operation["job_proposal"] == "dismissed"
+
+
+async def test_auto_mapping_clears_a_pending_proposal(db, client, auth_headers, kinds, source):
+    family = await _seed_world(db)
+    posting = await _rich_unmapped_posting(db, source, external_id="proposal-auto-clear")
+    assert isinstance(posting.posting_facts["job_proposal"], dict)
+    assert posting.proposal_proposed_at is not None
+
+    sql = (await db.execute(select(Skill).where(Skill.key == "sql"))).scalars().one()
+    job = Job(
+        code="auto-clear-role",
+        title="Auto Clear Role",
+        family_id=family.id,
+        status="published",
+    )
+    db.add(job)
+    await db.flush()
+    db.add(JobSkill(job_id=job.id, skill_id=sql.id, required_level=10, importance="core"))
+    await db.flush()
+
+    from app.services.postings.job_proposal_service import pending_predicate
+    from app.services.postings.postings_service import decide_catalog
+
+    skill_ids = set(
+        (
+            await db.execute(
+                select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    await decide_catalog(db, posting, skill_ids, defer_semantic=False)
+    await db.flush()
+
+    assert posting.mapping_method == "skill_overlap"
+    assert posting.posting_facts["job_proposal"] is None
+    assert posting.posting_facts["job_proposal_cleared_reason"] == "auto-mapped"
+    assert posting.proposal_proposed_at is None
+
+    aging = (
+        await db.execute(
+            select(func.count())
+            .select_from(JobPosting)
+            .where(
+                JobPosting.status.in_(("new", "mapped")),
+                pending_predicate(db.get_bind().dialect.name),
+            )
+        )
+    ).scalar_one()
+    assert aging == 0
+
+    journal = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == posting.id,
+                    PostingChange.actor_kind == "retag",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any((row.operation or {}).get("job_proposal") == "auto_mapped" for row in journal)
+
+
+async def test_proposal_queue_eager_loads_the_existing_job_family(
+    db, client, auth_headers, kinds, source, monkeypatch
+):
+    family = await _seed_world(db)
+    job = Job(
+        code="observability-engineer",
+        title="Observability Engineer",
+        family_id=family.id,
+        status="published",
+    )
+    db.add(job)
+    await db.commit()
+
+    posting = await _rich_unmapped_posting(db, source, external_id="proposal-existing-job")
+    proposal = _proposal_of(posting)
+    assert proposal["existing_job_code"] == "observability-engineer"
+    posting_id = posting.id
+    await db.commit()
+    db.expire_all()
+
+    async def _no_candidates(*_args, **_kwargs):
+        return [], None
+
+    monkeypatch.setattr(
+        "app.services.postings.job_type_candidates.job_type_candidates",
+        _no_candidates,
+    )
+    queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
+    row = next(entry for entry in queue["items"] if entry["id"] == str(posting_id))
+    assert row["existing_job"]["code"] == "observability-engineer"
+    assert row["existing_job"]["family_key"] == "proposal-family"
+    assert row["existing_job"]["status"] == "published"
+
+
+async def test_clear_job_proposal_clears_the_typed_timestamp(
+    db, client, auth_headers, kinds, source
+):
+    await _seed_world(db)
+    posting = await _rich_unmapped_posting(db, source, external_id="proposal-clear")
+    assert posting.proposal_proposed_at is not None
+
+    from app.services.postings.job_proposal_service import clear_job_proposal
+
+    assert await clear_job_proposal(db, posting, reason="test-clear") is True
+    await db.flush()
+    assert posting.posting_facts["job_proposal"] is None
+    assert posting.proposal_proposed_at is None
 
 
 async def test_queue_suggests_the_skill_affinity_family(db, client, auth_headers, kinds, source):
@@ -513,7 +634,8 @@ async def test_generic_only_overlap_never_guesses(db, client, auth_headers, kind
         db.add(skill)
         generic_skills.append(skill)
     filler = Skill(key="generic-filler", label="Generic Filler", category="test")
-    db.add(filler)
+    filler_b = Skill(key="generic-filler-b", label="Generic Filler B", category="test")
+    db.add_all([filler, filler_b])
     await db.flush()
     for family_id in (family.id, other.id):
         generic_job = Job(
@@ -533,16 +655,18 @@ async def test_generic_only_overlap_never_guesses(db, client, auth_headers, kind
                     importance="core",
                 )
             )
-        # Heavy filler keeps each job individually below the auto-map
-        # threshold, so the posting stays unmapped and proposes.
-        db.add(
-            JobSkill(
-                job_id=generic_job.id,
-                skill_id=filler.id,
-                required_level=10,
-                importance="core",
+        # Heavy fillers keep each job individually below the auto-map
+        # threshold (two-way coverage is generous with full posting coverage),
+        # so the posting stays unmapped and proposes.
+        for filler_skill in (filler, filler_b):
+            db.add(
+                JobSkill(
+                    job_id=generic_job.id,
+                    skill_id=filler_skill.id,
+                    required_level=10,
+                    importance="core",
+                )
             )
-        )
     await db.commit()
 
     posting = await _rich_unmapped_posting(
@@ -895,3 +1019,67 @@ async def test_v1_proposal_is_never_pending(db, client, auth_headers, kinds, sou
     await db.commit()
 
     assert await JobProposalService(db).pending() == [], "a v1 object is not pending"
+
+
+async def test_proposal_queue_loads_the_title_catalog_once_for_three_rows(
+    db, client, auth_headers, kinds, source
+):
+    await _seed_world(db)
+    for index in range(3):
+        await _rich_unmapped_posting(db, source, external_id=f"proposal-preload-{index}")
+    db.expire_all()
+
+    statements: list[str] = []
+
+    def _capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()))
+
+    from app.core.database import engine as app_async_engine
+
+    bind = db.get_bind()
+    targets = [getattr(bind, "sync_engine", None) or getattr(bind, "engine", bind)]
+    if app_async_engine.sync_engine is not targets[0]:
+        targets.append(app_async_engine.sync_engine)
+    for target in targets:
+        event.listen(target, "before_cursor_execute", _capture)
+    try:
+        queue = (
+            await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
+        ).json()
+    finally:
+        for target in targets:
+            event.remove(target, "before_cursor_execute", _capture)
+
+    assert len(queue["items"]) == 3
+    title_loads = [
+        statement for statement in statements if "FROM jobs JOIN job_families" in statement
+    ]
+    assert len(title_loads) == 2, "one published + one non-retired load for the page"
+
+
+async def test_duplicate_candidates_read_the_preloaded_catalog(
+    db, client, auth_headers, kinds, source
+):
+    await _seed_world(db)
+    posting = await _rich_unmapped_posting(db, source, external_id="proposal-preload-dup")
+    service = JobProposalService(db)
+
+    assert await service.duplicate_candidates(posting) == []
+
+    catalog = TitleCatalog(
+        published=(),
+        non_retired=(
+            TitleCatalogEntry(
+                code="ghost-type",
+                title="Observability Engineer",
+                family_key="ghost-family",
+                family_label="Ghost",
+                short_description="",
+            ),
+        ),
+    )
+    duplicates = await service.duplicate_candidates(posting, catalog=catalog)
+
+    assert duplicates == [
+        {"code": "ghost-type", "title": "Observability Engineer", "score": 1.0, "reason": "exact"}
+    ]

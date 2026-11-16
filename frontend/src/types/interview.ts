@@ -82,4 +82,5 @@ export interface InterviewSessionCreate {
   posting_ref?: string;
   job_code?: string;
   kind: InterviewKind;
+  story_ids?: string[];
 }

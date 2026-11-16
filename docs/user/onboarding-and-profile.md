@@ -33,7 +33,7 @@ on the right. Sections save themselves as you edit — there is no separate
 
 | Section | What it holds |
 |---|---|
-| **Basics** | Name, contact details, location, headline |
+| **Basics** | Name, contact details, location, headline, work authorization (used only to flag postings that cannot sponsor you) |
 | **Objective** | A short statement of what you are aiming for |
 | **Interests** | Taxonomy-referenced interest tags (stable `key` slugs, never free labels) |
 | **Skills** | Open-vocabulary skills with a 1–10 level. Unknown skills you type become `proposed` rows, never lost |
@@ -52,7 +52,9 @@ Two sections open dedicated **workspaces** instead of inline editing:
 - **Education** (`/profile/education`) — the same pattern over education
   entries, certifications and achievements, with an entity toggle in the
   toolbar. Institution pickers search the university catalog and accept
-  free text.
+  free text. A formal grade is entered as a **scale + value** (UK honours
+  class, GPA 4.0/10, German Note, percentage) so a posting's grade cutoff
+  can be compared only on the same scale — never converted across scales.
 
 Both workspaces accept deep links from elsewhere in the app (for example
 from CV Studio's context panel) that open the right entry with a highlight.
@@ -79,6 +81,16 @@ wizard, or any time via **Profile → Import from CV** (or
 Your original file is preserved byte-for-byte; only a text layer is
 extracted. See the [feature catalog](features.md#profile) for the full
 pipeline.
+
+### JSON Resume import and export
+
+The same page carries a **JSON Resume** card: export your profile in the
+community JSON Resume shape, or import a file. Import is review-first —
+the card lists how many basics, work and education entries mapped, every
+dropped top-level key and a warning for anything that needs a decision
+(skills are reported, not silently created). Nothing is written until
+you press **Apply import**; unknown fields are never stored and no
+runtime schema package is required.
 
 ## AI profile analysis
 

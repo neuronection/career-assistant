@@ -5,6 +5,8 @@
  * (the caller runs it through `t(key, { count })`).
  */
 
+import { currentLocale } from "@/lib/i18n";
+
 export interface RelativeTime {
   key: string;
   count: number;
@@ -77,5 +79,16 @@ export function formatRelativeTime(
 export function formatAbsolute(iso: string | null | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(currentLocale());
+}
+
+/** Format a date-only value (YYYY-MM-DD) on its own UTC day, in the app locale. */
+export function formatDay(
+  iso: string | null | undefined,
+  locale?: string
+): string {
+  if (!iso) return "—";
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(locale ?? currentLocale(), { timeZone: "UTC" });
 }

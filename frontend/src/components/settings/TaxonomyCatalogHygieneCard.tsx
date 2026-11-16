@@ -92,66 +92,89 @@ export function TaxonomyCatalogHygieneCard({ onDone }: { onDone?: (note: string)
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {groups.map((group) => {
         const survivor = survivors[group.normalized_title] ?? "";
+        const exact =
+          group.kind === "exact" && group.jobs.every((job) => job.status === "published");
         return (
           <div
-            key={group.normalized_title}
+            key={`${group.kind}-${group.jobs.map((job) => job.code).join("-")}`}
             className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
-            data-testid={`catalog-hygiene-group-${group.normalized_title}`}
+            data-testid={`catalog-hygiene-group-${group.normalized_title}-${group.jobs[0]?.code ?? ""}`}
           >
             <p className="text-sm font-medium text-[var(--as-fg)]">
               {t("taxonomy.catalogHygiene.groupHeading", {
                 title: group.jobs[0]?.title ?? group.normalized_title,
               })}
             </p>
-            <div className="flex flex-wrap items-center gap-3">
-              {group.jobs.map((job) => (
-                <label
-                  key={job.id}
-                  className="flex items-center gap-1.5 text-xs text-[var(--as-fg)]"
-                >
-                  <input
-                    type="radio"
-                    name={`survivor-${group.normalized_title}`}
-                    checked={survivor === job.id}
-                    onChange={() =>
-                      setSurvivors((previous) => ({
-                        ...previous,
-                        [group.normalized_title]: job.id,
-                      }))
-                    }
-                    data-testid={`catalog-hygiene-survivor-${job.code}`}
-                  />
-                  <span className="font-mono">{job.code}</span>
-                  <span className="text-[var(--as-muted-fg)]">
-                    {t("taxonomy.catalogHygiene.postings", { count: job.posting_count })}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {group.jobs
-                .filter((job) => job.id !== survivor)
-                .map((job) => (
-                  <Button
-                    key={job.code}
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setConfirming({
-                        group,
-                        sourceId: job.id,
-                        targetId: survivor,
-                      })
-                    }
-                    data-testid={`catalog-hygiene-merge-${job.code}`}
-                  >
-                    <Merge className="h-3.5 w-3.5" aria-hidden />
-                    {t("taxonomy.catalogHygiene.mergeInto", {
-                      code: group.jobs.find((entry) => entry.id === survivor)?.code ?? "",
-                    })}
-                  </Button>
-                ))}
-            </div>
+            {exact ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  {group.jobs.map((job) => (
+                    <label
+                      key={job.id}
+                      className="flex items-center gap-1.5 text-xs text-[var(--as-fg)]"
+                    >
+                      <input
+                        type="radio"
+                        name={`survivor-${group.normalized_title}`}
+                        checked={survivor === job.id}
+                        onChange={() =>
+                          setSurvivors((previous) => ({
+                            ...previous,
+                            [group.normalized_title]: job.id,
+                          }))
+                        }
+                        data-testid={`catalog-hygiene-survivor-${job.code}`}
+                      />
+                      <span className="font-mono">{job.code}</span>
+                      <span className="text-[var(--as-muted-fg)]">
+                        {t("taxonomy.catalogHygiene.postings", { count: job.posting_count })}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {group.jobs
+                    .filter((job) => job.id !== survivor)
+                    .map((job) => (
+                      <Button
+                        key={job.code}
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setConfirming({
+                            group,
+                            sourceId: job.id,
+                            targetId: survivor,
+                          })
+                        }
+                        data-testid={`catalog-hygiene-merge-${job.code}`}
+                      >
+                        <Merge className="h-3.5 w-3.5" aria-hidden />
+                        {t("taxonomy.catalogHygiene.mergeInto", {
+                          code: group.jobs.find((entry) => entry.id === survivor)?.code ?? "",
+                        })}
+                      </Button>
+                    ))}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1" data-testid="catalog-hygiene-near">
+                <p className="text-xs text-[var(--as-muted-fg)]">
+                  {t(
+                    group.kind === "exact"
+                      ? "taxonomy.catalogHygiene.draftExact"
+                      : "taxonomy.catalogHygiene.nearOnly",
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs text-[var(--as-fg)]">
+                  {group.jobs.map((job) => (
+                    <span key={job.id} className="font-mono">
+                      {job.code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

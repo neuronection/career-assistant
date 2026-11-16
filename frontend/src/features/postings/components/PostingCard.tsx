@@ -390,6 +390,19 @@ export function PostingCard({
           )}
         </div>
 
+        {posting.catalog_job ? (
+          <Link
+            to={`/jobs/${
+              posting.catalog_job.retired_into?.code ?? posting.catalog_job.code
+            }`}
+            onClick={(event) => event.stopPropagation()}
+            className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--as-fg)] hover:border-[var(--as-accent)] hover:text-[var(--as-accent)]"
+            data-testid="posting-job-type"
+          >
+            {posting.catalog_job.retired_into?.title || posting.catalog_job.title}
+          </Link>
+        ) : null}
+
         <CardMeta
           className="mt-1"
           items={[
@@ -404,6 +417,29 @@ export function PostingCard({
             },
           ]}
         />
+
+        {(posting.repost_count > 0 || posting.last_verified_at) && (
+          <div
+            className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-[var(--as-muted-fg)]"
+            data-testid="posting-trust"
+          >
+            {posting.repost_count > 0 && (
+              <span className="rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] px-1.5 py-0.5">
+                {t("postingCard.reposted", { count: posting.repost_count })}
+              </span>
+            )}
+            {posting.last_verified_at && (
+              <span
+                className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5"
+                title={formatAbsolute(posting.last_verified_at)}
+              >
+                {t("postingCard.verified", {
+                  date: formatAbsolute(posting.last_verified_at),
+                })}
+              </span>
+            )}
+          </div>
+        )}
 
         <CardSpec
           className="mt-1.5 border-t border-[var(--as-border)] pt-1.5"

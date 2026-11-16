@@ -1,7 +1,6 @@
 import io
 import logging
 import uuid
-from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +11,8 @@ from app.core.errors import NotFoundError, ValidationError, sanitize_error_detai
 from app.models.document_model import Document
 from app.models.enums import DocumentStatus
 from app.models.university_model import Department, University
+from app.services.profile.document_storage import DocumentStorage, document_storage
+from app.storage.object_storage import ObjectTooLarge, filename_extension
 
 logger = logging.getLogger(__name__)
 
@@ -19,28 +20,14 @@ logger = logging.getLogger(__name__)
 class DocumentService:
     """Upload → parse (AI) → review → apply pipeline for university PDFs."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, storage: DocumentStorage | None = None):
         self.db = db
-
-    def _upload_path(self, document_id: uuid.UUID, filename: str) -> Path:
-        """Storage path for an uploaded file."""
-        directory = Path(settings.upload_dir)
-        directory.mkdir(parents=True, exist_ok=True)
-        suffix = Path(filename).suffix or ".bin"
-        return directory / f"{document_id}{suffix}"
-
-    @staticmethod
-    def upload_file_path(document: Document) -> Path | None:
-        """Stored file path for a document row (None when unplausible)."""
-        if not document.filename:
-            return None
-        suffix = Path(document.filename).suffix or ".bin"
-        return Path(settings.upload_dir) / f"{document.id}{suffix}"
+        self.storage = storage or document_storage()
 
     async def create_upload(
         self, user_id: uuid.UUID, filename: str, mime: str, content: bytes
     ) -> Document:
-        """Persist the file and create the document row."""
+        """Persist the file through the store and create the document row."""
         max_bytes = settings.max_upload_mb * 1024 * 1024
         if len(content) > max_bytes:
             raise ValidationError(f"File exceeds {settings.max_upload_mb}MB limit")
@@ -53,22 +40,21 @@ class DocumentService:
         )
         self.db.add(document)
         await self.db.flush()
-        path = self._upload_path(document.id, filename)
-        path.write_bytes(content)
+        try:
+            document.object_key = await self.storage.aput_document(document, content)
+        except ObjectTooLarge as exc:
+            raise ValidationError(f"File exceeds {settings.max_upload_mb}MB limit") from exc
         await self.db.commit()
         await self.db.refresh(document)
         return document
 
-    @staticmethod
-    def extract_text(document: Document) -> tuple[str, int]:
+    async def extract_text(self, document: Document) -> tuple[str, int]:
         """Extract raw text from the stored file (pdf via pypdf, else utf-8)."""
-        path = (
-            Path(settings.upload_dir) / f"{document.id}{Path(document.filename).suffix or '.bin'}"
-        )
-        if not path.exists():
+        raw = await self.storage.aread(document)
+        if raw is None:
             raise NotFoundError("Stored file missing")
-        raw = path.read_bytes()
-        if document.mime == "application/pdf" or path.suffix.lower() == ".pdf":
+        suffix = filename_extension(document.filename)
+        if document.mime == "application/pdf" or suffix == ".pdf":
             from pypdf import PdfReader
 
             reader = PdfReader(io.BytesIO(raw))
@@ -82,7 +68,7 @@ class DocumentService:
         document.status = DocumentStatus.PARSING.value
         await self.db.commit()
         try:
-            text, pages = self.extract_text(document)
+            text, pages = await self.extract_text(document)
             document.page_count = pages
             if not text.strip():
                 raise ValidationError("No extractable text in document")

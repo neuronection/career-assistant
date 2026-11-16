@@ -38,8 +38,10 @@ once what you are looking for, and use it everywhere. It lives under
 - **Work mode** — on-site / hybrid / remote preference.
 - **Salary floor** — an annual figure with its currency.
 - **Seniority** — the bands you are aiming at.
-- **Match digest** — off, instant, daily or weekly (digest delivery
-  arrives with the notifications wave).
+- **Match digest** — off, instant, daily or weekly. Digests are live:
+  when unseen matches remain in the bucket, the digest is delivered
+  through the notification funnel (see
+  [Notifications and scheduler](notifications-and-scheduler.md)).
 
 Save it once; **Test** shows what the radar would match right now
 without saving.

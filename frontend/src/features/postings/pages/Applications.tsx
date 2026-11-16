@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
-import { Bell, CalendarClock, KanbanSquare, List, Settings2 } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  CalendarPlus,
+  KanbanSquare,
+  List,
+  PackageCheck,
+  Settings2,
+} from "lucide-react";
 import { Input } from "@neuronection/assistant-ui";
 
 import { fetchApplications } from "@/api/applications";
 import { apiDetail } from "@/api/client";
 import { ApplicationDrawer } from "@/features/postings/components/applications/ApplicationDrawer";
 import { FollowupRulesCard } from "@/features/postings/components/applications/FollowupRulesCard";
+import { IcsImportModal } from "@/features/postings/components/applications/IcsImportModal";
+import { ApplicationInsightsCard } from "@/features/postings/components/applications/ApplicationInsightsCard";
 import { Button, EmptyState, PanelModal, Spinner } from "@/components/ui";
 import { isUnread, markSeen } from "@/lib/applicationSeen";
 import type { Application, ApplicationList } from "@/types/application";
@@ -76,52 +86,53 @@ function ApplicationCard({
   const { t } = useTranslation();
   const unread = isUnread(application.id, application.updated_at);
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div
       data-testid={`application-card-${application.id}`}
-      className="w-full space-y-2 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3 text-left transition-colors hover:border-[var(--as-accent)]"
+      onClick={onOpen}
+      className="w-full cursor-pointer space-y-2 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3 transition-colors hover:border-[var(--as-accent)]"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[var(--as-fg)]">
-            {application.posting_title}
-          </p>
-          <p className="truncate text-xs text-[var(--as-muted-fg)]">
-            {application.posting_org}
-          </p>
+      <button type="button" onClick={onOpen} className="w-full space-y-2 text-left">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-[var(--as-fg)]">
+              {application.posting_title}
+            </p>
+            <p className="truncate text-xs text-[var(--as-muted-fg)]">
+              {application.posting_org}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {unread && (
+              <span
+                aria-label={t("applications.unread")}
+                data-testid={`application-unread-${application.id}`}
+                className="size-2 rounded-full bg-[var(--as-accent)]"
+              />
+            )}
+            <StageChip application={application} />
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {unread && (
-            <span
-              aria-label={t("applications.unread")}
-              data-testid={`application-unread-${application.id}`}
-              className="size-2 rounded-full bg-[var(--as-accent)]"
-            />
-          )}
-          <StageChip application={application} />
-        </div>
-      </div>
-      <dl className="grid grid-cols-2 gap-1 text-[10px] text-[var(--as-muted-fg)]">
-        <div>
-          <dt className="uppercase tracking-wide">{t("applications.applied")}</dt>
-          <dd className="text-[var(--as-fg)]">{formatDate(application.applied_at)}</dd>
-        </div>
-        <div>
-          <dt className="uppercase tracking-wide">{t("applications.deadline")}</dt>
-          <dd className="text-[var(--as-fg)]">{formatDate(application.deadline_at)}</dd>
-        </div>
-        <div>
-          <dt className="uppercase tracking-wide">{t("applications.nextFollowup")}</dt>
-          <dd className="text-[var(--as-fg)]">
-            {formatDate(application.next_followup_at)}
-          </dd>
-        </div>
-        <div>
-          <dt className="uppercase tracking-wide">{t("applications.updated")}</dt>
-          <dd className="text-[var(--as-fg)]">{formatDate(application.updated_at)}</dd>
-        </div>
-      </dl>
+        <dl className="grid grid-cols-2 gap-1 text-[10px] text-[var(--as-muted-fg)]">
+          <div>
+            <dt className="uppercase tracking-wide">{t("applications.applied")}</dt>
+            <dd className="text-[var(--as-fg)]">{formatDate(application.applied_at)}</dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-wide">{t("applications.deadline")}</dt>
+            <dd className="text-[var(--as-fg)]">{formatDate(application.deadline_at)}</dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-wide">{t("applications.nextFollowup")}</dt>
+            <dd className="text-[var(--as-fg)]">
+              {formatDate(application.next_followup_at)}
+            </dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-wide">{t("applications.updated")}</dt>
+            <dd className="text-[var(--as-fg)]">{formatDate(application.updated_at)}</dd>
+          </div>
+        </dl>
+      </button>
       <div className="flex items-center gap-2">
         {application.cv_id !== null && (
           <DocThumb cvId={application.cv_id} label={t("applications.cv")} />
@@ -132,8 +143,17 @@ function ApplicationCard({
             label={t("applications.coverLetter")}
           />
         )}
+        <Link
+          to={`/applications/${application.id}`}
+          onClick={(event) => event.stopPropagation()}
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-[var(--as-border)] px-2 py-0.5 text-[10px] font-medium text-[var(--as-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-accent)]"
+          data-testid={`application-kit-link-${application.id}`}
+        >
+          <PackageCheck className="size-3" aria-hidden />
+          {t("applications.kit.cardAction")}
+        </Link>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -145,6 +165,7 @@ export function Applications() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [icsOpen, setIcsOpen] = useState(false);
   const [seenRevision, setSeenRevision] = useState(0);
 
   const activeId = params.get("application");
@@ -194,6 +215,13 @@ export function Applications() {
           {t("applications.count", { count: data?.total ?? 0 })}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Link
+            to="/applications/offers"
+            className="text-xs text-[var(--as-accent)] underline"
+            data-testid="compare-offers-link"
+          >
+            {t("applications.compareOffers")}
+          </Link>
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -239,6 +267,15 @@ export function Applications() {
           <Button
             variant="outline"
             size="sm"
+            data-testid="applications-ics-import"
+            onClick={() => setIcsOpen(true)}
+          >
+            <CalendarPlus className="mr-1 size-3.5" aria-hidden />
+            {t("applications.importIcs")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             data-testid="applications-followup-settings"
             onClick={() => setSettingsOpen(true)}
           >
@@ -247,6 +284,8 @@ export function Applications() {
           </Button>
         </div>
       </div>
+
+      <ApplicationInsightsCard />
 
       {data !== null && data.next_followup_at !== null && (
         <p
@@ -323,42 +362,54 @@ export function Applications() {
           {items.map((application) => {
             const unread = isUnread(application.id, application.updated_at);
             return (
-              <button
+              <div
                 key={application.id}
-                type="button"
-                onClick={() => openDrawer(application.id)}
-                data-testid={`application-row-${application.id}`}
-                className="grid w-full grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr_0.7fr] items-center gap-2 border-b border-[var(--as-border)] px-3 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-[var(--as-muted)]"
+                className="flex w-full items-center gap-2 border-b border-[var(--as-border)] px-3 py-2 transition-colors last:border-b-0 hover:bg-[var(--as-muted)]"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  {unread && (
-                    <span
-                      aria-label={t("applications.unread")}
-                      className="size-2 shrink-0 rounded-full bg-[var(--as-accent)]"
-                    />
-                  )}
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-[var(--as-fg)]">
-                      {application.posting_title}
-                    </span>
-                    <span className="block truncate text-[var(--as-muted-fg)]">
-                      {application.posting_org}
+                <button
+                  type="button"
+                  onClick={() => openDrawer(application.id)}
+                  data-testid={`application-row-${application.id}`}
+                  className="grid min-w-0 flex-1 grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr_0.7fr] items-center gap-2 text-left text-xs"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {unread && (
+                      <span
+                        aria-label={t("applications.unread")}
+                        className="size-2 shrink-0 rounded-full bg-[var(--as-accent)]"
+                      />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-[var(--as-fg)]">
+                        {application.posting_title}
+                      </span>
+                      <span className="block truncate text-[var(--as-muted-fg)]">
+                        {application.posting_org}
+                      </span>
                     </span>
                   </span>
-                </span>
-                <span>
-                  <StageChip application={application} />
-                </span>
-                <span className="text-[var(--as-fg)]">
-                  {formatDate(application.applied_at)}
-                </span>
-                <span className="text-[var(--as-fg)]">
-                  {formatDate(application.deadline_at)}
-                </span>
-                <span className="text-[var(--as-fg)]">
-                  {formatDate(application.next_followup_at)}
-                </span>
-              </button>
+                  <span>
+                    <StageChip application={application} />
+                  </span>
+                  <span className="text-[var(--as-fg)]">
+                    {formatDate(application.applied_at)}
+                  </span>
+                  <span className="text-[var(--as-fg)]">
+                    {formatDate(application.deadline_at)}
+                  </span>
+                  <span className="text-[var(--as-fg)]">
+                    {formatDate(application.next_followup_at)}
+                  </span>
+                </button>
+                <Link
+                  to={`/applications/${application.id}`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--as-border)] px-2 py-0.5 text-[10px] font-medium text-[var(--as-fg)] transition-colors hover:border-[var(--as-accent)] hover:text-[var(--as-accent)]"
+                  data-testid={`application-kit-link-${application.id}`}
+                >
+                  <PackageCheck className="size-3" aria-hidden />
+                  {t("applications.kit.cardAction")}
+                </Link>
+              </div>
             );
           })}
         </div>
@@ -379,6 +430,12 @@ export function Applications() {
       >
         <FollowupRulesCard />
       </PanelModal>
+
+      <IcsImportModal
+        open={icsOpen}
+        onClose={() => setIcsOpen(false)}
+        onApplied={() => void load()}
+      />
     </div>
   );
 }

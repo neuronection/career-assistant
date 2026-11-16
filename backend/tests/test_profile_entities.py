@@ -46,11 +46,18 @@ async def test_education_crud_and_ownership(client, db, auth_headers):
 
     patched = await client.patch(
         f"/api/v1/me/education/{item['id']}",
-        json={"grade_band": "good", "in_progress": False, "end": "2026-06-30"},
+        json={
+            "grade_scale": "uk_honours",
+            "grade_value": 2.1,
+            "in_progress": False,
+            "end": "2026-06-30",
+        },
         headers=auth_headers,
     )
     assert patched.status_code == 200, patched.text
-    assert patched.json()["grade_band"] == "good"
+    assert patched.json()["grade_scale"] == "uk_honours"
+    assert patched.json()["grade_value"] == 2.1
+    assert patched.json()["grade_ordinal"] == 75.0
     assert patched.json()["in_progress"] is False
 
     listing = await client.get("/api/v1/me/education", headers=auth_headers)
@@ -422,3 +429,11 @@ async def test_certification_language_link_validation(client, db, auth_headers):
         headers=auth_headers,
     )
     assert clear.status_code == 200 and clear.json()["language_code"] is None
+
+
+def test_json_serializer_handles_decimal_grade_values():
+    from decimal import Decimal
+
+    from app.core.database import json_serializer
+
+    assert json_serializer({"grade_value": Decimal("2.10")}) == '{"grade_value": 2.1}'

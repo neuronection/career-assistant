@@ -1,15 +1,16 @@
 {
   "schema_version": 2,
   "generated": "2026-11-03",
-  "provenance": "Public/synthetic corpus for the plan-164 posting\u2194catalog matching golden benchmark (plan 50 P2b/P2c.2). The original 17-case P2b slice is kept verbatim; the P2c.2 expansion adds seven synthetic families (operations, sales, cybersecurity, education, legal, research, hospitality) with clear matches, wrong deterministic winners, below-threshold lifts, margin/threshold abstentions, draft-gated candidates, family-only/S3-pending rows, no-shared-skill rows, manual rows and terminal postings. All names, roles, skills and descriptions are synthetic; no private-integration or scraped personal data is present. The semantic column is a pinned oracle for the rerank policy; the real vector match is covered by test_vector_retrieval_service.py and test_semantic_rerank.py.",
+  "provenance": "Public/synthetic corpus for the plan-164 posting\u2194catalog matching golden benchmark (plan 50 P2b/P2c.2). The original 17-case P2b slice is kept verbatim; the P2c.2 expansion adds seven synthetic families (operations, sales, cybersecurity, education, legal, research, hospitality) with clear matches, wrong deterministic winners, below-threshold lifts, margin/threshold abstentions, draft-gated candidates, family-only/S3-pending rows, no-shared-skill rows, manual rows and terminal postings. All names, roles, skills and descriptions are synthetic; no private-integration or scraped personal data is present. Plan-210 adds coverage/title/neutral-title/priority cases and optional posting-side skill_meta priorities. The semantic column is a pinned oracle for the rerank policy; the real vector match is covered by test_vector_retrieval_service.py and test_semantic_rerank.py. The plan-210 score-v3 calibration re-tuned the existing abstention/lift/draft/family filler counts so each case keeps its stated intent under the two-way coverage formula.",
   "scale": {
     "families": 13,
-    "jobs": 123,
-    "skills": 135,
-    "cases": 164,
-    "note": "164 cases / 123 jobs / 13 families. candidate_recall@25 is a real ceiling because the catalog exceeds K=25; family-only rows are S3-pending coverage and manual/terminal rows are invariant checks.",
+    "jobs": 131,
+    "skills": 146,
+    "cases": 169,
+    "note": "164 original cases + 5 plan-210 coverage/title/neutral-title/priority cases over 131 jobs and 13 families. candidate_recall@25 is a real ceiling because the catalog exceeds K=25; family-only rows are S3-pending coverage and manual/terminal rows are invariant checks.",
     "by_kind": {
       "clear": 34,
+      "coverage": 1,
       "delta": 7,
       "draft": 7,
       "family": 21,
@@ -17,9 +18,12 @@
       "manual": 14,
       "margin": 9,
       "misleading": 7,
+      "neutral_title": 1,
       "no_shared_skill": 22,
+      "priority": 1,
       "terminal": 14,
       "threshold": 9,
+      "title": 2,
       "wrong": 10
     }
   },
@@ -630,6 +634,50 @@
     {
       "key": "vendor-management",
       "label": "Vendor Management"
+    },
+    {
+      "key": "cov-a",
+      "label": "Cov A"
+    },
+    {
+      "key": "cov-b",
+      "label": "Cov B"
+    },
+    {
+      "key": "cov-c",
+      "label": "Cov C"
+    },
+    {
+      "key": "analyst-a",
+      "label": "Analyst A"
+    },
+    {
+      "key": "analyst-b",
+      "label": "Analyst B"
+    },
+    {
+      "key": "analyst-extra",
+      "label": "Analyst Extra"
+    },
+    {
+      "key": "neutral-a",
+      "label": "Neutral A"
+    },
+    {
+      "key": "neutral-b",
+      "label": "Neutral B"
+    },
+    {
+      "key": "neutral-c",
+      "label": "Neutral C"
+    },
+    {
+      "key": "prio-a",
+      "label": "Prio A"
+    },
+    {
+      "key": "prio-b",
+      "label": "Prio B"
     }
   ],
   "jobs": [
@@ -1040,6 +1088,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1087,6 +1183,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1134,6 +1278,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1174,7 +1366,7 @@
         }
       ],
       "fillers": {
-        "count": 14,
+        "count": 25,
         "level": 10,
         "importance": "bonus"
       }
@@ -1197,7 +1389,7 @@
         }
       ],
       "fillers": {
-        "count": 13,
+        "count": 25,
         "level": 10,
         "importance": "bonus"
       }
@@ -1220,7 +1412,7 @@
         }
       ],
       "fillers": {
-        "count": 14,
+        "count": 25,
         "level": 10,
         "importance": "bonus"
       }
@@ -1243,7 +1435,7 @@
         }
       ],
       "fillers": {
-        "count": 13,
+        "count": 25,
         "level": 10,
         "importance": "bonus"
       }
@@ -1266,7 +1458,7 @@
         }
       ],
       "fillers": {
-        "count": 24,
+        "count": 29,
         "level": 10,
         "importance": "bonus"
       }
@@ -1284,7 +1476,7 @@
         }
       ],
       "fillers": {
-        "count": 17,
+        "count": 24,
         "level": 10,
         "importance": "bonus"
       }
@@ -1307,7 +1499,7 @@
         }
       ],
       "fillers": {
-        "count": 24,
+        "count": 29,
         "level": 10,
         "importance": "bonus"
       }
@@ -1325,7 +1517,7 @@
         }
       ],
       "fillers": {
-        "count": 17,
+        "count": 24,
         "level": 10,
         "importance": "bonus"
       }
@@ -1479,6 +1671,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1578,6 +1818,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1602,7 +1870,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -1619,7 +1917,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -1773,6 +2071,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1872,6 +2218,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -1896,7 +2270,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -1913,7 +2317,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -2067,6 +2471,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2166,6 +2618,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2190,7 +2670,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -2207,7 +2717,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -2361,6 +2871,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2460,6 +3018,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2484,7 +3070,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -2501,7 +3117,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -2655,6 +3271,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2754,6 +3418,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -2778,7 +3470,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -2795,7 +3517,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -2954,6 +3676,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -3053,6 +3823,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -3077,7 +3875,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -3094,7 +3922,7 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
@@ -3248,6 +4076,54 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -3347,6 +4223,34 @@
           {
             "level": 10,
             "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
           }
         ]
       }
@@ -3371,7 +4275,37 @@
       "fillers": {
         "count": 4,
         "level": 10,
-        "importance": "core"
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
       },
       "status": "draft"
     },
@@ -3388,10 +4322,171 @@
         }
       ],
       "fillers": {
-        "count": 6,
+        "count": 12,
         "level": 10,
         "importance": "bonus"
       }
+    },
+    {
+      "code": "coverage-complete",
+      "title": "Operations Coverage Complete",
+      "family": "operations",
+      "description": "Covers every posting skill and one extra type skill.",
+      "skills": [
+        {
+          "key": "cov-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "cov-b",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "cov-c",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "coverage-narrow",
+      "title": "Operations Coverage Narrow",
+      "family": "operations",
+      "description": "Covers only one posting skill; the old type-coverage score rewarded it.",
+      "skills": [
+        {
+          "key": "cov-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "title-broad",
+      "title": "Operations Analyst",
+      "family": "operations",
+      "description": "Broad analyst type; the generic title must overcome a small skill deficit.",
+      "skills": [
+        {
+          "key": "analyst-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "analyst-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 1,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 1,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "title-narrow",
+      "title": "Marketing Specialist",
+      "family": "operations",
+      "description": "Narrow marketing type; the specific title is the deciding evidence.",
+      "skills": [
+        {
+          "key": "analyst-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "analyst-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 1,
+        "level": 6,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 1,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "neutral-subset",
+      "title": "Quiet Subset Role",
+      "family": "operations",
+      "description": "Strict subset type with no title evidence; the higher-coverage winner.",
+      "skills": [
+        {
+          "key": "neutral-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "neutral-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "neutral-superset",
+      "title": "Other Broad Role",
+      "family": "operations",
+      "description": "Superset type with a title unrelated to the posting.",
+      "skills": [
+        {
+          "key": "neutral-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "neutral-b",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "neutral-c",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "priority-must",
+      "title": "Priority Must Role",
+      "family": "operations",
+      "description": "Covers the posting's must-have skill only.",
+      "skills": [
+        {
+          "key": "prio-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "priority-nice",
+      "title": "Priority Nice Role",
+      "family": "operations",
+      "description": "Covers only the posting's nice-to-have skill.",
+      "skills": [
+        {
+          "key": "prio-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
     }
   ],
   "cases": [
@@ -6191,6 +7286,91 @@
       "posting_status": "hidden",
       "ambiguous": false,
       "semantic": {}
+    },
+    {
+      "id": "coverage-complete-type",
+      "kind": "coverage",
+      "title": "Coverage Posting",
+      "description": "A type covering every posting skill must outrank one that misses one.",
+      "skills": [
+        "cov-a",
+        "cov-b"
+      ],
+      "expected_job": "coverage-complete",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "title-generic-favours-broad",
+      "kind": "title",
+      "title": "Operations Analyst",
+      "description": "A generic title favours the broad analyst type.",
+      "skills": [
+        "analyst-a",
+        "analyst-b"
+      ],
+      "expected_job": "title-broad",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {}
+    },
+    {
+      "id": "title-specific-favours-narrow",
+      "kind": "title",
+      "title": "Marketing Specialist",
+      "description": "A specific title favours the narrow marketing type even when the broad type has a small skill edge.",
+      "skills": [
+        "analyst-a",
+        "analyst-b"
+      ],
+      "expected_job": "title-narrow",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {}
+    },
+    {
+      "id": "neutral-title-subset-wins",
+      "kind": "neutral_title",
+      "title": "Neutral Control Posting",
+      "description": "A strict subset still wins when it carries fewer extra skills; this is the dedupe/merge case, not a score failure.",
+      "skills": [
+        "neutral-a",
+        "neutral-b"
+      ],
+      "expected_job": "neutral-subset",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "priority-must-have-wins",
+      "kind": "priority",
+      "title": "Priority Posting",
+      "description": "The posting's must-have weights more than its nice-to-have.",
+      "skills": [
+        "prio-a",
+        "prio-b"
+      ],
+      "expected_job": "priority-must",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {},
+      "skill_meta": {
+        "prio-a": {
+          "priority": "must_have",
+          "level": 10
+        },
+        "prio-b": {
+          "priority": "nice_to_have",
+          "level": 10
+        }
+      }
     }
   ]
 }

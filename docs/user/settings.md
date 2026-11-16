@@ -21,7 +21,8 @@ Account self-service — every signed-in user, on any instance mode:
   (shown by its device label). Sign out anything you don't recognize;
   the device you are using is marked, and signing it out returns you to
   the login screen. **Sign out everywhere** revokes every session at
-  once (this one included).
+  once (this one included). Revoked sessions stay listed with a
+  **Signed out** badge and offer no sign-out action.
 - **Password** — current password plus a new one (10+ chars). You stay
   signed in; every other device is signed out.
 - **Data & privacy** — request a full export of your profile,
@@ -163,6 +164,15 @@ breakdowns, and the mapping switches shown read-only with links to their
 Taxonomy home. See
 [Mapping coverage and triage](mapping-coverage.md).
 
+**Posting hygiene** is the cross-source duplicate console at
+[`/settings/tools?section=hygiene`](/settings/tools?section=hygiene):
+the deterministic scan (same canonical URL or same organisation + a
+near-identical title and compatible location), the canonical postings
+with their repost counts and last-verified dates, low-confidence
+proposals you can merge or leave, and **Clear** on a merged duplicate to
+restore it. Proposals never become a verdict without this action, and
+clearing is the undo.
+
 
 
 ## Taxonomy (`/settings/taxonomy`)
@@ -202,8 +212,8 @@ rewrite the stored name).
 
 ## Companies rules (`/settings/companies`)
 
-Admin review surface for how employer names resolve to companies
-(plan 135). Every learned decision is editable here. Tabs are
+Admin review surface for how employer names resolve to companies.
+Every learned decision is editable here. Tabs are
 URL-addressable via `?tab=` (suggestions, aliases, exclusions, queue,
 thresholds) — refreshing or sharing a link reopens the exact view.
 
@@ -287,7 +297,14 @@ failures views share a 24h/7d/30d or custom range:
   chart, and production throughput: postings ingested (with processing
   activity by actor), skill lifecycle events, company profiles created
   and catalog jobs created — split by status and origin (seed/AI/user),
-  tying content production back to the AI ledger.
+  tying content production back to the AI ledger. **Data & cost** sits at
+  the top of this tab: call-time spend in integer micro-dollars, the
+  price origin (`Built-in`, `Custom`, `Local`, `Legacy` or `Unpriced`),
+  the checked date, and the number of priced vs unpriced calls. A null
+  price stays **Unpriced** — it is never shown as $0. Admins can add,
+  edit or reset the system-scoped price overrides there; a custom
+  provider binds by its provider row (`providerRef`), a preset provider
+  by its preset key. Editing a price never rewrites an earlier call.
 - **Jobs & runs** — every user's background jobs (status, owner,
   attempts, expandable payload/result) with status/type filters, the
   cross-source ingestion ledger with deep links into each source, and a

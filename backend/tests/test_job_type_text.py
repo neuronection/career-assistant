@@ -3,6 +3,7 @@
 import pytest
 
 from app.ai.agents.job_type_proposer import JobTypeDecision, JobTypeProposalOut
+from app.core.job_titles import job_type_key, normalize_job_type_title, title_tokens
 from app.models.enums import JobStatus
 from app.models.job_model import Job, JobFamily
 from app.schemas.job import JobOut
@@ -10,11 +11,8 @@ from app.services.catalog.job_service import JobService
 from app.services.postings.job_type_text import (
     JOB_TYPE_NEAR_DUPLICATE_TRIGRAM,
     contains_title_tokens,
-    job_type_key,
     job_type_title_issue,
-    normalize_job_type_title,
     strip_level_prefix,
-    title_tokens,
 )
 
 
@@ -119,6 +117,10 @@ async def test_retired_job_round_trips_in_job_out_and_is_not_editable(db, client
         title="Retired Role",
         family_id=family.id,
         status=JobStatus.RETIRED.value,
+        ai_metadata={
+            "retired_into": "successor-role",
+            "retired_into_title": "Successor Role",
+        },
     )
     db.add(job)
     await db.commit()
@@ -126,6 +128,17 @@ async def test_retired_job_round_trips_in_job_out_and_is_not_editable(db, client
     loaded = await JobService(db).require_job("retired-role")
     out = JobOut.from_model(loaded)
     assert out.status is JobStatus.RETIRED
+    assert out.retired_into is not None
+    assert out.retired_into.code == "successor-role"
+
+    detail = await client.get("/api/v1/jobs/retired-role", headers=auth_headers)
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert body["status"] == "retired"
+    assert body["retired_into"] == {
+        "code": "successor-role",
+        "title": "Successor Role",
+    }
 
     updated = await client.put(
         "/api/v1/jobs/retired-role",

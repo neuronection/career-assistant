@@ -8,7 +8,7 @@ import {
   ModalContent,
   ModalTitle,
 } from "@/components/ui";
-import type { CvSynthBullet } from "@/types/cv";
+import type { BulletReview, CvSynthBullet } from "@/types/cv";
 
 export interface BulletsProposal {
   bullets: string[];
@@ -30,6 +30,8 @@ interface ItemBulletsEditorModalProps {
   /** Plan 106 slice 5: draft bullets from the item's evidence
    * (the `bullet` AI action). Resolves replacement bullet lines. */
   onGenerate?: () => Promise<string[]>;
+  /** Plan 212 S1.6: deterministic per-bullet coaching. */
+  onCheck?: (bullets: string[]) => Promise<BulletReview[]>;
   /** Persists the full list as the bullets variant (create + pin, or
    * patch the pinned one). */
   onSave: (entries: CvSynthBullet[]) => void;
@@ -52,6 +54,7 @@ export function ItemBulletsEditorModal({
   proposal = null,
   onProposalConsumed,
   onGenerate,
+  onCheck,
   onSave,
   onReset,
   onClose,
@@ -74,8 +77,11 @@ export function ItemBulletsEditorModal({
   const [touched, setTouched] = useState(false);
   const [generated, setGenerated] = useState<string[] | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [checks, setChecks] = useState<BulletReview[]>([]);
+  const [checking, setChecking] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!touched) setBullets(initial.length ? initial : [""]);
@@ -96,16 +102,19 @@ export function ItemBulletsEditorModal({
 
   const setText = (index: number, text: string) => {
     setTouched(true);
+    setChecks([]);
     setBullets((prev) => prev.map((b, i) => (i === index ? text : b)));
   };
   const remove = (index: number) => {
     setTouched(true);
+    setChecks([]);
     setBullets((prev) =>
       prev.length === 1 ? [""] : prev.filter((_, i) => i !== index)
     );
   };
   const move = (index: number, delta: -1 | 1) => {
     setTouched(true);
+    setChecks([]);
     setBullets((prev) => {
       const next = [...prev];
       const target = index + delta;
@@ -129,6 +138,7 @@ export function ItemBulletsEditorModal({
 
   const confirmProposals = () => {
     setTouched(true);
+    setChecks([]);
     setBullets((prev) => {
       const kept = prev.map((b) => b.trim()).filter(Boolean);
       return [...kept, ...pendingProposals].slice(0, MAX_BULLETS);
@@ -154,15 +164,28 @@ export function ItemBulletsEditorModal({
       const bullets = (await onGenerate()).map((b) => b.trim()).filter(Boolean);
       setGenerated(bullets.length ? bullets : null);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const check = async () => {
+    if (!onCheck || checking) return;
+    setChecking(true);
+    try {
+      setChecks(await onCheck(bullets.map((b) => b.trim())));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChecking(false);
     }
   };
 
   const reset = () => {
     setConfirmReset(false);
     setTouched(true);
+    setChecks([]);
     setBullets(baseTexts.length ? baseTexts : [""]);
     onReset();
   };
@@ -246,7 +269,8 @@ export function ItemBulletsEditorModal({
 
           <div className="space-y-1.5" data-testid="bullets-editor-list">
             {bullets.map((bullet, index) => (
-              <div key={index} className="flex items-center gap-1.5">
+              <div key={index} className="space-y-1">
+                <div className="flex items-center gap-1.5">
                 <input
                   value={bullet}
                   onChange={(e) => setText(index, e.target.value)}
@@ -284,6 +308,51 @@ export function ItemBulletsEditorModal({
                 >
                   <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
+                </div>
+                {(checks.find((row) => row.index === index)?.checks ?? []).length > 0 && (
+                  <ul
+                    className="space-y-0.5 pl-1 text-[11px]"
+                    data-testid={`bullet-checks-${index}`}
+                  >
+                    {(checks.find((row) => row.index === index)?.checks ?? []).map(
+                      (check) => (
+                        <li
+                          key={check.id}
+                          className={
+                            check.level === "fail"
+                              ? "text-[var(--as-danger)]"
+                              : check.level === "warn"
+                                ? "text-[var(--as-warning)]"
+                                : "text-[var(--as-muted-fg)]"
+                          }
+                        >
+                          {check.message}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+                {(checks.find((row) => row.index === index)?.competency_keys ?? []).length >
+                  0 && (
+                  <div
+                    className="flex flex-wrap items-center gap-1 pl-1 text-[10px] text-[var(--as-muted-fg)]"
+                    data-testid={`bullet-competencies-${index}`}
+                  >
+                    <span>{t("cvBuilder.competencyTags")}</span>
+                    {(checks.find((row) => row.index === index)?.competency_keys ?? []).map(
+                      (key) => (
+                        <span
+                          key={key}
+                          className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5"
+                        >
+                          {t(`growth.competencies.items.${key}`, {
+                            defaultValue: key,
+                          })}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             <button
@@ -292,6 +361,7 @@ export function ItemBulletsEditorModal({
               data-testid="bullets-add"
               onClick={() => {
                 setTouched(true);
+                setChecks([]);
                 setBullets((prev) => [...prev, ""]);
               }}
             >
@@ -300,6 +370,15 @@ export function ItemBulletsEditorModal({
             </button>
           </div>
         </div>
+        {actionError !== "" && (
+          <p
+            role="alert"
+            className="border-t border-[var(--as-border)] px-5 py-2 text-xs text-[var(--as-danger)]"
+            data-testid="bullets-action-error"
+          >
+            {actionError}
+          </p>
+        )}
         <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[var(--as-border)] bg-[var(--as-surface)] px-5 py-3">
           <div className="flex items-center gap-2">
             {onGenerate && (
@@ -314,6 +393,19 @@ export function ItemBulletsEditorModal({
                 {generating
                   ? t("common.saving", { defaultValue: "Working…" })
                   : t("cvBuilder.generateBullets")}
+              </Button>
+            )}
+            {onCheck && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={checking}
+                onClick={() => void check()}
+                data-testid="bullets-editor-check"
+              >
+                {checking
+                  ? t("cvBuilder.checkingBullets")
+                  : t("cvBuilder.checkBullets")}
               </Button>
             )}
           </div>

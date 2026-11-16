@@ -30,10 +30,55 @@ class FakeResponse:
     async def aiter_bytes(self):
         yield self._content
 
+    async def aclose(self):
+        return None
+
     def json(self):
         if self._json_data is None:
             raise ValueError("not json")
         return self._json_data
+
+
+class _FakeRequest:
+    def __init__(self, method, url, headers):
+        self.method = method
+        self.url = url
+        self.headers = headers
+        self.extensions: dict = {}
+
+
+class _FakeClient:
+    is_closed = False
+
+    def __init__(self, routes, calls):
+        self._routes = routes
+        self._calls = calls
+
+    def _pick(self, url, host):
+        for key, resp in self._routes.items():
+            if key in url or key in host:
+                return resp
+        raise AssertionError(f"unexpected URL {url!r}")
+
+    def build_request(self, method, url, headers=None):
+        return _FakeRequest(method, url, dict(headers or {}))
+
+    async def send(self, request, stream=False):
+        url = str(request.url)
+        host = request.headers.get("host", "")
+        self._calls.append((url, dict(request.headers), dict(request.extensions)))
+        target = self._pick(url, host)
+        if callable(target):
+            return target(url, None, request.headers)
+        return target
+
+    async def get(self, url, params=None, headers=None):
+        url = str(url)
+        self._calls.append((url, dict(params or {}), dict(headers or {})))
+        target = self._pick(url, "")
+        if callable(target):
+            return target(url, params, headers)
+        return target
 
 
 async def _reset(routes, url, params=None, headers=None):
@@ -51,24 +96,7 @@ def _route(monkeypatch, pattern, response=None):
 
 def _routes(monkeypatch, routes: dict):
     calls = []
-
-    client = type("FakeClient", (), {})()
-    client.is_closed = False
-
-    async def get(url, params=None, headers=None):
-        calls.append((url, dict(params or {}), dict(headers or {})))
-        target = routes.get("placeholder.example")
-        for key, resp in routes.items():
-            if key in url:
-                target = resp
-                break
-        else:
-            raise AssertionError(f"unexpected URL {url!r}")
-        if callable(target):
-            return target(url, params, headers)
-        return target
-
-    client.get = get
+    client = _FakeClient(routes, calls)
     monkeypatch.setattr(webfetch, "_client", lambda: client)
     return calls
 
@@ -254,3 +282,69 @@ async def test_fetch_too_many_redirects(monkeypatch):
     _route(monkeypatch, "placeholder.example", hop)
     with pytest.raises(WebFetchBlocked, match="redirects"):
         await fetch_text("https://placeholder.example/go")
+
+
+@pytest.mark.asyncio
+async def test_guarded_get_pins_the_checked_address(monkeypatch):
+    page = FakeResponse(content=b"ok", headers={"content-type": "text/plain"})
+    calls = _route(monkeypatch, "placeholder.example", page)
+
+    await fetch_text("https://placeholder.example/page")
+
+    url, headers, extensions = calls[0]
+    assert url.startswith("https://93.184.216.34/")
+    assert headers["host"] == "placeholder.example"
+    assert extensions["sni_hostname"] == "placeholder.example"
+
+
+@pytest.mark.asyncio
+async def test_cross_host_redirect_drops_credentials(monkeypatch):
+    hop = FakeResponse(status_code=302, headers={"location": "https://other.example/x"})
+    calls = _route(
+        monkeypatch,
+        {
+            "placeholder.example": hop,
+            "other.example": FakeResponse(content=b"ok", headers={"content-type": "text/plain"}),
+        },
+    )
+
+    await fetch_text(
+        "https://placeholder.example/go",
+        headers={"Authorization": "Bearer secret", "Accept": "text/plain"},
+    )
+
+    first, second = calls[-2], calls[-1]
+    assert first[1]["Authorization"] == "Bearer secret"
+    assert all(key.lower() != "authorization" for key in second[1])
+    assert second[1]["Accept"] == "text/plain"
+
+
+@pytest.mark.asyncio
+async def test_same_host_redirect_keeps_credentials(monkeypatch):
+    def sequence(url, _params, _headers):
+        if url.endswith("/go"):
+            return FakeResponse(status_code=302, headers={"location": "/next"})
+        return FakeResponse(content=b"ok", headers={"content-type": "text/plain"})
+
+    calls = _route(monkeypatch, "placeholder.example", sequence)
+
+    await fetch_text("https://placeholder.example/go", headers={"Authorization": "Bearer secret"})
+
+    assert [call[1]["Authorization"] for call in calls] == ["Bearer secret"] * 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_html_caps_the_streamed_body(monkeypatch):
+    page = FakeResponse(content=b"x" * 5000, headers={"content-type": "text/html"})
+    _route(monkeypatch, "placeholder.example", page)
+
+    _final, html = await webfetch.fetch_html("https://placeholder.example/big", max_bytes=32)
+
+    assert len(html) == 32
+
+
+@pytest.mark.asyncio
+async def test_render_text_refuses_a_private_target_before_the_engine(monkeypatch):
+    monkeypatch.setattr(webfetch, "_resolve_host", lambda host: _resolve({"*": ["10.0.0.7"]}, host))
+    with pytest.raises(WebFetchBlocked):
+        await webfetch.render_text("https://internal.example/page")

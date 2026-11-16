@@ -81,7 +81,9 @@ class ExperienceService:
             raise NotFoundError("Experience item not found")
         return item
 
-    async def create_item(self, user_id: UUID, payload: dict) -> ExperienceItem:
+    async def create_item(
+        self, user_id: UUID, payload: dict, *, commit: bool = True
+    ) -> ExperienceItem:
         from app.models.enums import ExperienceKind
 
         kind = payload.get("kind", ExperienceKind.PROJECT.value)
@@ -117,7 +119,8 @@ class ExperienceService:
         await self.db.flush()
         await self._replace_skills(item, payload.get("skills") or [])
         await self._replace_achievements(item, payload.get("achievements") or [])
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
         await self.db.refresh(item)
         return item
 

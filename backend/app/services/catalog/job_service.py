@@ -6,7 +6,8 @@ from sqlalchemy import Text, and_, case, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import NotFoundError, PermissionDeniedError, ValidationError
+from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
+from app.core.job_titles import job_type_key
 from app.models.enums import (
     DemandOutlook,
     EducationLevel,
@@ -49,6 +50,24 @@ FACET_AXES = (
     "environment",
     "source",
 )
+
+
+async def ensure_job_type_title(
+    db: AsyncSession, title: str, *, exclude_id: UUID | None = None
+) -> None:
+    """Refuse an exact normalized-title collision among non-retired types.
+
+    The check is advisory until the deferred partial unique index lands: a
+    concurrent writer can still insert between this read and the commit.
+    """
+    key = job_type_key(title)[:200]
+    if not key:
+        return
+    query = select(Job.id).where(Job.title_key == key, Job.status != "retired")
+    if exclude_id is not None:
+        query = query.where(Job.id != exclude_id)
+    if (await db.execute(query.limit(1))).scalar_one_or_none() is not None:
+        raise ConflictError(f"A job type titled {title!r} already exists")
 
 
 async def enqueue_job_index(db: AsyncSession, job: Job) -> None:
@@ -532,6 +551,7 @@ class JobService:
         status: str = "draft",
         *,
         commit: bool = True,
+        allow_duplicate_title: bool = False,
     ) -> Job:
         """Create a job; validates family/taxonomy keys and writes links.
 
@@ -542,6 +562,8 @@ class JobService:
         (the ``upsert_embedding`` caller-owned-transaction precedent).
         """
         family = await self._require_family(data.family_key)
+        if not allow_duplicate_title:
+            await ensure_job_type_title(self.db, data.title)
         job = Job(
             code=data.code,
             title=data.title,
@@ -635,6 +657,16 @@ class JobService:
             raise PermissionDeniedError("Cannot edit seeded jobs")
         was_published = job.status == "published"
         payload = data.model_dump(exclude_none=True)
+        title_changed = (
+            "title" in payload and job_type_key(str(payload["title"]))[:200] != job.title_key
+        )
+        publishing = payload.get("status") == "published" and not was_published
+        if title_changed or publishing:
+            await ensure_job_type_title(
+                self.db,
+                str(payload.get("title") or job.title),
+                exclude_id=job.id,
+            )
         if "family_key" in payload:
             family = await self._require_family(payload.pop("family_key"))
             job.family_id = family.id

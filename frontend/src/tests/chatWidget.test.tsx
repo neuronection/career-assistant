@@ -6,6 +6,7 @@ import { MemoryRouter, Link, Route, Routes } from "react-router-dom";
 import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { ChatPage } from "@/features/chat/pages/ChatPage";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
 const streamChatMessage = vi.hoisted(() => vi.fn());
@@ -40,12 +41,14 @@ vi.mock("@/api/universities", () => ({
 
 const aiApi = vi.hoisted(() => ({
   fetchAiTools: vi.fn(),
+  fetchConfigSummary: vi.fn(),
   transcribeAudio: vi.fn(),
   classifyDictationError: vi.fn(),
 }));
 
 vi.mock("@/api/ai", () => ({
   fetchAiTools: aiApi.fetchAiTools,
+  fetchConfigSummary: aiApi.fetchConfigSummary,
   transcribeAudio: aiApi.transcribeAudio,
   classifyDictationError: aiApi.classifyDictationError,
 }));
@@ -75,6 +78,7 @@ function renderWidget(path = "/") {
 describe("ChatWidget (library surface)", () => {
   beforeEach(() => {
     vi.useRealTimers()
+    resetConfigSummaryCache();
     useChatStore.setState({ chatMode: "bubble", bubbleOpen: false });
     streamChatMessage.mockReset();
     aiApi.fetchAiTools.mockReset().mockResolvedValue([
@@ -112,6 +116,11 @@ describe("ChatWidget (library surface)", () => {
         hitl: true,
       },
     ]);
+    aiApi.fetchConfigSummary.mockReset().mockResolvedValue({
+      tasks: [],
+      can_manage_global: false,
+      mock_allowed: false,
+    });
     aiApi.transcribeAudio.mockReset();
     aiApi.classifyDictationError.mockReset();
     api.fetchChatSessions.mockReset().mockResolvedValue([

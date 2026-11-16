@@ -3,6 +3,7 @@ the session read cache."""
 
 import json
 import uuid
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from app.core.errors import DomainError
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType
 from app.models.experience_model import ExperienceItem
+from app.models.profile_entities_model import EducationItem
 from app.models.profile_proposal_model import ProfileProposal
 from app.services.chat.chat_digest_cache import (
     context_without_cache,
@@ -326,3 +328,37 @@ async def test_turn_without_read_drops_update_op(client, db, auth_headers):
     assert "unread_target" in json.dumps(meta.get("proposals_dropped_reasons"))
     await db.refresh(item)
     assert item.description == LONG_DESCRIPTION
+
+
+async def test_graded_education_proposal_persists_decimal_snapshot(db, auth_headers):
+    user = await _auth_user(db)
+    item = EducationItem(
+        user_id=user.id,
+        institution="Example University",
+        program="BSc",
+        level="bachelor",
+        grade_scale="uk_honours",
+        grade_value=Decimal("2.10"),
+        grade_ordinal=Decimal("75.00"),
+        status="active",
+        source="self_report",
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+
+    created, dropped = await ProfileProposalService(db).create_from_ops(
+        user.id,
+        [
+            {
+                "kind": "education_item",
+                "action": "update",
+                "entity_id": str(item.id),
+                "payload": {"grade_value": 2.2},
+            }
+        ],
+        grounding={read_cache_key("education_item", item.id)},
+    )
+    assert dropped == []
+    assert len(created) == 1
+    await db.commit()

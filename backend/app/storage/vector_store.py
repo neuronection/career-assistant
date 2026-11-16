@@ -56,7 +56,7 @@ from app.storage.vector_contract import (
     VectorSpace,
 )
 from app.storage.vector_contract import space_key as make_space_key
-from app.storage.vector_contract import space_key_v2 as make_space_key_v2
+from app.storage.vector_contract import space_key_token_aware as make_space_key_token_aware
 
 
 @dataclass(frozen=True)
@@ -302,8 +302,8 @@ class VectorStoreService:
 
         A token-aware space passes **both** ``tokenizer`` and ``chunk``: the
         row persists the flattened identity, ``chunker_version`` is forced to
-        ``'2'`` and the key is the explicit :func:`space_key_v2` pre-image.
-        Omitting both keeps the legacy v1 behaviour; passing only one is a
+        ``'2'`` and the key is the explicit :func:`space_key_token_aware` pre-image.
+        Omitting both keeps the v1 behaviour; passing only one is a
         programming error, never a half-configured row.
         """
         if dim < 1:
@@ -334,7 +334,7 @@ class VectorStoreService:
                 "chunk_overlap_tokens": chunk.overlap_tokens,
                 "chunk_max_chars": chunk.max_chars,
             }
-            computed_key = make_space_key_v2(
+            computed_key = make_space_key_token_aware(
                 provider,
                 model,
                 dim,
@@ -543,7 +543,7 @@ class VectorStoreService:
                 )
             if not space.token_aware and record.token_count is not None:
                 raise VectorBackendError(
-                    f"record {record.record_id} carries token offsets for a legacy space"
+                    f"record {record.record_id} carries token offsets for a pre-v2 space"
                 )
             key = (record.view, record.chunk_index)
             if key in seen:

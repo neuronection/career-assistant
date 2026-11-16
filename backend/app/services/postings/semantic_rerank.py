@@ -54,6 +54,8 @@ class RerankCandidate:
     deterministic: float
     semantic: float
     blend: float
+    job_title: str | None = None
+    title: float = 0.0
     shared_skill_ids: tuple[uuid.UUID, ...] = ()
     per_view: Mapping[str, float] = field(default_factory=dict)
 
@@ -61,9 +63,11 @@ class RerankCandidate:
         return {
             "job_id": self.job_id,
             "job_code": self.code,
+            "job_title": self.job_title,
             "deterministic": round(self.deterministic, 4),
             "semantic": round(self.semantic, 4),
             "blend": round(self.blend, 4),
+            "title": round(self.title, 4),
             "shared_skills": len(self.shared_skill_ids),
             "per_view": {view: round(value, 4) for view, value in sorted(self.per_view.items())},
         }
@@ -126,6 +130,11 @@ class RerankSignal:
 def not_run_rerank(*, threshold: float | None = None) -> RerankSignal:
     """The trace shape when the rerank never ran (unambiguous or no skills)."""
     return RerankSignal(threshold=threshold)
+
+
+def _job_title(job: object) -> str | None:
+    value = getattr(job, "title", None)
+    return str(value) if value is not None else None
 
 
 def _blend(deterministic: float, semantic: float) -> float:
@@ -263,16 +272,18 @@ async def semantic_rerank_signal(
             RerankCandidate(
                 job_id=candidate.job_id,
                 code=candidate.code,
-                deterministic=round(candidate.score, 4),
+                job_title=_job_title(candidate.job),
+                deterministic=round(candidate.skill, 4),
                 semantic=round(semantic, 4),
-                blend=_blend(candidate.score, semantic),
+                blend=_blend(candidate.skill, semantic),
+                title=round(candidate.title, 4),
                 shared_skill_ids=candidate.shared_skill_ids,
                 per_view=dict(hit.per_view) if hit is not None else {},
             )
         )
     reranked.sort(key=lambda item: (-item.blend, -item.deterministic, item.code))
     deterministic_top = deterministic_candidates[0].job_id
-    deterministic_cleared = deterministic_candidates[0].score >= threshold
+    deterministic_cleared = deterministic_candidates[0].skill >= threshold
     accepted, top_changed = _acceptance(
         reranked,
         threshold=threshold,

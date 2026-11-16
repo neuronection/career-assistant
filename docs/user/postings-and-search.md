@@ -80,7 +80,9 @@ Search vacancies by "skill X at level ≥ N" and rank them by deterministic
 coverage of your skills. Every card shows its provenance: raw → fast-mapped →
 extracted. Skill chips on the cards (and on the posting detail page) are
 clickable — they open a compact skill peek (summary, stats, level anchors
-and related skills) with a link to the skill's full page.
+and related skills) with a link to the skill's full page. A mapped posting
+also shows a compact **catalog type** chip; it links to the type page and,
+for a retired type, to the recorded successor instead.
 
 ### Matching skills — exact, sub-skills or related
 
@@ -122,6 +124,15 @@ sheet; the filters you applied stay on the page as removable chips:
 - **organization** is picked from the companies catalog (search popup)
   with its own exclude list (same excluded chip styling),
 - **sources** are include/exclude chips with live counts,
+- **opportunity type** (internship, placement year, apprenticeship,
+  graduate scheme, insight programme, part-time, full-time, contract) and
+  **work authorization** (cannot sponsor / sponsors / case-by-case /
+  citizens only) are include/exclude facets with live counts; a posting
+  extracted before v6 falls back to its employment type for the
+  opportunity axis rather than disappearing,
+- **closing** filters to saved-or-any postings whose application deadline
+  falls within 7, 30 or 90 days; postings without a deadline are never
+  invented into the window,
 - **state toggles** sit under the facets: deep-extracted only, saved
   only and **Hide seen** — reviewed postings drop out of the list without
   touching the other filters,
@@ -190,10 +201,11 @@ posting is indexed.
 
 A catalog job's **"N open roles →"** link opens `/postings?job=<code>` — the
 Explore page already narrowed to the live postings mapped to that catalog
-job. The **Job** section in the filter rail lists the mapped job codes with
-their posting counts, so you can clear or swap the deep link without losing
-the rest of your filters. The axis is an ordinary URL parameter, so the view
-is shareable and survives a reload.
+job. The **Job** section in the filter rail lists the mapped types by title
+(the code stays the tooltip/fallback) with their posting counts, allows
+multi-select include-only, and excludes retired types from the facet. The
+axis is an ordinary URL parameter, so the view is shareable and survives a
+reload.
 
 
 ### Smart search — describe it instead of filtering
@@ -252,6 +264,38 @@ You can also:
   automatically as you approach the end (cursor pagination under the
   hood).
 
+### Trust signals and duplicates
+
+A card carries factual trust chips: **Reposted ×N** when the source
+re-listed the role after it had expired, and **Verified <date>** for the
+last successful detail fetch. The same role can appear on several boards;
+the duplicate scan merges only high-confidence pairs (same canonical URL,
+or same organisation with a near-identical title, a compatible location
+and an overlapping salary band) and leaves weaker pairs as proposals for
+the admin console. **Hide likely duplicates** in the filter rail
+keeps merged rows out of the list and off the facet counts. Clearing a
+merge restores the posting; nothing here is a scam verdict.
+
+### Roles for your degree
+
+Explore can suggest job families from your programme and focus subjects
+(deterministic keyword mapping with a bounded one-level catalog family
+expansion: the matched family, its parent and sibling families). The optional
+**Roles for your degree** banner lists the families and a localized reason;
+**Filter these families** adds them through the ordinary `mapped_family`
+filter (keeping any manual family filters), and **Clear degree filter**
+removes only the degree-derived families. Suggestions never exclude postings.
+
+### Check before applying
+
+The posting detail page shows a **Check before applying** card when the
+deterministic text scan finds one of six factual signals: a requested fee,
+a personal email domain, a messaging-app contact, a vague organisation, pay
+far above the catalog band, or a shortened/personal link. Each row carries the
+quote or factual value that triggered it, and the card says plainly that this is not a
+verdict. No signal means the scan found none of these patterns, never that the
+posting is safe; you should still never send money or identity documents.
+
 ### Seen, at a glance
 
 A posting is marked seen when you open it or send an application, and
@@ -281,7 +325,10 @@ everything the system knows about the role:
   to the catalog and (for admins) the proposal queue. This is the canonical
   match, never the ingest candidate trace — plus your interest tags and the
   typed benefits, and the skill requirements with level, priority and their
-  verbatim evidence quotes,
+  verbatim evidence quotes. An admin can **re-propose** a failed job
+  proposal from the mapping triage row; it queues the existing
+  refresh-redecision path for that posting rather than creating a second
+  proposal ledger,
 - your per-posting **match score** with the per-dimension breakdown,
   source attribution and similar openings.
 
@@ -297,6 +344,49 @@ extraction (estimates) ignore the toggles entirely.
 "Open on the original board" (the top button) jumps to the listing in a
 new tab and records the click; beside it sit the cover-letter draft, the
 practice interview and the [application tracker](applications.md) entry.
+
+### What's missing — the gap report
+
+Below the match card sits the **"What's missing"** report: every skill the
+posting asks for, grouped **must have → nice to have → bonus**, one row
+per requirement with four columns — **requirement** (the posting's own
+verbatim wording), **asks** (the required level 1–10), **you** (your
+level and a `met / partial / missing` status) and **evidence**. A
+requirement whose wording never resolved onto the skill taxonomy still
+gets its row, marked "not in your skill taxonomy" — it is never dropped
+silently.
+
+The report is **deterministic** — the same computation that builds the
+tailor coverage, applied fresh on every read — and **evidence-backed**:
+each row cites the posting's verbatim quote (capped, expandable and
+copyable) plus the evidence-ledger entries behind your level, or says
+plainly "no quote, no evidence". It is deliberately **not a match
+score**: there is no percentage and no 0–10 number here — the match
+card stays the only place scores live. A posting that has not been
+deep-extracted yet (or whose extraction found no skills) says so
+instead of showing an empty table.
+
+### Eligibility & logistics
+
+Below the gap report, the **Eligibility & logistics** card shows what the
+posting says about the things that decide whether an application is even
+possible: **work authorization** (cannot sponsor / sponsors / case-by-case
+/ citizens only), **language requirements** with their level, an academic
+**grade cutoff** (scale-scoped — a UK class, a GPA, a German Note and a
+percentage are never treated as interchangeable), the **opportunity type**
+(internship, placement year, apprenticeship, graduate scheme, insight
+programme, part-time, full-time, contract) and an explicit **application
+deadline**. Each extracted fact carries the posting's verbatim quote
+where the source states one (a date or a programme type may not have a
+separate quote).
+
+When a requirement conflicts with your profile — you need sponsorship and
+the posting cannot sponsor, a required language is not on your profile at
+the stated level, or your grade is below a same-scale cutoff — the card
+shows a **gate**. Gates are warnings, not verdicts: the original posting
+is one click away, and **Apply anyway** records a per-posting override
+(undoable) without changing the cached match score. A missing signal on
+either side never gates.
 
 ## Semantic search
 

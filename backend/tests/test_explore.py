@@ -1125,8 +1125,17 @@ async def test_explore_job_axis_maps_postings_through_the_catalog(
     from app.models.job_model import Job
 
     job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
-    mapped, _unmapped, _other = search_fixtures
+    mapped, _unmapped, other = search_fixtures
     mapped.catalog_job_id = job.id
+    retired = Job(
+        code="retired-software-developer",
+        title="Retired Software Developer",
+        family_id=job.family_id,
+        status="retired",
+    )
+    db.add(retired)
+    await db.flush()
+    other.catalog_job_id = retired.id
     await db.commit()
 
     response = await client.get(
@@ -1138,6 +1147,13 @@ async def test_explore_job_axis_maps_postings_through_the_catalog(
     body = response.json()
     assert [item["id"] for item in body["items"]] == [str(mapped.id)]
     assert body["facets"]["job"][job.code] == 1
+    assert body["job_titles"][job.code] == job.title
+    assert retired.code not in body["facets"]["job"]
+    assert retired.code not in body["job_titles"]
+
+    detail = await client.get(f"/api/v1/postings/{mapped.ref}", headers=auth_headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["catalog_job"]["open_roles"] == 1
 
     unknown = await client.get(
         "/api/v1/postings/explore",
@@ -1150,3 +1166,82 @@ async def test_explore_job_axis_maps_postings_through_the_catalog(
     from app.services.postings.explore_service import parse_explore_filters
 
     assert parse_explore_filters({"job": "software-developer"}) == {"job": ["software-developer"]}
+
+
+async def test_opportunity_visa_and_closing_filters(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    from datetime import UTC, datetime, timedelta
+
+    today = datetime.now(UTC).date()
+    soon = await _make_posting(db, source, external_id="s21-soon", title="Intern soon")
+    soon.opportunity_type = "internship"
+    soon.work_authorization = "sponsors"
+    soon.application_deadline = today + timedelta(days=3)
+    later = await _make_posting(db, source, external_id="s21-later", title="Grad later")
+    later.opportunity_type = "graduate_scheme"
+    later.work_authorization = "none"
+    later.application_deadline = today + timedelta(days=45)
+    expired = await _make_posting(db, source, external_id="s21-expired", title="Intern expired")
+    expired.opportunity_type = "internship"
+    expired.work_authorization = "sponsors"
+    expired.application_deadline = today - timedelta(days=1)
+    undated = await _make_posting(db, source, external_id="s21-undated", title="Undated")
+    undated.opportunity_type = "unknown"
+    legacy = await _make_posting(db, source, external_id="s21-legacy", title="Legacy internship")
+    legacy.employment_type = "internship"
+    await db.commit()
+
+    by_type = (
+        await client.get(
+            "/api/v1/postings/explore",
+            params={"opportunity_type": "internship"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["id"] for item in by_type["items"]} == {
+        str(soon.id),
+        str(expired.id),
+        str(legacy.id),
+    }
+
+    by_visa = (
+        await client.get(
+            "/api/v1/postings/explore",
+            params={"work_authorization": "sponsors"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["id"] for item in by_visa["items"]} == {str(soon.id), str(expired.id)}
+
+    closing = (
+        await client.get(
+            "/api/v1/postings/explore",
+            params={"closing_within": "7d"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert [item["id"] for item in closing["items"]] == [str(soon.id)]
+
+    base = (await client.get("/api/v1/postings/explore", headers=auth_headers)).json()
+    facets = base["facets"]
+    assert facets["opportunity_type"]["internship"] == 3
+    assert facets["opportunity_type"]["graduate_scheme"] == 1
+    assert facets["work_authorization"]["sponsors"] == 2
+    assert facets["work_authorization"]["none"] == 1
+    assert facets["closing"]["7d"] == 1
+    assert facets["closing"]["90d"] == 1
+    assert facets["closing"]["expired"] == 1
+    assert facets["closing"]["none"] == 2
+    closing_facets = closing["facets"]
+    assert closing_facets["closing"]["7d"] == 1
+    assert closing_facets["opportunity_type"]["internship"] == 1
+
+    excluded = (
+        await client.get(
+            "/api/v1/postings/explore",
+            params={"opportunity_type_exclude": "internship"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["id"] for item in excluded["items"]} == {str(later.id), str(undated.id)}

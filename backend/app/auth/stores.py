@@ -219,14 +219,17 @@ class CareerUserStore:
     @staticmethod
     def _delete_uploaded_files(session: Session, user_id: uuid.UUID) -> None:
         from app.models.document_model import Document
-        from app.services.profile.document_service import DocumentService
+        from app.services.profile.document_storage import DocumentStorage
+        from app.storage.object_storage import StorageError
 
         documents = session.scalars(select(Document).where(Document.user_id == user_id)).all()
+        storage = DocumentStorage()
         for document in documents:
-            file_path = DocumentService.upload_file_path(document)
-            if file_path is not None and file_path.is_file():
-                with contextlib.suppress(OSError):
-                    file_path.unlink()
+            # Best-effort: the identity cascade must complete even when the
+            # provider is transiently unavailable or the local volume is
+            # read-only (the orphan is collectable).
+            with contextlib.suppress(StorageError, OSError):
+                storage.delete(document)
 
     def activity_counts(self) -> dict[str, int]:
         """Product-defined activity per user (identity-auth §12): match

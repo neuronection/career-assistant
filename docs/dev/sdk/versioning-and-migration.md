@@ -20,7 +20,7 @@ Three versioning layers, all validated at the seams:
   the update engine's manifest diff but never gates anything by itself
   (the digest is the pin, not the version string).
 
-The `mini-app` kind keeps the separate ADR-0029 lineage — an integer
+The `mini-app` kind keeps the separate integer lineage — an integer
 `apiVersion: 1`, no `kindVersion` — because its "envelope" is one
 integer. Do not unify the two forms; hosts check them distinctly.
 

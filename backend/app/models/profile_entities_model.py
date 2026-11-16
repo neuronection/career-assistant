@@ -8,14 +8,17 @@ land with provenance, and a draft/active status for review flows.
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
     Date,
     ForeignKey,
     Index,
+    Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,7 +57,9 @@ class EducationItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     start: Mapped[date | None] = mapped_column(Date(), nullable=True)
     end: Mapped[date | None] = mapped_column(Date(), nullable=True)
     in_progress: Mapped[bool] = mapped_column(nullable=False, default=False)
-    grade_band: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    grade_scale: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    grade_value: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    grade_ordinal: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     focus_subjects: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
@@ -121,3 +126,26 @@ class ProfileAchievement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     link: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="self_report")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+
+
+class SavedAnswer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One reusable screening answer (plan 212 S1.5).
+
+    Keyed by a stable prompt key per user; the kit shows the saved text
+    and the user explicitly edits it. `evidence_refs` is the same typed
+    evidence shape the rest of the profile uses, never free prose.
+    """
+
+    __tablename__ = "saved_answers"
+    __table_args__ = (
+        UniqueConstraint("user_id", "question_key", name="uq_saved_answers_user_key"),
+        Index("ix_saved_answers_user", "user_id"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    question_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    question_text: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence_refs: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)

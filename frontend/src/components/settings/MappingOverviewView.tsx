@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import {
   fetchMappingsOverview,
   fetchMappingsTrend,
-  mappingsBackfill,
   mappingsCaptureSnapshot,
   mappingActionError,
   type MappingFunnelState,
@@ -29,6 +28,7 @@ const FUNNEL_ORDER: MappingFunnelState[] = [
   "needs_review",
   "not_extracted",
   "extract_failed",
+  "detail_failed",
   "detail_not_fetched",
   "no_description",
 ];
@@ -37,7 +37,7 @@ const FUNNEL_ORDER: MappingFunnelState[] = [
  * The Overview view (plan 205 S5): the honest funnel (AD1/AD2) as tiles +
  * bars, the accounted-for gate, the run controls' read-only switch states
  * with their Taxonomy home link, the retrieval health/index links and the
- * legacy backfill action.
+ * snapshot action.
  */
 export function MappingOverviewView() {
   const { t } = useTranslation();
@@ -64,7 +64,7 @@ export function MappingOverviewView() {
       </div>
     );
   }
-  if (data.active === 0 && data.legacy_outcome_count === 0) {
+  if (data.active === 0) {
     return (
       <EmptyState
         compact
@@ -122,20 +122,6 @@ export function MappingOverviewView() {
       setNote(t("mappingsConsole.overview.snapshotDone"));
       const payload = await fetchMappingsTrend();
       setTrend(payload.items);
-    } catch (caught) {
-      setNote(mappingActionError(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runBackfill = async () => {
-    setBusy(true);
-    setNote(null);
-    try {
-      await mappingsBackfill();
-      setNote(t("mappingsConsole.overview.backfillQueued"));
-      setData(await fetchMappingsOverview());
     } catch (caught) {
       setNote(mappingActionError(caught));
     } finally {
@@ -202,7 +188,7 @@ export function MappingOverviewView() {
         </ul>
       </section>
 
-      <section className="rounded-xl border p-4" data-testid="mappings-proposals-legacy">
+      <section className="rounded-xl border p-4" data-testid="mappings-proposals">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-slate-600">
             {t("mappingsConsole.overview.proposals", { count: data.proposals_pending })}
@@ -224,22 +210,6 @@ export function MappingOverviewView() {
           >
             {t("mappingsConsole.overview.snapshot")}
           </Button>
-          {data.legacy_outcome_count > 0 && (
-            <>
-              <span className="text-sm text-slate-600" data-testid="mappings-legacy-count">
-                {t("mappingsConsole.overview.legacy", { count: data.legacy_outcome_count })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => void runBackfill()}
-                data-testid="mappings-backfill"
-              >
-                {t("mappingsConsole.overview.backfill")}
-              </Button>
-            </>
-          )}
         </div>
         {note && <p className="mt-2 text-sm text-slate-600">{note}</p>}
       </section>

@@ -7,6 +7,7 @@ stays asset-free for print/PDF.
 """
 
 import base64
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -18,8 +19,11 @@ from app.core.errors import NotFoundError
 from app.models.document_model import Document
 from app.models.enums import DocumentKind, DocumentStatus
 from app.models.user_model import Profile
-from app.services.cv.cv_source_service import source_file_path
 from app.services.deps import get_current_user
+from app.services.profile.document_storage import document_storage
+from app.storage.object_storage import StorageError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/me/photo", tags=["profile"])
 
@@ -189,21 +193,17 @@ async def delete_gallery_photo(
     document = rows.scalars().first()
     if document is None:
         raise NotFoundError("Photo not found")
-    from app.services.cv.cv_source_service import source_file_path
-
-    path = source_file_path(document)
+    try:
+        await document_storage().adelete(document, db=db)
+    except (StorageError, OSError):
+        logger.warning("photo %s bytes could not be deleted", document.id, exc_info=True)
     await db.delete(document)
     await db.commit()
-    if path.exists():
-        path.unlink()
 
 
-def photo_data_uri(document: Document) -> str:
+async def photo_data_uri(document: Document) -> str:
     """Self-contained data URI for the renderer (asset-free HTML)."""
-    path = source_file_path(document)
-    if not path.exists():
-        return ""
-    raw = path.read_bytes()
-    if len(raw) > PHOTO_MAX_BYTES:
+    raw = await document_storage().aread(document)
+    if raw is None or len(raw) > PHOTO_MAX_BYTES:
         return ""
     return f"data:{document.mime};base64,{base64.b64encode(raw).decode()}"

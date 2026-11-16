@@ -11,7 +11,7 @@ breakdowns S4, quality/policy phase 2, snapshots phase 3.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -28,11 +28,6 @@ router = APIRouter(
 )
 
 
-class MappingBackfillIn(BaseModel):
-    limit: int = Field(default=200, ge=1, le=500)
-    posting_ids: list[uuid.UUID] | None = Field(default=None, max_length=200)
-
-
 class MappingIdsIn(BaseModel):
     posting_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
 
@@ -44,6 +39,11 @@ class MappingIgnoreIn(MappingIdsIn):
 
 class MappingReviewIn(MappingIdsIn):
     note: str = Field(default="", max_length=500)
+
+
+class MappingBulkMapIn(BaseModel):
+    posting_ids: list[uuid.UUID] = Field(min_length=1)
+    job_id: uuid.UUID
 
 
 class MappingGoldenIn(BaseModel):
@@ -73,6 +73,10 @@ class MappingPolicyDryRunIn(MappingPolicyIn):
     posting_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
 
 
+class MappingRedecideAllIn(BaseModel):
+    scope: Literal["stale", "all"] = "stale"
+
+
 def _audit(db: AsyncSession, user: User, action: str, detail: str, **fields: Any):
     from app.services.postings.mapping_audit import record_mapping_audit
 
@@ -91,6 +95,7 @@ async def mappings_unmapped(
     source: uuid.UUID | None = Query(default=None),
     needs_review: bool | None = Query(default=None),
     detail_state: str | None = Query(default=None),
+    weak: bool | None = Query(default=None),
     q: str | None = Query(default=None, max_length=200),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -104,6 +109,7 @@ async def mappings_unmapped(
         source_id=source,
         needs_review=needs_review,
         detail_state=detail_state,
+        weak=weak,
         q=q,
         cursor=cursor,
         limit=limit,
@@ -373,6 +379,82 @@ async def mappings_trace(
     return await console.trace(db, posting_id)
 
 
+@router.post("/postings/{posting_id}/detail")
+async def mappings_detail_now(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """Fetch one posting's detail page now (one connector call, no run row)."""
+    from app.core.errors import NotFoundError
+    from app.models.posting_model import JobPosting
+    from app.services.postings.detail_service import fetch_detail_now
+
+    posting = await db.get(JobPosting, posting_id)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    posting_ref = str(posting.id)
+    result = await fetch_detail_now(db, posting, actor=user)
+    _audit(
+        db,
+        user,
+        "admin.mapping.detail",
+        f"mappings:{posting_ref}",
+        fetched=result["fetched"],
+        changed=result["changed"],
+    )
+    await db.commit()
+    return result
+
+
+@router.post("/postings/{posting_id}/repropose")
+async def mappings_repropose(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """Queue the existing refresh-redecision path for one posting."""
+    from app.core.errors import NotFoundError
+    from app.models.posting_model import JobPosting
+    from app.services.postings.mapping_remap import enqueue_refresh_redecision
+
+    posting = await db.get(JobPosting, posting_id)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    job = await enqueue_refresh_redecision(db, posting.id)
+    _audit(
+        db,
+        user,
+        "admin.mapping.repropose",
+        f"mappings:{posting.id}",
+        job_id=str(job.id),
+    )
+    await db.commit()
+    return {"queued": True, "job_id": str(job.id)}
+
+
+@router.post("/map-bulk")
+async def mappings_map_bulk(
+    payload: MappingBulkMapIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """Map selected active postings onto one published catalog type."""
+    result = await console.bulk_map_postings(db, payload.posting_ids, payload.job_id, actor=user)
+    _audit(
+        db,
+        user,
+        "admin.mapping.bulk_map",
+        f"mappings:{result['affected']}",
+        job_id=str(payload.job_id),
+        mapped=len(result["mapped"]),
+        already=len(result["already"]),
+        blocked=len(result["blocked"]),
+    )
+    await db.commit()
+    return result
+
+
 @router.post("/ignore")
 async def mappings_ignore(
     payload: MappingIgnoreIn,
@@ -475,25 +557,35 @@ async def mappings_redecide(
     return result
 
 
+@router.post("/redecide-all")
+async def mappings_redecide_all(
+    payload: MappingRedecideAllIn | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """Owner-run re-decide: one bounded ``POSTING_REMAP`` run.
+
+    ``scope="stale"`` (default) selects active non-manual rows whose
+    ``mapping_version`` is missing or below the current version — the after-S1
+    backfill; ``scope="all"`` forces every active non-manual row.
+    Confirmation/result count are the UI's."""
+    scope = payload.scope if payload is not None else "stale"
+    result = await console.queue_redecide_all(db, scope=scope)
+    _audit(
+        db,
+        user,
+        "admin.mapping.redecide_all",
+        f"mappings:redecide-all:{result['active']}",
+        job_id=result["job_id"],
+        scope=result["scope"],
+    )
+    await db.commit()
+    return result
+
+
 @router.get("/overview")
 async def mappings_overview(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """The funnel: active/described/extracted/mapped/accounted, gate,
     methods, reasons, pending proposals, last remap, retrieval health and
     the legacy (not yet derived) outcome count."""
     return await console.overview(db)
-
-
-@router.post("/backfill")
-async def enqueue_outcome_backfill(
-    payload: MappingBackfillIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_admin),
-) -> dict[str, Any]:
-    """Enqueue the bounded, idempotent outcome backfill (one queued/running run)."""
-    from app.services.postings.mapping_outcome_backfill import enqueue_mapping_outcome_backfill
-
-    del user
-    job, created = await enqueue_mapping_outcome_backfill(
-        db, limit=payload.limit, posting_ids=payload.posting_ids
-    )
-    return {"queued": True, "job_id": str(job.id), "created": created}

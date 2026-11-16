@@ -22,6 +22,9 @@ from sqlalchemy.orm import selectinload
 from app.core.errors import NotFoundError
 from app.models.job_model import Job
 from app.models.posting_model import JobPosting, MappingReview
+from app.services.postings.mapping_outcome import is_weak_mapping, weak_mapping_predicate
+from app.services.postings.mapping_policy import load_mapping_policy
+from app.services.postings.mapping_score import WEAK_SEMANTIC_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
@@ -102,11 +105,13 @@ async def create_samples(
 ) -> list[MappingReview]:
     """Create pending sample rows (bounded, deterministic, stratified).
 
-    Stratified by source for family coverage; excludes ignored, terminal
-    and already-reviewed postings; ordering is ``(created_at, id)`` so the
-    sample is reproducible.
+    Half the batch goes to weak mappings first (plan 210 AD3), then the
+    remainder is stratified by source for family coverage; excludes ignored,
+    terminal and already-reviewed postings; ordering is ``(created_at, id)``
+    so the sample is reproducible.
     """
     count = max(1, min(int(count), SAMPLE_MAX))
+    policy = await load_mapping_policy(db)
     per_source_cap = max(2, count // 3)
     rows = (
         (
@@ -123,10 +128,23 @@ async def create_samples(
         .scalars()
         .all()
     )
+    weak_rows = [
+        posting
+        for posting in rows
+        if is_weak_mapping(
+            method=posting.mapping_method,
+            margin=posting.mapping_margin,
+            confidence=posting.mapping_confidence,
+            delta=policy.delta,
+        )
+    ]
+    chosen: list[JobPosting] = weak_rows[: max(1, count // 2)]
+    chosen_ids = {posting.id for posting in chosen}
     by_source: dict[uuid.UUID, list[JobPosting]] = {}
     for posting in rows:
+        if posting.id in chosen_ids:
+            continue
         by_source.setdefault(posting.source_id, []).append(posting)
-    chosen: list[JobPosting] = []
     for cap_pass in (per_source_cap, count):
         changed = True
         while len(chosen) < count and changed:
@@ -236,7 +254,21 @@ async def pending_rows(db: AsyncSession, *, kind: str | None = None) -> list[dic
 
 async def metrics(db: AsyncSession) -> dict[str, Any]:
     """Precision/recall/agreement over the resolved rows (``none`` is a
-    class), the confusion pairs and the advisory gate."""
+    class), the confusion pairs, the weak-mapping bucket and the advisory
+    gate."""
+    policy = await load_mapping_policy(db)
+    weak_count = int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(JobPosting)
+                .where(
+                    JobPosting.status.not_in(_SAMPLE_EXCLUDED_STATUSES),
+                    weak_mapping_predicate(policy.delta),
+                )
+            )
+        ).scalar_one()
+    )
     rows = (
         (
             await db.execute(
@@ -320,6 +352,12 @@ async def metrics(db: AsyncSession) -> dict[str, Any]:
         "golden": golden_stats,
         "sample": _prf(sample),
         "confusion": confusion,
+        "weak": {
+            "count": weak_count,
+            "margin_floor": policy.delta,
+            "semantic_floor": WEAK_SEMANTIC_CONFIDENCE,
+            "empty_until_sweep": weak_count == 0,
+        },
         "gate": {
             "min_golden": GATE_MIN_GOLDEN,
             "precision_floor": GATE_PRECISION_FLOOR,

@@ -22,3 +22,7 @@ class Document(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="uploaded", index=True)
     error: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     extraction: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    # Server-generated object key (ADR-0057): `tenants/<user>/documents/<id><ext>`.
+    # Nullable because rows written before the contract dual-read the legacy
+    # `<upload_dir>/<id><ext>` file; the migration backfills the key.
+    object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True, index=True)

@@ -22,6 +22,12 @@ from urllib.parse import ParseResult, urlencode, urlparse
 import httpx
 from pydantic import BaseModel
 
+from app.extensions.polite_http import is_blocked_ip, pinned_request_parts
+
+# Career additionally refuses CGNAT (100.64.0.0/10), a shared-address range
+# that the family guard leaves to host policy.
+_EXTRA_BLOCKED = (ipaddress.ip_network("100.64.0.0/10"),)
+
 logger = logging.getLogger(__name__)
 
 MAX_REDIRECTS = 5
@@ -92,34 +98,18 @@ def parse_web_url(raw: str) -> ParseResult:
     return parsed
 
 
-def _ip_reserved(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    extra_nets = [
-        ipaddress.ip_network("169.254.169.254/32"),
-        ipaddress.ip_network("100.64.0.0/10"),
-        ipaddress.ip_network("198.18.0.0/15"),
-    ]
-    if any(ip in net for net in extra_nets):
-        return True
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
-
-
 async def _resolve_host(host: str) -> list[str]:
     """All address strings for the host (test seam — no real DNS in tests)."""
     infos = await asyncio.get_running_loop().getaddrinfo(host, None)
     return [str(info[4][0]) for info in infos]
 
 
-async def assert_public_url(hostname: str) -> None:
-    """Resolve every address for the host; any reserved one blocks the fetch."""
+async def assert_public_url(hostname: str) -> list[str]:
+    """Resolve every address for the host; any reserved one blocks the fetch.
+
+    Returns the validated address strings so the caller can pin the connect
+    target to the checked address (DNS-rebinding TOCTOU mitigation).
+    """
     host = urlparse(f"https://{hostname}").hostname or hostname
     try:
         literal = ipaddress.ip_address(host)
@@ -143,24 +133,53 @@ async def assert_public_url(hostname: str) -> None:
     if not ips:
         raise WebFetchBlocked(f"no addresses for host {host!r}")
     for ip in ips:
-        if _ip_reserved(ip):
+        if is_blocked_ip(ip) or any(ip in net for net in _EXTRA_BLOCKED):
             raise WebFetchBlocked(f"private or reserved address for {host!r}")
+    return [str(ip) for ip in ips]
 
 
-async def _guarded_get(url: str, *, headers: dict | None = None) -> tuple[httpx.Response, str]:
-    """GET with the SSRF guard re-applied on every redirect hop."""
+_CROSS_HOST_STRIPPED = frozenset({"authorization", "cookie", "proxy-authorization", "x-api-key"})
+
+
+async def _guarded_get(
+    url: str, *, headers: dict | None = None, stream: bool = False
+) -> tuple[httpx.Response, str]:
+    """GET with the SSRF guard re-applied and pinned on every redirect hop.
+
+    The guarded address is pinned into the request (URL host → checked IP,
+    original ``Host`` header, ``sni_hostname`` extension) so httpx never
+    re-resolves at connect. Credentials are dropped on a cross-host hop.
+    """
     current = url
+    origin_host: str | None = None
+    hop_headers = dict(headers or {})
+    client = _client()
     for _hop in range(MAX_REDIRECTS + 1):
         parsed = parse_web_url(current)
-        await assert_public_url(cast(str, parsed.hostname))
+        host = cast(str, parsed.hostname)
+        if origin_host is None:
+            origin_host = host
+        elif host != origin_host:
+            hop_headers = {
+                key: value
+                for key, value in hop_headers.items()
+                if key.lower() not in _CROSS_HOST_STRIPPED
+            }
+        resolved = await assert_public_url(host)
+        pinned_url, pin_headers, pin_extensions = pinned_request_parts(current, resolved)
+        merged_headers = {**hop_headers, **pin_headers}
+        request = client.build_request("GET", pinned_url, headers=merged_headers)
+        if pin_extensions:
+            request.extensions.update(pin_extensions)
         try:
-            resp = await _client().get(current, headers=headers)
+            resp = await client.send(request, stream=stream)
         except httpx.TimeoutException as exc:
             raise WebFetchBlocked(f"fetch timed out: {exc}") from exc
         except httpx.HTTPError as exc:
             raise WebFetchBlocked(f"fetch failed: {exc}") from exc
         if resp.status_code in (301, 302, 303, 307, 308):
             location = resp.headers.get("location")
+            await resp.aclose()
             if not location:
                 raise WebFetchBlocked("redirect without location")
             current = _resolve_redirect(parsed, location)
@@ -335,26 +354,51 @@ async def search_web(url: str | None, query: str, n: int) -> dict:
     return {"available": True, "results": hits}
 
 
+async def fetch_html(url: str, *, max_bytes: int = 2_000_000) -> tuple[str, str]:
+    """Fetch a page through the same SSRF-guarded path and return HTML.
+
+    Used by posting capture; the streamed body stops at ``max_bytes`` (a
+    decompression bomb never fully reaches memory) and the final
+    (post-redirect) URL is returned so the caller can canonicalize it.
+    """
+    resp, final_url = await _guarded_get(url, stream=True)
+    try:
+        if resp.status_code != 200:
+            raise WebFetchBlocked(f"fetch failed with status {resp.status_code}")
+        raw = bytearray()
+        async for chunk in resp.aiter_bytes():
+            room = max_bytes - len(raw)
+            if room <= 0:
+                break
+            raw += chunk[:room]
+        return final_url, bytes(raw).decode(resp.encoding or "utf-8", errors="replace")
+    finally:
+        await resp.aclose()
+
+
 async def fetch_text(
     url: str, *, max_text: int = DEFAULT_TEXT_CAP, headers: dict | None = None
 ) -> WebFetchResult:
     """Guarded, capped fetch; HTML bodies are reduced to title + text."""
-    resp, final_url = await _guarded_get(url, headers=headers)
-    ctype = resp.headers.get("content-type", "application/octet-stream").split(";")[0]
-    raw = b""
-    truncated = False
-    async for chunk in resp.aiter_bytes():
-        if len(raw) + len(chunk) > SCAN_LIMIT:
-            raw += chunk[: max(0, SCAN_LIMIT - len(raw))]
-            truncated = True
-            break
-        raw += chunk
-    text = ""
-    title = ""
-    if "html" in ctype:
-        title, text = text_from_html(raw.decode(resp.encoding or "utf-8", errors="replace"))
-    else:
-        text = " ".join(raw.decode("utf-8", errors="replace").split())
+    resp, final_url = await _guarded_get(url, headers=headers, stream=True)
+    try:
+        ctype = resp.headers.get("content-type", "application/octet-stream").split(";")[0]
+        raw = b""
+        truncated = False
+        async for chunk in resp.aiter_bytes():
+            if len(raw) + len(chunk) > SCAN_LIMIT:
+                raw += chunk[: max(0, SCAN_LIMIT - len(raw))]
+                truncated = True
+                break
+            raw += chunk
+        text = ""
+        title = ""
+        if "html" in ctype:
+            title, text = text_from_html(raw.decode(resp.encoding or "utf-8", errors="replace"))
+        else:
+            text = " ".join(raw.decode("utf-8", errors="replace").split())
+    finally:
+        await resp.aclose()
     if len(text) > max_text:
         text = text[:max_text]
         truncated = True
@@ -371,8 +415,11 @@ async def fetch_text(
 async def render_text(url: str, *, page_timeout: float = 15.0) -> WebFetchResult:
     """Playwright tier — reuse the plan-76 persistent engine browser.
 
-    Raises PDFEngineUnavailable when no engine is present (callers fall
-    back to the plain fetch and mark ``rendered: false``).
+    Every request the page makes (navigation, redirect hops and subresources)
+    is re-guarded and non-public targets are aborted, so a redirect or a
+    scripted fetch cannot reach an internal service. Raises
+    PDFEngineUnavailable when no engine is present (callers fall back to the
+    plain fetch and mark ``rendered: false``).
     """
     from app.services.cv.cv_pdf_service import (
         _get_browser,
@@ -380,23 +427,57 @@ async def render_text(url: str, *, page_timeout: float = 15.0) -> WebFetchResult
         _schedule_idle_close,
     )
 
-    parse_web_url(url)
-    await assert_public_url(cast(str, urlparse(url).hostname))
+    parsed = parse_web_url(url)
+    await assert_public_url(cast(str, parsed.hostname))
+
+    checked: set[str] = set()
+    blocked = False
+
+    async def _guard(route) -> None:
+        nonlocal blocked
+        target = route.request.url
+        if target.startswith(("data:", "blob:", "about:")):
+            await route.continue_()
+            return
+        try:
+            hop = parse_web_url(target)
+            host = cast(str, hop.hostname)
+            if host not in checked:
+                await assert_public_url(host)
+                checked.add(host)
+        except WebFetchBlocked:
+            blocked = True
+            await route.abort()
+            return
+        await route.continue_()
+
     p = await _get_playwright()
     browser = await _get_browser(p)
-    page = await browser.new_page()
+    context = await browser.new_context()
+    await context.route("**/*", _guard)
+    page = await context.new_page()
     try:
-        await page.goto(url, timeout=page_timeout * 1000, wait_until="domcontentloaded")
+        try:
+            await page.goto(url, timeout=page_timeout * 1000, wait_until="domcontentloaded")
+        except Exception:
+            if blocked:
+                raise WebFetchBlocked("page requested a private or reserved address") from None
+            raise
+        if blocked:
+            raise WebFetchBlocked("page requested a private or reserved address")
+        final = page.url
+        final_parsed = parse_web_url(final)
+        await assert_public_url(cast(str, final_parsed.hostname))
         title = str(await page.title() or "")
         text = str(await page.evaluate("document.body ? document.body.innerText : ''"))
     finally:
-        await page.close()
+        await context.close()
         _schedule_idle_close()
     text = text or ""
     if len(text) > DEFAULT_TEXT_CAP:
         text = text[:DEFAULT_TEXT_CAP]
     return WebFetchResult(
-        url=url,
+        url=final,
         status=200,
         title=title,
         text=text,

@@ -91,6 +91,32 @@ describe("mapping types & sources view (plan 205 S4)", () => {
     expect(screen.getByTestId("mappings-sources-table")).toBeTruthy();
   });
 
+  it("uses detail_failed as the source top reason", async () => {
+    vi.mocked(fetchSourcesBreakdown).mockResolvedValue({
+      items: [sourceEntry({ states: { detail_failed: 1 } })],
+    });
+    render(
+      <MemoryRouter>
+        <MappingTypesSourcesView />
+      </MemoryRouter>,
+    );
+    const row = (await screen.findAllByTestId("mappings-source-row"))[0];
+    expect(row.textContent).toContain("mappingsConsole.state.detail_failed");
+  });
+
+  it("uses the largest state count as the source top reason", async () => {
+    vi.mocked(fetchSourcesBreakdown).mockResolvedValue({
+      items: [sourceEntry({ states: { detail_failed: 1, no_description: 2 } })],
+    });
+    render(
+      <MemoryRouter>
+        <MappingTypesSourcesView />
+      </MemoryRouter>,
+    );
+    const row = (await screen.findAllByTestId("mappings-source-row"))[0];
+    expect(row.textContent).toContain("mappingsConsole.state.no_description");
+  });
+
   it("flags zero-posting job types and lists the proposal clusters", async () => {
     render(
       <MemoryRouter>

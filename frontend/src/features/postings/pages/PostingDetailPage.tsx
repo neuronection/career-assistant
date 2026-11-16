@@ -14,6 +14,7 @@ import {
   Info,
   Languages,
   MapPin,
+  PackageCheck,
   Plane,
   Sparkles,
   Target,
@@ -46,6 +47,9 @@ import {
 } from "@/features/catalog/exploreListCache";
 import { SimilarJobTypes } from "@/features/catalog/components/JobMatchRails";
 import { MatchCard } from "@/features/postings/components/posting-detail/MatchCard";
+import { GapCard } from "@/features/postings/components/posting-detail/GapCard";
+import { EligibilityCard } from "@/features/postings/components/posting-detail/EligibilityCard";
+import { SafetyFlagsCard } from "@/features/postings/components/posting-detail/SafetyFlagsCard";
 import { PostingHistory } from "@/features/postings/components/posting-detail/PostingHistory";
 import {
   CompactSkillChip,
@@ -384,7 +388,7 @@ export function PostingDetailPage() {
     { key: "hours", icon: Clock, label: t("postingDetail.fact.hours"), value: hoursValue || null },
     { key: "travel", icon: Plane, label: t("postingDetail.fact.travel"), value: travelValue || null },
     { key: "education", icon: GraduationCap, label: t("postingDetail.fact.education"), value: educationValue || null },
-    { key: "languages", icon: Languages, label: t("postingDetail.fact.languages"), value: (extract?.languages ?? []).join(", ") || null },
+    { key: "languages", icon: Languages, label: t("postingDetail.fact.languages"), value: (extract?.language_requirements ?? []).map((row) => `${row.code} (${row.level})`).join(", ") || null },
     { key: "salary", icon: Banknote, label: t("postingDetail.fact.salary"), value: salaryValue },
   ];
 
@@ -426,6 +430,28 @@ export function PostingDetailPage() {
                     {posting.ref}
                   </span>
                 </div>
+                {(posting.repost_count > 0 || posting.last_verified_at) && (
+                  <div
+                    className="flex flex-wrap items-center gap-1 text-[10px] text-[var(--as-muted-fg)]"
+                    data-testid="posting-trust"
+                  >
+                    {posting.repost_count > 0 && (
+                      <span className="rounded-full border border-[var(--as-border)] bg-[var(--as-muted)] px-1.5 py-0.5">
+                        {t("postingCard.reposted", { count: posting.repost_count })}
+                      </span>
+                    )}
+                    {posting.last_verified_at && (
+                      <span
+                        className="rounded-full border border-[var(--as-border)] px-1.5 py-0.5"
+                        title={formatAbsolute(posting.last_verified_at)}
+                      >
+                        {t("postingCard.verified", {
+                          date: formatAbsolute(posting.last_verified_at),
+                        })}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant={provenance === "extracted" ? "success" : "secondary"} data-testid="provenance">
@@ -519,6 +545,15 @@ export function PostingDetailPage() {
                   {t("postingDetail.trackApplication")}
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/postings/${posting.ref}/kit`)}
+                data-testid="open-kit"
+              >
+                <PackageCheck className="mr-1 h-3.5 w-3.5" />
+                {t("postingDetail.tailorAndApply")}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -785,6 +820,12 @@ export function PostingDetailPage() {
           )}
 
           {match && <MatchCard match={match} />}
+
+          <GapCard gap={posting.gap ?? null} />
+
+          <SafetyFlagsCard flags={posting.safety_flags ?? []} />
+
+          <EligibilityCard posting={posting} />
 
           {(extract?.prerequisites?.length ?? 0) > 0 && (
             <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">

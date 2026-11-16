@@ -39,6 +39,12 @@ function quality(overrides: Partial<MappingQuality> = {}): MappingQuality {
     golden: { resolved: 31, precision: 0.96, recall: 0.9, agreement: 0.94 },
     sample: { resolved: 10, precision: 0.8, recall: 0.8, agreement: 0.8 },
     confusion: [{ predicted: "quality-right", expected: "none", count: 2 }],
+    weak: {
+      count: 0,
+      margin_floor: 0.08,
+      semantic_floor: 0.65,
+      empty_until_sweep: true,
+    },
     gate: {
       min_golden: 30,
       precision_floor: 0.9,
@@ -93,6 +99,17 @@ describe("mapping quality view (plan 205 S7)", () => {
     expect(
       screen.getByTestId("mappings-correct-rev-1"),
     ).toBeTruthy();
+  });
+
+  it("reports the weak bucket and its empty-until-sweep state", async () => {
+    render(
+      <MemoryRouter>
+        <MappingQualityView />
+      </MemoryRouter>,
+    );
+    const weak = await screen.findByTestId("mappings-quality-weak");
+    expect(weak.textContent).toContain("mappingsConsole.quality.weakEmpty");
+    expect(weak.textContent).toContain("mappingsConsole.quality.weakLine");
   });
 
   it("shows the no-golden state when nothing is resolved", async () => {

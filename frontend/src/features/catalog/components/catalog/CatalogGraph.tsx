@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { fetchGraph } from "@/api/jobs";
 import { RelationGraph } from "@/features/catalog/components/RelationGraph";
 import type { JobGraph } from "@/types/wire";
@@ -9,8 +10,8 @@ export function CatalogGraph() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    void fetchGraph({ depth: 2 }).then(setGraph);
+    void fetchGraph().then(setGraph);
   }, []);
 
-  return <RelationGraph graph={graph} onNodeClick={(code) => navigate(`/jobs/${code}`)} />;
+  return <RelationGraph graph={graph} onOpenJob={(code) => navigate(`/jobs/${code}`)} />;
 }

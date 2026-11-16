@@ -6,6 +6,7 @@ import { MemoryRouter, useNavigate } from "react-router-dom";
 import { ChatDock } from "@/features/chat/components/chat/ChatWidget";
 import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
 const streamChatMessage = vi.hoisted(() => vi.fn());
@@ -45,6 +46,11 @@ vi.mock("@/api/universities", () => ({
 
 vi.mock("@/api/ai", () => ({
   fetchAiTools: vi.fn(),
+  fetchConfigSummary: vi.fn().mockResolvedValue({
+    tasks: [],
+    can_manage_global: false,
+    mock_allowed: false,
+  }),
   transcribeAudio: vi.fn(),
   classifyDictationError: vi.fn(),
 }));
@@ -107,6 +113,7 @@ function mountWithNav(route: string) {
 describe("CV reference attachments (plan 78.3)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetConfigSummaryCache();
     seedStore();
     streamChatMessage.mockResolvedValue(undefined);
     cvApi.fetchCvs.mockResolvedValue(CVS);

@@ -70,7 +70,7 @@ export async function fetchModerationQueue(status = "draft", limit = 50): Promis
 export async function bulkJobAction(
   ids: string[],
   action: "publish" | "reject",
-): Promise<{ published: number; rejected: number }> {
+): Promise<{ published: number; rejected: number; skipped: number }> {
   const { data } = await api.post("/admin/jobs/bulk", { ids, action });
   return data;
 }

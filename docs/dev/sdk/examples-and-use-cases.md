@@ -320,7 +320,7 @@ extension:
   "kind": "connector",
   "id": "t2-reference-scorer",
   "version": "1.0.0",
-  "description": "Reference T2 connector (plan 32 Phase 5): fetches postings through the host's polite runtime, dedupes against extension-owned state and emits the fresh rows. The code runs sandboxed, not reviewed.",
+  "description": "Reference T2 connector: fetches postings through the host's polite runtime, dedupes against extension-owned state and emits the fresh rows. The code runs sandboxed, not reviewed.",
   "author": "Neuronection",
   "license": "MIT",
   "repository": "https://example.com/neuronection/t2-reference-scorer",
@@ -370,7 +370,7 @@ declarative and, being an imported connector with no entry, would fail
 registration. The filename is the fixture's choice, not a rule.)
 
 ```python
-"""Reference T2 connector (plan 32 Phase 5): fetch postings through the
+"""Reference T2 connector: fetch postings through the
 host's polite runtime, dedupe against extension-owned state and emit the
 fresh rows. ~30 lines — the whole authoring story.
 
@@ -514,7 +514,7 @@ next reconcile without per-instance clicking.
 are simpler. GitOps is **not** an enforcement or auto-enable mechanism —
 it never enables code and never deletes data; if you want something
 installed everywhere you still consent per instance once. And the model
-never authors this document (ADR-0011 §7) — it is admin data.
+never authors this document — it is admin data.
 
 **The complete flow.** Write the desired-state document (validated
 against the vendored `desiredStateDocument` schema — `schema: 1`,

@@ -169,7 +169,7 @@ Settings (env `CAREER_EXTENSION_SANDBOX_*`; defaults per the charter):
 | `CAREER_DATA_DIR` | platform default | where installs, artifacts and sealed stores live — `<data_dir>/extensions/…` |
 | `CAREER_APP_ENV` | `production` | production boots reject local sources (`path-denied`) |
 
-## Dynamic queries (plan 130)
+## Dynamic queries
 
 A connector whose engine consumes a per-call search query declares
 `ConnectorCapabilities(dynamic_queries=True)`. When a `job_sources` row

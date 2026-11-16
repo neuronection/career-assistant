@@ -52,7 +52,7 @@ from app.storage.vector_contract import (
     SpaceStatus,
 )
 from app.storage.vector_contract import space_key as make_space_key
-from app.storage.vector_contract import space_key_v2 as make_space_key_v2
+from app.storage.vector_contract import space_key_token_aware as make_space_key_token_aware
 
 # Index tables are named from the space UUID by the provisioning seam:
 # ``vec_`` + 8 lowercase hex characters. The DB CHECK pins the portable
@@ -202,7 +202,7 @@ def _computed_space_key(context) -> str:
     chunk = chunk_config_from_columns(values)
     if chunk is None:  # pragma: no cover - the group CHECK rejects this earlier
         raise ValueError("a tokenizer column set needs the complete chunk columns")
-    return make_space_key_v2(
+    return make_space_key_token_aware(
         values["provider"],
         values["model"],
         int(values["dim"]),

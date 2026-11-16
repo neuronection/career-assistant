@@ -1,4 +1,4 @@
-# Bundled tokenizer assets (plan 52 T1-min)
+# Bundled tokenizer assets
 
 These files are **data**, never code. The tokenizer service loads them from
 this directory (which the packaging spec ships as `app/data`) and never
@@ -19,7 +19,7 @@ Licence: the tiktoken library and its encoding data are MIT-licensed
 (OpenAI).
 
 Hugging Face `tokenizer.json` assets do **not** live here. The admin fetch
-job (plan 52 T2b) writes them to the instance data directory at
+job writes them to the instance data directory at
 `<data_dir>/tokenizers/<sha256>/tokenizer.json`; the service verifies the
 size cap and sha256 before parsing. Desktop/offline installs may pre-seed
 that cache; nothing loads a remote asset automatically. `sentencepiece`

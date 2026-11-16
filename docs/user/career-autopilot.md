@@ -91,16 +91,16 @@ By default a goal uses your whole profile: your skills, your education
 level and certificates, your languages, your location, your experience
 (your career stage), and your lifestyle constraints (travel, shifts,
 hours). Every goal carries a **"What the autopilot uses from your
-profile"** section where each of the six inputs can be switched off for
-that goal alone — your profile itself never changes:
+profile"** section where five of those inputs can be switched off for
+that goal alone — your profile itself never changes. Languages stay
+contextual: they are always shown to the planner, and a posting's
+language requirement is an eligibility gate, not a scored input.
 
 - **Skills** — the planner's skill vocabulary and the fit engine's skill
   dimension. Off, the goal searches from your goal text only, and
   missing skills stop dragging scores down.
 - **Education & certificates** — the prerequisite checks. Off, education
   and certificate requirements score neutral instead of penalizing.
-- **Languages** — the language prerequisite check (and the planner's
-  languages note). Off, language requirements score neutral.
 - **Location** — the location & remote dimension. Off, distance stops
   affecting the score.
 - **Experience** — the seniority & stage dimension. Off, postings stop

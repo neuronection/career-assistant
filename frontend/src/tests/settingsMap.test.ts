@@ -85,6 +85,20 @@ describe("settings-map contract", () => {
     expect(declaredSections("tools")).toEqual([...TOOLS_TAB_SECTIONS]);
   });
 
+  it("app.storage is aligned for career and hosted by the admin storage tab", () => {
+    const storage = map.domains?.find((entry) => entry.id === "app.storage");
+    expect(storage).toBeDefined();
+    expect(storage!.adopters?.["career-assistant"]).toBe("aligned");
+
+    const tab = declared.find((entry) => entry.id === "storage");
+    expect(tab).toBeDefined();
+    expect(Boolean(tab!.admin)).toBe(true);
+
+    const item = settingsNav.find((entry) => entry.to === "/settings/storage");
+    expect(item?.adminOnly).toBe(true);
+    expect(item?.sectionKey).toBe("administration");
+  });
+
   // INV-1/INV-2 (enforced part): aligned sections host only their own
   // group's domains.
   it("the ai tab hosts only ai.* domains (web search never drifts back in)", () => {
@@ -160,6 +174,7 @@ describe("settings-map contract", () => {
       "sources",
       "retrieval",
       "mappings",
+      "hygiene",
     ]);
     const sourcesSection = declaredTools!.sections!.find((section) => section.id === "sources");
     expect(sourcesSection!.domains).toEqual(["tools.job-sources", "tools.extensions"]);
@@ -171,6 +186,10 @@ describe("settings-map contract", () => {
       (section) => section.id === "mappings",
     );
     expect(mappingsSection?.domains).toEqual(["tools.mappings"]);
+    const hygieneSection = declaredTools!.sections!.find(
+      (section) => section.id === "hygiene",
+    );
+    expect(hygieneSection?.domains).toEqual(["tools.posting-hygiene"]);
   });
 
   it("automations is declared in the automations group", () => {

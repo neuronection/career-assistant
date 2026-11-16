@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 QuestionKind = Literal["technical", "behavioral", "research"]
 
@@ -51,6 +51,14 @@ class InterviewSessionCreate(BaseModel):
     posting_ref: str | None = Field(default=None, max_length=64)
     job_code: str | None = Field(default=None, max_length=120)
     kind: Literal["technical", "behavioral", "mixed", "research"] = "mixed"
+    story_ids: list[uuid.UUID] = Field(default_factory=list, max_length=3)
+
+    @field_validator("story_ids")
+    @classmethod
+    def _unique_story_ids(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("story_ids must be unique")
+        return value
 
 
 class RubricScores(BaseModel):
@@ -121,3 +129,65 @@ class InterviewSessionOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class InterviewStoryIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    competency_keys: list[str] = Field(default_factory=list, max_length=8)
+    situation: str = Field(default="", max_length=2000)
+    task: str = Field(default="", max_length=2000)
+    action: str = Field(default="", max_length=2000)
+    result: str = Field(default="", max_length=2000)
+    experience_item_id: uuid.UUID | None = None
+    evidence_refs: list[dict] = Field(default_factory=list, max_length=8)
+
+
+class InterviewStoryPatch(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    competency_keys: list[str] | None = Field(default=None, max_length=8)
+    situation: str | None = Field(default=None, max_length=2000)
+    task: str | None = Field(default=None, max_length=2000)
+    action: str | None = Field(default=None, max_length=2000)
+    result: str | None = Field(default=None, max_length=2000)
+    experience_item_id: uuid.UUID | None = None
+    evidence_refs: list[dict] | None = Field(default=None, max_length=8)
+
+    @model_validator(mode="after")
+    def _reject_null_text(self):
+        for field in (
+            "title",
+            "competency_keys",
+            "situation",
+            "task",
+            "action",
+            "result",
+            "evidence_refs",
+        ):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class InterviewStoryOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    competency_keys: list
+    situation: str
+    task: str
+    action: str
+    result: str
+    experience_item_id: uuid.UUID | None = None
+    evidence_refs: list
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StorySuggestionOut(BaseModel):
+    experience_item_id: uuid.UUID
+    title: str
+    org: str
+    hint: str

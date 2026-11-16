@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CircleUser,
   Cpu,
+  HardDrive,
   ListTree,
   ScrollText,
   Users,
@@ -18,6 +19,8 @@ export interface SettingsNavItem {
   descriptionKey?: string;
   /** When true, only admins see the entry. */
   adminOnly?: boolean;
+  /** Hidden in the desktop shell (a web/deployment-only surface). */
+  desktopHidden?: boolean;
   /** Rail group label (library `SettingsNavItem.section`): the tab list
    * renders as contiguous runs — Personal, AI & tools, Automation,
    * Administration. Derived from the settings-map contract groups
@@ -86,6 +89,15 @@ export const settingsNav: SettingsNavItem[] = [
     labelKey: "settingsNav.users.label",
     descriptionKey: "settingsNav.users.description",
     adminOnly: true,
+    sectionKey: "administration",
+  },
+  {
+    to: "/settings/storage",
+    icon: HardDrive,
+    labelKey: "settingsNav.storage.label",
+    descriptionKey: "settingsNav.storage.description",
+    adminOnly: true,
+    desktopHidden: true,
     sectionKey: "administration",
   },
   {

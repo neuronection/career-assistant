@@ -1,7 +1,9 @@
 import uuid
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
+    CheckConstraint,
     Float,
     ForeignKey,
     Index,
@@ -35,7 +37,17 @@ class AIGeneration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "ai_generations"
-    __table_args__ = (Index("ix_ai_generations_created_at", "created_at"),)
+    __table_args__ = (
+        Index("ix_ai_generations_created_at", "created_at"),
+        CheckConstraint(
+            "usage_source IN ('provider', 'estimated', 'partial', 'unknown')",
+            name="usage_source_allowed",
+        ),
+        CheckConstraint(
+            "price_source IN ('user', 'builtin', 'local', 'unknown')",
+            name="price_source_allowed",
+        ),
+    )
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
@@ -43,6 +55,16 @@ class AIGeneration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     task_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(30), nullable=False, default="mock")
     model: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    provider_key: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    cost_micros: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    usage_source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unknown", server_default="unknown"
+    )
+    estimate_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    price_source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unknown", server_default="unknown"
+    )
+    price_version: Mapped[str | None] = mapped_column(String(120), nullable=True)
     prompt: Mapped[str] = mapped_column(String(4000), nullable=False, default="")
     output: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -100,3 +122,41 @@ class AIBudget(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     window: Mapped[str] = mapped_column(String(10), nullable=False, default="day")
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class AIPriceOverride(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """System-scoped model price override (plan 58 P2)."""
+
+    __tablename__ = "ai_price_overrides"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_key",
+            "provider_ref",
+            "model",
+            "match",
+            name="uq_ai_price_overrides_scope",
+        ),
+        CheckConstraint("match IN ('exact', 'prefix')", name="match_allowed"),
+        CheckConstraint(
+            "metering IN ('tokens', 'input_only', 'output_only')",
+            name="metering_allowed",
+        ),
+    )
+
+    provider_key: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    provider_ref: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_providers.id", ondelete="CASCADE"), nullable=True
+    )
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    match: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="exact", server_default="exact"
+    )
+    input_micros_per_million: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    output_micros_per_million: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    metering: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="tokens", server_default="tokens"
+    )

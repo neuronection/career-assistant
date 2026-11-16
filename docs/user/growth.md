@@ -14,6 +14,21 @@ Turn skill gaps into tracked steps. Each step has a clear lifecycle:
 Marking a step done lets you self-report the new level, and the catalog
 re-fits so the change is reflected in your matches — visibly, not silently.
 
+## NACE competencies
+
+The **Career-readiness competencies** card maps your own recorded evidence —
+experience text, achievements, linked skills, claimed skills and
+certifications — to the eight NACE competencies: critical thinking,
+communication, teamwork, digital technology, leadership, professionalism,
+career management and global/intercultural fluency.
+
+- **Evidence only.** Every competency lists the experience, achievement,
+  skill or certification it came from, or says **No evidence yet**. There is
+  no self-rating and no score.
+- **In the CV bullet editor**, the deterministic check tags a bullet with the
+  competencies its wording touches, so you can see whether a bullet carries
+  teamwork, leadership or another signal.
+
 ## Near-miss radar
 
 Shows **adjacent roles you are a couple of skills away from**. These are the

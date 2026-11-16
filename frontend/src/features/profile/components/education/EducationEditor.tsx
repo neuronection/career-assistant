@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import i18next from "i18next";
 import {
   ComboboxField,
@@ -35,13 +36,12 @@ import type {
   EducationItemIn,
   EducationItemOut,
   EducationLevel,
-  GradeBand,
+  GradeScale,
 } from "@/types/education";
 import { languageDisplayName } from "@neuronection/assistant-ui/languages";
 import {
   COMMON_SUBJECTS,
   EDUCATION_LEVEL_ORDER,
-  GPA_BAND_OPTIONS,
   LANGUAGE_CODE_OPTIONS,
 } from "@/features/profile/components/profile/sections/options";
 import type { Department, University, DegreeLevel, UniversityType } from "@/types/wire";
@@ -51,6 +51,15 @@ const STATUS_OPTIONS = [
   { value: "draft", labelKey: "education.statusOption.draft" },
 ];
 
+const GRADE_SCALE_OPTIONS = [
+  "uk_honours",
+  "gpa_4",
+  "gpa_10",
+  "de_note",
+  "percentage",
+  "other",
+] as const;
+
 export interface EducationEditorForm {
   institution: string;
   program: string;
@@ -58,7 +67,8 @@ export interface EducationEditorForm {
   start: string;
   end: string;
   in_progress: boolean;
-  grade_band: GradeBand | null;
+  grade_scale: GradeScale | null;
+  grade_value: string;
   focus_subjects: string[];
   description: string;
   status: "draft" | "active";
@@ -73,7 +83,8 @@ export const EMPTY_EDUCATION_FORM: EducationEditorForm = {
   start: "",
   end: "",
   in_progress: true,
-  grade_band: null,
+  grade_scale: null,
+  grade_value: "",
   focus_subjects: [],
   description: "",
   status: "active",
@@ -91,7 +102,8 @@ export function educationFormFromItem(
     start: item.start ?? "",
     end: item.end ?? "",
     in_progress: item.in_progress,
-    grade_band: (item.grade_band as GradeBand | null) ?? null,
+    grade_scale: (item.grade_scale as GradeScale | null) ?? null,
+    grade_value: item.grade_value == null ? "" : String(item.grade_value),
     focus_subjects: item.focus_subjects,
     description: item.description,
     status: item.status,
@@ -109,7 +121,8 @@ export function educationToIn(form: EducationEditorForm): EducationItemIn {
     start: form.start || null,
     end: form.in_progress ? null : form.end || null,
     in_progress: form.in_progress,
-    grade_band: form.grade_band,
+    grade_scale: form.grade_scale,
+    grade_value: form.grade_value.trim() === "" ? null : Number(form.grade_value),
     focus_subjects: form.focus_subjects,
     description: form.description,
     status: form.status,
@@ -507,20 +520,43 @@ export function EducationEditor({
           />
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <SelectField
-          label={t("education.gradeLabel")}
-          value={form.grade_band ?? ""}
-          onChange={(v) => patch({ grade_band: (v || null) as GradeBand | null })}
+          label={t("education.gradeScaleLabel")}
+          value={form.grade_scale ?? ""}
+          onChange={(v) =>
+            patch({
+              grade_scale: (v || null) as GradeScale | null,
+              grade_value: v ? form.grade_value : "",
+            })
+          }
           options={[
             { value: "", label: t("education.gradeUnspecified") },
-            ...GPA_BAND_OPTIONS.filter((o) => o.value !== "unknown").map((o) => ({
-              value: o.value,
-              label: t(`education.grade.${o.value}`),
+            ...GRADE_SCALE_OPTIONS.map((value) => ({
+              value,
+              label: t(`education.gradeScale.${value}`),
             })),
           ]}
-          testId="education-grade-band"
+          testId="education-grade-scale"
         />
+        <TextField
+          label={t("education.gradeValueLabel")}
+          value={form.grade_value}
+          onChange={(v) => patch({ grade_value: v })}
+          inputMode="decimal"
+          disabled={!form.grade_scale}
+          hint={t("education.gradeValueHint")}
+          testId="education-grade-value"
+        />
+        <p className="text-xs text-slate-500 sm:col-span-3" data-testid="education-grade-nudge">
+          {t("education.gradeNudge")}{" "}
+          <Link
+            to="/guides/market"
+            className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+          >
+            {t("education.marketGuideLink")}
+          </Link>
+        </p>
         <div className="min-w-0" data-testid="education-focus">
           <ComboboxMultiField
             label={t("education.focusLabel")}

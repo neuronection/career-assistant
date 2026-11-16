@@ -105,7 +105,7 @@ describe("JobCard", () => {
     });
 
   it("shows title, description and demand badge", () => {
-    render(<JobCard job={makeJob()} />);
+    render(<MemoryRouter><JobCard job={makeJob()} /></MemoryRouter>);
     expect(screen.getByText("Software Developer")).toBeInTheDocument();
     expect(screen.getByText(/Writes code/)).toBeInTheDocument();
     expect(screen.getByTestId("demand-badge")).toHaveTextContent("hot");
@@ -113,9 +113,18 @@ describe("JobCard", () => {
 
   it("calls onSelect on click", () => {
     const onSelect = vi.fn();
-    render(<JobCard job={makeJob()} onSelect={onSelect} />);
+    render(<MemoryRouter><JobCard job={makeJob()} onSelect={onSelect} /></MemoryRouter>);
     fireEvent.click(screen.getByTestId("job-card"));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ code: "software-developer" }));
+  });
+
+  it("keeps the title on the card's open action (one destination)", () => {
+    const onSelect = vi.fn();
+    render(<MemoryRouter><JobCard job={makeJob()} onSelect={onSelect} /></MemoryRouter>);
+    const title = screen.getByTestId("job-title");
+    expect(title.tagName).toBe("BUTTON");
+    fireEvent.click(title);
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("renders every metric only when its attribute exists", () => {

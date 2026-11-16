@@ -66,20 +66,19 @@ async def test_languages_filter_is_sql_side(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
     english = await _create(db, source, "lang-en", title="English role")
-    english.extract = {"languages": ["English"]}
-    english.extract_version = 1
+    english.language_codes = ",en,"
+    english.extract_version = 6
     german = await _create(db, source, "lang-de", title="German role")
-    german.extract = {"languages": ["German"]}
-    german.extract_version = 1
+    german.language_codes = ",de,"
+    german.extract_version = 6
     empty = await _create(db, source, "lang-empty", title="Empty role")
-    empty.extract = {"languages": []}
-    empty.extract_version = 1
+    empty.extract_version = 6
     await _create(db, source, "lang-none", title="No languages role")
     await db.commit()
 
     single = await client.get(
         "/api/v1/postings/explore",
-        params={"languages": ["english"]},
+        params={"languages": ["en"]},
         headers=auth_headers,
     )
     assert single.status_code == 200, single.text
@@ -88,7 +87,7 @@ async def test_languages_filter_is_sql_side(
 
     either = await client.get(
         "/api/v1/postings/explore",
-        params={"languages": ["english", "german"]},
+        params={"languages": ["en", "de"]},
         headers=auth_headers,
     )
     assert {item["id"] for item in either.json()["items"]} == {
@@ -102,13 +101,13 @@ async def test_total_is_exact_under_combined_sql_filters(
 ):
     keep = await _create(db, source, "combo-keep", title="Keep role")
     keep.education_level = "master"
-    keep.extract = {"languages": ["English"]}
-    keep.extract_version = 1
+    keep.language_codes = ",en,"
+    keep.extract_version = 6
     keep.seniority = "mid"
     drop = await _create(db, source, "combo-drop", title="Drop role")
     drop.education_level = "high school"
-    drop.extract = {"languages": ["English"]}
-    drop.extract_version = 1
+    drop.language_codes = ",en,"
+    drop.extract_version = 6
     drop.seniority = "mid"
     await db.commit()
 
@@ -116,7 +115,7 @@ async def test_total_is_exact_under_combined_sql_filters(
         "/api/v1/postings/explore",
         params={
             "education_min": "bachelor",
-            "languages": ["english"],
+            "languages": ["en"],
             "seniority": "mid",
             "limit": 1,
         },

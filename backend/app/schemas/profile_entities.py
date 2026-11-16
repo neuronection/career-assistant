@@ -14,7 +14,7 @@ from app.services.cv.rich_text import validate_rich_text
 
 _Date = date  # annotation alias: the `date` field name shadows the type in pydantic's resolution namespace
 
-GRADE_BANDS = ("low", "below_average", "average", "good", "excellent", "unknown")
+GradeScale = Literal["uk_honours", "gpa_4", "gpa_10", "de_note", "percentage", "other"]
 
 
 class EducationItemIn(BaseModel):
@@ -25,9 +25,8 @@ class EducationItemIn(BaseModel):
     start: date | None = None
     end: date | None = None
     in_progress: bool = False
-    grade_band: (
-        Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None
-    ) = None
+    grade_scale: GradeScale | None = None
+    grade_value: float | None = Field(default=None, ge=0, le=100)
     focus_subjects: list[str] = Field(default_factory=list, max_length=12)
     description: str = Field(default="", max_length=4000)
     status: Literal["draft", "active"] = "active"
@@ -48,9 +47,8 @@ class EducationItemPatch(BaseModel):
     start: date | None = None
     end: date | None = None
     in_progress: bool | None = None
-    grade_band: (
-        Literal["low", "below_average", "average", "good", "excellent", "unknown"] | None
-    ) = None
+    grade_scale: GradeScale | None = None
+    grade_value: float | None = Field(default=None, ge=0, le=100)
     focus_subjects: list[str] | None = Field(default=None, max_length=12)
     description: str | None = Field(default=None, max_length=4000)
     status: Literal["draft", "active"] | None = None
@@ -72,7 +70,9 @@ class EducationItemOut(BaseModel):
     start: date | None = None
     end: date | None = None
     in_progress: bool
-    grade_band: str | None = None
+    grade_scale: str | None = None
+    grade_value: float | None = None
+    grade_ordinal: float | None = None
     focus_subjects: list
     description: str
     source: str

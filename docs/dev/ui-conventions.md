@@ -1,7 +1,7 @@
 # UI conventions
 
 The app's product surfaces follow one modern design language, introduced
-with the CV Studio workspace (plans 47–49, 2026-09). **Read this before
+with the CV Studio workspace (2026-09). **Read this before
 building or restyling any page** — the goal is that every new surface
 looks like it belongs to the same product.
 
@@ -14,7 +14,7 @@ centered `max-w-7xl` column:
 - `Layout.tsx` keeps a route allow-list (`useMatch`) of full-bleed
   paths; those render `flex min-h-0 flex-col … lg:h-full` so panes
   scroll independently and the page owns the full viewport height.
-- **Analytics workspaces** are the second full-bleed class (plan 195):
+- **Analytics workspaces** are the second full-bleed class:
   `/postings/stats` (Market intelligence) owns the viewport width the
   same way, because a dashboard's value is density — KPI rows, wide
   tables and a 24-column heatmap. Content pages stay centered. The
@@ -45,8 +45,8 @@ centered `max-w-7xl` column:
   (template editor side).
 - Panes are rounded
   `border border-[var(--as-border)]` cards; the canvas pane is the hero
-  (largest, live preview). **Elevation is a three-step ladder** (plan
-  90): workspace panes are *sunken trays* (`bg-[var(--as-muted)]`),
+  (largest, live preview). **Elevation is a three-step ladder**: workspace
+  panes are *sunken trays* (`bg-[var(--as-muted)]`),
   cards/inputs inside them float on `--as-surface`, popover-grade
   elements use `--as-surface-raised` — never give a tray and its
   contents the same background. The token ladder
@@ -56,8 +56,8 @@ centered `max-w-7xl` column:
   buttons, `data-testid="pane-switcher"`) toggles one pane at a time —
   every feature stays reachable on tablet/mobile. Panes render with
   `` `${active ? "flex" : "hidden"}` `` plus the `ca-ws-pane` class so
-  CSS decides. **Responsiveness is container-based, not viewport-based
-  (plan 95):** the workspace root carries `ca-workspace`
+  CSS decides. **Responsiveness is container-based, not viewport-based:**
+  the workspace root carries `ca-workspace`
   (`container-type: inline-size`); `ca-ws-grid` / `ca-ws-switcher` /
   `ca-ws-pane` flip their layout in an `@container (min-width: 48rem)`
   block in `index.css` (after the utilities — cascade wins). Viewport
@@ -66,7 +66,7 @@ centered `max-w-7xl` column:
   the reference pages. The same rule drives the library
   `SettingsShell` (Profile/Settings rails): its chip-row ↔ rail modes
   key off the shell's own width.
-- The inspector has **three tabs** (plans 85–87), ordered Sections →
+- The inspector has **three tabs**, ordered Sections →
   Context → Design with **Sections as the default** (cover letters
   default to Context, where the brief lives) — each a real workspace;
   one-off AI actions are NOT a tab
@@ -74,16 +74,16 @@ centered `max-w-7xl` column:
   read-only reports are NOT tabs either: the lint report opens from the
   toolbar's ATS score chip (`ats-chip` → popover with score, pass/warn/
   fail summary and the checks list). The switcher is a **segmented
-  control with a sliding thumb** (plan 88, `.cv-tab-thumb` in
+  control with a sliding thumb** (`.cv-tab-thumb` in
   motion.css, proper `role="tablist"` + roving-focus arrows) — never a
   dropdown: tab state must be visible at a glance. The Context panel
-  follows the same rule (plan 89): a coverage summary strip
+  follows the same rule: a coverage summary strip
   (`context-summary`, "N / M items on the CV"), group pills showing
   `included/total` (accent-tinted when fully included), the library
   `CheckIndicator` for the tri-state group header (role=checkbox with
   `aria-checked="mixed"` — never a switch), and empty groups surface
   their hint without expansion. The tab is also EDITABLE over profile
-  data (plan 105): groups with an editor kind carry a `+` create
+  data: groups with an editor kind carry a `+` create
   button (`context-add-{key}`; empty groups repeat it as an "Add …"
   hint row), focusable item rows carry a pencil
   (`context-edit-item-{source}:{id}` → `EntityEditorModal`) and an
@@ -92,19 +92,19 @@ centered `max-w-7xl` column:
   objective) get a group-level profile link instead — affordances are
   always visible, never hover-reveal, and the CV-specific variant
   actions stay in their sub-row. Experience-kind rows add a fourth
-  affordance, the plan-106 **Bullets editor** (`context-bullets-…` →
+  affordance, the **Bullets editor** (`context-bullets-…` →
   `ItemBulletsEditorModal`): the two-layer bullets model — saving
   creates/patches a scope-`bullets` VARIANT pinned via the item's ONE
-  `synth_pins["{source}:{id}"]` slot (plan 110 collapsed the old
-  `:bullets` suffix; the plain key is the only form, no CV-local
+  `synth_pins["{source}:{id}"]` slot (the old
+  `:bullets` suffix is gone; the plain key is the only form, no CV-local
   override for achievements),
   with the resolved snapshot list as base, an "Edited for this CV"
   chip, Reset-to-profile (unpin), a resolved
   "on the CV now" head, and AI bullets landing as ephemeral
   keep/discard chips (never auto-applied; generate-fill rides the
-  bullet action with the plan-103 dirty-guard). The modal hosts the
+  bullet action with the dirty-guard). The modal hosts the
   real workspace
-  editors (one source, no re-rolled forms); saves bump the plan-104
+  editors (one source, no re-rolled forms); saves bump the
   live-sync channel with a `local` origin, which refreshes context
   sources, preview and staleness without the "Profile changed" toast.
   "How my CV looks"
@@ -134,7 +134,7 @@ Pickers/cards that follow the same recipe:
 - `BlockTypePicker` — "Add X" opens a popover grid of **cards with mini
   schematic previews** (`TypePreview`), icon + name + one-line
   description; extend with `extraTypes` instead of adding raw selects.
-- `SectionsPanel` — the card pattern for ordered lists (plan 84): a
+- `SectionsPanel` — the card pattern for ordered lists: a
   two-zone card — header row (drag handle with ArrowUp/Down keyboard move,
   accent icon tile, rename-in-place title for every kind that supports a
   `title` prop, always-visible eye → overflow `⋯` menu (move/duplicate/
@@ -146,7 +146,7 @@ Pickers/cards that follow the same recipe:
   block-level `hidden` flag (the `area` precedent, renderer + exports +
   lint honor it) drives the eye toggle; hidden cards render dimmed with a
   "Hidden" summary. When the active template is sidebar-layout, the panel
-  switches to an **area-grouped** variant (plan 61): solid group shells
+  switches to an **area-grouped** variant: solid group shells
   with a header row (icon, label, count pill, compact "+" opening the
   picker with `presetArea`), dashed accent border only while a drag hovers,
   and drop-target styling — sections drag across groups to reassign; the
@@ -192,7 +192,7 @@ status vocabulary (`StatusChip`, `statusLabelKey`, `reportSummary`,
 overview's import panel (`import-cv-panel` with a live
 `import-cv-status` line) consumes the same label keys.
 
-### 2c. The item-card density pattern (plan 112, 2026-09)
+### 2c. The item-card density pattern (2026-09)
 
 Any surface that renders a *list* of items (a HITL proposal's diff rows,
 an experience/education card, a profile summary card) is either
@@ -223,7 +223,7 @@ an experience/education card, a profile summary card) is either
   `target="_blank" rel="noopener noreferrer"`. Anchors live *outside*
   the card's `<button>` — never nest an `<a>` inside a button.
 
-### 2e. The item-card system (plan 140, 2026-10-28)
+### 2e. The item-card system (2026-10-28)
 
 Every list surface that renders an item card (`/postings`, `/catalog`,
 `/rankings`, `/companies`) uses the module in `components/cards/` — same
@@ -234,7 +234,7 @@ action slots stop propagation), `density`/`data-state`, and the
 `ca-item-card` container (the action column stacks by **container** width,
 never a viewport breakpoint — the chat dock narrows the column).
 
-**Metrics follow the card's own width** (plan 191): one node
+**Metrics follow the card's own width**: one node
 (`.ca-job-metrics`) renders the open-roles number + caption + salary as a
 full-width inline strip on a narrow card and as the posting-anatomy rail on
 the leading edge at a card container ≥ 26rem — CSS-flipped in
@@ -314,7 +314,7 @@ Testids are contracts: `posting-card`/`posting-details`/`posting-title`/
 `skill-tag`/`skill-heat`. Assert `data-tone`/`data-heat`/`data-score` —
 never colour classes.
 
-## 2a. The profile section-card pattern (plans 50, 2026-09)
+## 2a. The profile section-card pattern (2026-09)
 
 Profile data entry (profile page `/profile`, onboarding wizard
 `/onboarding`, assessment reuse) renders **one shared set of section
@@ -358,11 +358,11 @@ page-local form for a profile section.
   Experience appears as a summary card linking to
   `/profile/experience` — editing lives only in the experience
   workspace, which has no top-level sidebar entry.
-- **Catalog tree layout**: the `/postings` page template (plan 191). The
+- **Catalog tree layout**: the `/postings` page template. The
   page body carries `ca-stats-page`; `.ca-stats-cols` renders filter rail |
   results | recent searches — one column below 64rem of page width, where the
   filter card stacks above the results and the recent panel follows them
-  (container query, plan-95 rule; never a `lg:` switch). The left
+  (container query; never a `lg:` switch). The left
   `ca-stats-rail` is the **one family surface**: its `Job family` section
   carries the facet counts and a select/clear cycle (families are
   include-only — the subtree parameter has no exclude), and the `family` URL
@@ -426,7 +426,7 @@ page-local form for a profile section.
   (kind icons, draft/source chips), same editor skeleton
   (`achievement-editor`, `save-achievement`), undo + dirty-guard
   shared.
-- **Studio-adjacent editing (plan 105)**: `lib/entityLinks.ts` is the
+- **Studio-adjacent editing**: `lib/entityLinks.ts` is the
   ONE map from CV context sources (and intake entity types) to profile
   homes, editor kinds and deep links — never build a second
   source→route table. The experience workspace accepts `?focus=<id>`
@@ -455,14 +455,14 @@ page-local form for a profile section.
   (`practice-interview-posting`) creates + starts + jumps straight to
   chat.
 
-## 2f. Settings surfaces (plan 148)
+## 2f. Settings surfaces
 
 Every settings page composes from the app kit in `components/settings/`
 (never re-roll page-local cards):
 
 - **`SettingsPage`** — icon + title + description + status chips, then an
   optional **in-page section rail** (sticky anchor nav; exists only ≥62rem
-  of PAGE-column width — `ca-settings` container queries, plan-95 law) and
+  of PAGE-column width — `ca-settings` container queries) and
   the content column (reading measure caps at 52rem ≥68rem so wide
   displays stay readable). `/settings` renders full-bleed (Layout
   allow-list) so those breakpoints engage on real displays; the shell
@@ -488,7 +488,7 @@ Every settings page composes from the app kit in `components/settings/`
   pins both the derivation and the contiguous runs. The library
   `SettingsShell` renders the labels (chip mode hides them).
 
-## 2g. The taxonomy listing pattern (plan 150)
+## 2g. The taxonomy listing pattern
 
 Admin catalog listings (`/settings/taxonomy`, six URL-synced segments)
 share one shape — reuse it for any review surface instead of re-rolling
@@ -533,7 +533,7 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   stays the app's Spinner + label row (previews are the shimmer
   exception, §6).
 
-## 2i. Filter chips — one cycle, one clear (plan 167)
+## 2i. Filter chips — one cycle, one clear
 
 Every filter chip follows the same contract (`TriStateChips` in
 `components/filters/filterBits.tsx`), on every rail (`/postings`,
@@ -555,7 +555,7 @@ Every filter chip follows the same contract (`TriStateChips` in
   get the × — the visual contract stays identical.
 - Binary state toggles (saved only, hide seen, deep-extracted) are
   checkboxes, not chips: their uncheck *is* the clear.
-- **Exclude pickers are excluded chips too** (plan 166): the skills /
+- **Exclude pickers are excluded chips too**: the skills /
   organizations exclude lists keep the library `MultiSelectPicker`, but
   their selected chips carry `ca-picker-exclude` (rose bg + text, `−`
   prefix via `renderChipExtra`) so the same value reads the same whether
@@ -564,7 +564,7 @@ Every filter chip follows the same contract (`TriStateChips` in
   `[data-as="picker-chips"] > li` under that wrapper; never restyle the
   include pickers.
 
-## 2j. The preset bar — saved views (plan 165)
+## 2j. The preset bar — saved views
 
 A list page whose filter set is URL state gets a **preset bar** above the
 results (`PresetBar`, `/postings` today):
@@ -579,7 +579,7 @@ results (`PresetBar`, `/postings` today):
 - the save dialog shows the same human-readable summary the menu does, so
   what you are about to save is visible before it lands.
 
-## 2h. Shareable list state — the URL is the state (plan 163)
+## 2h. Shareable list state — the URL is the state
 
 A list page whose filters/order a user would want to reload, go back to
 or send to someone else keeps that state **in the URL, not in
@@ -602,7 +602,7 @@ or send to someone else keeps that state **in the URL, not in
   open-roles floor all ride the URL (`?status=new&work_mode=remote&min_open=5`),
   with the same parse → write → canonicalize contract.
 
-### 2h+. Returning to a list keeps its view (plan 172)
+### 2h+. Returning to a list keeps its view
 
 URL state covers filters/order on back, but a remounted list also loses
 its loaded pages and scroll height. The return contract on top of §2h:
@@ -672,7 +672,7 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
 - A rail that can collapse below the breakpoint (`/autopilot`) passes
   `asideClassName` + `asideOpen` — the CSS still owns the show/hide rule.
 
-## 2l. Bulk-selection mode — one contract (plan 200)
+## 2l. Bulk-selection mode — one contract
 
 Every admin listing that can be batched runs ONE selection contract
 (`features/selection/`: `useListSelection` + `SelectionEntry` /
@@ -736,7 +736,7 @@ A route absent from the table is `on`.
 - The README feature-status table and `docs/user/<page>.md` follow the
   same registry; `test_docs_claims.py` fails when a claim drifts.
 
-### 2m. The ops-console pattern (plan 205)
+### 2m. The ops-console pattern
 
 An **operations console** under Tools (`RetrievalManagementSection`,
 `MappingManagementSection`) is one settings section with URL-synced inner

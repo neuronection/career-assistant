@@ -23,6 +23,7 @@ from app.services.postings.job_type_candidates import (
     JOB_TYPE_CANDIDATE_CAP,
     JobTypeCandidate,
     job_type_candidates,
+    load_title_catalog,
 )
 from app.services.postings.postings_service import upsert_posting
 
@@ -470,3 +471,21 @@ async def test_candidate_assembly_reuses_the_semantic_trace(
         candidate.code == semantic_job.code and candidate.source == "semantic"
         for candidate in candidates
     )
+
+
+async def test_preloaded_catalog_matches_the_default_candidate_assembly(
+    db, client, auth_headers, kinds, source
+):
+    family = await _world(db)
+    await _job(db, family, "observability-engineer", "Observability Engineer")
+    await _job(db, family, "software-engineer", "Software Engineer")
+    posting = await _extracted_posting(db, source)
+
+    default, default_exact = await job_type_candidates(db, posting, posting.extract)
+    catalog = await load_title_catalog(db)
+    preloaded, preloaded_exact = await job_type_candidates(
+        db, posting, posting.extract, catalog=catalog
+    )
+
+    assert [candidate.code for candidate in preloaded] == [candidate.code for candidate in default]
+    assert preloaded_exact == default_exact

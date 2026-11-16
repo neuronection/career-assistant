@@ -7,16 +7,14 @@ an RSS file, a spreadsheet, an MCP script's output) into typed
 [`RawPosting`](authoring-and-configuration.md#rawposting--the-only-output-type)
 rows, and the app does everything downstream (mapping, fit scoring, feed,
 alerts). The SDK is Career Assistant's convergence to the family extension
-charter (**ADR-0040**): kinds, tiers, capabilities, the typed error
+charter: kinds, tiers, capabilities, the typed error
 model, the limits, and the
 `{items, next_state, partial_errors}` result envelope. The charter's
 authoritative data is vendored into this repo at
 `contracts/extension-charter.json` +
 `contracts/extension-manifest.schema.json`, and this set describes that
-law as it applies to this host. ADR and plan numbers cite
-family-governance documents that live in the Neuronection dev repo and
-are not shipped here — when this prose and the vendored contracts
-disagree, the contracts win and the prose is the bug.
+law as it applies to this host. When this prose and the vendored
+contracts disagree, the contracts win and the prose is the bug.
 
 The mental model in three sentences:
 

@@ -161,14 +161,19 @@ def _tool_typed(subschema: object, value: object) -> object:
     return value
 
 
-def validate_tool_options(options: dict, schema: dict, *, relax_keys: tuple[str, ...] = ()) -> None:
+def tool_options_problems(
+    options: dict, schema: dict, *, relax_keys: tuple[str, ...] = ()
+) -> list[str]:
     """The bundle's own ``configSchema`` is the options contract at save
     time (plan 173): every required field (minus ``relax_keys`` — the
     radar query overlay supplies those per sync, so relaxed fields are
     skipped entirely, slightly looser than the T2 relax) must be present,
-    non-empty, and satisfy its own constraints. Only required fields are
-    checked — optional knobs stay free-form, because a whole-object type
-    check would reject the app's own stored shape."""
+    non-empty, and satisfy its own constraints. Optional knobs stay
+    free-form (the settings forms store numbers as strings; the tool's own
+    validation coerces them) with ONE exception: a provided non-empty value
+    whose field declares a ``pattern`` must match it — a declared shape (a
+    URL-path slug, an identifier) is honoured wherever it appears, never
+    only on required fields."""
     props = schema.get("properties") or {}
     problems: list[str] = []
     for name in schema.get("required") or []:
@@ -183,8 +188,44 @@ def validate_tool_options(options: dict, schema: dict, *, relax_keys: tuple[str,
             err = contract.validate(subschema, _tool_typed(subschema, value), schema, f"$.{name}")
             if err:
                 problems.append(err)
+    for name, subschema in props.items():
+        if name in relax_keys or not isinstance(subschema, dict):
+            continue
+        pattern = subschema.get("pattern")
+        value = options.get(name)
+        if not pattern or not isinstance(value, str) or not value.strip():
+            continue
+        err = contract.validate({"pattern": pattern}, value, schema, f"$.{name}")
+        if err:
+            problems.append(err)
+    return problems
+
+
+def validate_tool_options(options: dict, schema: dict, *, relax_keys: tuple[str, ...] = ()) -> None:
+    """Raising form of :func:`tool_options_problems` (save-time gates)."""
+    problems = tool_options_problems(options, schema, relax_keys=relax_keys)
     if problems:
         raise ValidationError("tool options rejected: " + "; ".join(problems))
+
+
+def _relax_for(source) -> tuple[str, ...]:
+    return RADAR_RELAX_KEYS if (getattr(source, "query_mode", None) or "static") == "radar" else ()
+
+
+def source_tool_options_problem(source, schema: dict) -> str | None:
+    """The enable-time options verdict for one source, as a message (None
+    when compliant) — the SAME rule :func:`ensure_source_tool_options`
+    enforces, for read paths that must report the charter's ``needs-config``
+    condition instead of raising."""
+    raw = str((getattr(source, "config", None) or {}).get("options") or "")
+    try:
+        options = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        return f"options is not valid JSON: {exc}"
+    if not isinstance(options, dict):
+        return "options must be a JSON object"
+    problems = tool_options_problems(options, schema, relax_keys=_relax_for(source))
+    return "tool options rejected: " + "; ".join(problems) if problems else None
 
 
 def ensure_source_tool_options(source, schema: dict) -> None:
@@ -192,15 +233,9 @@ def ensure_source_tool_options(source, schema: dict) -> None:
     the source's effective query mode (radar relaxes keywords/location —
     the T2 ``validate_config`` rule). Raises core ``ValidationError``
     (→ HTTP 400) naming the field."""
-    relax = RADAR_RELAX_KEYS if (getattr(source, "query_mode", None) or "static") == "radar" else ()
-    raw = str((getattr(source, "config", None) or {}).get("options") or "")
-    try:
-        options = json.loads(raw) if raw.strip() else {}
-    except json.JSONDecodeError as exc:
-        raise ValidationError(f"options is not valid JSON: {exc}") from exc
-    if not isinstance(options, dict):
-        raise ValidationError("options must be a JSON object")
-    validate_tool_options(options, schema, relax_keys=relax)
+    problem = source_tool_options_problem(source, schema)
+    if problem is not None:
+        raise ValidationError(problem)
 
 
 def _protocol(detail: str) -> ConnectorError:

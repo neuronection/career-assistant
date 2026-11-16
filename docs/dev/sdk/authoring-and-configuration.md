@@ -28,7 +28,7 @@ here can drift from the contract:
   "kind": "connector",
   "id": "example-posting-fetcher",
   "version": "1.0.0",
-  "description": "Reference posting fetcher for career-assistant: an external MCP server (T3 script tier) whose fetch_postings tool returns validated RawPosting rows. The script process runs outside the app's network perimeter by design (ADR-0040 clause 21).",
+  "description": "Reference posting fetcher for career-assistant: an external MCP server (T3 script tier) whose fetch_postings tool returns validated RawPosting rows. The script process runs outside the app's network perimeter by design.",
   "docs": "docs/docs-tree.json",
   "author": "Neuronection",
   "license": "MIT",
@@ -74,9 +74,9 @@ the charter's `limits`; hosts may tighten, never loosen.
 
 | Field | Required | Meaning & constraints |
 |---|---|---|
-| `apiVersion` | ✔ | `"extension/v1"` — the envelope scheme (mini-apps instead carry the ADR-0029 integer `apiVersion: 0\|1`) |
+| `apiVersion` | ✔ | `"extension/v1"` — the envelope scheme (mini-apps instead carry the integer `apiVersion: 0\|1`) |
 | `kindVersion` | ✔ (connector/bridge) | integer `0`–`1`; a host with a lower refinement self-disables the import typed `unsupported` |
-| `kind` | ✔ | `"connector"` (imports of kind `mini-app` follow the ADR-0029 shape; `bridge` is server-class, not hosted) |
+| `kind` | ✔ | `"connector"` (imports of kind `mini-app` follow the mini-app shape; `bridge` is server-class, not hosted) |
 | `packKind` | mini-app | `assessment \| surface` |
 | `id` | ✔ | pattern `^[a-z][a-z0-9-]{2,39}$`; stable id — the install's instance key and content dir name. Reserved prefixes `host-`/`neuro-` are rejected |
 | `title` | – | ≤ 80 chars — the human display name surfaces show ("LinkedIn"); optional, hosts fall back to the id. Imported connector sources carry it as the source's display name. Presentational only: not part of the consent-triggering diff (capabilities/configSchema), though a title edit still changes the bundle digest — tier re-consent law applies as for any content change |
@@ -99,7 +99,7 @@ the charter's `limits`; hosts may tighten, never loosen.
 | `icon` | – | data-URL `png\|jpeg\|webp` base64 only, ≤ 64 KB (SVG is structurally rejected) |
 | `itemSchema` | ✔ (connector) | the flat `RawPosting` record (≤ 64 properties; `external_id` + `title` required at minimum) |
 | `supportsIncremental` | ✔ (connector) | must match reality — the conformance kit tests capability honesty |
-| `contributions`, `run`, `report`, `liveCard`, `surfaces`, `data` | mini-app | the ADR-0029 declarative surface refinement: `report.nodes` 1–96 (each ≤ 8 keys), `surfaces` maps `page\|panel\|window` to a report, `data` ≤ 24 keys, `run` ≤ 8, `liveCard` ≤ 4, `contributions` ≤ 8 |
+| `contributions`, `run`, `report`, `liveCard`, `surfaces`, `data` | mini-app | the mini-app declarative surface refinement: `report.nodes` 1–96 (each ≤ 8 keys), `surfaces` maps `page\|panel\|window` to a report, `data` ≤ 24 keys, `run` ≤ 8, `liveCard` ≤ 4, `contributions` ≤ 8 |
 
 Whole-manifest cap: 512 KiB. Requiredness is per kind — the envelope
 rules add the conditional rows above (`entry` for imported connectors,
@@ -180,8 +180,8 @@ MCP_CONFIG_SCHEMA = {
 }
 ```
 
-**Required fields are enforced at save time for T3 managed sources**
-(plan 173): the mcp `options` passthrough is checked against the bundle
+**Required fields are enforced at save time for T3 managed sources**:
+the mcp `options` passthrough is checked against the bundle
 manifest's `configSchema` whenever the source is created, its config is
 saved, its query mode changes, or it is enabled — a missing or empty
 required field (e.g. `keywords`) is a 400 naming the field, not a sync
@@ -190,6 +190,30 @@ that fails later inside the bundle. Radar-mode sources relax
 mirroring the T2 `validate_config` rule. Only required fields gate:
 optional knobs stay free-form (the settings forms store numbers as
 strings; the tool's own validation coerces them).
+
+**Shape constraints belong in the bundle's `pattern`**: a field
+that is interpolated somewhere sensitive — a URL path segment, an
+identifier — should declare its shape, so the settings form and the
+save-time gate reject a malformed value with a field-named 400 instead of
+the tool failing later at run time. `pattern` is honoured wherever it is
+declared, including on optional fields (the rest of the optional knobs
+stay free-form), and radar relaxation still wins because the overlay
+replaces those values per sync. Keep patterns ReDoS-safe: the family
+contract rejects nested quantifiers (star height ≥ 2), so write
+`^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$` rather than the classic
+`^[a-z0-9]+(?:-[a-z0-9]+)*$`.
+
+**A required field the bundle can pre-fill belongs in the manifest's
+`defaults`**: the T3 install seeds the minted source's
+`options` from that top-level map (validated against the bundle's own
+schema — an invalid default rejects the install, exactly like the T2
+`_default_config` rule), so a freshly imported bundle is enable-ready
+without a configure step. Per-field schema `default`s are rendering
+hints, not initial values: the host never applies them. A required field
+with no declared default is the admin's to fill — the install carries the
+charter's `needs-config` condition (a badge in the extensions list) and
+its **Configure** action opens the source's own settings page, where the
+same save-time gate names the missing field.
 
 ### Form hints (`x-choices`, `x-csv`, `x-presets`, `x-section`)
 

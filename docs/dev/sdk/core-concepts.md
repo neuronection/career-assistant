@@ -1,7 +1,7 @@
 # Core Concepts
 
 The nouns this doc set leans on, defined once each. They come from the
-family extension charter (ADR-0040) — the same words across every
+family extension charter — the same words across every
 Neuronection host.
 
 ## extension
@@ -16,7 +16,7 @@ import. An extension has exactly one `kind` (career hosts `connector` and
 
 What the extension *is*, refined per kind by a version: `connector`
 (envelope `extension/v1`, integer `kindVersion`), `mini-app` (the
-ADR-0029 integer `apiVersion: 1` lineage, no `kindVersion`). The kind
+integer `apiVersion: 1` lineage, no `kindVersion`). The kind
 decides which host profile checks apply — a `connector` needs a runnable
 entry; a `mini-app` must declare at least one `ui:*` surface capability
 and must NOT carry one (its artifact is validated data).

@@ -123,6 +123,7 @@ function posting(overrides: Partial<PostingOut> = {}): PostingOut {
     notes: "",
     source_key: "synth",
     mapping_reason: "",
+    repost_count: 0,
     needs_review: false,
     ...overrides,
   };

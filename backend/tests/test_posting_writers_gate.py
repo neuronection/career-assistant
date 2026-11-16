@@ -43,6 +43,7 @@ MANIFEST: dict[str, dict[str, str]] = {
         "apply_extract": "extract_llm",
         "_apply_extract_skills": "extract_llm",
         "replay_posting_resolution": "extract_llm",
+        "run_extract_job": "extract_llm",
     },
     "job_proposal_service": {
         "store_job_type_proposal": "extract_llm",
@@ -52,7 +53,6 @@ MANIFEST: dict[str, dict[str, str]] = {
     },
     "detail_service": {
         "merge_detail": "detail_fetch",
-        "run_detail_enrichment": "detail_fetch",
     },
     "organization_service": {
         "attach_to_posting": "company_match",

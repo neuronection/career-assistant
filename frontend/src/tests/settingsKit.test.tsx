@@ -15,6 +15,12 @@ import { SettingsShell as AppSettingsShell, toLibraryNav } from "@/components/Se
 import { useAuthStore } from "@/stores/authStore";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
+const desktopEnv = vi.hoisted(() => ({ value: false }));
+
+vi.mock("@/lib/desktop", () => ({
+  isDesktop: () => desktopEnv.value,
+}));
+
 describe("SaveStateIndicator", () => {
   it("renders nothing when idle", () => {
     const { container } = render(<SaveStateIndicator state="idle" />);
@@ -221,6 +227,10 @@ function DraftHarness({
 }
 
 describe("SettingsShell glue (app)", () => {
+  beforeEach(() => {
+    desktopEnv.value = false;
+  });
+
   it("maps registry rows to library nav items with section labels", () => {
     const t = (key: string) => `t:${key}` as never;
     const mapped = toLibraryNav(
@@ -266,6 +276,26 @@ describe("SettingsShell glue (app)", () => {
     ).toBe(4);
     expect(screen.getByText("account body")).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("hides the web-only storage entry in the desktop shell", async () => {
+    desktopEnv.value = true;
+    useAuthStore.setState({
+      user: { id: "u1", email: "a@b.c", full_name: "A", is_admin: true } as never,
+    } as never);
+    const { container } = render(
+      <MemoryRouter initialEntries={["/settings/account"]}>
+        <Routes>
+          <Route path="/settings" element={<AppSettingsShell />}>
+            <Route path="account" element={<p>account body</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("Storage")).not.toBeInTheDocument();
+    expect(
+      container.querySelectorAll('[data-as="settings-shell-navitem"]').length
+    ).toBe(9);
   });
 });
 

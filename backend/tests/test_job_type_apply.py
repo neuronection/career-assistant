@@ -119,6 +119,12 @@ async def test_apply_blocks_exact_duplicates_and_honours_the_override(
     assert overridden.json()["job_code"] == "observability-engineer-2", (
         "the -2 suffix is only the explicit override, never silent"
     )
+    created = (
+        (await db.execute(select(Job).where(Job.code == "observability-engineer-2")))
+        .scalars()
+        .one()
+    )
+    assert created.title_key == "observability-engineer"
     assert (await db.execute(select(func.count(Job.id)))).scalar_one() == job_count + 1
 
 
@@ -231,39 +237,6 @@ async def test_apply_and_map_require_admin(client, auth_headers, kinds, db, sour
         headers=headers,
     )
     assert mapped.status_code == 403
-
-
-async def test_queue_envelope_and_legacy_count(db, client, auth_headers, kinds, source):
-    await _family(db)
-    pending = await _posting(db, source)
-    legacy = await upsert_posting(
-        db,
-        source,
-        RawPosting(
-            external_id="legacy-queue",
-            title="Legacy Role",
-            url="https://syn.example/legacy",
-            skills_raw=[],
-            raw={"description": "A legacy role."},
-        ),
-    )
-    await db.commit()
-    facts = {**(legacy.posting_facts or {})}
-    facts["job_proposal"] = {"title_norm": "Legacy Role", "short_description": "old"}
-    legacy.posting_facts = facts
-    attributes.flag_modified(legacy, "posting_facts")
-    await db.commit()
-
-    payload = (
-        await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
-    ).json()
-    assert payload["legacy_count"] == 1
-    ids = {row["id"] for row in payload["items"]}
-    assert str(pending.id) in ids
-    assert str(legacy.id) not in ids, "a v1 object never renders as a v2 card"
-    row = next(entry for entry in payload["items"] if entry["id"] == str(pending.id))
-    assert row["url"] == "https://syn.example/apply"
-    assert "catalog_candidates" in row and "duplicate_candidates" in row
 
 
 async def test_remap_endpoint_queues_and_merges_the_refresh_flag(

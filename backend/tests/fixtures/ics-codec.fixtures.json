@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "utc-timed",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-utc\r\nDTSTART:20261112T100000Z\r\nDTEND:20261112T110000Z\r\nSUMMARY:Interview\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-utc",
+            "summary": "Interview",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "windows-tzid",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-win\r\nDTSTART;TZID=W. Europe Standard Time:20261112T100000\r\nSUMMARY:Outlook interview\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-win",
+            "summary": "Outlook interview",
+            "start": "2026-11-12T09:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "all-day-bom-folded",
+      "ics": "﻿BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-day\r\nDTSTART;VALUE=DATE:20261120\r\nSUMMARY:Folded \r\n summary\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-day",
+            "summary": "Folded summary",
+            "start": "2026-11-20T00:00:00+00:00",
+            "allDay": true
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "cancelled-hidden-by-default",
+      "ics": "BEGIN:VCALENDAR\r\nMETHOD:CANCEL\r\nBEGIN:VEVENT\r\nUID:evt-cancel\r\nDTSTART:20261112T100000Z\r\nSUMMARY:Cancelled\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "unknown-tzid-warns",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-bad\r\nDTSTART;TZID=Mars Standard Time:20261112T100000\r\nSUMMARY:Bad zone\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [],
+        "warnings": [
+          "VEVENT at line 5 has an unreadable DTSTART: unknown TZID: Mars Standard Time"
+        ]
+      }
+    },
+    {
+      "name": "recurrence-master-only",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-rrule\r\nDTSTART:20261112T100000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nSUMMARY:Weekly\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-rrule",
+            "summary": "Weekly",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": [
+          "VEVENT at line 6 has a recurrence rule; only the master was read"
+        ]
+      }
+    },
+    {
+      "name": "windows-tzid-included-cancelled",
+      "ics": "BEGIN:VCALENDAR\r\nMETHOD:CANCEL\r\nBEGIN:VEVENT\r\nUID:evt-cancel-2\r\nDTSTART:20261112T100000Z\r\nSUMMARY:Cancelled\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": true,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-cancel-2",
+            "summary": "Cancelled",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "floating-time-with-default-zone",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-floating\r\nDTSTART:20261112T100000\r\nSUMMARY:Floating\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "defaultTimezone": "Europe/Berlin",
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-floating",
+            "summary": "Floating",
+            "start": "2026-11-12T09:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "missing-uid-warns",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART:20261112T100000Z\r\nSUMMARY:No uid\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "",
+            "summary": "No uid",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": [
+          "VEVENT at line 4 has no UID; accepted as a file import"
+        ]
+      }
+    },
+    {
+      "name": "bad-dtend-warns",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-badend\r\nDTSTART:20261112T100000Z\r\nDTEND:not-a-date\r\nSUMMARY:Bad end\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [
+          {
+            "uid": "evt-badend",
+            "summary": "Bad end",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": [
+          "VEVENT at line 6 has an unreadable DTEND; ignored"
+        ]
+      }
+    },
+    {
+      "name": "max-events-cap",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261112T100000Z\r\nSUMMARY:A\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:b\r\nDTSTART:20261112T110000Z\r\nSUMMARY:B\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "maxEvents": 1,
+      "expect": {
+        "events": [
+          {
+            "uid": "a",
+            "summary": "A",
+            "start": "2026-11-12T10:00:00+00:00",
+            "allDay": false
+          }
+        ],
+        "warnings": [
+          "only the first 1 events were read"
+        ]
+      }
+    },
+    {
+      "name": "status-cancelled-hidden",
+      "ics": "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-status-cancel\r\nDTSTART:20261112T100000Z\r\nSTATUS:CANCELLED\r\nSUMMARY:Cancelled status\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "expect": {
+        "events": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "max-bytes-error",
+      "ics": "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+      "includeCancelled": false,
+      "maxBytes": 10,
+      "expect": {
+        "error": "ICS file is too large"
+      }
+    }
+  ]
+}

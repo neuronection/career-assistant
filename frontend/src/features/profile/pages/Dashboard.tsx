@@ -353,7 +353,12 @@ export function Dashboard() {
           <h2 className="font-semibold text-slate-900 mb-3">{t("dashboard.suggestedNext")}</h2>
           <div className="grid md:grid-cols-2 gap-3">
             {candidates.map((c) => (
-              <JobCard key={c.job.id} job={c.job} density="compact" />
+              <JobCard
+                key={c.job.id}
+                job={c.job}
+                density="compact"
+                onSelect={(j) => openFeedJob(j.id, j.code)}
+              />
             ))}
           </div>
         </section>

@@ -45,6 +45,16 @@ class BasicSection(BaseModel):
 
     birth_year: int | None = Field(default=None, ge=1950, le=max_birth_year())
     education_level: EducationLevel = EducationLevel.HIGH_SCHOOL
+    work_authorization: (
+        Literal[
+            "citizen",
+            "permanent_resident",
+            "student_visa",
+            "needs_sponsorship",
+            "other",
+        ]
+        | None
+    ) = None
     grade: str | None = Field(default=None, max_length=30)
     career_stage: CareerStage | None = None
     onboarding_path: OnboardingPath | None = None

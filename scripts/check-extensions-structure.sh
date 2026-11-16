@@ -21,7 +21,7 @@
 #  3 AI-layer MCP adapters stay in app/ai (ADR-0012 alignment gate R2):
 #    fastmcp/mcp imports appear only under backend/app/ai/
 #  4 vendored family contract modules exist at their ledgered paths
-#    (backend/app/extensions/{polite_http,contract,conformance}.py +
+#    (backend/app/extensions/{polite_http,contract,conformance,extension_sources}.py +
 #    contracts/extension-charter.json …) — drift vs the dev canonicals is
 #    the dev repo's sync --check gate, not this probe
 set -uo pipefail
@@ -100,6 +100,7 @@ for vendored in \
   "backend/app/extensions/polite_http.py" \
   "backend/app/extensions/contract.py" \
   "backend/app/extensions/conformance.py" \
+  "backend/app/extensions/extension_sources.py" \
   "contracts/extension-charter.json" \
   "contracts/extension-manifest.schema.json" \
   "contracts/extension-sources.schema.json" \

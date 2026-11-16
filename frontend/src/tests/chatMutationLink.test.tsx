@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
 const streamChatMessage = vi.hoisted(() => vi.fn());
@@ -32,6 +33,11 @@ vi.mock("@/api/universities", () => ({
 
 vi.mock("@/api/ai", () => ({
   fetchAiTools: vi.fn().mockResolvedValue([]),
+  fetchConfigSummary: vi.fn().mockResolvedValue({
+    tasks: [],
+    can_manage_global: false,
+    mock_allowed: false,
+  }),
   transcribeAudio: vi.fn(),
   classifyDictationError: vi.fn(),
 }));
@@ -66,6 +72,7 @@ async function sendSurface(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  resetConfigSummaryCache();
   api.fetchChatSessions.mockReset().mockResolvedValue([session]);
   api.fetchMessages.mockReset().mockResolvedValue([]);
   api.createChatSession.mockReset();

@@ -1,0 +1,2381 @@
+{
+  "schema_version": 1,
+  "base_commit": "e45bb13c",
+  "generated": "2026-11-10",
+  "purpose": "Plan 210 S1b score-v3 calibration construction: 39 pre-existing synthetic jobs had only filler weights re-tuned so each case keeps its stated intent under the two-way coverage metric. No pre-existing case object changed.",
+  "summary": {
+    "cases": {
+      "before": 164,
+      "after": 169,
+      "additive": 5
+    },
+    "jobs": {
+      "before": 123,
+      "after": 131,
+      "changed": 39
+    },
+    "skills": {
+      "before": 135,
+      "after": 146,
+      "additive": 11
+    },
+    "existing_case_objects_changed": 0,
+    "changed_jobs_only_fillers": true,
+    "additive_cases": [
+      "coverage-complete-type",
+      "title-generic-favours-broad",
+      "title-specific-favours-narrow",
+      "neutral-title-subset-wins",
+      "priority-must-have-wins"
+    ],
+    "additive_skills": [
+      "cov-a",
+      "cov-b",
+      "cov-c",
+      "analyst-a",
+      "analyst-b",
+      "analyst-extra",
+      "neutral-a",
+      "neutral-b",
+      "neutral-c",
+      "prio-a",
+      "prio-b"
+    ]
+  },
+  "untouched_corpus": {
+    "description": "Base fixture (e45bb13c) measured with the old hit/total formula and with the new two-way coverage formula at policy tau=0.34/delta=0.08/blend=0.75-0.25/lambda=0.10.",
+    "rows": [
+      {
+        "corpus": "base",
+        "formula": "old hit/total",
+        "rerank": "on",
+        "precision@1": 1.0,
+        "intent_accuracy": 1.0,
+        "abstention": 0.1935,
+        "source": "implementation-evaluator 2026-11-10"
+      },
+      {
+        "corpus": "base",
+        "formula": "old hit/total",
+        "rerank": "off",
+        "precision@1": 0.6724,
+        "intent_accuracy": 0.6129,
+        "abstention": 0.3763,
+        "source": "implementation-evaluator 2026-11-10"
+      },
+      {
+        "corpus": "base",
+        "formula": "two-way coverage v3",
+        "rerank": "on",
+        "precision@1": 0.9032,
+        "intent_accuracy": 0.7312,
+        "abstention": 0.0,
+        "source": "re-run of tests/posting_mapping_calibration.py on the base fixture"
+      },
+      {
+        "corpus": "base",
+        "formula": "two-way coverage v3",
+        "rerank": "off",
+        "precision@1": 0.7033,
+        "intent_accuracy": 0.5591,
+        "abstention": 0.0215,
+        "source": "re-run of tests/posting_mapping_calibration.py on the base fixture"
+      },
+      {
+        "corpus": "retuned",
+        "formula": "two-way coverage v3",
+        "rerank": "on",
+        "precision@1": 1.0,
+        "intent_accuracy": 1.0,
+        "abstention": 0.1837,
+        "source": "committed calibration report"
+      },
+      {
+        "corpus": "retuned",
+        "formula": "two-way coverage v3",
+        "rerank": "off",
+        "precision@1": 0.6429,
+        "intent_accuracy": 0.6429,
+        "abstention": 0.2857,
+        "source": "committed calibration report"
+      }
+    ]
+  },
+  "changed_jobs": [
+    {
+      "code": "lift-expected-1",
+      "representative_case": "lift-1",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "lift-expected-2",
+      "representative_case": "lift-2",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "lift-expected-3",
+      "representative_case": "lift-3",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "margin-expected-1",
+      "representative_case": "margin-1",
+      "old_fillers": {
+        "count": 14,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 25,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 31.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3243,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "margin-distractor-1",
+      "representative_case": "margin-1",
+      "old_fillers": {
+        "count": 13,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 25,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 19.0,
+      "new_job_weight_total": 31.0,
+      "old_formula_score": 0.3158,
+      "new_formula_before_tuning_score": 0.48,
+      "new_formula_after_tuning_score": 0.3243,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "margin-expected-2",
+      "representative_case": "margin-2",
+      "old_fillers": {
+        "count": 14,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 25,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 31.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3243,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "margin-distractor-2",
+      "representative_case": "margin-2",
+      "old_fillers": {
+        "count": 13,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 25,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 19.0,
+      "new_job_weight_total": 31.0,
+      "old_formula_score": 0.3158,
+      "new_formula_before_tuning_score": 0.48,
+      "new_formula_after_tuning_score": 0.3243,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "threshold-expected-1",
+      "representative_case": "threshold-1",
+      "old_fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 29,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 30.0,
+      "new_job_weight_total": 35.0,
+      "old_formula_score": 0.2,
+      "new_formula_before_tuning_score": 0.3333,
+      "new_formula_after_tuning_score": 0.2927,
+      "gate_before_tuning": false,
+      "gate_after_tuning": false,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "threshold-distractor-1",
+      "representative_case": "threshold-1",
+      "old_fillers": {
+        "count": 17,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 27.0,
+      "old_formula_score": 0.15,
+      "new_formula_before_tuning_score": 0.2308,
+      "new_formula_after_tuning_score": 0.1818,
+      "gate_before_tuning": false,
+      "gate_after_tuning": false,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "threshold-expected-2",
+      "representative_case": "threshold-2",
+      "old_fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 29,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 30.0,
+      "new_job_weight_total": 35.0,
+      "old_formula_score": 0.2,
+      "new_formula_before_tuning_score": 0.3333,
+      "new_formula_after_tuning_score": 0.2927,
+      "gate_before_tuning": false,
+      "gate_after_tuning": false,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "threshold-distractor-2",
+      "representative_case": "threshold-2",
+      "old_fillers": {
+        "count": 17,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 27.0,
+      "old_formula_score": 0.15,
+      "new_formula_before_tuning_score": 0.2308,
+      "new_formula_after_tuning_score": 0.1818,
+      "gate_before_tuning": false,
+      "gate_after_tuning": false,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "operations-lift-expected",
+      "representative_case": "lift-operations",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "operations-draft-expected",
+      "representative_case": "draft-operations",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "operations-draft-distractor",
+      "representative_case": "draft-operations",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "operations-family-anchor",
+      "representative_case": "family-operations-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "sales-lift-expected",
+      "representative_case": "lift-sales",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "sales-draft-expected",
+      "representative_case": "draft-sales",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "sales-draft-distractor",
+      "representative_case": "draft-sales",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "sales-family-anchor",
+      "representative_case": "family-sales-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "cybersecurity-lift-expected",
+      "representative_case": "lift-cybersecurity",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "cybersecurity-draft-expected",
+      "representative_case": "draft-cybersecurity",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "cybersecurity-draft-distractor",
+      "representative_case": "draft-cybersecurity",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "cybersecurity-family-anchor",
+      "representative_case": "family-cybersecurity-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "education-lift-expected",
+      "representative_case": "lift-education",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "education-draft-expected",
+      "representative_case": "draft-education",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "education-draft-distractor",
+      "representative_case": "draft-education",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "education-family-anchor",
+      "representative_case": "family-education-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "legal-lift-expected",
+      "representative_case": "lift-legal",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "legal-draft-expected",
+      "representative_case": "draft-legal",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "legal-draft-distractor",
+      "representative_case": "draft-legal",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "legal-family-anchor",
+      "representative_case": "family-legal-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "research-lift-expected",
+      "representative_case": "lift-research",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "research-draft-expected",
+      "representative_case": "draft-research",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "research-draft-distractor",
+      "representative_case": "draft-research",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "research-family-anchor",
+      "representative_case": "family-research-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "hospitality-lift-expected",
+      "representative_case": "lift-hospitality",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 20.0,
+      "new_job_weight_total": 32.0,
+      "old_formula_score": 0.3,
+      "new_formula_before_tuning_score": 0.4615,
+      "new_formula_after_tuning_score": 0.3158,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "hospitality-draft-expected",
+      "representative_case": "draft-hospitality",
+      "old_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      },
+      "new_fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 23.0,
+      "new_job_weight_total": 30.0,
+      "old_formula_score": 0.2609,
+      "new_formula_before_tuning_score": 0.4138,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    },
+    {
+      "code": "hospitality-draft-distractor",
+      "representative_case": "draft-hospitality",
+      "old_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "new_fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          },
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      },
+      "old_job_weight_total": 18.0,
+      "new_job_weight_total": 25.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3871,
+      "gate_before_tuning": true,
+      "gate_after_tuning": true,
+      "effect": "score moved within the gated band; case outcome restored by margin/rerank"
+    },
+    {
+      "code": "hospitality-family-anchor",
+      "representative_case": "family-hospitality-1",
+      "old_fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "new_fillers": {
+        "count": 12,
+        "level": 10,
+        "importance": "bonus"
+      },
+      "old_job_weight_total": 9.0,
+      "new_job_weight_total": 15.0,
+      "old_formula_score": 0.3333,
+      "new_formula_before_tuning_score": 0.5,
+      "new_formula_after_tuning_score": 0.3333,
+      "gate_before_tuning": true,
+      "gate_after_tuning": false,
+      "effect": "deterministic gate removed by re-tuning (mapped -> below tau)"
+    }
+  ],
+  "case_manifest": {
+    "description": "Canonical hash of the pre-existing case objects (including the semantic oracle and posting status). A future edit that changes any listed field fails test_posting_mapping_fixture_integrity.",
+    "case_fields": [
+      "id",
+      "title",
+      "description",
+      "skills",
+      "semantic",
+      "expected_job",
+      "expected_family",
+      "expected_outcome",
+      "posting_status",
+      "manual_job",
+      "draft_jobs",
+      "skill_meta",
+      "kind",
+      "ambiguous"
+    ],
+    "existing_case_ids": [
+      "clear-account-executive",
+      "clear-biostatistician",
+      "clear-compliance-officer",
+      "clear-contract-manager",
+      "clear-curriculum-designer",
+      "clear-customer-success-manager",
+      "clear-data-pipeline",
+      "clear-data-scientist",
+      "clear-education-program-manager",
+      "clear-event-planner",
+      "clear-finance",
+      "clear-food-service-manager",
+      "clear-front-desk-supervisor",
+      "clear-frontend",
+      "clear-grc-specialist",
+      "clear-growth",
+      "clear-hotel-manager",
+      "clear-instructional-coordinator",
+      "clear-lab-manager",
+      "clear-learning-designer",
+      "clear-logistics-planner",
+      "clear-nurse",
+      "clear-operations-coordinator",
+      "clear-paralegal",
+      "clear-penetration-tester",
+      "clear-privacy-counsel",
+      "clear-product-design",
+      "clear-research-scientist",
+      "clear-sales-engineer",
+      "clear-sales-ops-analyst",
+      "clear-security-analyst",
+      "clear-security-engineer",
+      "clear-supply-chain-analyst",
+      "clear-warehouse-manager",
+      "delta-cybersecurity",
+      "delta-education",
+      "delta-hospitality",
+      "delta-legal",
+      "delta-operations",
+      "delta-research",
+      "delta-sales",
+      "draft-cybersecurity",
+      "draft-education",
+      "draft-hospitality",
+      "draft-legal",
+      "draft-operations",
+      "draft-research",
+      "draft-sales",
+      "family-cybersecurity-1",
+      "family-cybersecurity-2",
+      "family-cybersecurity-3",
+      "family-education-1",
+      "family-education-2",
+      "family-education-3",
+      "family-hospitality-1",
+      "family-hospitality-2",
+      "family-hospitality-3",
+      "family-legal-1",
+      "family-legal-2",
+      "family-legal-3",
+      "family-operations-1",
+      "family-operations-2",
+      "family-operations-3",
+      "family-research-1",
+      "family-research-2",
+      "family-research-3",
+      "family-sales-1",
+      "family-sales-2",
+      "family-sales-3",
+      "lift-1",
+      "lift-2",
+      "lift-3",
+      "lift-cybersecurity",
+      "lift-education",
+      "lift-hospitality",
+      "lift-legal",
+      "lift-operations",
+      "lift-research",
+      "lift-sales",
+      "manual-cybersecurity-a",
+      "manual-cybersecurity-b",
+      "manual-education-a",
+      "manual-education-b",
+      "manual-hospitality-a",
+      "manual-hospitality-b",
+      "manual-legal-a",
+      "manual-legal-b",
+      "manual-operations-a",
+      "manual-operations-b",
+      "manual-research-a",
+      "manual-research-b",
+      "manual-sales-a",
+      "manual-sales-b",
+      "margin-1",
+      "margin-2",
+      "margin-cybersecurity",
+      "margin-education",
+      "margin-hospitality",
+      "margin-legal",
+      "margin-operations",
+      "margin-research",
+      "margin-sales",
+      "misleading-cybersecurity",
+      "misleading-education",
+      "misleading-hospitality",
+      "misleading-legal",
+      "misleading-operations",
+      "misleading-research",
+      "misleading-sales",
+      "no-shared-skill",
+      "none-cybersecurity-1",
+      "none-cybersecurity-2",
+      "none-cybersecurity-3",
+      "none-education-1",
+      "none-education-2",
+      "none-education-3",
+      "none-hospitality-1",
+      "none-hospitality-2",
+      "none-hospitality-3",
+      "none-legal-1",
+      "none-legal-2",
+      "none-legal-3",
+      "none-operations-1",
+      "none-operations-2",
+      "none-operations-3",
+      "none-research-1",
+      "none-research-2",
+      "none-research-3",
+      "none-sales-1",
+      "none-sales-2",
+      "none-sales-3",
+      "terminal-cybersecurity-expired",
+      "terminal-cybersecurity-hidden",
+      "terminal-education-expired",
+      "terminal-education-hidden",
+      "terminal-hospitality-expired",
+      "terminal-hospitality-hidden",
+      "terminal-legal-expired",
+      "terminal-legal-hidden",
+      "terminal-operations-expired",
+      "terminal-operations-hidden",
+      "terminal-research-expired",
+      "terminal-research-hidden",
+      "terminal-sales-expired",
+      "terminal-sales-hidden",
+      "threshold-1",
+      "threshold-2",
+      "threshold-cybersecurity",
+      "threshold-education",
+      "threshold-hospitality",
+      "threshold-legal",
+      "threshold-operations",
+      "threshold-research",
+      "threshold-sales",
+      "wrong-1",
+      "wrong-2",
+      "wrong-3",
+      "wrong-cybersecurity",
+      "wrong-education",
+      "wrong-hospitality",
+      "wrong-legal",
+      "wrong-operations",
+      "wrong-research",
+      "wrong-sales"
+    ],
+    "organic_count": 164,
+    "canonicalization": "sha256(json.dumps([{field: case.get(field) for field in case_fields} for case in cases sorted by id], sort_keys=True, separators=(',',':'), ensure_ascii=False))",
+    "canonical_sha256": "195e33c50c38165d15048e88ef65e86bef771a220acaab6083ae0e8b2427495d"
+  },
+  "job_manifest": {
+    "description": "Canonical hash of the pre-existing job objects excluding fillers. Filler-only re-tuning is the only permitted change to these jobs.",
+    "job_fields": [
+      "code",
+      "title",
+      "family",
+      "status",
+      "description",
+      "skills"
+    ],
+    "existing_job_codes": [
+      "account-executive",
+      "auditor",
+      "backend-engineer",
+      "biostatistician",
+      "clinic-coordinator",
+      "compliance-officer",
+      "content-strategist",
+      "contract-manager",
+      "curriculum-designer",
+      "customer-success-manager",
+      "cybersecurity-draft-distractor",
+      "cybersecurity-draft-expected",
+      "cybersecurity-family-anchor",
+      "cybersecurity-lift-distractor",
+      "cybersecurity-lift-expected",
+      "cybersecurity-misleading-distractor",
+      "cybersecurity-misleading-expected",
+      "cybersecurity-wrong-distractor",
+      "cybersecurity-wrong-expected",
+      "data-pipeline-engineer",
+      "data-scientist",
+      "data-warehouse-architect",
+      "education-draft-distractor",
+      "education-draft-expected",
+      "education-family-anchor",
+      "education-lift-distractor",
+      "education-lift-expected",
+      "education-misleading-distractor",
+      "education-misleading-expected",
+      "education-program-manager",
+      "education-wrong-distractor",
+      "education-wrong-expected",
+      "event-planner",
+      "financial-analyst",
+      "food-service-manager",
+      "front-desk-supervisor",
+      "frontend-engineer",
+      "grc-specialist",
+      "growth-marketer",
+      "hospitality-draft-distractor",
+      "hospitality-draft-expected",
+      "hospitality-family-anchor",
+      "hospitality-lift-distractor",
+      "hospitality-lift-expected",
+      "hospitality-misleading-distractor",
+      "hospitality-misleading-expected",
+      "hospitality-wrong-distractor",
+      "hospitality-wrong-expected",
+      "hotel-manager",
+      "instructional-coordinator",
+      "lab-manager",
+      "learning-designer",
+      "legal-draft-distractor",
+      "legal-draft-expected",
+      "legal-family-anchor",
+      "legal-lift-distractor",
+      "legal-lift-expected",
+      "legal-misleading-distractor",
+      "legal-misleading-expected",
+      "legal-wrong-distractor",
+      "legal-wrong-expected",
+      "lift-distractor-1",
+      "lift-distractor-2",
+      "lift-distractor-3",
+      "lift-expected-1",
+      "lift-expected-2",
+      "lift-expected-3",
+      "logistics-planner",
+      "margin-distractor-1",
+      "margin-distractor-2",
+      "margin-expected-1",
+      "margin-expected-2",
+      "operations-coordinator",
+      "operations-draft-distractor",
+      "operations-draft-expected",
+      "operations-family-anchor",
+      "operations-lift-distractor",
+      "operations-lift-expected",
+      "operations-misleading-distractor",
+      "operations-misleading-expected",
+      "operations-wrong-distractor",
+      "operations-wrong-expected",
+      "paralegal",
+      "penetration-tester",
+      "privacy-counsel",
+      "product-designer",
+      "registered-nurse",
+      "research-draft-distractor",
+      "research-draft-expected",
+      "research-family-anchor",
+      "research-lift-distractor",
+      "research-lift-expected",
+      "research-misleading-distractor",
+      "research-misleading-expected",
+      "research-scientist",
+      "research-wrong-distractor",
+      "research-wrong-expected",
+      "sales-draft-distractor",
+      "sales-draft-expected",
+      "sales-engineer",
+      "sales-family-anchor",
+      "sales-lift-distractor",
+      "sales-lift-expected",
+      "sales-misleading-distractor",
+      "sales-misleading-expected",
+      "sales-ops-analyst",
+      "sales-wrong-distractor",
+      "sales-wrong-expected",
+      "security-analyst",
+      "security-engineer",
+      "supply-chain-analyst",
+      "threshold-distractor-1",
+      "threshold-distractor-2",
+      "threshold-expected-1",
+      "threshold-expected-2",
+      "ux-researcher",
+      "warehouse-manager",
+      "wrong-distractor-1",
+      "wrong-distractor-2",
+      "wrong-distractor-3",
+      "wrong-expected-1",
+      "wrong-expected-2",
+      "wrong-expected-3"
+    ],
+    "organic_count": 123,
+    "canonicalization": "sha256(json.dumps([{field: job.get(field) for field in job_fields} for job in jobs sorted by code], sort_keys=True, separators=(',',':'), ensure_ascii=False))",
+    "canonical_sha256": "ecf70d8a1cb09008461b7e713b3c7a7affd2cead2966de53ad6a20ee86a30d46"
+  }
+}

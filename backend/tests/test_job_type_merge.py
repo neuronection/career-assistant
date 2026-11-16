@@ -36,6 +36,13 @@ async def _skill(db, key) -> Skill:
     return skill
 
 
+async def _job(db, family, code: str, title: str, status: str) -> Job:
+    job = Job(code=code, title=title, family_id=family.id, status=status)
+    db.add(job)
+    await db.commit()
+    return job
+
+
 async def _pair(db, family) -> tuple[Job, Job]:
     target = Job(
         code="software-engineer",
@@ -95,6 +102,40 @@ async def test_duplicate_groups_group_normalized_titles(db, client, auth_headers
     assert len(groups) == 1
     codes = {job["code"] for job in groups[0]["jobs"]}
     assert codes == {"software-engineer", "software-engineer-2"}
+
+
+async def test_duplicate_groups_include_draft_rows(db, client, auth_headers):
+    family = await _family(db)
+    published = await _job(db, family, "published-exact", "Software Engineer", "published")
+    draft = await _job(db, family, "draft-exact", "software engineer", "draft")
+
+    response = await client.get("/api/v1/admin/jobs/duplicate-types", headers=auth_headers)
+    assert response.status_code == 200
+    groups = response.json()["groups"]
+    exact = [group for group in groups if group["kind"] == "exact"]
+    assert len(exact) == 1
+    assert {job["code"] for job in exact[0]["jobs"]} == {published.code, draft.code}
+
+
+async def test_duplicate_groups_report_near_pairs_and_merge_stays_exact(db, client, auth_headers):
+    family = await _family(db)
+    published = await _job(db, family, "data-engineer", "Data Engineer", "published")
+    near = await _job(db, family, "senior-data-engineer", "Senior Data Engineer", "published")
+
+    response = await client.get("/api/v1/admin/jobs/duplicate-types", headers=auth_headers)
+    assert response.status_code == 200
+    near_groups = [group for group in response.json()["groups"] if group["kind"] == "near"]
+    assert len(near_groups) == 1
+    assert {job["code"] for job in near_groups[0]["jobs"]} == {published.code, near.code}
+    assert near_groups[0]["similarity"] >= 0.72
+
+    merged = await client.post(
+        f"/api/v1/admin/jobs/{near.id}/merge",
+        json={"target_id": str(published.id)},
+        headers=auth_headers,
+    )
+    assert merged.status_code == 409
+    assert merged.json()["code"] == "merge_refused"
 
 
 async def test_merge_repoints_and_retires_with_the_field_rules(
@@ -275,7 +316,7 @@ async def test_merge_repoints_and_retires_with_the_field_rules(
 
     from app.services.postings.mapping_candidates import catalog_candidates
 
-    candidates = await catalog_candidates(db, {skill.id})
+    candidates = await catalog_candidates(db, {skill.id: 1.0})
     candidate_ids = {candidate.job.id for candidate in candidates}
     assert src.id not in candidate_ids, "the retired source is not a join candidate"
     assert tgt.id in candidate_ids

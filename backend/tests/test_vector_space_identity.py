@@ -95,7 +95,7 @@ def _chunk() -> ChunkConfig:
 
 
 def _v2(dim: int = DIM) -> str:
-    return vc.space_key_v2(
+    return vc.space_key_token_aware(
         "openai",
         "text-embedding-3-small",
         dim,

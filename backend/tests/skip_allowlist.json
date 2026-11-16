@@ -102,6 +102,36 @@
       "reason_contains": "dev canonical not present",
       "when": "conditional",
       "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_conformance",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_document_facade_roundtrip",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_materialize_uses_private_temp_file",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_azure.py::test_azure_conformance",
+      "reason_contains": "Azure smoke disabled",
+      "when": "conditional",
+      "why": "opt-in Azure Blob provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_azure.py::test_azure_document_facade_roundtrip",
+      "reason_contains": "Azure smoke disabled",
+      "when": "conditional",
+      "why": "opt-in Azure Blob provider smoke; normal PRs and the desktop suite need no cloud credentials"
     }
   ],
   "sqlite": [
@@ -230,6 +260,36 @@
       "reason_contains": "pgvector is not installed in this environment",
       "when": "conditional",
       "why": "the native ANN cases exercise pgvector; the SQLite desktop lane has no pgvector extension"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_conformance",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_document_facade_roundtrip",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_s3.py::test_s3_materialize_uses_private_temp_file",
+      "reason_contains": "S3 smoke disabled",
+      "when": "conditional",
+      "why": "opt-in S3/MinIO provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_azure.py::test_azure_conformance",
+      "reason_contains": "Azure smoke disabled",
+      "when": "conditional",
+      "why": "opt-in Azure Blob provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_object_storage_azure.py::test_azure_document_facade_roundtrip",
+      "reason_contains": "Azure smoke disabled",
+      "when": "conditional",
+      "why": "opt-in Azure Blob provider smoke; normal PRs and the desktop suite need no cloud credentials"
     }
   ]
 }

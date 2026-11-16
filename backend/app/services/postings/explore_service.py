@@ -13,7 +13,7 @@ sidebar badges stay live when a facet is active.
 import base64
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -44,6 +44,45 @@ if TYPE_CHECKING:
 
 SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 REMOTE_VALUES = ("onsite", "hybrid", "remote")
+OPPORTUNITY_VALUES = (
+    "internship",
+    "placement_year",
+    "apprenticeship",
+    "graduate_scheme",
+    "insight_programme",
+    "part_time",
+    "full_time",
+    "contract",
+    "unknown",
+)
+WORK_AUTH_VALUES = ("none", "sponsors", "case_by_case", "citizens_only")
+CLOSING_WINDOWS = {"7d": 7, "30d": 30, "90d": 90}
+
+# Plan 212 §3.3: opportunity_type is the student-facing classification; when
+# a posting predates v6, map its employment_type at query time (never a
+# stored fallback). Temporary/other has no student-facing equivalent.
+OPPORTUNITY_EXPR = case(
+    (
+        JobPosting.opportunity_type.is_not(None),
+        JobPosting.opportunity_type,
+    ),
+    (
+        JobPosting.employment_type.in_(
+            (
+                "internship",
+                "placement_year",
+                "apprenticeship",
+                "graduate_scheme",
+                "insight_programme",
+                "part_time",
+                "full_time",
+                "contract",
+            ),
+        ),
+        JobPosting.employment_type,
+    ),
+    else_="unknown",
+)
 SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
 BENEFIT_KIND_VALUES = (
     "healthcare",
@@ -81,6 +120,11 @@ ALLOWED_FILTER_KEYS = frozenset(
         "seniority",
         "seniority_exclude",
         "employment_type",
+        "opportunity_type",
+        "opportunity_type_exclude",
+        "work_authorization",
+        "work_authorization_exclude",
+        "closing_within",
         "remote_policy",
         "remote_policy_exclude",
         "city",
@@ -92,6 +136,7 @@ ALLOWED_FILTER_KEYS = frozenset(
         "saved",
         "seen",
         "seen_exclude",
+        "hide_duplicates",
         "applied",
         "applied_exclude",
         "hidden_include",
@@ -117,6 +162,9 @@ DIMENSIONS = (
     "languages",
     "seniority",
     "employment_type",
+    "opportunity_type",
+    "work_authorization",
+    "closing",
     "remote_policy",
     "location",
     "released",
@@ -124,6 +172,7 @@ DIMENSIONS = (
     "mapped_family",
     "job",
     "state",
+    "duplicates",
     "contract",
     "travel",
     "schedule",
@@ -267,6 +316,22 @@ def parse_explore_filters(params: dict) -> dict:
         if values:
             filters[key] = values[:12]
 
+    for key, allowed_values in (
+        ("opportunity_type", OPPORTUNITY_VALUES),
+        ("work_authorization", WORK_AUTH_VALUES),
+    ):
+        values = [value for value in _as_list(params.get(key)) if value in allowed_values]
+        if values:
+            filters[key] = values[:12]
+        excluded = [
+            value for value in _as_list(params.get(f"{key}_exclude")) if value in allowed_values
+        ]
+        if excluded:
+            filters[f"{key}_exclude"] = excluded[:12]
+
+    if params.get("closing_within") in CLOSING_WINDOWS:
+        filters["closing_within"] = CLOSING_WINDOWS[str(params["closing_within"])]
+
     job_codes = [code.strip() for code in _as_list(params.get("job")) if code.strip()]
     if job_codes:
         filters["job"] = job_codes[:20]
@@ -313,7 +378,7 @@ def parse_explore_filters(params: dict) -> dict:
     for key in ("saved", "seen", "applied", "extracted_only", "hidden_include"):
         if params.get(key) not in (None, "") and _as_bool(params.get(key)):
             filters[key] = True
-    for key in ("seen_exclude", "applied_exclude"):
+    for key in ("seen_exclude", "applied_exclude", "hide_duplicates"):
         if params.get(key) not in (None, "") and _as_bool(params[key]):
             filters[key] = True
     return filters
@@ -534,17 +599,26 @@ def _conditions_for(
         )
 
     elif dimension == "languages" and filters.get("languages"):
-        extracted = func.lower(JobPosting.extract["languages"].as_string())
         matches = [
-            extracted.like(f'%"{_like_literal(lang)}"%', escape="\\")
+            JobPosting.language_codes.like(f"%,{_like_literal(lang)},%", escape="\\")
             for lang in filters["languages"]
         ]
         conditions.append(or_(*matches))
 
-    elif dimension in ("seniority", "employment_type", "remote_policy", "contract", "travel"):
+    elif dimension in (
+        "seniority",
+        "employment_type",
+        "opportunity_type",
+        "work_authorization",
+        "remote_policy",
+        "contract",
+        "travel",
+    ):
         column = {
             "seniority": JobPosting.seniority,
             "employment_type": JobPosting.employment_type,
+            "opportunity_type": OPPORTUNITY_EXPR,
+            "work_authorization": JobPosting.work_authorization,
             "remote_policy": JobPosting.onsite_policy,
             "contract": JobPosting.contract_type,
             "travel": JobPosting.travel_class,
@@ -553,6 +627,20 @@ def _conditions_for(
             conditions.append(column.in_(filters[dimension]))
         if filters.get(f"{dimension}_exclude"):
             conditions.append(or_(column.is_(None), column.not_in(filters[f"{dimension}_exclude"])))
+
+    elif dimension == "duplicates" and _as_bool(filters.get("hide_duplicates")):
+        conditions.append(JobPosting.duplicate_of_id.is_(None))
+
+    elif dimension == "closing" and filters.get("closing_within"):
+        days = int(filters["closing_within"])
+        today = datetime.now(UTC).date()
+        conditions.append(
+            and_(
+                JobPosting.application_deadline.is_not(None),
+                JobPosting.application_deadline >= today,
+                JobPosting.application_deadline <= today + timedelta(days=days),
+            )
+        )
 
     elif dimension == "schedule" and (filters.get("schedule") or filters.get("schedule_exclude")):
         facts_text = func.coalesce(func.cast(JobPosting.posting_facts, Text), "")
@@ -1323,7 +1411,7 @@ async def explore(
         "next_cursor": next_cursor,
     }
     if with_facets:
-        result["facets"] = await facets(db, user_id, filters, basis=basis)
+        result["facets"], result["job_titles"] = await facets(db, user_id, filters, basis=basis)
     return result
 
 
@@ -1357,13 +1445,16 @@ async def _grouped_facet(
     return {key: int(count) for key, count in (await db.execute(statement)).all()}
 
 
-async def facets(db: AsyncSession, user_id: UUID, filters: dict, *, basis: str = "open") -> dict:
-    """Self-excluding facet counts over the active filter set.
+async def facets(
+    db: AsyncSession, user_id: UUID, filters: dict, *, basis: str = "open"
+) -> tuple[dict, dict[str, str]]:
+    """Self-excluding facet counts and the job-code title map.
 
     One grouped query per value dimension (each dimension must recount
     without its own filter, so a single pass cannot answer them all);
     within a dimension the pass is one query instead of one count per
-    value.
+    value. The job dimension also returns its code→title labels from the
+    same grouped query.
     """
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
@@ -1409,6 +1500,56 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict, *, basis: str =
         basis=basis,
     )
     facets["remote_policy"] = {value: remote_counts.get(value, 0) for value in REMOTE_VALUES}
+
+    opportunity_counts = await _grouped_facet(
+        db,
+        user_id,
+        filters,
+        skill_ids,
+        source_ids,
+        skip={"opportunity_type"},
+        group=OPPORTUNITY_EXPR,
+        basis=basis,
+    )
+    facets["opportunity_type"] = {
+        value: opportunity_counts.get(value, 0) for value in OPPORTUNITY_VALUES
+    }
+
+    auth_counts = await _grouped_facet(
+        db,
+        user_id,
+        filters,
+        skill_ids,
+        source_ids,
+        skip={"work_authorization"},
+        group=JobPosting.work_authorization,
+        basis=basis,
+    )
+    facets["work_authorization"] = {value: auth_counts.get(value, 0) for value in WORK_AUTH_VALUES}
+
+    today = datetime.now(UTC).date()
+    closing_bucket = case(
+        (JobPosting.application_deadline.is_(None), "none"),
+        (JobPosting.application_deadline < today, "expired"),
+        (JobPosting.application_deadline <= today + timedelta(days=7), "7d"),
+        (JobPosting.application_deadline <= today + timedelta(days=30), "30d"),
+        (JobPosting.application_deadline <= today + timedelta(days=90), "90d"),
+        else_="later",
+    )
+    closing_counts = await _grouped_facet(
+        db,
+        user_id,
+        filters,
+        skill_ids,
+        source_ids,
+        skip={"closing"},
+        group=closing_bucket,
+        basis=basis,
+    )
+    facets["closing"] = {
+        value: closing_counts.get(value, 0)
+        for value in ("7d", "30d", "90d", "later", "expired", "none")
+    }
 
     education_counts: dict[str, int] = {}
     for raw_level, count in (
@@ -1482,20 +1623,22 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict, *, basis: str =
 
     job_conditions = _collect_conditions(filters, skill_ids, source_ids, user_id, skip={"job"})
     job_query = (
-        select(Job.code, func.count(JobPosting.id))
+        select(Job.code, Job.title, func.count(JobPosting.id))
         .join(Job, Job.id == JobPosting.catalog_job_id)
-        .where(_status_condition(False, basis))
+        .where(_status_condition(False, basis), Job.status != "retired")
     )
     if job_conditions:
         job_query = job_query.where(and_(*job_conditions))
     job_rows = await db.execute(
-        job_query.group_by(Job.code)
+        job_query.group_by(Job.code, Job.title)
         .order_by(func.count(JobPosting.id).desc(), Job.code.asc())
         .limit(20)
     )
-    facets["job"] = {code: int(count) for code, count in job_rows.all()}
+    rows = job_rows.all()
+    facets["job"] = {code: int(count) for code, _title, count in rows}
+    job_titles = {code: title for code, title, _count in rows}
 
-    return facets
+    return facets, job_titles
 
 
 # ------------------------------------------------------- sources + similar

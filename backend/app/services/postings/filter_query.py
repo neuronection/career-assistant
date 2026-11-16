@@ -173,11 +173,10 @@ def _languages(spec: PostingFilterSpec) -> list[ColumnElement]:
     if not (spec.languages.include or spec.languages.exclude):
         return []
     clauses: list[ColumnElement] = []
-    langs = cast(JobPosting.extract, String)
     for value in spec.languages.include:
-        clauses.append(langs.ilike(f'%"{value}"%'))
+        clauses.append(JobPosting.language_codes.ilike(f"%,{value},%"))
     for value in spec.languages.exclude:
-        clauses.append(~langs.ilike(f'%"{value}"%'))
+        clauses.append(~JobPosting.language_codes.ilike(f"%,{value},%"))
     return clauses
 
 

@@ -127,7 +127,24 @@ def test_boot_guard_valid_production_config(monkeypatch):
     monkeypatch.setattr(settings, "identity_mode", "server")
     _pin_keys(monkeypatch, _STRONG["session"], _STRONG["refresh"], _STRONG["data"])
     monkeypatch.setattr(settings, "debug", False)
-    assert validate_boot_config() == []
+    # ADR-0064 tri-state: a valid production config without the split
+    # markers is **legacy** — allowed, with exactly the loud legacy warning.
+    warnings = validate_boot_config()
+    assert len(warnings) == 1
+    assert "legacy DB credentials" in warnings[0]
+
+    # The supported split shape (migrations URL + marker) silences it.
+    monkeypatch.setattr(
+        type(settings),
+        "migrations_database_url",
+        property(lambda self: "postgresql+asyncpg://owner:x@db:5432/career"),
+        raising=False,
+    )
+    monkeypatch.setattr(type(settings), "db_split", property(lambda self: True), raising=False)
+    try:
+        assert validate_boot_config() == []
+    finally:
+        monkeypatch.undo()
 
 
 async def test_production_without_providers_resolves_to_none(db, monkeypatch):

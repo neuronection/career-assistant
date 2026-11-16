@@ -8,15 +8,19 @@ normal PATCH path). `gaps` and tailor's coverage map are deterministic
 computations, not AI.
 """
 
+from __future__ import annotations
+
+import re
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.cv_suggester import suggest
 from app.core.errors import NotFoundError, ValidationError
 from app.models.posting_model import JobPosting
-from app.models.taxonomy_model import Skill
-from app.models.user_model import UserSkill
 from app.schemas.cv_suggest import (
+    BulletCheck,
+    BulletReview,
     CompactionItem,
     CoverageEntry,
     CvActionRequest,
@@ -26,10 +30,109 @@ from app.schemas.cv_suggest import (
     TailorCoverage,
     VerifiedProposal,
 )
-from app.schemas.posting import PostingExtractOut
+from app.schemas.posting import PostingExtractOut, PostingGapEvidenceOut
 from app.services.cv.cv_builder_service import CvBuilderService
+from app.services.postings.gap_service import (
+    gap_status,
+    skill_labels,
+    skill_levels,
+    user_evidence,
+)
+from app.services.profile.competency_service import competency_keys_for_text
 
 COMPACT_THRESHOLD = 180
+
+_WEAK_OPENING = re.compile(
+    r"^(responsible for|worked on|helped|assisted|participated|involved in|"
+    r"duties included|tasked with)\b",
+    re.IGNORECASE,
+)
+_PASSIVE = re.compile(r"\b(was|were|been|being)\s+\w+(ed|en)\b", re.IGNORECASE)
+
+
+def bullet_reviews(bullets: list[str]) -> list[BulletReview]:
+    """Deterministic bullet coaching (plan 212 S1.6).
+
+    No AI: length, quantification, weak openings, passive voice and
+    duplicate opening words. Messages are advisory; the user edits.
+    """
+    reviews: list[BulletReview] = []
+    seen_openings: dict[str, int] = {}
+    for index, raw in enumerate(bullets):
+        text = str(raw or "").strip()
+        checks: list[BulletCheck] = []
+        if not text:
+            checks.append(BulletCheck(id="empty", level="fail", message="This bullet is empty."))
+            reviews.append(
+                BulletReview(
+                    index=index,
+                    checks=checks,
+                    competency_keys=competency_keys_for_text(text),
+                )
+            )
+            continue
+        if len(text) > 180:
+            checks.append(
+                BulletCheck(
+                    id="long",
+                    level="warn",
+                    message="Long bullet — split it or trim to the outcome.",
+                )
+            )
+        elif len(text) < 30:
+            checks.append(
+                BulletCheck(
+                    id="short",
+                    level="info",
+                    message="Very short — add the scope or the result.",
+                )
+            )
+        if not re.search(r"\d", text):
+            checks.append(
+                BulletCheck(
+                    id="no_number",
+                    level="warn",
+                    message="No number — add a metric (%, €, count or time).",
+                )
+            )
+        opening = _WEAK_OPENING.match(text)
+        if opening:
+            checks.append(
+                BulletCheck(
+                    id="duty_opening",
+                    level="warn",
+                    message="Leads with a duty phrase — start with an action and result.",
+                )
+            )
+        if _PASSIVE.search(text):
+            checks.append(
+                BulletCheck(
+                    id="passive",
+                    level="info",
+                    message="Passive voice — prefer the active verb.",
+                )
+            )
+        first = re.match(r"[A-Za-z]+", text)
+        if first:
+            verb = first.group(0).lower()
+            if verb in seen_openings:
+                checks.append(
+                    BulletCheck(
+                        id="duplicate_opening",
+                        level="warn",
+                        message=f"Starts like bullet {seen_openings[verb] + 1} — vary the opening.",
+                    )
+                )
+            else:
+                seen_openings[verb] = index
+        reviews.append(
+            BulletReview(
+                index=index,
+                checks=checks,
+                competency_keys=competency_keys_for_text(text),
+            )
+        )
+    return reviews
 
 
 def _evidence_of(resolution) -> tuple[list[dict], set[tuple[str, str]]]:
@@ -72,19 +175,63 @@ def _sections_in_blocks(blocks: list[dict]) -> set[str]:
     return keys
 
 
-def _coverage(extract: PostingExtractOut, levels: dict[str, int]) -> TailorCoverage:
+async def section_gaps(db: AsyncSession, user_id, blocks: list[dict]) -> list[SectionGap]:
+    """Deterministic missing-section report (no AI): every context
+    source with resolvable items that the CV's blocks do not render."""
+    from app.services.cv.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
+
+    resolved = await resolve_sources(db, user_id)
+    present = _sections_in_blocks(blocks)
+    gaps: list[SectionGap] = []
+    for key, definition in CV_CONTEXT_SOURCES.items():
+        candidates = len(resolved.get(key) or [])
+        if candidates == 0 or key in present:
+            continue
+        gaps.append(
+            SectionGap(
+                source_key=key,
+                label=definition.label,
+                message=f"No {definition.label} section in the blocks — "
+                f"{candidates} item(s) available from your profile.",
+                candidate_count=candidates,
+            )
+        )
+    return gaps
+
+
+def tailor_coverage(
+    extract: PostingExtractOut,
+    levels: dict[str, int],
+    labels: dict[str, str] | None = None,
+    evidence: dict[str, list[PostingGapEvidenceOut]] | None = None,
+) -> TailorCoverage:
+    """Deterministic must-have coverage vs the user's levels.
+
+    The same rows the posting gap report computes (`gap_service`), cut
+    to the keyed view the tailor table renders: labels that never
+    resolved to a key are the gap report's rows and never enter
+    coverage. List membership keeps its historical rule (a recorded
+    level → `covered`); `status` carries the level truth — a covered
+    entry below the required level is `partial`, not quietly `met`."""
     covered: list[CoverageEntry] = []
     missing: list[CoverageEntry] = []
     for skill in extract.skills:
         if not skill.skill_key:
             continue
+        user_level = levels.get(skill.skill_key)
         entry = CoverageEntry(
             skill_key=skill.skill_key,
-            label=skill.skill_key,
+            label=(labels or {}).get(skill.skill_key) or skill.skill_key,
             priority=skill.priority,
-            user_level=levels.get(skill.skill_key),
+            user_level=user_level,
+            raw_label=skill.raw_label or skill.skill_key,
+            required_level=skill.required_level,
+            evidence_quote=skill.evidence_quote,
+            user_evidence=(evidence or {}).get(skill.skill_key, []),
+            kind="skill",
+            status=gap_status(skill.required_level, user_level),
         )
-        (covered if skill.skill_key in levels else missing).append(entry)
+        (covered if user_level is not None else missing).append(entry)
     return TailorCoverage(covered=covered, missing=missing)
 
 
@@ -107,6 +254,8 @@ class CvSuggestionService:
             gaps = await self._gaps(cv)
             await self.db.commit()
             return CvSuggestionOut(action=action, gaps=gaps)
+        if action == "bullet_review":
+            return CvSuggestionOut(action=action, bullet_checks=bullet_reviews(payload.bullets))
         prompts = await self.template_prompts(cv)
         if action == "tailor":
             return await self._tailor(cv, payload)
@@ -191,29 +340,15 @@ class CvSuggestionService:
         return items
 
     async def _gaps(self, cv) -> list[SectionGap]:
-        from app.services.cv.cv_context_service import (
-            CV_CONTEXT_SOURCES,
-            resolve_sources,
-        )
-
-        resolved = await resolve_sources(self.db, cv.user_id)
         blocks = (cv.working_content or {}).get("blocks") or await self._default_blocks(cv)
-        present = _sections_in_blocks(blocks)
-        gaps: list[SectionGap] = []
-        for key, definition in CV_CONTEXT_SOURCES.items():
-            candidates = len(resolved.get(key) or [])
-            if candidates == 0 or key in present:
-                continue
-            gaps.append(
-                SectionGap(
-                    source_key=key,
-                    label=definition.label,
-                    message=f"No {definition.label} section in the blocks — "
-                    f"{candidates} item(s) available from your profile.",
-                    candidate_count=candidates,
-                )
-            )
-        return gaps
+        return await section_gaps(self.db, cv.user_id, blocks)
+
+    async def section_gap_report(self, cv) -> list[SectionGap]:
+        """The deterministic missing-section report (no AI, no write).
+
+        The kit's prepare step calls this directly — `run("gaps")` is the
+        CV Studio surface for the same computation."""
+        return await self._gaps(cv)
 
     async def _default_blocks(self, cv) -> list[dict]:
         template_content, _template_id = await self.builder.template_content(cv)
@@ -233,16 +368,11 @@ class CvSuggestionService:
         if not posting.extract:
             raise ValidationError("The posting has no deep extraction yet — run the extract first")
         extract = PostingExtractOut.model_validate(posting.extract)
-        rows = await self.db.execute(
-            select(UserSkill, Skill)
-            .join(Skill, Skill.id == UserSkill.skill_id)
-            .where(
-                UserSkill.user_id == cv.user_id,
-                UserSkill.derive_enabled,
-            )
-        )
-        levels = {skill.key: user_skill.level for user_skill, skill in rows.all()}
-        coverage = _coverage(extract, levels)
+        extract_keys = [skill.skill_key for skill in extract.skills if skill.skill_key]
+        levels = await skill_levels(self.db, cv.user_id, extract_keys)
+        labels = await skill_labels(self.db, extract_keys)
+        skill_evidence = await user_evidence(self.db, cv.user_id, extract_keys)
+        coverage = tailor_coverage(extract, levels, labels, skill_evidence)
 
         resolution = await self.builder.resolution(cv)
         evidence, allowlist = _evidence_of(resolution)

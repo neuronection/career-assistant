@@ -13,15 +13,20 @@ instances, `demo` tokens rejected elsewhere (§18.11).
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 import sqlite3
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from httpx import ASGITransport
 
 from app.core.config import settings
+from app.seeds.catalog import JOBS
+from app.seeds.taxonomy import SKILL_TAGS
 from tests.conftest import CleanJarClient, auth_kit, session_headers
 
 # Every test here implements identity-auth §18.11 (demo principal/seeder
@@ -44,10 +49,43 @@ DEMO_COUNTS = {
     "certifications": 2,
     "honors": 1,
     "cvs": 3,
-    "postings": 4,
+    "postings": 14,
+    "posting_skills": 54,
     "applications": 6,
     "demo_mode": 1,
 }
+
+# The captured/hero roles must each carry at least one mapped posting.
+SEEDED_ROLE_CODES = {
+    "accountant",
+    "teacher",
+    "nurse",
+    "graphic-designer",
+    "financial-analyst",
+    "data-scientist",
+    "software-developer",
+    "marketing-specialist",
+    "electrician",
+    "chef",
+}
+
+SKILL_PRIORITIES = {"must_have", "nice_to_have", "bonus"}
+
+
+def load_seeder() -> ModuleType:
+    """Import the seeder for its static spec (no DB touched at import)."""
+    spec = importlib.util.spec_from_file_location("career_seed_demo", SEEDER)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # Dataclasses resolve their module by name while the class is built.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+SEED = load_seeder()
+SKILL_KEYS = {tag["key"] for tag in SKILL_TAGS}
+CATALOG_JOB_CODES = {job["code"] for job in JOBS}
 
 
 def run_seeder(*args: str) -> subprocess.CompletedProcess[str]:
@@ -79,6 +117,7 @@ def db_counts(database: Path) -> dict[str, int]:
             "profile_achievements",
             "cv_documents",
             "job_postings",
+            "posting_skills",
             "posting_interactions",
             "applications",
             "skills",
@@ -106,6 +145,7 @@ def named_counts(counts: dict[str, int]) -> dict[str, int]:
         "honors": counts["profile_achievements"],
         "cvs": counts["cv_documents"],
         "postings": counts["job_postings"],
+        "posting_skills": counts["posting_skills"],
         "applications": counts["applications"],
         "demo_mode": counts["demo_mode"],
     }
@@ -246,6 +286,105 @@ def test_seeder_seeds_demo_workspace_idempotently_only_in_the_demo_instance(
 
 
 # ---------------------------------------------------------------------------
+# The synthetic posting pool: no empty job cards, real skill edges.
+# ---------------------------------------------------------------------------
+
+
+def test_demo_posting_specs_reference_real_catalog_and_skills() -> None:
+    """Static contract: every spec links a real catalog job and reference skills."""
+    assert len(SEED.DEMO_POSTINGS) == 14
+    codes = {spec.catalog_job_code for spec in SEED.DEMO_POSTINGS}
+    assert codes >= SEEDED_ROLE_CODES, SEEDED_ROLE_CODES - codes
+    unknown_jobs = codes - CATALOG_JOB_CODES
+    assert unknown_jobs == set(), f"unknown catalog job codes {unknown_jobs}"
+    for spec in SEED.DEMO_POSTINGS:
+        assert 2 <= len(spec.skills) <= 5, spec.key
+        skill_keys = [skill.skill_key for skill in spec.skills]
+        assert len(skill_keys) == len(set(skill_keys)), spec.key
+        # A typo fails loudly here instead of silently seeding one edge less.
+        unknown = [key for key in skill_keys if key not in SKILL_KEYS]
+        assert unknown == [], f"{spec.key}: unknown skill keys {unknown}"
+        for skill in spec.skills:
+            assert 1 <= skill.required_level <= 10, spec.key
+            assert skill.priority in SKILL_PRIORITIES, spec.key
+        # The expiry sweep treats 45-day-old postings as stale.
+        assert spec.posted_days_ago <= 44, spec.key
+
+
+def test_demo_postings_and_skills_land_mapped_and_idempotently(tmp_path: Path) -> None:
+    demo_dir = tmp_path / "demo-workspace"
+    seeded = run_seeder("--demo-dir", str(demo_dir), "--init-demo")
+    assert seeded.returncode == 0, seeded.stderr
+
+    database = demo_db(demo_dir)
+    connection = sqlite3.connect(database)
+    try:
+        postings = {
+            row[0]: row[1]
+            for row in connection.execute("SELECT id, status FROM job_postings").fetchall()
+        }
+        assert len(postings) == len(SEED.DEMO_POSTINGS)
+        assert set(postings.values()) == {"mapped"}
+
+        rows = connection.execute(
+            "SELECT posting_id, skill_id, required_level, priority FROM posting_skills"
+        ).fetchall()
+        pairs = [(row[0], row[1]) for row in rows]
+        assert len(pairs) == len(set(pairs))
+        assert all(1 <= level <= 10 for *_, level, priority in rows)
+        assert {priority for *_, level, priority in rows} <= SKILL_PRIORITIES
+
+        per_posting = Counter(posting_id for posting_id, *_ in rows)
+        assert set(per_posting) == set(postings), "every posting carries skill context"
+        assert all(2 <= count <= 5 for count in per_posting.values())
+
+        posting_skill_keys = {
+            row[0]
+            for row in connection.execute(
+                "SELECT DISTINCT s.key FROM posting_skills ps JOIN skills s ON s.id = ps.skill_id"
+            ).fetchall()
+        }
+        assert posting_skill_keys
+        assert posting_skill_keys <= SKILL_KEYS
+
+        # Accountant proof: one mapped posting with a real requirement set.
+        accountant = connection.execute(
+            "SELECT p.id FROM job_postings p JOIN jobs j ON j.id = p.catalog_job_id "
+            "WHERE j.code = 'accountant' AND p.status = 'mapped'"
+        ).fetchall()
+        assert len(accountant) == 1
+        accountant_skills = connection.execute(
+            "SELECT s.key FROM posting_skills ps JOIN skills s ON s.id = ps.skill_id "
+            "WHERE ps.posting_id = ?",
+            (accountant[0][0],),
+        ).fetchall()
+        assert {row[0] for row in accountant_skills} <= SKILL_KEYS
+        assert len(accountant_skills) >= 2
+
+        for code in SEEDED_ROLE_CODES:
+            mapped = connection.execute(
+                "SELECT COUNT(*) FROM job_postings p JOIN jobs j ON j.id = p.catalog_job_id "
+                "WHERE j.code = ? AND p.status = 'mapped'",
+                (code,),
+            ).fetchone()[0]
+            assert mapped >= 1, code
+
+        # Reference catalogs stay reference data (unchanged by the demo seed).
+        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 45
+        assert connection.execute("SELECT COUNT(*) FROM job_relations").fetchone()[0] == 40
+    finally:
+        connection.close()
+
+    # A second run adds no posting and no posting-skill edge.
+    second = run_seeder("--demo-dir", str(demo_dir))
+    assert second.returncode == 0, second.stderr
+    assert "(0 created this run)" in second.stdout
+    assert "  postings: 14 (0 created this run)" in second.stdout
+    assert "  posting_skills: 54 (0 created this run)" in second.stdout
+    assert db_counts(database)["posting_skills"] == len(rows)
+
+
+# ---------------------------------------------------------------------------
 # Public instance config (the badge must render before login).
 # ---------------------------------------------------------------------------
 
@@ -261,6 +400,9 @@ async def test_instance_config_is_public_and_profile_exempt(client) -> None:
         # §4 entrypoint mode is public fact — the §4.5 control blocks
         # "Remove login" on server instances (S14).
         "identity_mode": "server",
+        # The datastore-break marker is desktop-only; a server never
+        # exposes a local path (family datastore-breaks contract).
+        "datastore_quarantine": None,
     }
 
 

@@ -7,7 +7,7 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
 
 ## Secrets
 
-- **Per-instance key family** (identity-auth §8, plan 16 P3d): three
+- **Per-instance key family** (identity-auth §8): three
   independent secrets — `CAREER_SESSION_KEY` (signs session JWTs),
   `CAREER_REFRESH_KEY` (signs refresh JWTs) and `CAREER_DATA_KEY`
   (Fernet, encrypts secrets at rest and never signs). Nothing is derived
@@ -24,7 +24,7 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
   responses carry a `***` mask (`mask_secret`), and updates treat `***` as
   "keep existing". Legacy plaintext rows remain readable; ciphertext that
   does not verify under the key ring reads as `None` (never a guess).
-- **The JWT-derived Fernet is retired** (plan 16 P3d/C7): the v0.17
+- **The JWT-derived Fernet is retired**: the v0.17
   baseline derives nothing from `JWT_SECRET`. Pre-baseline installs were
   drained by the retired `0044` migration (stored AI provider keys wiped
   once — re-enter them in Settings → AI Configuration — and every other
@@ -64,7 +64,7 @@ plaintext).
 
 ## Authentication
 
-The family auth contract (guideline `identity-auth.md`, ADR-0013) — the
+The family auth contract (guideline `identity-auth.md`) — the
 shared `neuronection-auth-kit` package is the implementation:
 
 - **Session cookies + double-submit CSRF** (§10): `nx_access` /
@@ -83,7 +83,7 @@ shared `neuronection-auth-kit` package is the implementation:
   refresh families with rotation + reuse detection, bcrypt ≥12 passwords.
 - **Lockout** after repeated failures (`CAREER_AUTH_LOCKOUT_THRESHOLD` /
   `CAREER_AUTH_LOCKOUT_MINUTES`) and a minimum password length (10).
-- **§16 config surface** (plan 16 P3d / ADR-0028): `CAREER_COOKIE_SECURE`,
+- **§16 config surface**: `CAREER_COOKIE_SECURE`,
   `CAREER_AUTH_ACCESS_TTL_MINUTES`, `CAREER_AUTH_REFRESH_TTL_DAYS`,
   `CAREER_AUTH_REFRESH_ABSOLUTE_DAYS`, `CAREER_AUTH_LOCKOUT_*`,
   `CAREER_TRUSTED_PROXY_COUNT` and `CAREER_RATELIMIT_*` are routed through
@@ -91,7 +91,7 @@ shared `neuronection-auth-kit` package is the implementation:
   via `nx_auth.config.knob_overrides` — one table with the kit), so the
   deployment `.env` file works like the process environment (OS env
   wins).
-- **Identity glue (ADR-0028, plan 20):** the §4 init rules
+- **Identity glue:** the §4 init rules
   (`nx_auth.instance.initialize_instance` — §4.4 coerces
   `CAREER_AUTH_MODE=open` on a server entrypoint to `authenticated`,
   unknown values fail closed, post-init flips warn loudly) and the boot
@@ -119,7 +119,7 @@ shared `neuronection-auth-kit` package is the implementation:
 
 ## Rate limiting
 
-The kit's family limiter (`nx_auth.ratelimit`, plan 21) with career's
+The kit's family limiter (`nx_auth.ratelimit`) with career's
 buckets: `AUTH`, `AUTH_EMAIL`, `AI`, `MCP`, `DEFAULT` (frozen family
 set; `AUTH`/`AUTH_EMAIL` also feed the kit's auth limiters). The
 in-memory counter matches this product's single-process topology —
@@ -134,18 +134,18 @@ family rule). Note the gateway's per-user AI limiter is keyed on the
 only explicitly forwarded hops (`CAREER_TRUSTED_PROXY_COUNT`, default 0
 — set 1 behind a reverse proxy; the kit's auth limiters use the same
 knob). Ceilings are read per request from Settings, so `.env` and OS
-env behave identically (plan 20 B2).
+env behave identically.
 
 ## Security headers
 
-The kit's `SecurityHeadersMiddleware` (`nx_auth.headers`, plan 21) with
+The kit's `SecurityHeadersMiddleware` (`nx_auth.headers`) with
 career's policy: `nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: strict-origin-when-cross-origin` on every response,
 plus the family CSP — web strict (`script-src 'self'`); the desktop
 shell document (loaded with the per-boot `?shell=` token) gets the
 variant adding `'unsafe-eval'` for the pywebview bridge. Browsers never
 see the token; web deployments keep the strict CSP. HSTS stays at the
-nginx layer (ADR-0005).
+nginx layer.
 
 ## Production boot guards
 
@@ -175,8 +175,12 @@ unconfigured (503s) until an admin sets a provider.
 
 ## Outbound requests and uploads
 
-- **SSRF guard**: resolve-then-connect blocklist, manual redirect hops, size
-  and time caps on fetches.
+- **SSRF guard**: resolve-then-connect blocklist with the checked address
+  **pinned into the request** (URL host → IP, original `Host`, `sni_hostname`),
+  manual redirect hops re-guarded and re-pinned, credentials dropped on a
+  cross-host hop, and size/time caps on fetches. The Playwright render tier
+  guards every request the page makes (navigations, redirects, subresources)
+  and aborts non-public targets.
 - **Uploads**: size-capped (`CAREER_MAX_UPLOAD_MB`), type-checked; nginx enforces a
   matching body cap. Uploaded documents are stored under the data/uploads dir.
 

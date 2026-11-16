@@ -1,0 +1,146 @@
+name: Cloud storage smoke
+
+# Manual provider smoke for the S3 and Azure Blob backends.
+#
+# Normal PRs never run this workflow: it is workflow_dispatch-only and the
+# regular suite keeps provider tests skipped (local backend only). Run it
+# before a release, or after provisioning a bucket/container, from
+# Actions → Cloud storage smoke → Run workflow.
+#
+# Required configuration (Settings → Secrets and variables → Actions):
+#   secrets.AWS_ACCESS_KEY_ID, secrets.AWS_SECRET_ACCESS_KEY
+#       Test-only AWS credentials whose policy allows the `test/*` prefix on
+#       the bucket (list + get/put/delete objects; kms:GenerateDataKey and
+#       kms:Decrypt when SSE=aws:kms).
+#   vars.AWS_S3_TEST_BUCKET      (default: study-assistant-test)
+#   vars.AWS_S3_TEST_REGION      (default: eu-north-1)
+#   secrets.AZURE_STORAGE_CONNECTION_STRING
+#       Test-only container connection string.
+#   vars.AZURE_STORAGE_TEST_CONTAINER (default: study-data-tst-01)
+#
+# `prefix` must stay inside the identity's policy prefix (test/…). Each test
+# adds its own random sub-prefix and deletes what it wrote.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to smoke
+        type: choice
+        options: [all, aws, azure]
+        default: all
+      prefix:
+        description: Key prefix (inside the IAM/container policy)
+        type: string
+        default: test/career-smoke
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  aws:
+    name: AWS S3
+    if: ${{ inputs.provider == 'all' || inputs.provider == 'aws' }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: neuronection_career_test
+          POSTGRES_USER: neuronection_career_owner
+          POSTGRES_PASSWORD: career_dev_pw
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U neuronection_career_owner -d neuronection_career_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env: &career-smoke-env
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+      CAREER_UPLOAD_DIR: ${{ runner.temp }}/career-uploads
+      CAREER_DATA_DIR: ${{ runner.temp }}/career-data
+      CAREER_MOCK_AI: "1"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          : "${AWS_ACCESS_KEY_ID:?secret AWS_ACCESS_KEY_ID is required}"
+          : "${AWS_SECRET_ACCESS_KEY:?secret AWS_SECRET_ACCESS_KEY is required}"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Migrate test database
+        working-directory: backend
+        run: uv run alembic upgrade head
+      - name: S3 conformance + document facade round-trip
+        working-directory: backend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          CAREER_TEST_ALLOW_NETWORK: "1"
+          CAREER_TEST_S3_BUCKET: ${{ vars.AWS_S3_TEST_BUCKET || 'study-assistant-test' }}
+          CAREER_TEST_S3_REGION: ${{ vars.AWS_S3_TEST_REGION || 'eu-north-1' }}
+          CAREER_TEST_S3_PREFIX: ${{ inputs.prefix }}
+        run: uv run --with boto3 pytest -q tests/test_object_storage_s3.py
+
+  azure:
+    name: Azure Blob
+    if: ${{ inputs.provider == 'all' || inputs.provider == 'azure' }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: neuronection_career_test
+          POSTGRES_USER: neuronection_career_owner
+          POSTGRES_PASSWORD: career_dev_pw
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U neuronection_career_owner -d neuronection_career_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env: *career-smoke-env
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require Azure credentials
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+        run: |
+          : "${AZURE_STORAGE_CONNECTION_STRING:?secret AZURE_STORAGE_CONNECTION_STRING is required}"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Migrate test database
+        working-directory: backend
+        run: uv run alembic upgrade head
+      - name: Azure conformance + document facade round-trip
+        working-directory: backend
+        env:
+          CAREER_TEST_ALLOW_NETWORK: "1"
+          CAREER_TEST_AZURE_CONTAINER: ${{ vars.AZURE_STORAGE_TEST_CONTAINER || 'study-data-tst-01' }}
+          CAREER_TEST_AZURE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          CAREER_TEST_AZURE_PREFIX: ${{ inputs.prefix }}
+        run: uv run --with azure-storage-blob pytest -q tests/test_object_storage_azure.py

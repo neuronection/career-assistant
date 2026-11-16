@@ -7,13 +7,13 @@ export type EducationLevel =
   | "master"
   | "doctorate";
 
-export type GradeBand =
-  | "low"
-  | "below_average"
-  | "average"
-  | "good"
-  | "excellent"
-  | "unknown";
+export type GradeScale =
+  | "uk_honours"
+  | "gpa_4"
+  | "gpa_10"
+  | "de_note"
+  | "percentage"
+  | "other";
 
 export interface EducationItemIn {
   institution: string;
@@ -23,7 +23,8 @@ export interface EducationItemIn {
   start: string | null;
   end: string | null;
   in_progress: boolean;
-  grade_band: GradeBand | null;
+  grade_scale: GradeScale | null;
+  grade_value: number | null;
   focus_subjects: string[];
   description: string;
   status: "draft" | "active";
@@ -39,7 +40,8 @@ export interface EducationItemUpdate {
   start?: string | null;
   end?: string | null;
   in_progress?: boolean;
-  grade_band?: GradeBand | null;
+  grade_scale?: GradeScale | null;
+  grade_value?: number | null;
   focus_subjects?: string[];
   description?: string;
   status?: "draft" | "active";
@@ -56,7 +58,9 @@ export interface EducationItemOut {
   start: string | null;
   end: string | null;
   in_progress: boolean;
-  grade_band: string | null;
+  grade_scale: string | null;
+  grade_value: number | null;
+  grade_ordinal: number | null;
   focus_subjects: string[];
   description: string;
   source: "self_report" | "cv_parse" | "assessment" | "import";

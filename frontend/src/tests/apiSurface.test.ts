@@ -63,10 +63,15 @@ function consumers(name: string, ownFile: string): string[] {
 }
 
 describe("api client surface", () => {
-  it("ships every exported client function with a consumer", () => {
-    const orphans = apiExports()
-      .filter(({ file, name }) => consumers(name, file).length === 0)
-      .map(({ file, name }) => `${relative(SRC, file).split(sep).join("/")} → ${name}`);
-    expect(orphans).toEqual([]);
-  });
+  // The whole-tree parse can exceed vitest's 5s default under parallel load.
+  it(
+    "ships every exported client function with a consumer",
+    () => {
+      const orphans = apiExports()
+        .filter(({ file, name }) => consumers(name, file).length === 0)
+        .map(({ file, name }) => `${relative(SRC, file).split(sep).join("/")} → ${name}`);
+      expect(orphans).toEqual([]);
+    },
+    15_000,
+  );
 });

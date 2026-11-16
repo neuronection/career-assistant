@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import * as extApi from "@/api/extensionSources";
 import type {
   ConsentPayload,
@@ -8,6 +9,7 @@ import type {
   ExtensionSourceView,
 } from "@/api/extensionSources";
 import { apiDetail } from "@/api/client";
+import { fetchAdminSources } from "@/api/sources";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import { Button } from "@/components/ui";
 import {
@@ -18,8 +20,10 @@ import {
 } from "@/components/ui/integrations";
 import type {
   IntegrationCapabilityView,
+  IntegrationConditionId,
   IntegrationConsentPayloadView,
   IntegrationExtensionGroupView,
+  IntegrationInstanceView,
   IntegrationSourceDraft,
   IntegrationSourceRowView,
 } from "@/components/ui/integrations";
@@ -79,6 +83,10 @@ function mapGroups(installs: ExtensionInstallView[]): IntegrationExtensionGroupV
       originClass: install.originClass,
       tier: install.tier,
       lifecycle: install.state,
+      conditions: (install.conditions ?? []).filter(
+        (condition): condition is IntegrationConditionId => condition === "needs-config",
+      ),
+      metadata: install.sourceKey ? { sourceKey: install.sourceKey } : undefined,
       parked: install.parked,
       managedBy: install.managedBy,
       digest: install.digest,
@@ -154,6 +162,7 @@ function extErrorText(error: {
 
 export function ExtensionSourcesSection() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [sources, setSources] = useState<ExtensionSourceView[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<extApi.ExtensionSourceView | null>(null);
@@ -188,6 +197,24 @@ export function ExtensionSourcesSection() {
       setNotice(apiDetail(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // needs-config path (guidelines/extensions.md): the minted job source is
+  // configured on its own page — the enable gate never guesses a value.
+  const configure = async (instance: IntegrationInstanceView) => {
+    const key = typeof instance.metadata?.sourceKey === "string" ? instance.metadata.sourceKey : "";
+    setNotice("");
+    try {
+      const rows = await fetchAdminSources();
+      const target = key ? rows.find((row) => row.key === key) : undefined;
+      if (!target) {
+        setNotice(t("toolsSettings.connectors.extSources.configureMissingSource"));
+        return;
+      }
+      navigate(`/sources/${target.id}`);
+    } catch (err) {
+      setNotice(apiDetail(err));
     }
   };
 
@@ -313,6 +340,7 @@ export function ExtensionSourcesSection() {
           parkLabel: t("toolsSettings.connectors.extSources.park"),
           restoreLabel: t("toolsSettings.connectors.extSources.restore"),
           tombstoneLabel: t("toolsSettings.connectors.extSources.tombstone"),
+          configureLabel: t("toolsSettings.connectors.extSources.configure"),
           applyUpdateLabel: t("toolsSettings.connectors.extSources.applyUpdate"),
           updateAvailableLabel: t("toolsSettings.connectors.extSources.updateAvailableShort"),
           reconsentRequiredLabel: t("toolsSettings.connectors.extSources.needsReconsent"),
@@ -364,6 +392,7 @@ export function ExtensionSourcesSection() {
               : extApi.parkExtensionInstall(instance.id),
           )
         }
+        onConfigure={(_sourceId, instance) => void configure(instance)}
         onApplyUpdate={(_sourceId, instance) =>
           void run(async () => {
             const preview = await extApi.fetchUpdatePreview(instance.id);

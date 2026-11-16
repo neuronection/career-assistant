@@ -6,6 +6,15 @@
     "badge": "Demo — synthetische Daten",
     "description": "Diese Instanz läuft auf fiktiven Daten und wird periodisch zurückgesetzt."
   },
+  "datastoreQuarantine": {
+    "title": "Ihre bisherigen Daten wurden aufbewahrt",
+    "bodyUnreadable": "Ihre bisherige Datenbank konnte nicht gelesen werden, daher startet diese Version mit einer neuen. Es wurde nichts gelöscht — die unlesbare Datei und Ihre übrigen Daten wurden in den unten genannten Ordner verschoben.",
+    "body": "Diese Version verwendet eine neue Datenbank und kann Ihre bisherige nicht lesen. Es wurde nichts gelöscht — Ihre alten Daten wurden in den unten genannten Ordner verschoben und sind dort sicher.",
+    "pathLabel": "Ordner der bisherigen Daten",
+    "copy": "Pfad kopieren",
+    "rollback": "Um zurückzugehen, installieren Sie die vorherige Version erneut und stellen Sie diesen Ordner wieder her. Sie können diesen Hinweis schließen; er erscheint nicht erneut.",
+    "dismiss": "Weiter"
+  },
   "update": {
     "tooltip": "Version {{version}} ist verfügbar",
     "releaseNotes": "Versionshinweise",
@@ -34,7 +43,9 @@
     "paths": "Karrierepfade",
     "companies": "Unternehmen",
     "radar": "Job-Radar",
-    "marketStats": "Marktintelligenz"
+    "marketStats": "Marktintelligenz",
+    "contacts": "Kontakte",
+    "marketGuide": "Marktleitfaden"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -181,6 +192,17 @@
     "hide": "Ausblenden",
     "hidden": "Ausgeblendet",
     "hideTitle": "Aus meinem Feed ausblenden (nur für die Auswahl — Ihr Status bleibt unverändert)",
+    "retiredBanner": "Dieser Jobtyp wurde zurückgezogen.",
+    "retiredSuccessor": "Zusammengeführt in {{title}}",
+    "openRoles": "{{count}} offene Stelle(n)",
+    "browsePostings": "Anzeigen durchsuchen",
+    "education": "Ausbildung",
+    "linkKind": {
+      "apply": "Bewerben",
+      "learn": "Mehr erfahren",
+      "certification": "Zertifizierung",
+      "video": "Video"
+    },
     "scoring": "Bewertung…",
     "scoreForMe": "Bewertung für mich",
     "positivesForYou": "Positive für Sie",
@@ -196,7 +218,6 @@
     "baseline": "Basis",
     "units": "Einheiten",
     "subjects": "Fächer",
-    "education": "Ausbildung",
     "marketSnapshot": "Marktübersicht",
     "salary": "Gehalt (pro Jahr)",
     "physicalEnvironment": "Physische Umgebung",
@@ -274,6 +295,15 @@
       "responsibilities": "Aufgaben",
       "skills": "Fähigkeiten",
       "body": "Volltext"
+    },
+    "educationLevel": {
+      "no_formal": "Keine formale Ausbildung",
+      "middle_school": "Mittelschule",
+      "high_school": "Gymnasium",
+      "vocational": "Berufsausbildung",
+      "bachelor": "Bachelor",
+      "master": "Master",
+      "doctorate": "Promotion"
     }
   },
   "families": {
@@ -361,6 +391,24 @@
     "generate": "Generieren",
     "universities": "Universitäten",
     "searchPlaceholder": "Jobs suchen…",
+    "graphViewer": {
+      "title": "Berufs-Beziehungsgraph",
+      "summary": "{{visible}} von {{total}} Berufen",
+      "relations_one": "{{count}} Beziehung",
+      "relations_other": "{{count}} Beziehungen",
+      "filterLabel": "Nach Beziehung filtern",
+      "filterAll": "Alle",
+      "filterSimilar": "Ähnlich",
+      "filterLeads": "Führt zu",
+      "filterAlternative": "Alternative",
+      "filterPrerequisite": "Voraussetzung",
+      "filterSpecialises": "Spezialisiert",
+      "search": "Berufe nach Titel suchen",
+      "openJob": "Beruf öffnen →",
+      "reset": "Zurücksetzen",
+      "showAll": "Alle {{count}} anzeigen",
+      "showDefault": "{{count}} anzeigen"
+    },
     "filters": {
       "skills": "Fähigkeiten",
       "addSkill": "Fähigkeit hinzufügen…",
@@ -487,7 +535,28 @@
     "roadmapsTitle": "Ihre Karrierepläne",
     "skip": "überspringen",
     "radarOpenJob": "Beruf öffnen",
-    "radarOpenPaths": "Karrierepfade ansehen"
+    "radarOpenPaths": "Karrierepfade ansehen",
+    "competencies": {
+      "title": "NACE-Kompetenzen für den Berufseinstieg",
+      "subtitle": "Aus Ihren eigenen Belegen abgeleitet. Keine Selbsteinschätzung und kein Score — jede Kompetenz nennt Belege oder sagt, dass keine vorliegen.",
+      "noEvidence": "Noch keine Belege. Fügen Sie eine Erfahrung, einen Erfolg, eine Fähigkeit oder ein Zertifikat hinzu.",
+      "kinds": {
+        "experience": "Erfahrung",
+        "achievement": "Erfolg",
+        "skill": "Fähigkeit",
+        "certification": "Zertifikat"
+      },
+      "items": {
+        "critical_thinking": "Kritisches Denken & Problemlösen",
+        "communication": "Mündliche & schriftliche Kommunikation",
+        "teamwork": "Teamarbeit & Zusammenarbeit",
+        "digital_technology": "Digitale Technologie",
+        "leadership": "Führung",
+        "professionalism": "Professionalität & Arbeitsethik",
+        "career_management": "Karrieremanagement",
+        "intercultural": "Globale & interkulturelle Kompetenz"
+      }
+    }
   },
   "about": {
     "tagline": "Open-Source, selbst gehosteter Karriere-Explorer",
@@ -527,6 +596,7 @@
     "loadMore": "Mehr anzeigen",
     "loadingMore": "Weitere Stellen werden geladen…",
     "intro": "Alle offenen Stellenangebote aus Ihren Quellen — filtern, verfeinern, detailliert analysieren.",
+    "capture": "Per URL hinzufügen",
     "facet": {
       "skills": "Fähigkeiten",
       "workMode": "Arbeitsweise",
@@ -536,7 +606,10 @@
       "organization": "Organisation",
       "sources": "Quellen",
       "posted": "Veröffentlicht",
-      "job": "Beruf"
+      "job": "Beruf",
+      "opportunityType": "Angebotsart",
+      "workAuthorization": "Arbeitsberechtigung",
+      "closing": "Bewerbungsschluss"
     },
     "removeSkill": "{{skill}} entfernen",
     "noSources": "Noch keine Quellen verbunden.",
@@ -575,7 +648,15 @@
       "lead": "Leiter",
       "principal": "Hauptverantwortlicher",
       "full_time": "Vollzeit",
-      "part_time": "Teilzeit"
+      "part_time": "Teilzeit",
+      "placement_year": "Praxissemester",
+      "graduate_scheme": "Graduate-Programm",
+      "insight_programme": "Insight-Programm",
+      "unknown": "Unbekannt",
+      "sponsors": "Visa-Sponsoring",
+      "case_by_case": "Einzelfallprüfung",
+      "citizens_only": "Nur Staatsangehörige",
+      "cannot_sponsor": "Kein Sponsoring"
     },
     "radarApply": "Mein Radar",
     "radarClear": "Radar löschen",
@@ -593,7 +674,14 @@
     "smartSearchSubmit": "Suchen",
     "interpretedAs": "Interpretiert als",
     "removeInterpreted": "Filter {key} entfernen",
-    "dismissInterpreted": "Ausblenden"
+    "dismissInterpreted": "Ausblenden",
+    "closing": {
+      "d7": "Innerhalb von 7 Tagen",
+      "d30": "Innerhalb von 30 Tagen",
+      "d90": "Innerhalb von 90 Tagen"
+    },
+    "hideDuplicates": "Wahrscheinliche Duplikate ausblenden",
+    "hideDuplicatesTitle": "Als Duplikat einer anderen Quelle zusammengeführte Stellen ausblenden"
   },
   "applications": {
     "title": "Meine Bewerbungen",
@@ -665,6 +753,125 @@
       "offer_received": "Angebot erhalten",
       "external_update": "Externe Aktualisierung",
       "imported": "Importiert"
+    },
+    "kit": {
+      "cardAction": "Kit",
+      "drawerAction": "Kit öffnen",
+      "openApplication": "Bewerbung öffnen",
+      "openPosting": "Stellenanzeige öffnen",
+      "openOriginal": "Original öffnen",
+      "backToPosting": "Zurück zur Anzeige",
+      "backToApplications": "Zurück zu den Bewerbungen",
+      "loadError": "Das Kit konnte nicht geladen werden",
+      "linkToApplication": "Mit der Bewerbung verknüpfen",
+      "tabs": {
+        "aria": "Bereiche des Bewerbungskits",
+        "cv": "CV-Variante",
+        "letter": "Anschreiben",
+        "answers": "Antworten",
+        "checklist": "Checkliste",
+        "timeline": "Zeitlinie"
+      },
+      "cv": {
+        "untitled": "Ohne Titel",
+        "variantBadge": "Für diese Anzeige",
+        "openInStudio": "Im CV Studio öffnen",
+        "candidates_one": "{{count}} CV hinterlegt",
+        "candidates_other": "{{count}} CVs hinterlegt",
+        "prepHeading": "Vorbereiten",
+        "prepare": "Vorbereiten",
+        "preparing": "Wird vorbereitet…",
+        "coverageSummary": "{{covered}} abgedeckt · {{missing}} fehlend",
+        "noExtract": "Diese Anzeige ist noch nicht tief extrahiert — die Anforderungen unten zeigen die schnelle Zuordnung; eine vollständige Extraktion ergänzt Zitate und Stufen.",
+        "sectionCandidates_one": "{{count}} Element aus Ihrem Profil",
+        "sectionCandidates_other": "{{count}} Elemente aus Ihrem Profil",
+        "sectionsOk": "Jeder Profilbereich mit Elementen ist bereits in diesem CV.",
+        "needsCvTitle": "Noch kein CV",
+        "needsCvBody": "Erstellen Sie zuerst einen CV im CV Studio — dann kann dieses Kit ihn für die Anzeige anpassen.",
+        "openCvStudio": "CV Studio öffnen"
+      },
+      "letter": {
+        "noneTitle": "Kein Anschreiben für diese Anzeige",
+        "noneBody": "Erstelle einen Brief-Arbeitsbereich für diese Anzeige und formuliere die Absätze anschließend in CV Studio.",
+        "create": "Anschreiben erstellen",
+        "openInStudio": "Im CV Studio öffnen",
+        "scopedBadge": "Für diese Anzeige",
+        "untitled": "Anschreiben ohne Titel",
+        "others": "Ihre weiteren Anschreiben",
+        "verifiedNote": "Absätze belegen Profil-Evidenz; alles Unbelegte wird im Prüfer markiert — nichts wird automatisch übernommen."
+      },
+      "answers": {
+        "note": "Häufige Auswahlfragen zu dieser Anzeige. Hier gespeicherte Antworten werden bei anderen Anzeigen wiederverwendet; nichts wird automatisch ausgefüllt.",
+        "notSaved": "Nicht gespeichert",
+        "key": {
+          "availability": "Wann können Sie anfangen?",
+          "work_authorization": "Sind Sie berechtigt, am Standort der Stelle legal zu arbeiten?",
+          "salary_expectation": "Was sind Ihre Gehaltsvorstellungen?",
+          "notice_period": "Welche Kündigungsfrist gilt in Ihrer aktuellen Stelle?",
+          "languages": "Welche Sprachen sprechen Sie, und auf welchem Niveau?",
+          "relocation": "Sind Sie bereit, für diese Stelle umzuziehen?",
+          "languages_posting": "Erfüllen Sie die Sprachen, die diese Anzeige nennt?"
+        },
+        "saved": "Gespeichert",
+        "save": "Antwort speichern",
+        "clear": "Löschen",
+        "placeholder": "Antwort schreiben…"
+      },
+      "checklist": {
+        "col": {
+          "status": "Status",
+          "item": "Punkt",
+          "source": "Quelle"
+        },
+        "level": {
+          "pass": "OK",
+          "warn": "Prüfen",
+          "fail": "Beheben",
+          "info": "Info"
+        },
+        "note": "Nur lesbare Fakten und allgemeine Hinweise — keine Simulation eines ATS-Produkts."
+      },
+      "review": {
+        "apply": "Im CV Studio öffnen",
+        "dismiss": "Ausblenden"
+      },
+      "markApplied": {
+        "title": "Als beworben markieren",
+        "note": "Erfasst die Bewerbung mit den gewählten Dokumenten in Ihrem Tracker. Nichts wird versendet — die Bewerbung erfolgt auf der Originalseite.",
+        "submit": "Als beworben markieren",
+        "cancel": "Abbrechen"
+      },
+      "timeline": {
+        "notTrackedTitle": "Noch nicht verfolgt",
+        "notTrackedBody": "Markieren Sie die Bewerbung als beworben, um die Zeitlinie zu starten — das Kit bleibt hier.",
+        "appliedOn": "Beworben am {{date}}",
+        "truncated": "Die letzten 50 Ereignisse werden angezeigt.",
+        "trackedTitle": "Bereits verfolgt",
+        "trackedBody": "Diese Anzeige ist in deiner Bewerbungsübersicht — öffne die Bewerbung für Verlauf und Dokumente."
+      }
+    },
+    "importIcs": ".ics importieren",
+    "contactTitle": "Kontakt",
+    "noContact": "Kein Kontakt verknüpft",
+    "manageContacts": "Kontakte verwalten",
+    "compareOffers": "Angebote vergleichen",
+    "offer": {
+      "title": "Angebotsdetails",
+      "compare": "Angebote vergleichen",
+      "currency": "Währung (ISO)",
+      "amount": "Betrag",
+      "period": "Zeitraum",
+      "periods": {
+        "year": "pro Jahr",
+        "month": "pro Monat",
+        "hour": "pro Stunde"
+      },
+      "location": "Ort",
+      "costOfLiving": "Lebenshaltungskosten (monatlich)",
+      "deadline": "Frist",
+      "benefits": "Zusatzleistungen (kommagetrennt)",
+      "save": "Angebot speichern",
+      "clear": "Angebot löschen"
     }
   },
   "followupRules": {
@@ -812,7 +1019,8 @@
       "inYears_one": "in {{count}} Jahr",
       "inYears_other": "in {{count}} Jahren"
     },
-    "clear": "Leeren"
+    "clear": "Leeren",
+    "edit": "Bearbeiten"
   },
   "selection": {
     "entry": "Auswählen",
@@ -1170,7 +1378,6 @@
       "educationUnused": "Bildung: nicht verwendet",
       "languages": "Sprachen: {{items}}",
       "languagesNone": "Sprachen: keine erfasst",
-      "languagesUnused": "Sprachen: nicht verwendet",
       "stage": "Stufe: {{stage}}",
       "stageFromProfile": "Stufe: aus deinem Profil",
       "stageNone": "Stufe: nicht erfasst",
@@ -1200,10 +1407,6 @@
           "label": "Bildung & Zertifikate",
           "description": "Bildungs- und Zertifikatsanforderungen prüfen dein Profil."
         },
-        "use_languages": {
-          "label": "Sprachen",
-          "description": "Sprachanforderungen prüfen die Sprachen in deinem Profil."
-        },
         "use_location": {
           "label": "Ort",
           "description": "Deine Stadt und Remote-Präferenz beeinflussen die Ortsbewertung."
@@ -1220,7 +1423,6 @@
       "chips": {
         "use_skills": "keine Skills",
         "use_education": "keine Bildung",
-        "use_languages": "keine Sprachen",
         "use_location": "kein Ort",
         "use_experience": "keine Erfahrung",
         "use_lifestyle": "keine Lebensstil-Flags",
@@ -1494,6 +1696,7 @@
     "sessionExpires": "läuft {{when}} ab",
     "sessionRevoked": "Abgemeldet",
     "revoke": "Abmelden",
+    "revoking": "Wird abgemeldet…",
     "revokeConfirmTitle": "Dieses Gerät abmelden?",
     "revokeConfirmBody": "Das Gerät muss sich erneut anmelden.",
     "revokeCurrentBody": "Dies ist das Gerät, das Sie verwenden — Sie werden zur Anmeldeseite zurückkehren.",
@@ -1928,11 +2131,7 @@
       "mapFailed": "Zuordnung der Anzeige fehlgeschlagen.",
       "allowInvalidTitle": "Namensprüfung überschreiben",
       "invalidTitleOverride": "Die Überschreibung der Namensprüfung wird protokolliert.",
-      "remapQueuedNote": "Neubewertung eingereiht — der Vorschlag wird im Hintergrund aktualisiert.",
-      "legacyBanner_one": "{{count}} alter Jobvorschlag wird nicht mehr angezeigt. Als Katalog-Jobtyp neu erzeugen oder löschen, falls nicht möglich.",
-      "legacyBanner_other": "{{count}} alte Jobvorschläge werden nicht mehr angezeigt. Als Katalog-Jobtypen neu erzeugen oder die nicht erzeugbaren löschen.",
-      "legacyRegenerate": "Neu erzeugen",
-      "legacyQueued": "Nachlauf für {{count}} alte Vorschläge eingereiht (Job {{jobId}}). Fortschritt im Jobs-Bereich."
+      "remapQueuedNote": "Neubewertung eingereiht — der Vorschlag wird im Hintergrund aktualisiert."
     },
     "openDetails": "{{label}} öffnen",
     "bulkPaths": {
@@ -1953,6 +2152,8 @@
       "confirmTitle": "Diese Katalog-Jobtypen zusammenführen?",
       "confirmBody": "{{source}} in {{target}} zurückziehen. Anzeigen werden neu zugeordnet und neu bewertet; Skills, Tags, Relationen, Fits und Pläne wandern zum Survivor. Die zurückgezogene Zeile bleibt als Zusammenführungsnachweis.",
       "confirm": "Zusammenführen und zurückziehen",
+      "nearOnly": "Ähnliche Titel — nur exakte zusammenführen.",
+      "draftExact": "Exakte Duplikate mit Entwürfen — vor dem Zusammenführen veröffentlichen.",
       "mergedNote": "Zusammengeführt: {{count}} Anzeige(n) neu zugeordnet, {{remap}} Neubewertung(en) eingereiht."
     }
   },
@@ -2192,7 +2393,8 @@
       "mcp": "MCP",
       "sources": "Quellen",
       "retrieval": "Retrieval",
-      "mappings": "Mappings"
+      "mappings": "Mappings",
+      "hygiene": "Stellen-Hygiene"
     },
     "webSearch": {
       "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. SearXNG nutzt den SSRF-geschützten Client; Anbieter mit Schlüssel (Tavily, Brave, Exa, Serper, Google PSE) nutzen den geschützten POST-Transport.",
@@ -2436,6 +2638,8 @@
         "updateAvailableShort": "Update verfügbar",
         "digestDriftShort": "Inhaltsdrift — abgelehnt",
         "needsConfig": "Konfiguration erforderlich",
+        "configure": "Konfigurieren",
+        "configureMissingSource": "Die Einstellungen dieser Installation wurden nicht gefunden — bitte die Job-Quellen neu öffnen.",
         "capabilities": "Funktionen",
         "decline": "Ablehnen",
         "close": "Schließen",
@@ -2484,6 +2688,7 @@
       "mint": "Token erstellen",
       "shownOnce": "Kopieren Sie dieses Token jetzt — es wird genau einmal angezeigt.",
       "copyToken": "Token kopieren",
+      "copied": "Kopiert",
       "dismiss": "Ausblenden",
       "active": "aktiv",
       "revoked": "widerrufen",
@@ -3047,7 +3252,16 @@
     "placeholderGithub": "https://github.com/…",
     "placeholderPortfolio": "Portfolio",
     "regularShifts": "Regelmäßige Schichten sind in Ordnung",
-    "selected": "ausgewählt"
+    "selected": "ausgewählt",
+    "workAuthorization": "Arbeitserlaubnis",
+    "workAuth": {
+      "unspecified": "Keine Angabe",
+      "citizen": "Staatsangehörige:r",
+      "permanentResident": "Daueraufenthalt",
+      "studentVisa": "Studienvisum",
+      "needsSponsorship": "Brauche Sponsorship",
+      "other": "Andere"
+    }
   },
   "cvBuilder": {
     "bulletsTitle": "Punkte bearbeiten",
@@ -3483,7 +3697,27 @@
       "previous": "Vorherige Variante",
       "removeBullet": "Bulletpunkt {{n}} entfernen",
       "targetLanguage": "Zielsprache"
-    }
+    },
+    "parseView": {
+      "buttonLabel": "Parser-Ansicht",
+      "buttonTitle": "Was unser Extractor im exportierten PDF sieht",
+      "buttonAria": "Parser-Ansicht öffnen",
+      "title": "Was ein Parser sieht",
+      "disclaimer": "Das ist unser eigener Extractor, der unser gedrucktes PDF liest — keine Simulation eines ATS-Produkts.",
+      "loading": "PDF wird gedruckt und gelesen …",
+      "engine": "Engine: {{engine}}",
+      "textLayerOk": "Textebene vorhanden",
+      "textLayerMissing": "keine Textebene",
+      "pageCount_one": "{{count}} Seite",
+      "pageCount_other": "{{count}} Seiten",
+      "copy": "Text kopieren",
+      "noFindings": "Keine Befunde — jede Seite hat eine Textebene, die Kontaktdaten haben die Extraktion überlebt und die Lesereihenfolge passt zum Dokument.",
+      "pageHeading": "Seite {{number}} · {{lines}} Zeilen",
+      "emptyPage": "(kein Text auf dieser Seite)"
+    },
+    "checkBullets": "Bullets prüfen",
+    "checkingBullets": "Prüfe…",
+    "competencyTags": "Kompetenzen:"
   },
   "templateEditor": {
     "notFound": "Vorlage nicht gefunden",
@@ -3851,7 +4085,9 @@
       "month": "Monat",
       "week": "Woche",
       "day": "Tag"
-    }
+    },
+    "reposted": "{{count}}× erneut gepostet",
+    "verified": "Verifiziert {{date}}"
   },
   "postingDetail": {
     "unknown": "unbekannt",
@@ -3880,6 +4116,7 @@
     "practiceInterview": "Interview üben",
     "trackApplication": "Bewerbung verfolgen",
     "openApplication": "In Tracker öffnen",
+    "tailorAndApply": "Anpassen & bewerben",
     "sourceLabel": "Quelle:",
     "synced": "synchronisiert {{date}}",
     "originalListing": "ursprüngliche Anzeige",
@@ -3890,7 +4127,10 @@
       "travel": "Reise überschreitet Ihre Toleranz",
       "shift": "Schicht/Dienst arbeitet nicht mit Ihren Einstellungen überein",
       "hours": "mehr Stunden als verfügbar",
-      "salaryMin": "unter Ihrem Gehaltsminimum"
+      "salaryMin": "unter Ihrem Gehaltsminimum",
+      "visa": "Sponsorship",
+      "language": "Sprachanforderung",
+      "grade": "Notengrenze"
     },
     "skillsHeading": "Fähigkeiten",
     "responsibilitiesHeading": "Verantwortlichkeiten",
@@ -3990,7 +4230,84 @@
     "openRoles_one": "{{count}} offene Stelle",
     "openRoles_other": "{{count}} offene Stellen",
     "retiredType": "Katalogtyp zurückgezogen",
-    "retiredSeeSuccessor": "Zu {{title}}"
+    "retiredSeeSuccessor": "Zu {{title}}",
+    "gap": {
+      "heading": "Was fehlt",
+      "note": "Deterministisch und belegt — was diese Stelle verlangt und was du belegen kannst. Keine Match-Punktzahl.",
+      "noExtractTitle": "Noch keine Tiefenextraktion",
+      "noExtractBody": "Diese Stelle wurde noch nicht tief extrahiert — es gibt noch keine Anforderungszeilen zum Abgleich mit deinen Belegen.",
+      "noRequirementsTitle": "Keine Skill-Anforderungen erfasst",
+      "noRequirementsBody": "Die Extraktion hat keine Skills für diese Stelle gefunden — nichts aufzulisten. Das ist kein Bestehen und keine Punktzahl.",
+      "col": {
+        "requirement": "Anforderung",
+        "asks": "Verlangt",
+        "you": "Du",
+        "evidence": "Beleg"
+      },
+      "asksLevel": "Level {{level}}",
+      "youLevel": "Level {{level}}",
+      "noLevel": "kein Level",
+      "notInTaxonomy": "nicht in deiner Skill-Taxonomie — wortwörtlich aus der Stelle übernommen",
+      "noEvidence": "kein Zitat, kein Beleg",
+      "status": {
+        "met": "erfüllt",
+        "partial": "teilweise",
+        "missing": "fehlend"
+      },
+      "showMoreQuote": "mehr zeigen",
+      "showLessQuote": "weniger zeigen",
+      "copyQuote": "Zitat kopieren"
+    },
+    "eligibility": {
+      "heading": "Eignung & Formalitäten",
+      "honesty": "Lesart unseres Extraktors — prüfe das Original",
+      "workAuthorizationLabel": "Arbeitserlaubnis",
+      "languagesLabel": "Sprachanforderungen",
+      "level": {
+        "basic": "Grundkenntnisse",
+        "intermediate": "Mittelstufe",
+        "advanced": "Fortgeschritten",
+        "native": "Muttersprache"
+      },
+      "gradeLabel": "Notengrenze",
+      "gradeScale": {
+        "uk_honours": "UK-Honours",
+        "gpa_4": "GPA (4,0)",
+        "gpa_10": "GPA (10)",
+        "de_note": "Deutsche Note",
+        "percentage": "Prozent",
+        "other": "Andere"
+      },
+      "opportunityTypeLabel": "Angebotsart",
+      "opportunityType": {
+        "internship": "Praktikum",
+        "placement_year": "Praxissemester",
+        "apprenticeship": "Ausbildung",
+        "graduate_scheme": "Graduate Scheme",
+        "insight_programme": "Insight-Programm",
+        "part_time": "Teilzeit",
+        "full_time": "Vollzeit",
+        "contract": "Vertrag",
+        "unknown": "Nicht angegeben"
+      },
+      "deadlineLabel": "Bewerben bis",
+      "gatesLabel": "Hürden",
+      "gate": {
+        "visa": "Sponsorship nötig — die Anzeige sagt, dass sie nicht sponsert.",
+        "language": "Eine geforderte Sprache fehlt in deinem Profil auf dem nötigen Niveau.",
+        "grade": "Dein Abschluss liegt unter der genannten Grenze."
+      },
+      "applyAnyway": "Trotzdem bewerben",
+      "overridden": "Du hast dich trotzdem beworben",
+      "undo": "Rückgängig",
+      "gateHint": "Hürden sind Hinweise, keine Urteile. Prüfe die Originalanzeige.",
+      "workAuthorization": {
+        "none": "Keine Sponsorship",
+        "sponsors": "Sponsorship möglich",
+        "case_by_case": "Sponsorship im Einzelfall",
+        "citizens_only": "Nur Staatsangehörige"
+      }
+    }
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",
@@ -4013,6 +4330,11 @@
     "sidePanel": "Seitenleiste",
     "popup": "Popup",
     "openChatPage": "Öffnen in Chat-Seite"
+  },
+  "dictation": {
+    "unavailable": "Diktat nicht verfügbar",
+    "notConfigured": "Kein Spracherkennungsmodell zugewiesen.",
+    "openSettings": "KI-Einstellungen öffnen"
   },
   "chat": {
     "openAiSettings": "Open AI Einstellungen",
@@ -4077,7 +4399,6 @@
         "institution": "Institution",
         "program": "Programm",
         "level": "Level",
-        "grade_band": "Schulstufe",
         "focus_subjects": "Schwerpunkte",
         "start": "Start",
         "end": "Ende",
@@ -4097,7 +4418,9 @@
         "date": "Datum",
         "detail": "Detail",
         "removed_bullet": "Entfernte Aufzählungspunkte",
-        "added_bullet": "Hinzugefügte Aufzählungspunkte"
+        "added_bullet": "Hinzugefügte Aufzählungspunkte",
+        "grade_scale": "Notenskala",
+        "grade_value": "Notenwert"
       },
       "sourceKinds": {
         "experience": "Berufserfahrung",
@@ -4283,15 +4606,7 @@
     "endLabel": "Enddatum",
     "endHint": "In Arbeit — kein Enddatum.",
     "inProgressToggle": "In Arbeit",
-    "gradeLabel": "Note",
     "gradeUnspecified": "Keine Angabe",
-    "grade": {
-      "low": "Niedrig",
-      "below_average": "Unterdurchschnitt",
-      "average": "Durchschnitt",
-      "good": "Gut",
-      "excellent": "Ausgezeichnet"
-    },
     "focusLabel": "Schwerpunkte",
     "subject": {
       "mathematics": "Mathematik",
@@ -4377,7 +4692,20 @@
     "deptDescriptionPlaceholder": "Was die Abteilung abdeckt (optional).",
     "saveDepartment": "Abteilung speichern",
     "emptyAll": "Noch nichts hier — fügen Sie Ihren ersten Eintrag hinzu.",
-    "urlPlaceholder": "https://…"
+    "urlPlaceholder": "https://…",
+    "gradeScaleLabel": "Notenskala",
+    "gradeValueLabel": "Notenwert",
+    "gradeValueHint": "Nutze den Wert der Skala (z. B. 2,1, 3,7, 1,7, 75).",
+    "gradeScale": {
+      "uk_honours": "UK-Honours-Klasse",
+      "gpa_4": "GPA (4,0)",
+      "gpa_10": "GPA (10)",
+      "de_note": "Deutsche Note (1–5)",
+      "percentage": "Prozent",
+      "other": "Andere"
+    },
+    "gradeNudge": "Ältere Notenstufen wurden beim Umstieg auf numerische Noten geleert. Trage deine formale Note ein (Skala + Wert), um Anzeigen mit Notengrenze zu matchen.",
+    "marketGuideLink": "UK/DACH-Noten vergleichen"
   },
   "interviews": {
     "title": "Interview-Übung",
@@ -4425,7 +4753,26 @@
     "useCode": "Verwende Code \"{{code}}\"",
     "roleHint": "Wähle eine Rolle aus dem Katalog — oder beginne mit einer Stellenanzeige mit der Schaltfläche \"Übung\".",
     "preparing": "Vorbereiten…",
-    "createPlan": "Plan erstellen"
+    "createPlan": "Plan erstellen",
+    "stories": {
+      "open": "Geschichten",
+      "title": "STAR-Geschichten",
+      "note": "Deine eigenen STAR-Geschichten. Die Übung kann sie als Verhaltensfragen voranstellen; nichts wird generiert oder automatisch ausgefüllt.",
+      "empty": "Noch keine Geschichten — füge unten eine hinzu oder starte aus einem Erfahrungsvorschlag.",
+      "suggestions": "Aus deiner Erfahrung",
+      "new": "Neue Geschichte",
+      "edit": "Geschichte bearbeiten",
+      "titlePlaceholder": "Titel der Geschichte",
+      "competenciesPlaceholder": "Kompetenzen (kommagetrennt)",
+      "situation": "Situation",
+      "task": "Aufgabe",
+      "action": "Aktion",
+      "result": "Ergebnis",
+      "pick": "Mit Geschichten üben",
+      "deleteConfirm": "„{{title}}“ löschen?",
+      "deleteTitle": "Story löschen",
+      "delete": "{{title}} löschen"
+    }
   },
   "entityEditor": {
     "notFound": "Dieser Eintrag existiert nicht mehr."
@@ -4895,6 +5242,10 @@
     "companies": {
       "label": "Unternehmen",
       "description": "Zuordnungsregeln: Aliase, Ausschlüsse, Vorschläge"
+    },
+    "storage": {
+      "label": "Speicher",
+      "description": "Schreibgeschützte Bereitstellungsdaten der Objektablage"
     }
   },
   "paths": {
@@ -5796,7 +6147,25 @@
       "jobsCreated": "{{count}} erstellt",
       "postingActivity": "Verarbeitungsaktivität (Angebote)",
       "skillEvents": "Skill-Lebenszyklus-Ereignisse",
-      "noActivity": "Keine Aktivität in diesem Zeitraum"
+      "noActivity": "Keine Aktivität in diesem Zeitraum",
+      "model": "Modell",
+      "calls": "Aufrufe",
+      "tokens": "Tokens",
+      "cost": "Kosten",
+      "noCostData": "Keine abrechenbaren Aufrufe in diesem Zeitraum.",
+      "priceOverrides": "Preisüberschreibungen",
+      "addOverride": "Hinzufügen",
+      "modelId": "Modell-ID",
+      "providerKey": "Preset-Schlüssel",
+      "noPriceOverrides": "Keine Überschreibungen — integrierte Preise gelten, wo bekannt.",
+      "dataCost": "Daten & Kosten",
+      "dataCostHint": "Die Kosten werden beim Aufruf mit dem damals geltenden Preis erfasst. Unbekannte Preise bleiben ohne Preis.",
+      "pricedCalls": "{{priced}} bepreist · {{unpriced}} ohne Preis",
+      "unpriced": "{{count}} ohne Preis",
+      "inputPricePlaceholder": "$ / 1 Mio. Eingabe",
+      "outputPricePlaceholder": "$ / 1 Mio. Ausgabe",
+      "perMillion": "pro 1 Mio.",
+      "deleteOverride": "Überschreibung für {{model}} löschen"
     },
     "autoRefresh": "Auto-Aktualisierung 30s",
     "retrieval": {
@@ -6084,7 +6453,8 @@
       "posted": "Veröffentlicht: {{value}}",
       "salary": "Gehalt ab: {{value}}",
       "sort": "Sortiert nach: {{value}}",
-      "empty": "Keine Filter — zeigt alle offenen Stellen."
+      "empty": "Keine Filter — zeigt alle offenen Stellen.",
+      "closing": "Bewerbungsschluss: {{value}}"
     }
   },
   "marketStats": {
@@ -6326,6 +6696,30 @@
     },
     "drill": {
       "nearestPreset": "Die Listenansicht nutzt das nächstgelegene Voreinstellungsfenster."
+    },
+    "benchmarks": {
+      "title": "Gehalts-Benchmarks",
+      "hint": "Pro Job oder Familie, Land und Seniorität — nur ausgeschriebene Spannen.",
+      "floor": "Mindeststichprobe: {{floor}}",
+      "error": "Gehalts-Benchmarks konnten nicht geladen werden.",
+      "empty": "Noch keine ausreichend große Benchmark-Zelle.",
+      "role": "Rolle",
+      "country": "Land",
+      "seniority": "Seniorität",
+      "n": "n",
+      "p25": "P25",
+      "p50": "P50",
+      "p75": "P75",
+      "family": "Familie",
+      "annual": "Jahresbasis",
+      "notes": {
+        "currency_only": "Nur pro Währung: keine FX-Umrechnung und keine länderübergreifende Mischung.",
+        "posted_range_bias": "Ausgeschriebene Spannen liegen hoch: Das ist der Median der Spannen, keine gemessene Bezahlung.",
+        "col_note": "Keine Anpassung an lokale Lebenshaltungskosten; vergleiche Zellen im selben Land.",
+        "reference_unavailable": "Eine OEWS/Eurostat-Referenz ist noch nicht konfiguriert; keine erfundene oder gemischte Zahl.",
+        "cells_truncated": "Weitere Zellen werden nicht angezeigt; verfeinere die Filter.",
+        "sample_bounded": "Zellen basieren auf einer deterministischen Stichprobe von bis zu 5.000 Stellen."
+      }
     }
   },
   "retrieval": {
@@ -6726,7 +7120,23 @@
       "pickerEmpty": "Katalogtyp auswählen…",
       "pickerCandidate": "Kandidat",
       "pickerLoadError": "Der veröffentlichte Katalog konnte nicht geladen werden — bitte später erneut versuchen.",
-      "pickerTruncated": "Die ersten 200 veröffentlichten Typen werden angezeigt; Suche eingrenzen, falls Ihrer fehlt."
+      "weakFilter": "Schwache Zuordnungen",
+      "weakAll": "Alle Zuordnungen",
+      "weakOnly": "Nur schwache",
+      "weakExclude": "Schwache ausblenden",
+      "weakChip": "Schwach",
+      "proposalState": "Vorschlag: {{state}}",
+      "lastExtract": "Letzte Extraktion: {{status}}",
+      "extractQueued": "Extraktion eingereiht",
+      "proposalFailure": "Vorschlag fehlgeschlagen: {{reason}}",
+      "detailNow": "Detail jetzt abrufen",
+      "retryExtract": "Extraktion wiederholen",
+      "repropose": "Neu vorschlagen",
+      "detailDone": "{{fetched}} Detailzeile(n) abgerufen.",
+      "reproposeDone": "{{count}} Neu-Vorschlag(e) eingereiht.",
+      "mapSelected": "Auswahl zuordnen…",
+      "mapSelectedAction": "Auswahl zuordnen",
+      "confirmMapSelected": "Die ausgewählten Anzeigen dem gewählten Katalogtyp zuordnen?"
     },
     "state": {
       "mapped": "Zugeordnet",
@@ -6742,7 +7152,8 @@
       "below_threshold": "Unter dem Schwellenwert",
       "no_candidate": "Kein Kandidat",
       "unmapped_by_admin": "Durch Admin gelöst",
-      "unknown": "Unbekannt"
+      "unknown": "Unbekannt",
+      "detail_failed": "Detailabruf fehlgeschlagen"
     },
     "reviewReason": {
       "no_good_type": "Kein passender Typ",
@@ -6805,9 +7216,6 @@
       "runbookLink": "Retrieval-Runbook",
       "lastRemap": "Letzter Neuentscheidungslauf: {{status}}",
       "proposals": "{{count}} Anzeige(n) in der Vorschlagswarteschlange",
-      "legacy": "{{count}} Anzeigen ohne abgeleitetes Ergebnis",
-      "backfill": "Ergebnisse nachziehen",
-      "backfillQueued": "Nachziehen gestartet",
       "snapshot": "Schnappschuss aufnehmen",
       "snapshotDone": "Schnappschuss aufgenommen"
     },
@@ -6848,7 +7256,10 @@
         "rejected": "abgelehnt",
         "pending": "ausstehend"
       },
-      "resolve": "Entscheiden"
+      "resolve": "Entscheiden",
+      "weakTitle": "Schwache Zuordnungen",
+      "weakLine": "{{count}} schwach · Abstand unter {{margin}}% · semantische Konfidenz unter {{semantic}}%",
+      "weakEmpty": "Noch keine schwachen Zeilen — entweder ist der Bestand sauber oder er wurde noch nicht durchsucht („Veraltete Zuordnungen neu entscheiden“ starten)."
     },
     "policy": {
       "title": "Mapping-Politik",
@@ -6872,6 +7283,327 @@
       "save": "Mindestanteil speichern",
       "saved": "Gespeichert",
       "note": "Der tägliche Alarm-Sweep liest diesen Mindestanteil."
+    },
+    "runs": {
+      "redecideAll": "Veraltete Zuordnungen neu entscheiden",
+      "redecideAllNote": "Vom Eigentümer gestartet; reiht einen begrenzten Lauf für Zuordnungen älter als die aktuelle Score-Version ein.",
+      "confirm": "Veraltete Zuordnungen neu entscheiden?",
+      "queued": "Neuentscheidung für {{count}} {{scope}} Zuordnungen eingereiht.",
+      "forceAll": "Alle erzwingen",
+      "forceConfirm": "Neuentscheidung ALLER {{count}} aktiven Zuordnungen erzwingen, auch aktueller?"
     }
+  },
+  "postingHygiene": {
+    "title": "Stellen-Hygiene",
+    "subtitle": "Ein deterministischer quellenübergreifender Duplikat-Scan. Vorschläge bleiben Vorschläge, bis du sie zusammenführst; das Aufheben stellt die Stelle wieder her — kein Betrugsurteil.",
+    "scan": "Scan starten",
+    "candidates": "Mögliche Duplikate",
+    "suggests": "vorgeschlagenes Duplikat von {{title}}",
+    "merge": "Zusammenführen",
+    "noCandidates": "Keine unsicheren Duplikate.",
+    "merged": "Zusammengeführte Duplikate",
+    "clear": "Aufheben",
+    "noMerged": "Keine Duplikate zusammengeführt.",
+    "canonical": "Originalstellen mit Reposts",
+    "reposts": "{{count}} Reposts",
+    "noCanonical": "Keine Reposts.",
+    "counts": {
+      "canonical": "Originalstellen",
+      "duplicates": "Zusammengeführte Duplikate",
+      "candidates": "Offene Vorschläge"
+    },
+    "lastVerified": "Zuletzt verifiziert {{date}}"
+  },
+  "capture": {
+    "title": "Stelle erfassen",
+    "intro": "Füge die Stellen-URL ein. Sie wird einmal über denselben geschützten Pfad wie der Paste-a-URL-Connector geladen; erst die Bestätigung legt die Stelle an.",
+    "urlLabel": "Stellen-URL",
+    "confirm": "Erfassen",
+    "saving": "Wird erfasst…",
+    "helpLink": "Bookmarklet einrichten",
+    "helpTitle": "Von jeder Jobbörse erfassen",
+    "helpIntro": "Ein Bookmarklet öffnet diese Seite mit der URL der gelesenen Stelle. Du bestätigst weiterhin im Dialog — kein Geheimnis, keine automatische Erfassung.",
+    "helpDrag": "Ziehe diese Schaltfläche in deine Lesezeichenleiste:",
+    "bookmarklet": "In Career Assistant erfassen",
+    "helpStep1": "Öffne eine Stelle auf einer Jobbörse.",
+    "helpStep2": "Klicke das Bookmarklet in der Lesezeichenleiste.",
+    "helpStep3": "Bestätige die URL im Dialog; nichts wird ohne Bestätigung erfasst.",
+    "back": "Zurück zu den Stellen"
+  },
+  "jsonResume": {
+    "title": "JSON Resume",
+    "intro": "Exportiere dein Profil im JSON-Resume-Format oder importiere eine Datei: Jedes übernommene Feld und jeder verworfene Schlüssel wird vor dem Anwenden angezeigt. Keine Laufzeit-Schema-Abhängigkeit.",
+    "export": "JSON exportieren",
+    "choose": "Datei importieren",
+    "apply": "Import anwenden",
+    "applied": "Angewendet",
+    "done": "Import angewendet. Prüfe Profil und Erfahrungslisten.",
+    "mapped": "Übernommen: {{basics}} Basics, {{work}} Beruf, {{education}} Ausbildung.",
+    "conflicts": "Diese vorhandenen Profilwerte werden beim Anwenden ersetzt:",
+    "basics": "Basics",
+    "work": "Beruf",
+    "education": "Ausbildung",
+    "droppedLabel": "Verworfen",
+    "created": "erstellt",
+    "warnings": "Hinweise"
+  },
+  "icsImport": {
+    "title": "Kalender importieren (.ics)",
+    "intro": "Wähle einen Google-/Outlook-Kalenderexport. Ereignisse werden nur vorgeschlagen, bis du anwendest; Zeitzonen werden nach UTC umgerechnet und Duplikate markiert.",
+    "choose": ".ics-Datei wählen",
+    "apply": "Import anwenden",
+    "applied": "{{count}} Interview-Termin(e) importiert.",
+    "allDay": "Ganztägig",
+    "unmatched": "Keine passende Bewerbung",
+    "duplicate": "Bereits importiert",
+    "events": "Termine",
+    "drop": "Verworfen",
+    "warnings": "Hinweise",
+    "conflicts": "Konflikte",
+    "created": "erstellt"
+  },
+  "applicationInsights": {
+    "title": "Antwortquoten deiner Bewerbungen",
+    "tailored": "Angepasst",
+    "untailored": "Nicht angepasst",
+    "responses": "Antworten",
+    "suppressed": "Jede Gruppe braucht mindestens {{floor}} Bewerbungen, bevor eine Quote gezeigt wird.",
+    "caveat": "Nur ein beschreibender Zusammenhang — deine eigenen Bewerbungen, keine kontrollierte Studie."
+  },
+  "contacts": {
+    "title": "Kontakte",
+    "count": "{{count}} Kontakte",
+    "search": "Kontakte suchen",
+    "new": "Neuer Kontakt",
+    "errorTitle": "Kontakte konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "logKindLabel": "Art des Kontakts",
+    "emptyTitle": "Noch keine Kontakte",
+    "emptyBody": "Trage die Menschen um deine Bewerbungen ein — Recruiter, Hiring Manager, Referrer.",
+    "noOrg": "Noch keine Organisation",
+    "lastContacted": "Zuletzt kontaktiert {{date}}",
+    "neverContacted": "Noch nie kontaktiert",
+    "edit": "Kontakt bearbeiten",
+    "name": "Name",
+    "org": "Organisation",
+    "role": "Rolle",
+    "email": "E-Mail",
+    "notes": "Notizen",
+    "deleteConfirm": "Diesen Kontakt löschen?",
+    "deleteTitle": "Kontakt löschen",
+    "interactions": "Interaktionsprotokoll",
+    "noInteractions": "Noch keine Interaktionen.",
+    "log": "{{channel}} protokollieren",
+    "kind": {
+      "intro": "Vorstellung",
+      "follow_up": "Nachfassen",
+      "thank_you": "Dank",
+      "referral": "Empfehlung",
+      "informational": "Information",
+      "other": "Andere"
+    },
+    "channel": {
+      "email": "E-Mail",
+      "call": "Anruf",
+      "meeting": "Treffen",
+      "message": "Nachricht"
+    },
+    "draft": "Outreach-Entwurf",
+    "draftKindLabel": "Entwurfsart",
+    "draftKind": {
+      "intro": "Vorstellung",
+      "follow_up": "Nachfassen",
+      "thank_you": "Dank",
+      "referral": "Empfehlung",
+      "informational": "Information"
+    },
+    "draftCta": "Nachricht entwerfen",
+    "evidence": "{{count}} Belege · kopieren oder mailto; nichts wird gesendet",
+    "copy": "Kopieren",
+    "mailto": "Mail-App öffnen"
+  },
+  "postingSafety": {
+    "title": "Vor dem Bewerben prüfen",
+    "intro": "Das sind sachliche Signale aus dem Anzeigentext, kein Urteil. Lies das Zitat und entscheide selbst.",
+    "caveat": "Kein Signal heißt nur, dass wir diese Muster nicht gefunden haben — nicht, dass die Stelle sicher ist. Sende niemals Geld oder Ausweisdokumente an einen Arbeitgeber.",
+    "flag": {
+      "fee_requested": "Zahlung oder Gebühr erwähnt",
+      "personal_email_domain": "Persönliche E-Mail-Domain",
+      "messaging_app_contact": "Kontakt über Messenger",
+      "vague_org": "Unklare Organisation",
+      "salary_outlier": "Gehalt weit über der Katalogspanne",
+      "url_mismatch": "Verkürzter oder persönlicher Link"
+    }
+  },
+  "degreeRoles": {
+    "title": "Rollen für deinen Abschluss",
+    "apply": "Diese Familien filtern",
+    "clear": "Abschlussfilter löschen",
+    "parent": "übergeordnete Familie",
+    "note": "Nur Vorschläge auf Basis deines Studiengangs und deiner Schwerpunkte. Sie schließen keine Anzeige aus.",
+    "related": "verwandte Familie",
+    "reason": {
+      "matched": "{{terms}} in deinem Studiengang oder deinen Schwerpunkten gefunden.",
+      "parent": "Übergeordnete Familie aus einer einstufigen Katalogerweiterung.",
+      "family_expansion": "Verwandte Familie aus einer einstufigen Katalogerweiterung."
+    }
+  },
+  "marketGuide": {
+    "title": "Bewerben in UK und DACH",
+    "subtitle": "Praxisnahe Konventionen zu Noten, Lebenslauf, Bewerbung und Einstellungszyklen. Wählen Sie einen Markt; die Hinweise sind allgemein und kein Regelwerk.",
+    "marketAria": "Markt auswählen",
+    "cvTitle": "Lebenslauf-Konventionen",
+    "normsTitle": "Bewerbungsnormen",
+    "cycleTitle": "Einstellungszyklus",
+    "disclaimer": "Allgemeine Hinweise, keine Rechts- oder Einwanderungsberatung. Anforderungen variieren je nach Arbeitgeber und ändern sich; prüfen Sie die Stellenanzeige und eine offizielle Quelle, bevor Sie sich bewerben.",
+    "reviewed": "Quellen geprüft am {{date}}.",
+    "grades": {
+      "title": "Notenorientierung: UK und DACH",
+      "intro": "Eine grobe Orientierung für Gespräche mit Arbeitgebern. Sie ist keine offizielle Umrechnung und ersetzt keine Zeugnisbewertung.",
+      "uk": "UK-Einstufung",
+      "note": "Orientierung",
+      "disclaimer": "Deutsche Noten reichen von 1,0 (sehr gut) bis 4,0 (bestanden); 5,0 ist nicht bestanden. Österreichische Noten sind ganze Zahlen — siehe Hinweis unten. Die formale Entscheidung treffen Arbeitgeber und Zeugnisbewertungsstellen.",
+      "rows": {
+        "first": {
+          "uk": "First (70–100 %)",
+          "note": "Stärkste Stufe; prüfen Sie die Anforderung der Stelle.",
+          "de": "1,0–1,5",
+          "at": "1"
+        },
+        "upperSecond": {
+          "uk": "Upper second 2:1 (60–69 %)",
+          "note": "Häufige Schwelle für Graduiertenprogramme im UK.",
+          "de": "1,6–2,5",
+          "at": "2"
+        },
+        "lowerSecond": {
+          "uk": "Lower second 2:2 (50–59 %)",
+          "note": "Manche Programme akzeptieren 2:2; lesen Sie die Anzeige.",
+          "de": "2,6–3,5",
+          "at": "3"
+        },
+        "third": {
+          "uk": "Third (40–49 %)",
+          "note": "Besteht die Abschlussschwelle; wettbewerbliche Programme filtern möglicherweise.",
+          "de": "3,6–4,0",
+          "at": "4"
+        }
+      },
+      "germany": "Deutsche Note",
+      "austria": "Österreichische Note",
+      "austriaNote": "Österreichische Universitätsnoten sind ganze Zahlen von 1 (sehr gut) bis 4 (bestanden); 5 ist nicht bestanden.",
+      "sourceLabel": "Quellen der Skalen:",
+      "sources": {
+        "enic": "UK ENIC",
+        "anabin": "anabin"
+      }
+    },
+    "markets": {
+      "uk": {
+        "label": "Vereinigtes Königreich",
+        "cv1": "Verwenden Sie ein klares, einheitliches Layout und passen Sie den Lebenslauf an die Anzeige an.",
+        "cv2": "Kein Alter, Geburtsdatum, Familienstand oder Staatsangehörigkeit angeben.",
+        "norms1": "Bewerben Sie sich direkt über die Karriereseite des Arbeitgebers; rechnen Sie mit einer Online-Bewerbung.",
+        "norms2": "Graduiertenprogramme umfassen oft Online-Tests, Vorstellungsgespräche und ein Assessment Center.",
+        "cycle1": "Der Herbst ist die Hauptsaison für Graduiertenprogramme für einen Start im folgenden Sommer oder Herbst; viele Fristen liegen zwischen September und Dezember.",
+        "cycle2": "Graduiertenprogramme werden oft sechs bis zwölf Monate vorher ausgeschrieben; manche Arbeitgeber rekrutieren laufend."
+      },
+      "de": {
+        "label": "Deutschland",
+        "cv1": "Ein tabellarischer Lebenslauf in umgekehrter Chronologie ist Standard; datieren Sie die Stationen.",
+        "cv2": "Deutsche Lebensläufe enthalten oft ein Foto.",
+        "norms1": "Senden Sie eine vollständige Bewerbung: Anschreiben, Lebenslauf und die verlangten Zeugnisse.",
+        "norms2": "Ein Anschreiben wird oft erwartet; folgen Sie der Anzeige, denn manche Online-Portale verlangen keines.",
+        "cycle1": "Ausbildungsplätze beginnen meist im August oder September; größere Betriebe schreiben oft zwölf bis achtzehn Monate vorher aus.",
+        "cycle2": "Kleinere Betriebe starten häufig im letzten Schuljahr; prüfen Sie Frist und Startdatum in jeder Anzeige."
+      },
+      "at": {
+        "label": "Österreich",
+        "cv1": "Österreichische Bewerbungen erwarten meist einen tabellarischen Lebenslauf mit Anschreiben; die Chronologie sollte vollständig und datiert sein.",
+        "cv2": "Referenzen und Zeugnisse gehören zu einer vollständigen Bewerbungsmappe.",
+        "norms1": "Viele Arbeitgeber verlangen eine PDF-Bewerbungsmappe; folgen Sie dem in der Anzeige genannten Weg und Dateiformat.",
+        "norms2": "Ein kurzes, rollenspezifisches Anschreiben ist weiterhin üblich.",
+        "cycle1": "Lehren beginnen meist im August oder September; beginnen Sie etwa ein Jahr vorher, spätestens im Herbst des letzten Schuljahres mit der Suche.",
+        "cycle2": "Bewerbungen für Lehrstellen öffnen oft rund ein Jahr vorher; prüfen Sie die Frist des Betriebs."
+      },
+      "ch": {
+        "label": "Schweiz",
+        "cv1": "Schweizer Lebensläufe enthalten meist persönliche Angaben, Ausbildung, Sprachen und Referenzen; ein aktuelles Foto ist üblich.",
+        "cv2": "Sprachen mit Niveau angeben; Diplome und Referenzen gehören in das Bewerbungsdossier.",
+        "norms1": "Bewerben Sie sich über das Portal des Arbeitgebers mit maßgeschneidertem Anschreiben, Lebenslauf und den verlangten Zeugnissen.",
+        "norms2": "Fragen zur Arbeitsbewilligung sind üblich; antworten Sie sachlich und prüfen Sie die offiziellen Regeln.",
+        "cycle1": "Eine Lehre verbindet einen Ausbildungsbetrieb mit der Berufsschule; der Betrieb entscheidet über den Platz.",
+        "cycle2": "Ausbildungsbetriebe schreiben Lehrstellen aus; prüfen Sie in der Anzeige, welche Unterlagen und Frist gelten.",
+        "gradeNote": "Schweizer Noten reichen von 6,0 (sehr gut) bis 4,0 (bestanden). Ordnen Sie sie nicht eins zu eins UK-Klassen zu; fragen Sie den Arbeitgeber oder eine offizielle Zeugnisbewertungsstelle."
+      }
+    },
+    "sources": {
+      "nationalCareers": "National Careers Service",
+      "migrationAustria": "migration.gv.at",
+      "prospectsSchemes": "Prospects: Graduate Schemes",
+      "arbeitsagenturCv": "Bundesagentur für Arbeit: Lebenslauf",
+      "arbeitsagenturLetter": "Bundesagentur für Arbeit: Anschreiben",
+      "arbeitsagenturTraining": "Bundesagentur für Arbeit: Ausbildung",
+      "amsCv": "AMS: Lebenslauf",
+      "amsDossier": "AMS: Bewerbungsmappe",
+      "amsApprenticeship": "AMS: Lehrstellenbewerbung",
+      "orientationCv": "orientation.ch: Lebenslauf",
+      "orientationDossier": "orientation.ch: Dossier",
+      "swissWorking": "ch.ch: Arbeiten in der Schweiz",
+      "orientationApprenticeship": "orientation.ch: Lehre",
+      "arbeitsagenturAttachments": "Bundesagentur für Arbeit: Anlagen",
+      "arbeitsagenturCalendar": "Bundesagentur für Arbeit: Ausbildungsstart"
+    },
+    "headerDisclaimer": "Eine kurze Orientierung für Bewerbungen in diesen Märkten — allgemeine Hinweise, keine Rechts- oder Einwanderungsberatung.",
+    "sourceLabel": "Quelle:"
+  },
+  "offers": {
+    "title": "Angebote vergleichen",
+    "subtitle": "Jahresgehalt, Zusatzleistungen, Ort, Lebenshaltungskosten und Frist aus den erfassten Angeboten. Beträge werden nicht zwischen Währungen umgerechnet.",
+    "truncated": "{{count}} von {{total}} Angeboten werden angezeigt.",
+    "mixedCurrency": "Diese Angebote nutzen verschiedene Währungen. Beträge werden je Währung angezeigt und nicht umgerechnet; vergleichen Sie innerhalb einer Währung.",
+    "rowLabel": "Angebot",
+    "annual": "Jahresgehalt",
+    "monthly": "Monatlich entsprechend",
+    "location": "Ort",
+    "costOfLiving": "Lebenshaltungskosten (jährlich)",
+    "netAfterCol": "Netto nach Lebenshaltungskosten",
+    "benefits": "Zusatzleistungen",
+    "deadline": "Frist",
+    "disclaimer": "Dies ist eine Rechnung mit Ihren Angaben — keine Verhandlungsberatung und keine Empfehlung.",
+    "back": "Zurück zu den Bewerbungen",
+    "errorTitle": "Angebote konnten nicht geladen werden",
+    "errorBody": "Beim Laden der Angebote ist ein Fehler aufgetreten. Es wurde nichts geändert.",
+    "retry": "Erneut versuchen",
+    "emptyTitle": "Noch keine Angebote zum Vergleichen",
+    "emptyBody": "Erfassen Sie ein Angebot in den Details einer Bewerbung und kehren Sie hierher zurück.",
+    "openTracker": "Tracker öffnen"
+  },
+  "storageStatus": {
+    "title": "Speicherstatus",
+    "description": "Schreibgeschützte Bereitstellungsdaten. Zugangsdaten bleiben in der Umgebung; ein Backend-Wechsel ist eine geprüfte Migration, kein Speichern.",
+    "backend": "Backend",
+    "target": "Bucket / Container",
+    "prefix": "Schlüsselpräfix",
+    "location": "Region / Endpunkt",
+    "sse": "Verschlüsselung",
+    "maxObject": "Max. Objektgröße",
+    "presignTtl": "Presign-Gültigkeit",
+    "health": "Verbindung",
+    "healthy": "Fehlerfrei",
+    "degraded": "Beeinträchtigt",
+    "unavailable": "Nicht verfügbar",
+    "notChecked": "Nicht geprüft",
+    "test": "Verbindung testen",
+    "checkedAt": "Geprüft {{time}}",
+    "loading": "Speicherstatus wird gelesen…",
+    "error": "Der Speicherstatus konnte nicht gelesen werden.",
+    "localVolume": "Lokales Volume",
+    "none": "Keine",
+    "notApplicable": "k. A.",
+    "providerDefault": "Anbieterstandard",
+    "megabytes": "{{value}} MB",
+    "seconds": "{{value}} s",
+    "readOnly": "Schreibgeschützt. Ein Backend-Wechsel läuft über migrate-objects; er ist nie ein Speichern-Knopf."
   }
 }

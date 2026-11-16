@@ -6,8 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import {
   fetchMappingsOverview,
   fetchMappingsTrend,
-  mappingsBackfill,
   mappingsCaptureSnapshot,
+  mappingsRedecideAll,
   type MappingOverviewWithSwitches,
 } from "@/api/mappings";
 import { MappingOverviewView } from "@/components/settings/MappingOverviewView";
@@ -32,8 +32,8 @@ vi.mock("@/api/mappings", async (importOriginal) => {
     ...actual,
     fetchMappingsOverview: vi.fn(),
     fetchMappingsTrend: vi.fn().mockResolvedValue({ items: [] }),
-    mappingsBackfill: vi.fn(),
     mappingsCaptureSnapshot: vi.fn(),
+    mappingsRedecideAll: vi.fn(),
   };
 });
 
@@ -64,7 +64,6 @@ function overview(
       error: null,
     },
     health: { spaces: [] },
-    legacy_outcome_count: 4,
     ...overrides,
   };
 }
@@ -98,7 +97,7 @@ describe("mapping overview view (plan 205 S5)", () => {
 
   it("shows the empty state before postings exist", async () => {
     vi.mocked(fetchMappingsOverview).mockResolvedValue(
-      overview({ active: 0, legacy_outcome_count: 0 }),
+      overview({ active: 0 }),
     );
     renderView(<MappingOverviewView />);
     expect(
@@ -106,25 +105,6 @@ describe("mapping overview view (plan 205 S5)", () => {
     ).toBeTruthy();
   });
 
-  it("offers the backfill action only when legacy rows exist and reloads after", async () => {
-    const user = userEvent.setup();
-    vi.mocked(mappingsBackfill).mockResolvedValue({ job_id: "j", created: true });
-    const first = renderView(<MappingOverviewView />);
-    expect(await screen.findByTestId("mappings-backfill")).toBeTruthy();
-    await user.click(screen.getByTestId("mappings-backfill"));
-    expect(mappingsBackfill).toHaveBeenCalled();
-    expect(
-      await screen.findByText("mappingsConsole.overview.backfillQueued"),
-    ).toBeTruthy();
-    first.unmount();
-
-    vi.mocked(fetchMappingsOverview).mockResolvedValue(
-      overview({ legacy_outcome_count: 0 }),
-    );
-    renderView(<MappingOverviewView />);
-    await screen.findByTestId("mappings-stat-tiles");
-    expect(screen.queryByTestId("mappings-backfill")).toBeNull();
-  });
 });
 
 describe("mapping runs view (plan 205 S5)", () => {
@@ -137,6 +117,41 @@ describe("mapping runs view (plan 205 S5)", () => {
     expect(controls).toContain("mappingsConsole.overview.switch.semanticRerank");
     const link = screen.getByTestId("mappings-switch-link");
     expect(link.getAttribute("href")).toBe("/settings/taxonomy?tab=relations");
+  });
+
+  it("queues the stale-scope re-decide by default after confirmation", async () => {
+    const user = userEvent.setup();
+    vi.mocked(mappingsRedecideAll).mockResolvedValue({
+      queued: true,
+      job_id: "job-remap",
+      scope: "stale",
+      active: 10,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderView(<MappingRunsView />);
+    const button = await screen.findByTestId("mappings-redecide-stale");
+    await user.click(button);
+    await waitFor(() => expect(mappingsRedecideAll).toHaveBeenCalledWith("stale"));
+    expect(confirm).toHaveBeenCalled();
+    expect(await screen.findByText("mappingsConsole.runs.queued")).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it("offers a separately confirmed force-all re-decide", async () => {
+    const user = userEvent.setup();
+    vi.mocked(mappingsRedecideAll).mockResolvedValue({
+      queued: true,
+      job_id: "job-remap-all",
+      scope: "all",
+      active: 10,
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderView(<MappingRunsView />);
+    const button = await screen.findByTestId("mappings-redecide-force-all");
+    await user.click(button);
+    await waitFor(() => expect(mappingsRedecideAll).toHaveBeenCalledWith("all"));
+    expect(confirm).toHaveBeenCalledWith("mappingsConsole.runs.forceConfirm");
+    confirm.mockRestore();
   });
 
   it("links the job index to Tools → Retrieval (no second reindex action)", async () => {

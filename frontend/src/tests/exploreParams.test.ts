@@ -117,3 +117,43 @@ describe("explore basis (plan 195)", () => {
     expect(filtersFromRecord({ basis: "all" }).basis).toBe("all");
   });
 });
+
+describe("opportunity, work authorization and closing (plan 212 S2.1)", () => {
+  it("parses stable keys and drops unknown values", () => {
+    const filters = parseFilters(
+      new URLSearchParams(
+        "opportunity_type=internship,graduate_scheme,nonsense&opportunity_type_exclude=unknown&work_authorization=sponsors,case_by_case&work_authorization_exclude=citizens_only&closing_within=30d"
+      )
+    );
+    expect(filters.opportunityType).toEqual(["internship", "graduate_scheme"]);
+    expect(filters.opportunityTypeExclude).toEqual(["unknown"]);
+    expect(filters.workAuthorization).toEqual(["sponsors", "case_by_case"]);
+    expect(filters.workAuthorizationExclude).toEqual(["citizens_only"]);
+    expect(filters.closingWithin).toBe("30d");
+    expect(parseFilters(new URLSearchParams("closing_within=1y")).closingWithin).toBe("");
+  });
+
+  it("round-trips and counts each active value", () => {
+    const filters = parseFilters(
+      new URLSearchParams(
+        "opportunity_type=internship&work_authorization=sponsors&closing_within=7d"
+      )
+    );
+    const canonical = toSearchParams(filters);
+    expect(canonical.get("opportunity_type")).toBe("internship");
+    expect(canonical.get("work_authorization")).toBe("sponsors");
+    expect(canonical.get("closing_within")).toBe("7d");
+    expect(parseFilters(canonical)).toEqual(filters);
+    expect(countActive(filters)).toBe(3);
+  });
+});
+
+describe("hidden duplicates (plan 212 S2.2)", () => {
+  it("round-trips and counts the toggle", () => {
+    const filters = parseFilters(new URLSearchParams("hide_duplicates=true"));
+    expect(filters.hideDuplicates).toBe(true);
+    expect(toParams(filters)).toEqual({ hide_duplicates: true });
+    expect(countActive(filters)).toBe(1);
+    expect(parseFilters(new URLSearchParams("hide_duplicates=false")).hideDuplicates).toBe(false);
+  });
+});

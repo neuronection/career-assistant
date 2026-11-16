@@ -355,6 +355,17 @@ NOTIFICATION_KINDS = [
         "manage_url": "/settings/notifications",
     },
     {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c801a",
+        "key": "posting_closing_soon",
+        "label": "Saved posting closing soon",
+        "group": "career",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop", "browser"],
+        "mutable": True,
+        "manage_url": "/settings/notifications",
+    },
+    {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c800c",
         "key": "cv_synth_ready",
         "label": "Synthesized variants ready for review",

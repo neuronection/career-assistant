@@ -317,6 +317,18 @@ class JobWorker:
                 job.status = BackgroundJobStatus.QUEUED.value
                 job.stage = "recovered after restart"
             else:
+                if (
+                    job.job_type == BackgroundJobType.POSTING_EXTRACT.value
+                    and not job.cancel_requested
+                    and (job.payload or {}).get("mode") != "resolve"
+                ):
+                    from app.services.postings.extract_service import (
+                        record_terminal_extract_failure,
+                    )
+
+                    await record_terminal_extract_failure(
+                        self.db, (job.payload or {}).get("posting_id")
+                    )
                 job.status = BackgroundJobStatus.FAILED.value
                 job.error = "Interrupted by restart"
                 job.finished_at = _utcnow()
@@ -369,6 +381,7 @@ async def _run_job_generate(
     return {
         "draft_count": len(result["drafts"]),
         "relation_count": len(result["relations"]),
+        "skipped": result.get("skipped", []),
         "note": result["note"],
     }
 
@@ -422,18 +435,20 @@ async def _run_data_export(
     cancelled: CancelledCb,
 ) -> dict:
     from app.models.user_model import User
-    from app.services.admin.export_service import build_export
+    from app.services.admin.export_service import EXPORT_FILENAME, build_export
+    from app.services.profile.document_storage import DocumentStorage
 
     await progress(20, "collecting your data")
     user = await db.get(User, _require_user(job))
     if user is None:
         raise DomainError("User not found")
-    archive = await build_export(db, user, job.id)
+    export_key = await build_export(db, user, job.id)
+    info = await DocumentStorage().astat_key(export_key)
     await progress(100, "export ready")
     return {
-        "export_path": str(archive),
-        "filename": archive.name,
-        "size_bytes": archive.stat().st_size,
+        "export_key": export_key,
+        "filename": EXPORT_FILENAME.format(job_id=job.id),
+        "size_bytes": info.size if info is not None else 0,
     }
 
 
@@ -1168,25 +1183,6 @@ async def has_pending_reconcile(db: AsyncSession, continuation_key: str) -> bool
     return rows.scalars().first() is not None
 
 
-async def _run_job_proposal_backfill(
-    db: AsyncSession,
-    job: BackgroundJob,
-    *,
-    progress: ProgressCb,
-    cancelled: CancelledCb,
-) -> dict:
-    """Regenerate or clear legacy v1 job proposals (plan 202 AD8)."""
-    from app.services.postings.job_proposal_backfill import run_job_proposal_backfill
-
-    return await run_job_proposal_backfill(
-        db,
-        job.payload or {},
-        run_id=job.id,
-        progress=progress,
-        cancelled=cancelled,
-    )
-
-
 async def _run_mapping_coverage_capture(
     db: AsyncSession,
     job: BackgroundJob,
@@ -1232,24 +1228,6 @@ async def _run_mapping_alert_sweep(
     await db.commit()
     await progress(100, "sweep complete")
     return result
-
-
-async def _run_mapping_outcome_backfill(
-    db: AsyncSession,
-    job: BackgroundJob,
-    *,
-    progress: ProgressCb,
-    cancelled: CancelledCb,
-) -> dict:
-    """Derive the typed mapping outcome for legacy rows (plan 205 S2)."""
-    from app.services.postings.mapping_outcome_backfill import run_mapping_outcome_backfill
-
-    return await run_mapping_outcome_backfill(
-        db,
-        job.payload or {},
-        progress=progress,
-        cancelled=cancelled,
-    )
 
 
 async def _run_posting_remap(
@@ -1440,8 +1418,6 @@ HANDLERS: dict[str, Handler] = {
     "vector_cutover": _run_vector_cutover,
     "retrieval_alert_sweep": _run_retrieval_alert_sweep,
     "posting_remap": _run_posting_remap,
-    "job_proposal_backfill": _run_job_proposal_backfill,
-    "mapping_outcome_backfill": _run_mapping_outcome_backfill,
     "mapping_coverage_capture": _run_mapping_coverage_capture,
     "mapping_alert_sweep": _run_mapping_alert_sweep,
     "tokenizer_fetch": _run_tokenizer_fetch,
@@ -1474,7 +1450,7 @@ async def start_workers(
             logger.info("Recovered %d orphaned background job(s)", recovered)
     from app.services.admin.export_service import cleanup_old_exports
 
-    purged = cleanup_old_exports()
+    purged = await cleanup_old_exports()
     if purged:
         logger.info("Purged %d stale export archive(s)", purged)
     specs = worker_specs(

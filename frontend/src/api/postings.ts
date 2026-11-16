@@ -1,7 +1,7 @@
 import { api } from "@/api/client";
 import type { PostingsResponse, PostingSourceInfo } from "@/types/wire";
 import type { ExploreResponse, SmartSearchResponse } from "@/types/wire";
-import type { PostingDetailOut } from "@/types/wire";
+import type { PostingDetailOut, PostingKit, KitPrepare } from "@/types/wire";
 import type { ExploreParams } from "@/types";
 
 
@@ -97,6 +97,28 @@ export async function fetchPostingDetail(id: string): Promise<PostingDetailOut> 
   return data;
 }
 
+export async function setPostingGateOverride(
+  ref: string,
+  gate: "visa" | "language" | "grade",
+  allow: boolean,
+): Promise<{ gate_overrides: Record<string, boolean> }> {
+  const { data } = await api.post<{ gate_overrides: Record<string, boolean> }>(
+    `/postings/${ref}/gate-override`,
+    { gate, allow },
+  );
+  return data;
+}
+
+export async function fetchPostingKit(ref: string): Promise<PostingKit> {
+  const { data } = await api.get<PostingKit>(`/postings/${ref}/kit`);
+  return data;
+}
+
+export async function preparePostingKit(ref: string): Promise<KitPrepare> {
+  const { data } = await api.post<KitPrepare>(`/postings/${ref}/kit/prepare`);
+  return data;
+}
+
 export async function fetchPostings(
   params: {
     source?: string;
@@ -117,6 +139,16 @@ export async function markPostingsSeen(postingIds: string[]): Promise<{ marked: 
   const { data } = await api.post<{ marked: number }>("/postings/seen", {
     posting_ids: postingIds,
   });
+  return data;
+}
+
+export async function capturePosting(
+  url: string
+): Promise<{ id: string; ref: string; created: boolean }> {
+  const { data } = await api.post<{ id: string; ref: string; created: boolean }>(
+    "/postings/capture",
+    { url }
+  );
   return data;
 }
 

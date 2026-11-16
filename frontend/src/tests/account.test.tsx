@@ -166,12 +166,35 @@ describe("Account (§12 account self-service, plan 148)", () => {
 
   it("lists sessions with the current marker and revoked state", async () => {
     render(<Account />);
-    const rows = await screen.findAllByTestId("account-session");
+    await screen.findByText("Firefox on Linux");
+    const rows = document.querySelectorAll('[data-as="account-session-row"]');
     expect(rows).toHaveLength(3);
     expect(screen.getByText("Firefox on Linux")).toBeInTheDocument();
     expect(screen.getByText("this device")).toBeInTheDocument();
+    expect(rows[0]).toHaveAttribute("data-current", "true");
     expect(screen.getByText("Phone")).toBeInTheDocument();
     expect(screen.getByText("Signed out")).toBeInTheDocument();
+    expect(rows[0]).toHaveTextContent("Signed in");
+    expect(rows[0]).toHaveTextContent("expires");
+  });
+
+  it("marks revoked rows with the library badge and no revoke action", async () => {
+    render(<Account />);
+    await screen.findByText("Old laptop");
+    const rows = document.querySelectorAll('[data-as="account-session-row"]');
+    const revokedRow = rows[2];
+    expect(revokedRow).toHaveAttribute("data-revoked", "true");
+    expect(rows[0]).not.toHaveAttribute("data-revoked");
+    expect(rows[1]).not.toHaveAttribute("data-revoked");
+    const badge = revokedRow.querySelector('[data-as="account-session-revoked"]');
+    expect(badge).toHaveTextContent("Signed out");
+    expect(revokedRow.querySelectorAll('[data-as="account-session-revoked"]')).toHaveLength(1);
+    expect(revokedRow.querySelector('[data-as="account-session-revoke"]')).toBeNull();
+    expect(screen.getAllByText("Signed out")).toHaveLength(1);
+    const activeRow = rows[1];
+    expect(
+      within(activeRow as HTMLElement).getByRole("button", { name: "Sign out — Phone" }),
+    ).toBeInTheDocument();
   });
 
   it("revoking another device is confirmed first, then revoked and re-listed", async () => {

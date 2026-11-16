@@ -8,7 +8,7 @@ zero LLM, notify only when at least one new smart match exists.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -16,12 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.engagement_model import SearchHistory
 from app.models.posting_model import JobPosting, PostingInteraction
+from app.services.postings.explore_service import OPEN_STATUSES
 
 logger = logging.getLogger(__name__)
 
 SMART_DIGEST_KIND = "smart_digest"
 SMART_DIGEST_TRIGGER = {"type": "daily_at", "params": {"time": "08:00", "timezone": "UTC"}}
 SMART_DIGEST_MAX_PER_DAY = 3
+
+CLOSING_SOON_KIND = "posting_closing_soon"
+CLOSING_SOON_DAYS = 7
 
 
 def _utcnow() -> datetime:
@@ -183,13 +187,48 @@ async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
     return unseen
 
 
+async def _closing_soon_saved(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    within_days: int = CLOSING_SOON_DAYS,
+) -> list[JobPosting]:
+    """Saved, still-open postings whose deadline falls in the window.
+
+    Only saved postings alert: the digest must never turn an arbitrary
+    deadline into a ping. Expired deadlines and closed rows are excluded;
+    the ordering makes the nearest deadline the headline.
+    """
+    today = _utcnow().date()
+    rows = await db.execute(
+        select(JobPosting)
+        .join(
+            PostingInteraction,
+            (PostingInteraction.posting_id == JobPosting.id)
+            & (PostingInteraction.user_id == user_id),
+        )
+        .where(
+            PostingInteraction.saved_at.is_not(None),
+            PostingInteraction.hidden_at.is_(None),
+            JobPosting.status.in_(OPEN_STATUSES),
+            JobPosting.application_deadline.is_not(None),
+            JobPosting.application_deadline >= today,
+            JobPosting.application_deadline <= today + timedelta(days=within_days),
+        )
+        .order_by(JobPosting.application_deadline.asc(), JobPosting.id.asc())
+    )
+    return list(rows.scalars().all())
+
+
 async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetime) -> dict:
-    """Weekly digest: new postings in target families + radar headline."""
+    """Weekly digest: new postings in target families + radar headline
+    + the saved-posting closing-soon section and its own alert kind."""
     from app.services.growth.growth_service import near_miss_radar
     from app.services.notification_service import NotificationService
 
     unseen = await _unseen_target_postings(db, user_id)
     radar = await near_miss_radar(db, user_id, limit=3)
+    closing = await _closing_soon_saved(db, user_id)
     service = NotificationService(db)
     await service.flush_deferred_email(user_id)
     body_parts = []
@@ -199,6 +238,11 @@ async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetim
         )
     if radar:
         body_parts.append(f"close to: {radar[0]['headline']}")
+    if closing:
+        body_parts.append(
+            f"{len(closing)} saved posting{'s' if len(closing) != 1 else ''} "
+            f"close{'s' if len(closing) == 1 else ''} within {CLOSING_SOON_DAYS} days"
+        )
     emitted = await service.emit(
         "digest_ready",
         [user_id],
@@ -207,15 +251,35 @@ async def build_and_emit_digest(db: AsyncSession, user_id: UUID, *, now: datetim
         payload={
             "new_postings": unseen,
             "radar_count": len(radar),
+            "closing_soon": len(closing),
             "link": "/postings",
         },
         dedup_key=f"digest:{user_id}:{now.strftime('%G-W%V')}",
         max_per_day=3,
     )
+    closing_emitted = None
+    if closing:
+        closing_emitted = await service.emit(
+            CLOSING_SOON_KIND,
+            [user_id],
+            title=(f"{len(closing)} saved posting{'s' if len(closing) != 1 else ''} closing soon"),
+            body=", ".join(
+                f"{posting.title} — {posting.application_deadline}" for posting in closing[:3]
+            ),
+            payload={
+                "count": len(closing),
+                "posting_ids": [str(posting.id) for posting in closing],
+                "link": "/postings?saved=1",
+            },
+            dedup_key=f"closing-soon:{user_id}:{now.strftime('%G-W%V')}",
+            max_per_day=3,
+        )
     return {
         "emitted": emitted is not None,
         "new_postings": unseen,
         "radar_count": len(radar),
+        "closing_soon": len(closing),
+        "closing_notified": closing_emitted is not None,
     }
 
 

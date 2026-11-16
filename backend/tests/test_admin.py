@@ -275,7 +275,7 @@ async def test_moderation_queue_and_bulk_actions(client, db, _admin_and_user, se
         json={"ids": [mine["id"]], "action": "publish"},
         headers=admin,
     )
-    assert published.json() == {"published": 1, "rejected": 0}
+    assert published.json() == {"published": 1, "rejected": 0, "skipped": 0}
     detail = await client.get("/api/v1/jobs/draft-role", headers=admin)
     assert detail.json()["status"] == "published"
 

@@ -187,6 +187,7 @@ async def collect_events(
             scheduled = _scheduled_at((event.meta or {}).get("scheduled_at")) or event.at
             if scheduled < moment - timedelta(hours=1):
                 continue
+            all_day = bool((event.meta or {}).get("all_day"))
             if scheduled.astimezone(UTC).date() > horizon:
                 continue
             duration = (event.meta or {}).get("duration_minutes")
@@ -197,10 +198,10 @@ async def collect_events(
             events.append(
                 FeedEvent(
                     key=f"interview-{event.id}",
-                    start=scheduled,
+                    start=scheduled.date() if all_day else scheduled,
                     summary=f"Interview: {label}",
                     description=event.body or "Scheduled interview recorded in your tracker.",
-                    all_day=False,
+                    all_day=all_day,
                     duration_minutes=minutes,
                 )
             )

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowUpDown, Radar, Sparkles, X } from "lucide-react";
+import { ArrowUpDown, Link2, Radar, Sparkles, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources, smartSearch } from "@/api/postings";
 import { fetchRadar, previewRadar } from "@/api/radar";
@@ -9,6 +9,8 @@ import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
+import { CaptureDialog } from "@/features/postings/components/CaptureDialog";
+import { DegreeRolesBanner } from "@/features/catalog/components/DegreeRolesBanner";
 import { PostingsStatsRail } from "@/components/stats/StatsRail";
 import { PresetBar } from "@/features/postings/components/postings/PresetBar";
 import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
@@ -38,11 +40,14 @@ import {
   type CardFilterTarget,
 } from "@/features/postings/components/postings/cardFilterMenu";
 import {
+  CLOSING_WINDOWS,
   CONTRACT_VALUES,
+  OPPORTUNITY_VALUES,
   POSTED_WINDOWS,
   SCHEDULE_VALUES,
   SORT_OPTIONS,
   TRAVEL_VALUES,
+  WORK_AUTH_VALUES,
   countActive,
   parseFilters,
   toParams,
@@ -75,6 +80,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [facets, setFacets] = useState<ExploreFacets>(
     () => restored?.facets ?? EMPTY_FACETS
   );
+  const [jobTitles, setJobTitles] = useState<Record<string, string>>(
+    () => restored?.jobTitles ?? {}
+  );
   const [cursor, setCursor] = useState<string | null>(
     () => restored?.nextCursor ?? null
   );
@@ -82,6 +90,18 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const captureParam = searchParams.get("capture") ?? "";
+  const [captureOpen, setCaptureOpen] = useState(false);
+  useEffect(() => {
+    if (captureParam) setCaptureOpen(true);
+  }, [captureParam]);
+  const closeCapture = () => {
+    setCaptureOpen(false);
+    if (!searchParams.has("capture")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("capture");
+    setSearchParams(next, { replace: true });
+  };
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
   const [smartQuery, setSmartQuery] = useState("");
@@ -115,6 +135,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           itemsRef.current = merged;
           setTotal(response.total);
           setFacets(response.facets ?? {});
+          setJobTitles(response.job_titles ?? {});
           setCursor(response.next_cursor ?? null);
           rememberExploreList(
             `${profileEpoch}|${toSearchParams(current).toString()}`,
@@ -123,6 +144,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
               total: response.total,
               facets: response.facets ?? {},
               nextCursor: response.next_cursor ?? null,
+              jobTitles: response.job_titles ?? {},
             }
           );
         })
@@ -207,7 +229,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   }, [filters]);
 
   useEffect(() => {
-    const canonical = toSearchParams(parseFilters(searchParams)).toString();
+    const next = toSearchParams(parseFilters(searchParams));
+    const capture = searchParams.get("capture");
+    if (capture) next.set("capture", capture);
+    const canonical = next.toString();
     if (canonical !== searchParams.toString()) {
       setSearchParams(new URLSearchParams(canonical), { replace: true });
     }
@@ -229,6 +254,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
         itemsRef.current = merged;
         setTotal(response.total);
         setFacets(response.facets ?? {});
+        setJobTitles(response.job_titles ?? {});
         setCursor(response.next_cursor ?? null);
         rememberExploreList(
           `${profileEpoch}|${toSearchParams(requestFilters).toString()}`,
@@ -237,6 +263,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             total: response.total,
             facets: response.facets ?? {},
             nextCursor: response.next_cursor ?? null,
+            jobTitles: response.job_titles ?? {},
           }
         );
       })
@@ -280,6 +307,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       itemsRef.current = response.items;
       setTotal(response.total);
       setFacets(response.facets ?? {});
+      setJobTitles(response.job_titles ?? {});
       setCursor(null);
       setRadarActive(true);
     } catch (err) {
@@ -386,7 +414,8 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
     new Set([...Object.keys(facets?.job ?? {}), ...filters.job])
   ).map((code) => ({
     value: code,
-    label: code,
+    label: jobTitles[code] ?? code,
+    hint: jobTitles[code] ? code : undefined,
     count: facets?.job?.[code] ?? 0,
     testId: `job-${code}`,
   }));
@@ -404,6 +433,13 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           {radarActive ? t("explore.radarActive") : t("explore.intro")}
         </p>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCaptureOpen(true)}
+            className="flex items-center gap-1 rounded-lg border border-[var(--as-border)] px-3 py-1.5 text-sm text-[var(--as-fg)]"
+            data-testid="open-capture"
+          >
+            <Link2 className="h-3.5 w-3.5" aria-hidden /> {t("explore.capture")}
+          </button>
           {filters.basis === "all" ? (
             <button
               onClick={() => patch({ basis: "open" })}
@@ -648,6 +684,95 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             </Section>
 
             <Section
+              title={t("explore.facet.opportunityType")}
+              active={
+                filters.opportunityType.length + filters.opportunityTypeExclude.length > 0
+              }
+              count={filters.opportunityType.length + filters.opportunityTypeExclude.length}
+            >
+              <TriStateChips
+                showCounts
+                values={OPPORTUNITY_VALUES.map((value) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, {
+                    defaultValue: value.replace(/_/g, " "),
+                  }),
+                  count: (facets ?? {}).opportunity_type?.[value],
+                  testId: `opportunity-${value}`,
+                }))}
+                include={filters.opportunityType}
+                exclude={filters.opportunityTypeExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(
+                    filters.opportunityType,
+                    filters.opportunityTypeExclude,
+                    value,
+                    mode
+                  );
+                  patch({
+                    opportunityType: next.include,
+                    opportunityTypeExclude: next.exclude,
+                  });
+                }}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.workAuthorization")}
+              active={
+                filters.workAuthorization.length + filters.workAuthorizationExclude.length > 0
+              }
+              count={filters.workAuthorization.length + filters.workAuthorizationExclude.length}
+            >
+              <TriStateChips
+                showCounts
+                values={WORK_AUTH_VALUES.map((value) => ({
+                  value,
+                  label:
+                    value === "none"
+                      ? t("explore.facetValue.cannot_sponsor")
+                      : t(`explore.facetValue.${value}`, {
+                          defaultValue: value.replace(/_/g, " "),
+                        }),
+                  count: (facets ?? {}).work_authorization?.[value],
+                  testId: `work-auth-${value}`,
+                }))}
+                include={filters.workAuthorization}
+                exclude={filters.workAuthorizationExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(
+                    filters.workAuthorization,
+                    filters.workAuthorizationExclude,
+                    value,
+                    mode
+                  );
+                  patch({
+                    workAuthorization: next.include,
+                    workAuthorizationExclude: next.exclude,
+                  });
+                }}
+              />
+            </Section>
+
+            <Section title={t("explore.facet.closing")} active={!!filters.closingWithin}>
+              <TriStateChips
+                showCounts
+                allowExclude={false}
+                values={CLOSING_WINDOWS.map((option) => ({
+                  value: option.value,
+                  label: t(option.labelKey),
+                  count: (facets ?? {}).closing?.[option.value],
+                  testId: `closing-${option.value}`,
+                }))}
+                include={filters.closingWithin ? [filters.closingWithin] : []}
+                exclude={[]}
+                onToggle={(value, mode) =>
+                  patch({ closingWithin: mode === "clear" ? "" : value })
+                }
+              />
+            </Section>
+
+            <Section
               title={t("explore.facet.contract")}
               active={filters.contract.length + filters.contractExclude.length > 0}
               count={filters.contract.length + filters.contractExclude.length}
@@ -770,7 +895,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     job:
                       mode === "clear"
                         ? filters.job.filter((code) => code !== value)
-                        : [value],
+                        : [...filters.job.filter((code) => code !== value), value],
                   })
                 }
               />
@@ -803,9 +928,31 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                 data-testid="seen-exclude"
               />
             </label>
+            <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
+              <span title={t("explore.hideDuplicatesTitle")}>
+                {t("explore.hideDuplicates")}
+              </span>
+              <input
+                type="checkbox"
+                checked={filters.hideDuplicates}
+                onChange={(e) => patch({ hideDuplicates: e.target.checked })}
+                data-testid="hide-duplicates"
+              />
+            </label>
         </FilterRail>
 
         <div className="flex-1 space-y-3">
+          <DegreeRolesBanner
+            filters={filters}
+            onApply={(keys, mode) =>
+              patch({
+                mappedFamily:
+                  mode === "clear"
+                    ? filters.mappedFamily.filter((key) => !keys.includes(key))
+                    : Array.from(new Set([...filters.mappedFamily, ...keys])),
+              })
+            }
+          />
           <form
             className="flex flex-wrap items-center gap-2"
             onSubmit={(event) => {
@@ -958,6 +1105,15 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           }}
         />
       </div>
+      <CaptureDialog
+        open={captureOpen}
+        initialUrl={captureParam}
+        onClose={closeCapture}
+        onCaptured={(ref) => {
+          closeCapture();
+          if (ref) navigate(`/postings/${ref}`);
+        }}
+      />
     </div>
   );
 }

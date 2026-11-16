@@ -274,8 +274,8 @@ describe("CvStudio cover letters", () => {
     expect(await screen.findByTestId("cv-studio")).toBeInTheDocument();
     expect(screen.getByTestId("cv-kind")).toHaveTextContent("Cover letter");
 
-    const newLetter = screen.getByTestId("new-letter");
-    expect(newLetter).toBeEnabled();
+    const newLetter = await screen.findByTestId("new-letter");
+    await waitFor(() => expect(newLetter).toBeEnabled());
     await user.click(newLetter);
 
     const select = await screen.findByTestId("letter-posting-select");

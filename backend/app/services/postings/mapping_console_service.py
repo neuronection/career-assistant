@@ -18,7 +18,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -55,44 +55,16 @@ def _description_expr(db: AsyncSession):
     return func.coalesce(func.json_extract(JobPosting.raw, "$.description"), "")
 
 
-def _failed_extract_exists(db: AsyncSession):
-    """EXISTS: a failed ``posting_extract`` job for this posting.
-
-    The job payload stores ``str(uuid)``; SQLite stores UUIDs as 32-hex, so
-    both sides are dash-normalized there.
-    """
-    from typing import Any as _Any
-
-    from sqlalchemy import Text, cast
-
-    payload_id: _Any
-    posting_id: _Any
-    if _is_postgres(db):
-        payload_id = BackgroundJob.payload.op("->>")("posting_id")
-        posting_id = cast(JobPosting.id, Text())
-    else:
-        payload_id = func.replace(func.json_extract(BackgroundJob.payload, "$.posting_id"), "-", "")
-        posting_id = func.replace(cast(JobPosting.id, Text()), "-", "")
-    return (
-        select(1)
-        .where(
-            BackgroundJob.job_type == BackgroundJobType.POSTING_EXTRACT.value,
-            BackgroundJob.status == BackgroundJobStatus.FAILED.value,
-            payload_id == posting_id,
-        )
-        .exists()
-    )
-
-
 def fold_funnel_row(row: Any) -> str:
     """Fold one grouped (state-relevant columns) combo into its funnel state.
 
-    The precedence IS the contract (plan 205 AD2) — shared with the tests
-    and the triage filter.
+    The precedence IS the contract (plan 205 AD2 + plan 210 AD4) — shared
+    with the tests, the triage filter and the trace.
     """
     (
         is_mapped,
         review_state,
+        detail_failed,
         no_description,
         no_detail,
         extract_failed,
@@ -104,6 +76,8 @@ def fold_funnel_row(row: Any) -> str:
         return "mapped"
     if review_state == "ignored":
         return "ignored"
+    if detail_failed:
+        return "detail_failed"
     if no_description:
         return "no_description"
     if no_detail:
@@ -123,6 +97,38 @@ def fold_funnel_row(row: Any) -> str:
     return "unknown"
 
 
+def _detail_failed_expr():
+    return JobPosting.detail_fetched_at.is_(None) & (
+        JobPosting.detail_attempts >= DETAIL_MAX_ATTEMPTS
+    )
+
+
+def _latest_extract_job(db: AsyncSession, posting_id: uuid.UUID):
+    """The latest non-resolve ``posting_extract`` job row (one query)."""
+    from sqlalchemy import or_
+
+    payload_id: Any
+    mode: Any
+    if _is_postgres(db):
+        payload_id = BackgroundJob.payload.op("->>")("posting_id")
+        posting_key = str(posting_id)
+        mode = BackgroundJob.payload.op("->>")("mode")
+    else:
+        payload_id = func.replace(func.json_extract(BackgroundJob.payload, "$.posting_id"), "-", "")
+        posting_key = str(posting_id).replace("-", "")
+        mode = func.json_extract(BackgroundJob.payload, "$.mode")
+    return (
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.job_type == BackgroundJobType.POSTING_EXTRACT.value,
+            payload_id == posting_key,
+            or_(mode.is_(None), mode != "resolve"),
+        )
+        .order_by(BackgroundJob.created_at.desc(), BackgroundJob.id.desc())
+        .limit(1)
+    )
+
+
 async def _coverage_floor(db: AsyncSession) -> float:
     row = await db.execute(select(AppSetting).where(AppSetting.key == COVERAGE_FLOOR_KEY))
     setting = row.scalars().first()
@@ -140,12 +146,12 @@ async def funnel(db: AsyncSession) -> dict[str, Any]:
     no_description = func.coalesce(_description_expr(db), "") == ""
     no_detail = JobPosting.detail_fetched_at.is_(None)
     no_extract = JobPosting.extract_version.is_(None)
-    extract_failed = _failed_extract_exists(db) | (
-        JobPosting.detail_attempts >= DETAIL_MAX_ATTEMPTS
-    )
+    detail_failed = _detail_failed_expr()
+    extract_failed = JobPosting.extract_status == "failed"
     columns = (
         JobPosting.catalog_job_id.is_(None).label("is_unmapped"),
         JobPosting.mapping_review_state,
+        detail_failed.label("detail_failed"),
         no_description.label("no_description"),
         no_detail.label("no_detail"),
         extract_failed.label("extract_failed"),
@@ -167,6 +173,7 @@ async def funnel(db: AsyncSession) -> dict[str, Any]:
             (
                 not row.is_unmapped,
                 row.mapping_review_state,
+                bool(row.detail_failed),
                 bool(row.no_description),
                 bool(row.no_detail),
                 bool(row.extract_failed),
@@ -268,7 +275,6 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
         semantic_rerank_enabled,
         semantic_rescue_enabled,
     )
-    from app.services.postings.mapping_outcome_backfill import legacy_outcome_count
 
     funnel_counts = await funnel(db)
     states = funnel_counts["states"]
@@ -282,6 +288,7 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
         "extracted": active
         - states.get("not_extracted", 0)
         - states.get("no_description", 0)
+        - states.get("detail_failed", 0)
         - states.get("detail_not_fetched", 0)
         - states.get("extract_failed", 0),
         "mapped": accounted["mapped"],
@@ -302,7 +309,6 @@ async def overview(db: AsyncSession) -> dict[str, Any]:
         },
         "last_remap": await _last_remap(db),
         "health": _retrieval_health(),
-        "legacy_outcome_count": await legacy_outcome_count(db),
     }
 
 
@@ -366,6 +372,7 @@ async def sources_breakdown(db: AsyncSession) -> list[dict[str, Any]]:
                 "extracted": active
                 - states.get("not_extracted", 0)
                 - states.get("no_description", 0)
+                - states.get("detail_failed", 0)
                 - states.get("detail_not_fetched", 0)
                 - states.get("extract_failed", 0),
                 "mapped": states.get("mapped", 0),
@@ -392,6 +399,7 @@ async def sources_breakdown(db: AsyncSession) -> list[dict[str, Any]]:
                 "extracted": active
                 - states.get("not_extracted", 0)
                 - states.get("no_description", 0)
+                - states.get("detail_failed", 0)
                 - states.get("detail_not_fetched", 0)
                 - states.get("extract_failed", 0),
                 "mapped": states.get("mapped", 0),
@@ -490,12 +498,12 @@ def _state_expression(db: AsyncSession):
     no_description = func.coalesce(_description_expr(db), "") == ""
     no_detail = JobPosting.detail_fetched_at.is_(None)
     no_extract = JobPosting.extract_version.is_(None)
-    extract_failed = _failed_extract_exists(db) | (
-        JobPosting.detail_attempts >= DETAIL_MAX_ATTEMPTS
-    )
+    detail_failed = _detail_failed_expr()
+    extract_failed = JobPosting.extract_status == "failed"
     whens = [
         (JobPosting.catalog_job_id.isnot(None), "mapped"),
         (JobPosting.mapping_review_state == "ignored", "ignored"),
+        (detail_failed, "detail_failed"),
         (no_description, "no_description"),
         (no_detail, "detail_not_fetched"),
         (extract_failed, "extract_failed"),
@@ -521,6 +529,7 @@ async def unmapped_list(
     source_id: uuid.UUID | None = None,
     needs_review: bool | None = None,
     detail_state: str | None = None,
+    weak: bool | None = None,
     q: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
@@ -538,7 +547,13 @@ async def unmapped_list(
     from sqlalchemy.sql.elements import ColumnElement
 
     from app.core.keyset import decode_cursor, encode_cursor
+    from app.services.postings.mapping_outcome import (
+        is_weak_mapping,
+        weak_mapping_predicate,
+    )
+    from app.services.postings.mapping_policy import load_mapping_policy
 
+    policy = await load_mapping_policy(db)
     after = decode_cursor(cursor, types=(datetime, uuid.UUID)) if cursor else None
     expr = _state_expression(db)
     conditions: list[ColumnElement[bool]] = [JobPosting.status.in_(ACTIVE_POSTING_STATUSES)]
@@ -552,12 +567,16 @@ async def unmapped_list(
         conditions.append(JobPosting.detail_fetched_at.is_(None))
     elif detail_state == "fetched":
         conditions.append(JobPosting.detail_fetched_at.isnot(None))
+    if weak is not None:
+        predicate = weak_mapping_predicate(policy.delta)
+        if weak:
+            conditions.append(predicate)
+        else:
+            conditions.append(or_(predicate.is_(False), predicate.is_(None)))
     if q:
         conditions.append(JobPosting.title.ilike(f"%{q}%"))
     query = select(JobPosting, expr.label("funnel_state")).where(*conditions)
     if after is not None:
-        from sqlalchemy import and_, or_
-
         query = query.where(
             or_(
                 JobPosting.created_at > after[0],
@@ -581,7 +600,7 @@ async def unmapped_list(
         review = facts.get("mapping_review")
         review = review if isinstance(review, dict) else None
         proposal = facts.get("job_proposal")
-        proposal_state = proposal.get("status") if isinstance(proposal, dict) else None
+        proposal_state = _proposal_state(proposal, facts)
         items.append(
             {
                 "id": str(posting.id),
@@ -596,6 +615,13 @@ async def unmapped_list(
                 "extract_version": posting.extract_version,
                 "mapped": posting.catalog_job_id is not None,
                 "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
+                "mapping_margin": posting.mapping_margin,
+                "weak": is_weak_mapping(
+                    method=posting.mapping_method,
+                    margin=posting.mapping_margin,
+                    confidence=posting.mapping_confidence,
+                    delta=policy.delta,
+                ),
                 "top_candidate": top,
                 "proposal_state": proposal_state,
                 "review": {
@@ -626,6 +652,16 @@ def _bounded(value: Any, cap: int = 2000) -> Any:
     if isinstance(value, str) and len(value) > cap:
         return value[:cap] + "\u2026"
     return value
+
+
+def _proposal_state(proposal: Any, facts: dict) -> str | None:
+    """The v2 proposal's action/needs-edit, or the failure marker."""
+    if isinstance(proposal, dict):
+        if proposal.get("needs_edit"):
+            return "needs_edit"
+        action = proposal.get("action")
+        return str(action) if action else None
+    return "failed" if facts.get("job_proposal_failed_reason") else None
 
 
 async def trace(db: AsyncSession, posting_id: uuid.UUID) -> dict[str, Any]:
@@ -668,16 +704,41 @@ async def trace(db: AsyncSession, posting_id: uuid.UUID) -> dict[str, Any]:
         .scalars()
         .all()
     )
-    failed_extract = (
-        bool(await db.scalar(select(_failed_extract_exists(db)).where(JobPosting.id == posting.id)))
-        or posting.detail_attempts >= DETAIL_MAX_ATTEMPTS
+    detail_failed = (
+        posting.detail_fetched_at is None and posting.detail_attempts >= DETAIL_MAX_ATTEMPTS
     )
+    extract_failed = posting.extract_status == "failed"
     generation_ids = [
         str(ref["ai_generation_id"])
         for row in journal_rows
         for ref in [row.actor_ref if isinstance(row.actor_ref, dict) else {}]
         if ref.get("ai_generation_id")
     ]
+    extract_job = (await db.execute(_latest_extract_job(db, posting.id))).scalars().first()
+    last_extract = None
+    if extract_job is not None:
+        from app.core.errors import sanitize_error_detail
+
+        at = extract_job.finished_at or extract_job.created_at
+        last_extract = {
+            "status": extract_job.status,
+            "at": at.isoformat() if at is not None else None,
+            "error": (sanitize_error_detail(extract_job.error) if extract_job.error else None),
+            "pending": extract_job.status
+            in (
+                BackgroundJobStatus.QUEUED.value,
+                BackgroundJobStatus.RUNNING.value,
+            ),
+        }
+    failure_reason = facts.get("job_proposal_failed_reason")
+    proposal_failure = (
+        {
+            "reason": _bounded(failure_reason, 200),
+            "at": facts.get("job_proposal_failed_at"),
+        }
+        if failure_reason
+        else None
+    )
     return {
         "posting": {
             "id": str(posting.id),
@@ -690,9 +751,10 @@ async def trace(db: AsyncSession, posting_id: uuid.UUID) -> dict[str, Any]:
                 (
                     posting.catalog_job_id is not None,
                     posting.mapping_review_state,
+                    detail_failed,
                     not str((posting.raw or {}).get("description") or "").strip(),
                     posting.detail_fetched_at is None,
-                    failed_extract,
+                    extract_failed,
                     posting.extract_version is None,
                     posting.needs_review,
                     posting.mapping_outcome_reason,
@@ -718,13 +780,17 @@ async def trace(db: AsyncSession, posting_id: uuid.UUID) -> dict[str, Any]:
             "candidates": features.get("candidates") or [],
         },
         "proposal": {
-            "status": (proposal or {}).get("status"),
             "action": (proposal or {}).get("action"),
             "existing_job_code": (proposal or {}).get("existing_job_code"),
             "proposal_version": (proposal or {}).get("proposal_version"),
+            "needs_edit": bool((proposal or {}).get("needs_edit")),
+            "job_type": (proposal or {}).get("job_type"),
         }
         if proposal
         else None,
+        "proposal_state": _proposal_state(proposal, facts),
+        "proposal_failure": proposal_failure,
+        "last_extract": last_extract,
         "review": {
             "state": posting.mapping_review_state,
             "reason": posting.mapping_review_reason,
@@ -903,7 +969,16 @@ async def unmap_postings(
         posting.catalog_job_id = None
         posting.mapping_method = None
         posting.mapping_confidence = None
+        posting.mapping_margin = None
+        posting.mapping_reason = ""
         posting.status = "new"
+        facts = {**(posting.posting_facts or {})}
+        facts["job_proposal"] = None
+        facts["job_proposal_cleared_at"] = datetime.now(UTC).isoformat()
+        facts["job_proposal_cleared_reason"] = "unmapped_by_admin"
+        posting.posting_facts = facts
+        posting.proposal_proposed_at = None
+        flag_modified(posting, "posting_facts")
         write_mapping_outcome(
             posting,
             state=MappingOutcomeState.UNMAPPED,
@@ -1001,6 +1076,109 @@ async def queue_extract(db: AsyncSession, posting_ids: list[uuid.UUID]) -> dict[
     }
 
 
+async def queue_redecide_all(db: AsyncSession, *, scope: str = "stale") -> dict[str, Any]:
+    """Owner-run full re-decide: enqueue one bounded ``POSTING_REMAP`` run.
+
+    ``scope="stale"`` is the after-S1 backfill (active non-manual rows whose
+    ``mapping_version`` is missing or below the current version);
+    ``scope="all"`` forces every active non-manual row. The reported ``active``
+    is the selected population, not the whole active set.
+    """
+    from app.services.postings.mapping_remap import (
+        enqueue_posting_remap,
+        redecide_scope_clause,
+    )
+
+    active = int(
+        (
+            await db.execute(
+                select(func.count()).select_from(JobPosting).where(redecide_scope_clause(scope))
+            )
+        ).scalar_one()
+    )
+    job = await enqueue_posting_remap(db, redecide_scope=scope)
+    return {
+        "queued": True,
+        "job_id": str(job.id),
+        "scope": scope,
+        "active": active,
+    }
+
+
+async def bulk_map_postings(
+    db: AsyncSession,
+    posting_ids: list[uuid.UUID],
+    job_id: uuid.UUID,
+    *,
+    actor: Any,
+) -> dict[str, Any]:
+    """Map the selected active postings onto one published catalog type.
+
+    One transaction, one target resolution and the shared ``_map_posting``
+    seam for every mapped row. Rows already on the target are ``already``;
+    unknown or terminal rows are ``blocked``. Returns before commit so the
+    caller can write its one audit event in the same transaction.
+    """
+    from fastapi import HTTPException
+    from starlette import status as http_status
+
+    from app.core.errors import NotFoundError
+    from app.services.postings.job_proposal_service import (
+        JobProposalService,
+        select_job_by_id,
+    )
+
+    if len(posting_ids) > 200:
+        raise HTTPException(413, "at most 200 postings")
+    target = await select_job_by_id(db, job_id)
+    if target is None:
+        raise NotFoundError("Job not found")
+    if target.status != "published":
+        raise HTTPException(
+            http_status.HTTP_409_CONFLICT,
+            "The target catalog type must be published",
+        )
+    rows = (
+        (await db.execute(select(JobPosting).where(JobPosting.id.in_(posting_ids)))).scalars().all()
+    )
+    by_id = {row.id: row for row in rows}
+    service = JobProposalService(db)
+    mapped: list[str] = []
+    already: list[str] = []
+    blocked: dict[str, str] = {}
+    for value in posting_ids:
+        posting = by_id.get(value)
+        if posting is None:
+            blocked[str(value)] = "missing"
+            continue
+        if posting.catalog_job_id == target.id:
+            already.append(str(value))
+            continue
+        if posting.status not in ACTIVE_POSTING_STATUSES:
+            blocked[str(value)] = "terminal"
+            continue
+        service._map_posting(
+            posting,
+            target,
+            user=actor,
+            reason="bulk mapped by a moderator",
+            operation={
+                "catalog_job_id": str(target.id),
+                "catalog_job_code": target.code,
+                "bulk_map": True,
+            },
+        )
+        mapped.append(str(value))
+    await db.flush()
+    return {
+        "affected": len(mapped),
+        "mapped": mapped,
+        "already": already,
+        "blocked": blocked,
+        "requested": len(posting_ids),
+    }
+
+
 async def queue_redecide(db: AsyncSession, posting_ids: list[uuid.UUID]) -> dict[str, Any]:
     """The re-decide action (AD6): the existing single-posting
     ``posting_remap`` (deduped), 200 cap."""
@@ -1033,6 +1211,7 @@ __all__ = [
     "COVERAGE_FLOOR_DEFAULT",
     "COVERAGE_FLOOR_KEY",
     "PROPOSAL_CLUSTER_CAP",
+    "bulk_map_postings",
     "fold_funnel_row",
     "funnel",
     "ignore_postings",
@@ -1040,6 +1219,7 @@ __all__ = [
     "overview",
     "queue_extract",
     "queue_redecide",
+    "queue_redecide_all",
     "resolve_review",
     "sources_breakdown",
     "trace",

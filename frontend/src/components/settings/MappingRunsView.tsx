@@ -3,9 +3,14 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 
-import { fetchMappingsOverview, type MappingOverviewWithSwitches } from "@/api/mappings";
+import {
+  fetchMappingsOverview,
+  mappingsRedecideAll,
+  type MappingOverviewWithSwitches,
+  type MappingRedecideScope,
+} from "@/api/mappings";
 import { apiDetail } from "@/api/client";
-import { Badge, EmptyState, Spinner } from "@/components/ui";
+import { Badge, Button, EmptyState, Spinner } from "@/components/ui";
 import { MappingAlertsCard } from "@/components/settings/MappingAlertsCard";
 import { MappingPolicyCard } from "@/components/settings/MappingPolicyCard";
 import { RETRIEVAL_RUNBOOK_URL } from "@/components/audit/retrieval/retrievalHelpers";
@@ -22,12 +27,37 @@ export function MappingRunsView() {
   const { t } = useTranslation();
   const [data, setData] = useState<MappingOverviewWithSwitches | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMappingsOverview()
       .then(setData)
       .catch((caught) => setError(apiDetail(caught)));
   }, []);
+
+  const redecide = async (scope: MappingRedecideScope) => {
+    if (!data) return;
+    const confirmKey =
+      scope === "all" ? "mappingsConsole.runs.forceConfirm" : "mappingsConsole.runs.confirm";
+    if (!window.confirm(t(confirmKey, { count: data.active }))) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const result = await mappingsRedecideAll(scope);
+      setNote(
+        t("mappingsConsole.runs.queued", {
+          count: result.active,
+          scope: result.scope,
+        }),
+      );
+      setData(await fetchMappingsOverview());
+    } catch (caught) {
+      setError(apiDetail(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!data) {
@@ -85,6 +115,30 @@ export function MappingRunsView() {
           <p className="mt-1 text-xs text-slate-500">
             {t("mappingsConsole.overview.switchNote")}
           </p>
+          <div className="mt-3 border-t pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void redecide("stale")}
+                data-testid="mappings-redecide-stale"
+              >
+                {t("mappingsConsole.runs.redecideAll")}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void redecide("all")}
+                data-testid="mappings-redecide-force-all"
+              >
+                {t("mappingsConsole.runs.forceAll")}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {t("mappingsConsole.runs.redecideAllNote")}
+            </p>
+            {note && <p className="text-xs text-slate-600">{note}</p>}
+          </div>
         </div>
 
         <div className="rounded-xl border p-4" data-testid="mappings-runbook-links">

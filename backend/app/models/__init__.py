@@ -1,4 +1,4 @@
-from app.models.ai_model import AIGeneration
+from app.models.ai_model import AIGeneration, AIPriceOverride
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.application_model import Application, ApplicationEvent
 from app.models.assessment_model import (
@@ -9,10 +9,12 @@ from app.models.assessment_model import (
 from app.models.assessment_template_model import AssessmentTemplate
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
 from app.models.background_job_model import BackgroundJob
+from app.models.backup_run_model import BackupRun
 from app.models.base import Base
 from app.models.career_path_model import CareerPath, CareerPathStep, UserPathFlag
 from app.models.chat_model import ChatMessage, ChatSession
 from app.models.company_model import CompanyProfile
+from app.models.contact_model import Contact, ContactInteraction  # noqa: F401
 from app.models.cv_intake_model import CvParseDraft
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.cv_synth_model import CvSynthItem  # noqa: F401
@@ -114,6 +116,7 @@ __all__ = [
     "AIGeneration",
     "AIMCPServer",
     "AIModel",
+    "AIPriceOverride",
     "AIProvider",
     "AITaskAssignment",
     "AppSetting",
@@ -129,6 +132,7 @@ __all__ = [
     "AutopilotGoal",
     "AutopilotRun",
     "BackgroundJob",
+    "BackupRun",
     "Base",
     "CareerPath",
     "CareerPathStep",

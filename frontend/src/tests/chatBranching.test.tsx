@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
+import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import type { ChatMessage } from "@/types";
 import * as uniApi from "@/api/universities";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
@@ -67,6 +68,7 @@ function pending(streamMock: ReturnType<typeof vi.fn>) {
 describe("ChatWidget branching UI", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    resetConfigSummaryCache();
     streamChatMessage.mockReset();
     streamChatEdit.mockReset();
     streamChatRegenerate.mockReset();

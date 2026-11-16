@@ -2,20 +2,25 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.models.application_model import Application
 from app.models.job_model import Job, JobSkill, JobTag
 from app.models.posting_model import JobPosting, JobSource, PostingInteraction
+from app.schemas.kit import KitPrepareOut, PostingKitOut
 from app.schemas.posting import (
     AppliedIn,
     ExploreOut,
+    GateOverrideIn,
     PostingDetailOut,
     PostingExtractOut,
+    PostingGapOut,
     PostingLocationOut,
     PostingMatchOut,
     PostingOut,
@@ -29,6 +34,8 @@ from app.schemas.posting import (
 )
 from app.schemas.radar import RadarIn
 from app.services.deps import get_current_user
+from app.services.integrations.webfetch import WebFetchBlocked
+from app.services.postings.capture_service import capture_posting
 from app.services.postings.explore_service import (
     explore,
     parse_explore_filters,
@@ -44,6 +51,7 @@ from app.services.postings.postings_service import (
     search_postings,
     set_state,
 )
+from app.services.postings.safety_flags_service import posting_safety_flags
 from app.services.postings.text import plain_text
 
 router = APIRouter(tags=["postings"])
@@ -77,6 +85,9 @@ def _posting_out(
         url=posting.url,
         seniority=posting.seniority,
         employment_type=posting.employment_type,
+        work_authorization=posting.work_authorization,
+        opportunity_type=posting.opportunity_type,
+        application_deadline=posting.application_deadline,
         contract_type=posting.contract_type,
         work_hours=posting.work_hours,
         hours_per_week_min=float(posting.hours_per_week_min)
@@ -108,6 +119,10 @@ def _posting_out(
         created_at=posting.created_at,
         updated_at=posting.updated_at,
         status=posting.status,
+        repost_count=posting.repost_count,
+        last_verified_at=posting.last_verified_at,
+        duplicate_of_id=posting.duplicate_of_id,
+        trust_flags=posting.trust_flags or {},
         catalog_job_id=posting.catalog_job_id,
         mapping_method=posting.mapping_method,
         mapping_confidence=posting.mapping_confidence,
@@ -310,6 +325,7 @@ async def postings_explore(
         total=result["total"],
         next_cursor=result["next_cursor"],
         facets=result["facets"],
+        job_titles=result.get("job_titles", {}),
     )
 
 
@@ -344,6 +360,7 @@ async def preview_job_radar(
         total=result["total"],
         next_cursor=result["next_cursor"],
         facets=result["facets"],
+        job_titles=result.get("job_titles", {}),
     )
 
 
@@ -371,6 +388,116 @@ async def postings_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     return await sources_with_counts(db)
 
 
+@router.get("/postings/{posting_ref}/gap", response_model=PostingGapOut | None)
+async def posting_gap_report(
+    posting_ref: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PostingGapOut | None:
+    """Standalone evidence-first gap report (plan 212 S1.1).
+
+    Requirements grouped must-have / nice-to-have / bonus; every row
+    carries the verbatim posting wording, the required level, the
+    caller's level, a status and — when the label resolved to a
+    taxonomy key — the posting's evidence quote and the user's evidence
+    ledger. `null` when the posting has no deep extraction yet. This is
+    deliberately NOT a score: the match card is a different surface."""
+    from app.services.postings.gap_service import build_posting_gap
+
+    posting = await resolve_posting(db, posting_ref)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    if not posting.extract:
+        return None
+    extract = PostingExtractOut.model_validate(posting.extract)
+    return await build_posting_gap(db, user.id, extract.skills)
+
+
+@router.get("/postings/{posting_ref}/kit", response_model=PostingKitOut)
+async def posting_kit(
+    posting_ref: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PostingKitOut:
+    """The pre-application kit (plan 212 S1.3): posting identity, the
+    evidence-first gap report, the user's CV / cover-letter state
+    (`needs_cv` when there is no resume at all), deterministic screening
+    prompts backed by your saved answer library, a
+    read-only sourced checklist (posting state, measured page count,
+    lint facts, static guidance — never a vendor simulation) and the
+    application id/stage when one exists. Reads only."""
+    from app.services.postings.application_kit_service import ApplicationKitService
+
+    posting = await resolve_posting(db, posting_ref)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    return await ApplicationKitService(db).posting_kit(user.id, posting)
+
+
+@router.post("/postings/{posting_ref}/kit/prepare", response_model=KitPrepareOut)
+async def posting_kit_prepare(
+    posting_ref: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> KitPrepareOut:
+    """Idempotent deterministic prep for the kit's CV tab.
+
+    Runs the existing deterministic computation — the tailor coverage
+    (identical rows to the CV Studio tailor table) and the
+    missing-section report. Never calls AI, never creates a CV, a cover
+    letter or an application row; `needs_cv` asks for the CV Studio CTA
+    and `extract_ready=false` is the honest no-extract degradation."""
+    from app.services.postings.application_kit_service import ApplicationKitService
+
+    posting = await resolve_posting(db, posting_ref)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    return await ApplicationKitService(db).prepare(user.id, posting)
+
+
+@router.post("/postings/{posting_ref}/gate-override")
+async def posting_gate_override(
+    posting_ref: str,
+    payload: GateOverrideIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Set or clear one per-posting eligibility override.
+
+    Overrides are read fresh on every fit read (never part of the fit
+    cache hash), so the flag applies immediately to both the score card
+    and the feed. Unknown gates never exclude; this endpoint only records
+    the user's explicit "apply anyway" decision.
+    """
+    posting = await resolve_posting(db, posting_ref)
+    if posting is None:
+        raise NotFoundError("Posting not found")
+    interaction = (
+        (
+            await db.execute(
+                select(PostingInteraction).where(
+                    PostingInteraction.user_id == user.id,
+                    PostingInteraction.posting_id == posting.id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if interaction is None:
+        interaction = PostingInteraction(user_id=user.id, posting_id=posting.id, gate_overrides={})
+        db.add(interaction)
+    overrides = dict(interaction.gate_overrides or {})
+    if payload.allow:
+        overrides[payload.gate] = True
+    else:
+        overrides.pop(payload.gate, None)
+    interaction.gate_overrides = overrides
+    flag_modified(interaction, "gate_overrides")
+    await db.commit()
+    return {"gate_overrides": overrides}
+
+
 @router.get("/postings/{posting_ref}", response_model=PostingDetailOut)
 async def posting_detail(
     posting_ref: str,
@@ -378,7 +505,8 @@ async def posting_detail(
     db: AsyncSession = Depends(get_db),
 ) -> PostingDetailOut:
     """One posting by ref or id with the structured extract, source
-    attribution, match-score card and the similar-postings rail."""
+    attribution, match-score card, evidence-first gap report and the
+    similar-postings rail."""
     from sqlalchemy.orm import selectinload
 
     from app.models.job_model import Job, JobSkill, JobTag
@@ -425,6 +553,12 @@ async def posting_detail(
             connector_title = source.connector_key
     match = await get_posting_fit(db, user.id, posting)
     similar = await similar_postings(db, posting)
+    extract_out = PostingExtractOut.model_validate(posting.extract) if posting.extract else None
+    gap = None
+    if extract_out is not None:
+        from app.services.postings.gap_service import build_posting_gap
+
+        gap = await build_posting_gap(db, user.id, extract_out.skills)
 
     from app.models.posting_model import PostingInteraction
     from app.services.postings.applications_service import get_application
@@ -458,16 +592,31 @@ async def posting_detail(
         org_key=org_key,
         skills=skill_refs.get(posting.id),
     )
+    if out.catalog_job is not None:
+        from app.services.catalog.job_service import JobService
+
+        counts = await JobService(db).open_role_counts([out.catalog_job.id])
+        out = out.model_copy(
+            update={
+                "catalog_job": out.catalog_job.model_copy(
+                    update={"open_roles": counts.get(out.catalog_job.id, 0)}
+                )
+            }
+        )
     raw_description = (posting.raw or {}).get("description")
+    safety = await posting_safety_flags(db, posting, posting.catalog_job)
     return PostingDetailOut(
         **out.model_dump(),
         description=plain_text(raw_description if isinstance(raw_description, str) else ""),
-        extract=PostingExtractOut.model_validate(posting.extract) if posting.extract else None,
+        extract=extract_out,
         source_title=(source.title if source else "") or connector_title,
         source_connector=source.key if source else "",
         source_synced_at=source.last_run_at if source else None,
         match=PostingMatchOut.model_validate(match) if match else None,
+        gap=gap,
         similar=[PostingSimilarOut.model_validate(row) for row in similar],
+        gate_overrides=dict(interaction.gate_overrides or {}) if interaction else {},
+        safety_flags=safety,
     )
 
 
@@ -478,6 +627,24 @@ async def postings_seen(
     """Batch impression marking, like the catalog feed."""
     marked = await mark_seen(db, user.id, data.posting_ids)
     return {"marked": marked}
+
+
+class CaptureIn(BaseModel):
+    url: str = Field(min_length=1, max_length=1000)
+
+
+@router.post("/postings/capture")
+async def postings_capture(
+    data: CaptureIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Capture one posting from a pasted URL through the manual-URL path."""
+    try:
+        posting, created = await capture_posting(db, data.url)
+    except (WebFetchBlocked, ValidationError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(posting.id), "ref": posting.ref or "", "created": created}
 
 
 @router.post("/postings/save")
