@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (release CI)
+- **Release-blocking CI repairs for the squashed snapshot.** The frontend
+  wire types are regenerated for the `/ready` endpoint (contracts had
+  drifted from `src/types/api.gen.ts`); the Docker CI smoke runs the
+  one-shot `migrate` before `serve` (the image never migrates on boot,
+  plan 64 §1.1); server provisioning enters Alembic through
+  `app/local.py` (`run_provisioning_migrations`) to honor the family
+  migrations-home wall (C3); the pinned connector-template fixture drops
+  the `(ADR-0040 clause 21)` suffix to match the scrubbed SDK docs; the
+  migration-truth test seeds a v2 proposal (`proposal_version: 2`) so the
+  backfill survives migration 0014's v1-proposal retirement; and the
+  SQLite skip allowlist documents the three postgres-lane-only migration
+  tests.
+
 ### Added (deployment conformance)
 - **One-shot `migrate` + `serve` entrypoint modes (plan 64 / ADR-0062 §3).**
   The compose stacks gain a one-shot `migrate` service that provisions as

@@ -66,8 +66,11 @@ jobs:
       CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
       CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
-      CAREER_UPLOAD_DIR: ${{ runner.temp }}/career-uploads
-      CAREER_DATA_DIR: ${{ runner.temp }}/career-data
+      # Job-level env cannot use the runner context (workflow-file parse
+      # error), so paths anchor on the workspace; the provider smoke only
+      # needs writable dirs unique to this runner.
+      CAREER_UPLOAD_DIR: ${{ github.workspace }}/career-uploads
+      CAREER_DATA_DIR: ${{ github.workspace }}/career-data
       CAREER_MOCK_AI: "1"
       CAREER_RATELIMIT_ENABLED: "false"
       CAREER_SCHEDULER_ENABLED: "false"

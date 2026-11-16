@@ -155,6 +155,17 @@ def run_migrations() -> None:
     logger.info("Migrations applied")
 
 
+def run_provisioning_migrations() -> None:
+    """Alembic step of the one-shot server provisioning (ADR-0062 §3).
+
+    Provisioning sequences roles, extensions, checkpoints and grants
+    around the migration, but the migration entry itself stays in this
+    module — the sanctioned migrations home (family C3) — so provisioning
+    and the boot paths share the same guarded Alembic run.
+    """
+    run_migrations()
+
+
 def seed_catalog_data() -> None:
     """Seed the starter taxonomy + catalog (idempotent, opt-out)."""
     if os.environ.get(SKIP_SEED_VAR) == "1":
