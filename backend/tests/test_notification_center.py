@@ -1,6 +1,7 @@
 """Notification center: fan-out, dispatch log, threads, prefs,
 SSE stream, VAPID subscriptions, admin broadcast."""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -155,7 +156,10 @@ async def test_quiet_hours_and_max_day_guard_dispatch_only(db, kinds):
     register_channel(channel)
     try:
         user = await _make_user(db, "quiet36@example.com")
-        service = NotificationService(db)
+        # Deterministic "now" deep inside the window: the 00:00-23:59 span
+        # leaves 23:59:00-24:00 awake, so a wall-clock run inside that
+        # minute dispatched instead of suppressing (CI 23:59:35 UTC flake).
+        service = NotificationService(db, clock=lambda: datetime(2026, 1, 15, 3, 30, tzinfo=UTC))
         await service.set_global_prefs(
             user.id,
             desktop_channel_enabled=True,

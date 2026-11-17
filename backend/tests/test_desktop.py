@@ -4,7 +4,7 @@ auto-start, the desktop notification channel and the shutdown drain."""
 import asyncio
 import os
 import uuid
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -236,19 +236,25 @@ async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
     notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "quiet@example.com")
-        await NotificationService(db).set_global_prefs(
+        # Fixed "now" deep inside the window — the 00:00-23:59 span leaves
+        # 23:59:00-24:00 awake, so a wall-clock run inside that minute
+        # toasted instead of suppressing (same CI 23:59 UTC flake family).
+        quiet_service = NotificationService(
+            db, clock=lambda: datetime(2026, 1, 15, 3, 30, tzinfo=UTC)
+        )
+        await quiet_service.set_global_prefs(
             user_id,
             desktop_channel_enabled=True,
             quiet_hours={"start": "00:00", "end": "23:59"},
         )
-        row = await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit")
+        row = await quiet_service.emit("fit_threshold", [user_id], title="Strong fit")
         assert row is not None  # inbox filled
         assert bridge.toasts == []  # toast suppressed at dispatch
 
-        await NotificationService(db).set_global_prefs(
+        await quiet_service.set_global_prefs(
             user_id, desktop_channel_enabled=True, quiet_hours=None
         )
-        await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit 2")
+        await quiet_service.emit("fit_threshold", [user_id], title="Strong fit 2")
         assert len(bridge.toasts) == 1
         assert bridge.toasts[0]["link"] == ""
         await db.rollback()

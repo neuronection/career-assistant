@@ -3,6 +3,7 @@ delivery, quiet-hours deferral and the digest flush."""
 
 import re
 import uuid
+from datetime import UTC, datetime
 from email.message import EmailMessage
 
 import pytest
@@ -196,7 +197,11 @@ async def test_unverified_address_records_failure(client, auth_headers, db, kind
 async def test_quiet_hours_defer_into_the_digest_flush(client, auth_headers, db, kinds, mail_seam):
     await _verified_email(client, auth_headers, db, mail_seam)
     user = await _user(db, auth_headers)
-    service = NotificationService(db)
+    # Fixed "now" deep inside the window — the 00:00-23:59 span leaves
+    # 23:59:00-24:00 awake, so a wall-clock run inside that minute skipped
+    # the deferral (CI 23:59:35 UTC flake). The flush below sends
+    # regardless of the clock.
+    service = NotificationService(db, clock=lambda: datetime(2026, 1, 15, 3, 30, tzinfo=UTC))
     await service.set_kind_pref(user.id, "fit_threshold", channels=["in_app", "email"])
     await service.set_global_prefs(user.id, quiet_hours={"start": "00:00", "end": "23:59"})
     event = await service.emit("fit_threshold", [user.id], title="Strong fit")
