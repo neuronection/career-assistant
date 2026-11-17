@@ -40,8 +40,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-neuronection_career_owner} -d ${POSTGRES_DB:-neuronection_career}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 60s
     logging: *default-logging
 
   migrate:
