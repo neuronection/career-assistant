@@ -26,7 +26,9 @@ services:
   db:
     # pgvector provisioned: migrate creates the `vector` extension here
     # (the embeddings index needs it; the demo/dev stacks use the same image).
-    image: pgvector/pgvector:pg16
+    # Pinned precise tag (was floating :pg16) — release bundles must resolve
+    # the same base image for the life of the release.
+    image: pgvector/pgvector:0.8.7-pg16
     restart: unless-stopped
     environment:
       # The bootstrap role is the OWNER (ADR-0064): it exists so the DB
@@ -177,7 +179,9 @@ services:
     # local-only install non-DR. Document bytes are not archived here: the
     # local uploads volume is host-local, and under a cloud profile the
     # provider's durability/versioning owns them (ADR-0057).
-    image: postgres:16-alpine
+    # Same pinned pgvector image as the db service (pg_dump must match the
+    # server; was floating postgres:16-alpine).
+    image: pgvector/pgvector:0.8.7-pg16
     profiles: ["backup"]
     restart: unless-stopped
     depends_on:

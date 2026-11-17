@@ -28,7 +28,9 @@ services:
   db:
     # pgvector provisioned: migrate creates the `vector` extension here
     # (the embeddings index needs it; the prod/demo stacks use the same image).
-    image: pgvector/pgvector:pg16
+    # Pinned precise tag (was floating :pg16) — release bundles must resolve
+    # the same base image for the life of the release.
+    image: pgvector/pgvector:0.8.7-pg16
     restart: unless-stopped
     environment:
       # The bootstrap role is the OWNER (ADR-0064); the app serves with the
@@ -169,7 +171,9 @@ services:
     # with --profile backup. Each run records a row in `backup_runs`
     # (ADR-0063 §2). Same-host by design — scripts/backup.sh owns the
     # off-host upload for T1; label a local-only install non-DR.
-    image: postgres:16-alpine
+    # Same pinned pgvector image as the db service (pg_dump must match the
+    # server; was floating postgres:16-alpine).
+    image: pgvector/pgvector:0.8.7-pg16
     profiles: ["backup"]
     restart: unless-stopped
     depends_on:
@@ -191,7 +195,9 @@ services:
       - career-assistant-network
 
   nginx:
-    image: nginx:alpine
+    # Pinned precise tag (was floating :alpine) — no surprise nginx major
+    # upgrades mid-release.
+    image: nginx:1.31.8-alpine
     container_name: career-assistant-nginx
     restart: unless-stopped
     depends_on:
