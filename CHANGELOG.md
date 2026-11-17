@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Fixed (release CI)
+- **Deterministic quiet-hours tests.** `NotificationService` gains an
+  injectable `clock` (defaults to wall-clock UTC) and dispatch's
+  quiet-hours guard reads it; the four quiet-hours tests (center, email
+  digest flush, routing, desktop toast) pin "now" deep inside the window
+  instead of racing the wall clock. The `00:00–23:59` window leaves
+  23:59:00-24:00 awake, so a run inside that minute dispatched instead of
+  suppressing (the SQLite lane's 23:59:35 UTC failure). No product
+  behavior change.
 - **Release-blocking CI repairs for the squashed snapshot.** The frontend
   wire types are regenerated for the `/ready` endpoint (contracts had
   drifted from `src/types/api.gen.ts`); the Docker CI smoke runs the

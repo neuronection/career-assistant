@@ -2,6 +2,7 @@
 preferences, per-user channel switches and quiet-hours semantics per channel."""
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
@@ -139,7 +140,10 @@ async def test_quiet_hours_defer_email_but_queue_webhooks(
             verified_at=utcnow(),
         )
     )
-    service = NotificationService(db)
+    # Fixed "now" deep inside the window — the 00:00-23:59 span leaves
+    # 23:59:00-24:00 awake, so a wall-clock run inside that minute emailed
+    # immediately instead of deferring (CI 23:59:35 UTC flake).
+    service = NotificationService(db, clock=lambda: datetime(2026, 1, 15, 3, 30, tzinfo=UTC))
     await service.set_kind_pref(user.id, "fit_threshold", channels=["in_app", "email", "webhook"])
     await service.set_global_prefs(user.id, quiet_hours={"start": "00:00", "end": "23:59"})
     await db.commit()

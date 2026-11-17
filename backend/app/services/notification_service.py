@@ -10,7 +10,8 @@ reaches the inbox at all.
 """
 
 import logging
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -66,8 +67,12 @@ def thread_key(source_ref: dict | None) -> str | None:
 class NotificationService:
     """Emit, inbox (threads/read/dismiss), preferences, dispatch log."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, clock: Callable[[], datetime] | None = None):
+        """`clock` injects "now" (tests): dispatch's quiet-hours guard must
+        not read the wall clock, or a run inside the window's edge minute
+        flips suppression nondeterministically."""
         self.db = db
+        self._clock = clock or utcnow
 
     # -------------------------------------------------------------- emit
 
@@ -182,7 +187,7 @@ class NotificationService:
             )
             global_pref = prefs.get(user_id) or {}
             quiet = global_pref.get("quiet_hours")
-            quiet_now = bool(quiet and within_quiet_hours(quiet))
+            quiet_now = bool(quiet and within_quiet_hours(quiet, now=self._clock()))
             for channel_key in dict.fromkeys(["in_app", *wanted]):
                 channel = get_channel(channel_key)
                 if channel is None or not channel.available():
