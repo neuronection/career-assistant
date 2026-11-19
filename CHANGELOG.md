@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-11-19
+
+### Fixed
+- **`scripts/backup.sh` exited 1 after a successful backup.** The final
+  `[[ -z "$REMOTE" ]] && echo ...` evaluated false when an off-host
+  destination was set, and `set -e` turned that into a failed execution even
+  though the dump and upload succeeded. Use an `if/else` so the script
+  returns 0.
+
 ## [0.17.2] - 2026-11-19
 
 ### Fixed
