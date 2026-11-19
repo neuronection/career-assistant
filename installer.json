@@ -1,0 +1,23 @@
+{
+  "product": "career",
+  "title": "Career Assistant",
+  "repo": "neuronection/career-assistant",
+  "repoDir": "career-assistant",
+  "targetPath": "scripts/bootstrap.sh",
+  "phase": "P1",
+  "bundlePrefix": "career-compose",
+  "bootstrapAsset": "career-bootstrap",
+  "envPrefix": "CAREER",
+  "imageEnv": "CAREER_IMAGE",
+  "imageKeys": ["app"],
+  "defaultDirName": "career-assistant",
+  "defaultPort": 80,
+  "healthPath": "/health",
+  "readyPath": null,
+  "setupMode": "first user = admin",
+  "minRamGb": 4,
+  "docsUrl": "https://neuronection.com/docs/career",
+  "installUrl": "https://neuronection.com/install/career.sh",
+  "contractVersion": "1",
+  "installFlags": ["no-pull", "no-wait", "auto-ports", "no-ports", "http-port", "env-only", "reset", "yes", "image-tag"]
+}

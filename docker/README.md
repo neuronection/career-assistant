@@ -89,6 +89,102 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
   `CAREER_IMAGE=ghcr.io/<owner>/<repo>:<tag> docker compose ... up -d`
   (images are published by the release workflow on tags).
 
+## Self-hosting from a release bundle (source-free)
+
+Every GitHub release attaches a **source-free compose bundle**:
+`career-compose-vX.Y.Z.tar.gz` + `manifest.json` + `SHA256SUMS`. The bundle
+carries `docker/` (compose files, nginx configs, env example, entrypoint,
+backup sidecar) + `scripts/{install,update,backup,restore,lib-docker}.sh` +
+`installer.json` (the product config the self-host installer reads). No
+source tree, no `.env`, no secrets; the app image is pinned by digest in
+`manifest.json` and written to `CAREER_IMAGE` at install time.
+
+One-line install (the bootstrap resolves the release, verifies the bundle
+SHA-256, extracts and hands off to `scripts/install.sh`):
+
+```bash
+curl -fsSL https://neuronection.com/install/career.sh | bash
+```
+
+The cautious form — download it, read it, then run it:
+
+```bash
+curl -fsSL https://neuronection.com/install/career.sh -o career-bootstrap.sh
+less career-bootstrap.sh
+bash career-bootstrap.sh --dir ~/career-assistant
+```
+
+Bootstrap flags: `--dir DIR` (default `~/career-assistant`), `--ref vX.Y.Z`
+(exact release instead of latest), `--dry-run` (resolve + verify + print the
+hand-off, write nothing), `--offline career-compose-vX.Y.Z.tar.gz` (install
+from an already-downloaded bundle, no GitHub download), `-- --http-port 8092`
+(forward flags to the installer). The one-liner URL 302-redirects to the
+GitHub release asset — the version-free `career-bootstrap.sh` alias of
+`career-bootstrap-vX.Y.Z.sh` — so the script never comes from the website
+itself. Until that route is published, run the same asset straight from the
+release page.
+
+Manual (no bootstrap — two commands, fully auditable):
+
+```bash
+# from the release assets: career-compose-vX.Y.Z.tar.gz + manifest.json + SHA256SUMS
+sha256sum -c SHA256SUMS                                   # verify BEFORE extracting
+mkdir -p ~/career-assistant
+tar -xzf career-compose-vX.Y.Z.tar.gz -C ~/career-assistant
+cp manifest.json ~/career-assistant/                       # the installer pins the image digest from it
+cd ~/career-assistant
+bash scripts/install.sh                                   # .env + pin + ports + up + health-wait
+```
+
+`scripts/install.sh` implements the family installer contract: refuses
+root, never overwrites an existing `docker/.env`,
+generates missing secrets (`umask 077`, values never printed), pins
+`CAREER_IMAGE` from `manifest.json` (priority: `--image` > `--image-tag` >
+`$CAREER_IMAGE` > manifest > existing `.env`), sets `HTTP_PORT`, pre-flights
+every published port from `docker compose config` (naming the `.env` knob),
+pulls, `up -d`, waits for `/health`, prints the URL + first-admin note +
+backup/update/rollback hints. Idempotent — a re-run keeps `.env`, refreshes
+images and re-runs `up -d`.
+
+| Flag | Meaning |
+|---|---|
+| `--http-port PORT` | publish nginx on PORT (persisted as `HTTP_PORT` in `docker/.env`) |
+| `--image-tag TAG` | pin images to a published release tag (`X.Y.Z` or `vX.Y.Z`) |
+| `--image [KEY=]REF` | pin an explicit image ref (`--image app=ghcr.io/…@sha256:…`) — the KEY=REF form is what the bootstrap forwards; a bare REF overrides the primary image |
+| `--env-only` | write `docker/.env` only, start nothing |
+| `--no-pull` | reuse local images (offline hosts) |
+| `--no-wait` | skip the `/health` wait |
+| `--auto-ports` | move busy ports to free ones in `docker/.env` |
+| `--no-ports` | skip the port pre-flight |
+| `--reset [--yes]` | delete the stack's data volumes (listed first), then reinstall |
+| `--allow-root` | CI/disposable containers only (refused by default) |
+| `-h`, `--help` | the readable help block |
+
+Exit codes: `0` ok · `1` usage/prerequisite · `2` image verify/pull ·
+`3` compose start or health-wait · `4` port conflict.
+
+**Updates** — download the new release's bundle, extract it over the same
+directory (`docker/.env` is not in the bundle, so your secrets survive),
+copy the new `manifest.json` in, then:
+
+```bash
+bash scripts/update.sh     # bump the pin from the new manifest, pull, up -d, wait
+```
+
+The previous `CAREER_IMAGE` pin is kept (a `# previous CAREER_IMAGE` comment
+in `docker/.env` + the printed rollback command). No destructive data
+operations: take a backup first (`scripts/backup.sh`), and roll back with the
+previous pin + the pre-upgrade dump if `/health` fails — pre-1.0 schema
+migrations have no downgrade path. The source-checkout equivalent remains
+`scripts/update-docker.sh` (git pull + rebuild).
+
+**Port plan.** The standalone stack publishes one host port (`HTTP_PORT`,
+default 80). Running more than one Neuronection stack on the same host?
+Give each a distinct port with `--http-port` (the family convention:
+`8090` health · `8091` study · `8092` career) and keep the bundled nginx
+HTTP-only behind your own TLS/VPN hop (`CAREER_PUBLIC_URL`/`CAREER_TLS`
+control the cookie `Secure` derivation).
+
 ## Renaming `career_*` / `neuro_career_*` → `neuronection_*` (2026-09-30)
 
 The family datastore prefix was amended (revision
