@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-19
+
+### Fixed
+- **`scripts/backup.sh` could not run.** `COMPOSE` was a string and was
+  invoked quoted, so the shell looked for a file literally named
+  `docker compose -f ...` and the backup failed before the database dump.
+  It is now an array (`"${COMPOSE[@]}"`), and `CAREER_COMPOSE_FILE`
+  selects the compose file (default `docker/docker-compose.prod.yml`).
+  Found by the AWS household row's live backup round-trip.
+
+
 ### Fixed (release CI)
 - **Deterministic quiet-hours tests.** `NotificationService` gains an
   injectable `clock` (defaults to wall-clock UTC) and dispatch's

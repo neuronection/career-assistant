@@ -34,14 +34,16 @@ fi
 POSTGRES_DB="${POSTGRES_DB:-neuronection_career}"
 POSTGRES_USER="${POSTGRES_USER:-neuronection_career_owner}"
 POSTGRES_PASSWORD="${CAREER_DB_OWNER_PASSWORD:-${POSTGRES_PASSWORD:?Set CAREER_DB_OWNER_PASSWORD (env or docker/.env)}}"
-COMPOSE="docker compose -f $ROOT/docker/docker-compose.prod.yml"
+COMPOSE_FILE="${CAREER_COMPOSE_FILE:-docker/docker-compose.prod.yml}"
+[[ "$COMPOSE_FILE" = /* ]] || COMPOSE_FILE="$ROOT/$COMPOSE_FILE"
+COMPOSE=(docker compose -f "$COMPOSE_FILE")
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 echo "==> Dumping database"
-"$COMPOSE" exec -T db \
+"${COMPOSE[@]}" exec -T db \
   env PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" \
   > "$WORK/database.dump"
 
@@ -67,7 +69,7 @@ CHECKSUM="$(sha256sum "$ARCHIVE" | cut -d' ' -f1)"
 # schema must never break the backup itself. The writer is this script,
 # never the web app.
 ledger() {
-  "$COMPOSE" exec -T db \
+  "${COMPOSE[@]}" exec -T db \
     env PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
     -v ON_ERROR_STOP=1 -qAt -c "$1" 2>/dev/null || true
 }
