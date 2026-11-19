@@ -1,0 +1,261 @@
+name: Release install smoke
+
+# G4 (plan 69 §6): prove the PUBLISHED release, not the tree. This smoke
+# runs AFTER the release assets exist — the workflow_run trigger fires only
+# when the Release workflow has completed, and that workflow's final
+# publish-release job runs after the linux, windows and deploy-bundle jobs
+# have all succeeded and attached every asset. What is smoke-tested is
+# exactly what the one-liner serves.
+#
+# dry-run job: download the assets the bootstrap would fetch, verify
+# SHA256SUMS, run the versioned bootstrap with --dry-run and assert it
+# names the tag and the manifest image pin while writing NOTHING.
+# full-install job: the real flow on the runner's Docker — the bundle's
+# docker/.env lands at 0600, /health answers on the published port, the
+# rendered stack carries the manifest pin (never :latest/:main), and a
+# re-run of scripts/install.sh keeps docker/.env byte-identical. The stack
+# is always torn down (docker compose down -v).
+#
+# Honest failures only: a draft release (invisible to this read-only
+# token) or a missing asset fails with a clear message — nothing skips
+# silently. A red Release workflow is already visible on its own, so the
+# automatic path lights only for a green one; workflow_dispatch smokes any
+# published tag on demand. (GitHub runs the default-branch copy of this
+# file for workflow_run — until this workflow is on main, use dispatch.)
+
+on:
+  workflow_run:
+    workflows: [Release]   # .github/workflows/release.yml
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to smoke-test (e.g. v0.17.2)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Bootstrap dry-run (resolve + verify, no writes)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.event.workflow_run.head_branch || github.event.inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Resolve the release (refuse drafts and partial releases)
+        run: |
+          set -euo pipefail
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::could not resolve the tag (workflow_run head_branch / dispatch input empty) — refusing to guess a release."
+            exit 1
+          fi
+          # A draft release is invisible to a read-only token, so
+          # `gh release view` fails both for a tag without a release and
+          # for a draft. Refuse both loudly: a smoke of anything else is
+          # not the artifact the one-liner serves.
+          if ! gh release view "$TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+            echo "::error::no published release for tag '$TAG' (or it is a draft, invisible to this read-only token). Publish it first: gh release edit '$TAG' --draft=false"
+            exit 1
+          fi
+          if [ "$(jq -r .isDraft "$RUNNER_TEMP/release.json")" = "true" ]; then
+            echo "::error::release '$TAG' is a draft — publish it before smoke-testing: gh release edit '$TAG' --draft=false"
+            exit 1
+          fi
+          missing=""
+          for want in "career-compose-${TAG}.tar.gz" manifest.json SHA256SUMS \
+                      "career-bootstrap-${TAG}.sh" career-bootstrap.sh; do
+            jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | grep -qx "$want" \
+              || missing="${missing:+$missing }$want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::release '$TAG' is missing assets: $missing"
+            echo "The Release workflow attaches these via linux, windows and deploy-bundle — refusing to smoke a partial release."
+            exit 1
+          fi
+          echo "release '$TAG' is published and complete:"
+          jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | sed 's/^/  /'
+
+      - name: Download the release assets and verify SHA256SUMS
+        run: |
+          set -euo pipefail
+          ASSETS="$RUNNER_TEMP/release-assets"
+          mkdir -p "$ASSETS"
+          gh release download "$TAG" --dir "$ASSETS" \
+            --pattern "career-compose-*.tar.gz" \
+            --pattern "manifest.json" \
+            --pattern "SHA256SUMS" \
+            --pattern "career-bootstrap-v*.sh" \
+            --pattern "career-bootstrap.sh"
+          cd "$ASSETS"
+          ls -la
+          sha256sum -c SHA256SUMS
+
+      - name: The versioned bootstrap names the tag and pin, writes nothing
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release-assets"
+          out="$(bash "career-bootstrap-${TAG}.sh" --ref "$TAG" --dir "$RUNNER_TEMP/career" --dry-run)"
+          printf '%s\n' "$out"
+          # names the release it would install ...
+          grep -q "Installing release: ${TAG} (explicit)" <<<"$out"
+          grep -q "Release:    ${TAG}" <<<"$out"
+          # ... the exact-tag bundle URL ...
+          grep -q "Bundle:     https://github.com/${GH_REPO}/releases/download/${TAG}/career-compose-${TAG}.tar.gz" <<<"$out"
+          # ... and the manifest's image pin: a digest, never a float.
+          grep -qE "Images: +app=.+@sha256:[0-9a-f]{64}" <<<"$out"
+          grep -q "Dry run OK" <<<"$out"
+          if [ -e "$RUNNER_TEMP/career" ]; then
+            echo "::error::--dry-run created the target '$RUNNER_TEMP/career' — dry runs must write nothing."
+            exit 1
+          fi
+          echo "dry run named the tag + pin and wrote nothing into the target dir"
+
+  full-install:
+    name: Full install (real Docker, /health, idempotent re-run)
+    needs: dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TAG: ${{ github.event.workflow_run.head_branch || github.event.inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Resolve the release (refuse drafts and partial releases)
+        run: |
+          set -euo pipefail
+          if [ -z "${TAG:-}" ]; then
+            echo "::error::could not resolve the tag (workflow_run head_branch / dispatch input empty) — refusing to guess a release."
+            exit 1
+          fi
+          # A draft release is invisible to a read-only token, so
+          # `gh release view` fails both for a tag without a release and
+          # for a draft. Refuse both loudly: a smoke of anything else is
+          # not the artifact the one-liner serves.
+          if ! gh release view "$TAG" --json isDraft,assets > "$RUNNER_TEMP/release.json" 2>/dev/null; then
+            echo "::error::no published release for tag '$TAG' (or it is a draft, invisible to this read-only token). Publish it first: gh release edit '$TAG' --draft=false"
+            exit 1
+          fi
+          if [ "$(jq -r .isDraft "$RUNNER_TEMP/release.json")" = "true" ]; then
+            echo "::error::release '$TAG' is a draft — publish it before smoke-testing: gh release edit '$TAG' --draft=false"
+            exit 1
+          fi
+          missing=""
+          for want in "career-compose-${TAG}.tar.gz" manifest.json SHA256SUMS \
+                      "career-bootstrap-${TAG}.sh" career-bootstrap.sh; do
+            jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | grep -qx "$want" \
+              || missing="${missing:+$missing }$want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::release '$TAG' is missing assets: $missing"
+            echo "The Release workflow attaches these via linux, windows and deploy-bundle — refusing to smoke a partial release."
+            exit 1
+          fi
+          echo "release '$TAG' is published and complete:"
+          jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | sed 's/^/  /'
+
+      - name: Download the release assets and verify SHA256SUMS
+        run: |
+          set -euo pipefail
+          ASSETS="$RUNNER_TEMP/release-assets"
+          mkdir -p "$ASSETS"
+          gh release download "$TAG" --dir "$ASSETS" \
+            --pattern "career-compose-*.tar.gz" \
+            --pattern "manifest.json" \
+            --pattern "SHA256SUMS" \
+            --pattern "career-bootstrap-v*.sh" \
+            --pattern "career-bootstrap.sh"
+          cd "$ASSETS"
+          ls -la
+          sha256sum -c SHA256SUMS
+
+      - name: Install from the published one-liner flow
+        env:
+          # The installer's health wait (2s x attempts) also covers the
+          # one-shot migrate on a cold runner; 150 attempts = 5 minutes.
+          HEALTH_WAIT_ATTEMPTS: "150"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release-assets"
+          # CI stdin is not a tty, so the bootstrap hands off without the
+          # tty reattach; the bundle installer then generates docker/.env
+          # from the example, pulls the pinned images, runs the one-shot
+          # migrate via `up -d` and waits for /health itself.
+          out="$(bash "career-bootstrap-${TAG}.sh" --ref "$TAG" --dir "$RUNNER_TEMP/career")"
+          printf '%s\n' "$out"
+          grep -q "Handing off to the bundle's own installer" <<<"$out"
+          grep -q "Career Assistant is running!" <<<"$out"
+
+          cd "$RUNNER_TEMP/career"
+          # The contract's env file for career is docker/.env, mode 0600,
+          # with the manifest digest pinned in CAREER_IMAGE.
+          [ -f docker/.env ] || { echo "::error::no docker/.env after the install"; exit 1; }
+          [ "$(stat -c %a docker/.env)" = "600" ] \
+            || { echo "::error::docker/.env is $(stat -c %a docker/.env), expected 0600"; exit 1; }
+          grep -qE '^CAREER_IMAGE=.+@sha256:[0-9a-f]{64}$' docker/.env
+
+      - name: /health answers on the published port; the pin is not :latest
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/career"
+          HTTP_PORT="$(grep -E '^HTTP_PORT=' docker/.env | tail -n1 | cut -d= -f2- || true)"
+          [ -n "$HTTP_PORT" ] || HTTP_PORT=80
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:${HTTP_PORT}/health" 2>/dev/null | grep -q '"status"'; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::the app never answered /health on port ${HTTP_PORT}"
+            docker compose --env-file docker/.env -f docker/docker-compose.standalone.yml ps || true
+            exit 1
+          fi
+          echo "health OK: http://127.0.0.1:${HTTP_PORT}/health"
+
+          # The rendered stack must carry the manifest's pin, never a float.
+          PIN="$(python3 -c 'import json; print(json.load(open("manifest.json"))["images"]["app"])')"
+          echo "manifest pin: $PIN"
+          docker compose --env-file docker/.env -f docker/docker-compose.standalone.yml config \
+            | grep -E '^[[:space:]]+image:' | sort -u | tee "$RUNNER_TEMP/smoke-images.txt"
+          grep -qF -- "image: ${PIN}" "$RUNNER_TEMP/smoke-images.txt" \
+            || { echo "::error::the rendered stack does not carry the manifest pin"; exit 1; }
+          if grep -qE ':latest(:|@|$)' "$RUNNER_TEMP/smoke-images.txt"; then
+            echo "::error::the rendered stack uses :latest — a release install must be pinned (G8)"
+            exit 1
+          fi
+          if grep -qE ':main(:|@|$)' "$RUNNER_TEMP/smoke-images.txt"; then
+            echo "::error::the rendered stack uses :main — a branch ref is never a release pin"
+            exit 1
+          fi
+
+      - name: Re-run install.sh — docker/.env stays byte-identical
+        env:
+          HEALTH_WAIT_ATTEMPTS: "150"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/career"
+          BEFORE="$(sha256sum docker/.env | awk '{print $1}')"
+          out="$(bash scripts/install.sh)"
+          printf '%s\n' "$out"
+          grep -q "leaving it untouched" <<<"$out"
+          AFTER="$(sha256sum docker/.env | awk '{print $1}')"
+          [ "$BEFORE" = "$AFTER" ] \
+            || { echo "::error::a re-run rewrote docker/.env — re-runs must be no-ops on the env file"; exit 1; }
+          echo "re-run kept docker/.env byte-identical and refreshed the stack"
+
+      - name: Tear the smoke stack down
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/career" 2>/dev/null || exit 0
+          docker compose --env-file docker/.env -f docker/docker-compose.standalone.yml down -v \
+            >/dev/null 2>&1 || true
+          echo "smoke stack down, volumes removed"

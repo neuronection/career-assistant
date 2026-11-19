@@ -463,6 +463,9 @@ migrate_legacy_db_names() {
         [ "$OLD_EXISTS" = "1" ] || continue
         # PostgreSQL refuses to rename the session's own user: go through a
         # throwaway superuser and drop it again as the renamed owner.
+        # The A && B || die chain is deliberate fail-closed: the die must
+        # fire when ANY step fails, including the final cleanup (SC2015).
+        # shellcheck disable=SC2015
         _career_pg "$CONNECTED" -c "DROP ROLE IF EXISTS $MIGRATOR;" \
             && _career_pg "$CONNECTED" -c "CREATE ROLE $MIGRATOR LOGIN SUPERUSER;" \
             && _career_pg "$MIGRATOR" -c "ALTER ROLE $OLD RENAME TO $NEW;" \

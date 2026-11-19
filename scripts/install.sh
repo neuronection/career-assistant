@@ -46,6 +46,9 @@ print_help() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# lib-docker.sh is linted as its own shellcheck input; the runtime-computed
+# path cannot be followed, so point the directive at /dev/null (SC1091).
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib-docker.sh"
 
 # ── flags ───────────────────────────────────────────────────────────────────

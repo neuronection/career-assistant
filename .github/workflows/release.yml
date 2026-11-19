@@ -170,6 +170,11 @@ jobs:
           cp CareerAssistant-*-x86_64.AppImage CareerAssistant-x86_64.AppImage
           cp careerassistant_*_amd64.deb careerassistant_amd64.deb
 
+      # Never latest from here — the latest-alias race (plan 69 §8, audit
+      # §4a-3): whichever asset job lands first must not mark the release
+      # latest, or `releases/latest/download/career-bootstrap.sh` can 404
+      # while sibling jobs are still uploading. The final publish-release
+      # job flips the alias once every asset job has succeeded.
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -178,7 +183,7 @@ jobs:
             packaging/*.AppImage
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
+          make_latest: false
 
   windows:
     name: Windows executable (PyInstaller onefile)
@@ -272,6 +277,8 @@ jobs:
         shell: pwsh
         run: Copy-Item "CareerAssistant-*-windows-x64.exe" "CareerAssistant-windows-x64.exe"
 
+      # Never latest from here (latest-alias race) — publish-release flips
+      # the alias only after every asset job has succeeded.
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -280,7 +287,7 @@ jobs:
             packaging/CareerAssistant-*-windows-x64.exe
             packaging/CareerAssistant-windows-x64.exe
           prerelease: ${{ contains(github.ref_name, '-') }}
-          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
+          make_latest: false
 
   docker:
     name: Docker image (GHCR)
@@ -320,9 +327,12 @@ jobs:
     # Source-free compose/nginx/backup bundle for single-host operators,
     # pinned to the exact GHCR digest built above (ADR-0065 artifact shape:
     # career-compose-v<version>.tar.gz + manifest.json + SHA256SUMS).
-    # Uploads to the same GitHub release as the desktop assets; this job
-    # finishes long before the desktop `linux` job, and a second
-    # action-gh-release call on an existing tag updates it in place.
+    # Attaches to the same GitHub release as the desktop assets; whichever
+    # asset job lands first creates the release, so none of them may take
+    # the `latest` alias (the one-liner's
+    # releases/latest/download/career-bootstrap.sh must never resolve to a
+    # release whose sibling assets are still uploading). publish-release
+    # flips the alias after linux + windows + this job have all succeeded.
     name: Deploy bundle (compose)
     needs: [ci-gate, docker]
     runs-on: ubuntu-latest
@@ -367,3 +377,53 @@ jobs:
             dist/career-bootstrap-v*.sh
             dist/career-bootstrap.sh
           prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: false
+
+  publish-release:
+    # Latest-alias gate (plan 69 §8 / audit §4a-3): the linux, windows and
+    # deploy-bundle jobs all create/update the release with make_latest:false,
+    # so `releases/latest/download/career-bootstrap.sh` cannot resolve to a
+    # release whose assets are still uploading. Only when EVERY asset job
+    # has succeeded does this job move the `latest` alias to this release —
+    # the last thing the release workflow does.
+    name: Publish release (latest alias)
+    needs: [linux, windows, deploy-bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Mark the release latest (stable tags only, after all assets exist)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Defense in depth: needs: proves the asset jobs are green, but a
+          # green job can still have attached nothing (the bootstrap staging
+          # step is a deliberate no-op while scripts/bootstrap.sh is not
+          # generated). Refuse to point the one-liner at a release that is
+          # missing any contract asset.
+          missing=""
+          have="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          for want in "career-compose-${TAG}.tar.gz" manifest.json SHA256SUMS \
+                      "career-bootstrap-${TAG}.sh" career-bootstrap.sh; do
+            grep -qx "$want" <<<"$have" || missing="${missing:+$missing }$want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::release $TAG is missing assets: $missing — refusing to take the latest alias (the one-liner would 404)."
+            exit 1
+          fi
+          # The release is published (never a draft — the asset jobs create
+          # it with softprops' default draft:false), so no --draft=false is
+          # needed here; add it only if release creation ever turns drafty.
+          # Prerelease tags (dashes — the same expression as prerelease:)
+          # keep the alias on the last stable release, exactly as before
+          # this job existed.
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease $TAG — leaving the latest alias on the last stable release."
+            exit 0
+          fi
+          gh release edit "$TAG" --latest
+          echo "release $TAG now holds the latest alias — every asset is attached."

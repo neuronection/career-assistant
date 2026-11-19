@@ -1,0 +1,79 @@
+name: Installer scripts
+
+# G3 (plan 69 §6) — the family installer contract's fixture wall. The
+# one-line install path has no other test: a broken installer is invisible
+# to pytest/vitest and only fails on a user's fresh host. The selftest
+# drives the REAL scripts/install.sh, scripts/update.sh and
+# scripts/build-deploy-bundle.sh against a fake `docker` and a fake `curl`
+# — no Docker daemon, no images, no network — plus a real bound socket for
+# the port-conflict cases. G2 (bash -n + shellcheck) runs on the same
+# surface: the generated bootstrap, the bundle installer/updater, the
+# bundle builder, the lib they source and the selftest itself.
+# Any non-zero exit fails the job; nothing here is advisory.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'installer.json'
+      - 'scripts/install.sh'
+      - 'scripts/update.sh'
+      - 'scripts/lib-docker.sh'
+      - 'scripts/install.selftest.sh'
+      - 'scripts/bootstrap.sh'
+      - 'scripts/build-deploy-bundle.sh'
+      - 'docker/**'
+      - '.github/workflows/install-scripts.yml'
+  pull_request:
+    paths:
+      - 'installer.json'
+      - 'scripts/install.sh'
+      - 'scripts/update.sh'
+      - 'scripts/lib-docker.sh'
+      - 'scripts/install.selftest.sh'
+      - 'scripts/bootstrap.sh'
+      - 'scripts/build-deploy-bundle.sh'
+      - 'docker/**'
+      - '.github/workflows/install-scripts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: Installer selftest (fake docker, no daemon)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax (bash -n)
+        run: |
+          set -euo pipefail
+          for f in scripts/bootstrap.sh \
+                   scripts/install.sh \
+                   scripts/update.sh \
+                   scripts/build-deploy-bundle.sh \
+                   scripts/lib-docker.sh \
+                   scripts/install.selftest.sh; do
+            bash -n "$f"
+            echo "bash -n OK: $f"
+          done
+
+      - name: Shellcheck (preinstalled on the runner)
+        run: |
+          set -euo pipefail
+          # lib-docker.sh is linted as its own input: install.sh/update.sh
+          # source it via a runtime-computed path that shellcheck cannot
+          # follow (see the source=/dev/null directives there).
+          shellcheck scripts/bootstrap.sh \
+                    scripts/install.sh \
+                    scripts/update.sh \
+                    scripts/build-deploy-bundle.sh \
+                    scripts/lib-docker.sh \
+                    scripts/install.selftest.sh
+          echo "shellcheck clean"
+
+      - name: Installer selftest (G3 — contract flags, pins, ports, exit codes)
+        run: bash scripts/install.selftest.sh

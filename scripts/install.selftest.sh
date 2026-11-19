@@ -33,6 +33,7 @@ FAILED_CASES=""
 
 WORK="$(mktemp -d)"
 BG_PIDS=""
+# shellcheck disable=SC2329  # cleanup runs via the EXIT trap below
 cleanup() {
     local pid
     for pid in $BG_PIDS; do kill "$pid" 2>/dev/null || true; done
