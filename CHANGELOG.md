@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-20
+
+### Added
+- **Self-host installer and source-free release bundle (plan 69).** A fresh
+  Docker host can install Career Assistant from the published release with
+  `scripts/install.sh` or the generated one-line `scripts/bootstrap.sh`.
+  `installer.json` is the product contract; the bundle carries
+  `manifest.json` and `SHA256SUMS`, and `scripts/update.sh` provides the
+  idempotent upgrade path. Install flags include `--no-pull`, `--no-wait`,
+  `--auto-ports`, `--no-ports`, `--http-port`, `--env-only`, `--reset`,
+  `--yes` and `--image-tag`. Release CI now publishes
+  `career-compose-v0.18.0.tar.gz`, `career-bootstrap.sh` and
+  `career-bootstrap-v0.18.0.sh`; `install-scripts.yml` and
+  `release-smoke.yml` exercise the installer and the published assets.
+
 ## [0.17.3] - 2026-11-19
 
 ### Fixed
