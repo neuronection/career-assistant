@@ -1,14 +1,91 @@
 # Deployment Guide
 
-Self-hosting Career Assistant. The recommended path is the production
-compose stack — one container runs the API **and** the built web app, so a
-fresh install is: clone → configure → `docker compose up`.
+Self-hosting Career Assistant. Two supported paths:
+
+- **Server operators (recommended):** the **source-free release bundle** —
+  `career-compose-vX.Y.Z.tar.gz` from the GitHub release, images pinned by
+  digest, installed by `scripts/install.sh` inside the bundle. No source, no
+  build toolchain on the host.
+- **Developers / source checkouts:** the compose stack built from a clone —
+  `scripts/run-docker.sh` (first deploy) and `scripts/update-docker.sh`
+  (refresh), as documented below.
 
 The stack implements the family deployment contract: one-shot `migrate` + `serve` entrypoint modes,
 split owner/app DB credentials, `/health` + `/ready` probes, scheme-derived
 cookies, and off-host-capable backups with a run ledger.
 
 ---
+
+## Server install from a release bundle
+
+Prerequisites: a Linux host (Ubuntu 22.04/24.04 reference) with **Docker +
+Docker Compose v2**, ≥ 4 GB RAM, ~5 GB free disk, a non-root user in the
+`docker` group. The installer never runs as root, never installs packages,
+never overwrites an existing `docker/.env`.
+
+One-liner (the bootstrap resolves the latest release, verifies the bundle
+SHA-256, extracts and hands off to the audited in-bundle installer):
+
+```bash
+curl -fsSL https://neuronection.com/install/career.sh | bash
+# cautious form: download it, read it, then run it
+curl -fsSL https://neuronection.com/install/career.sh -o career-bootstrap.sh
+less career-bootstrap.sh
+bash career-bootstrap.sh --dir ~/career-assistant
+```
+
+Bootstrap flags: `--dir DIR`, `--ref vX.Y.Z` (pin an exact release),
+`--dry-run` (resolve + verify + print, write nothing), `--offline
+career-compose-vX.Y.Z.tar.gz` (already-downloaded bundle, no network
+download), and `--` to forward installer flags — e.g.
+`-- --http-port 8092`. The one-liner URL 302-redirects to the GitHub
+release asset (trust anchor = the release, not the website); until that
+route is published, use the asset from the release page.
+
+Manual, without the bootstrap:
+
+```bash
+# from the release: career-compose-vX.Y.Z.tar.gz + manifest.json + SHA256SUMS
+sha256sum -c SHA256SUMS
+mkdir -p ~/career-assistant
+tar -xzf career-compose-vX.Y.Z.tar.gz -C ~/career-assistant
+cp manifest.json ~/career-assistant/          # installer pins the image digest from it
+cd ~/career-assistant
+bash scripts/install.sh
+```
+
+What `scripts/install.sh` does (see [docker/README.md](../../docker/README.md)
+for the full flag table): generates `docker/.env` from the example with
+fresh secrets (`umask 077`, never printed, never overwritten on a re-run) →
+pins `CAREER_IMAGE` from the release manifest (the bootstrap forwards
+`--image app=<digest>`; priority: `--image [KEY=]REF` > `--image-tag` >
+`$CAREER_IMAGE` > manifest > existing `.env`) → sets `HTTP_PORT` →
+pre-flights published ports → pulls → `up -d` → waits for `/health` →
+prints the URL and the first-admin note. Exit codes: `0` ok · `1`
+usage/prereq · `2` image pull · `3` compose config/start or health · `4`
+port conflict.
+
+Port plan: the bundle publishes one host port (`HTTP_PORT`, default 80).
+Multiple Neuronection stacks on one host get distinct ports
+(`--http-port 8090/8091/8092` for health/study/career).
+
+### Updating a bundle install
+
+1. Read the release notes; take a backup (`scripts/backup.sh` — off-host
+   destination via `BACKUP_REMOTE`).
+2. Download the new release's bundle + `manifest.json` + `SHA256SUMS`.
+3. Extract over the install directory — `docker/.env` is not in the
+   bundle, so secrets and settings survive; copy the new `manifest.json` in.
+4. `bash scripts/update.sh` — bumps `CAREER_IMAGE` to the new manifest
+   digest, pulls, `up -d`, waits for `/health`. The previous pin is kept
+   (a comment in `docker/.env` + the printed rollback command) and no
+   destructive data operation ever runs.
+
+Rollback: `bash scripts/update.sh --image <previous pin>` (recorded in
+`docker/.env`), and restore the pre-upgrade dump with
+`scripts/restore.sh` if the release migrated the schema — pre-1.0 there is
+no downgrade path, so keep the previous bundle and a backup before every
+update.
 
 ## Quick start (Docker Compose)
 
@@ -137,6 +214,11 @@ body cap (keep it ≥ `CAREER_MAX_UPLOAD_MB`).
 cd career-assistant
 ./scripts/update-docker.sh     # git pull + rebuild + restart + health-wait
 ```
+
+Bundle installs (no source checkout) update differently — extract the new
+release bundle over the install directory and run `bash scripts/update.sh`
+(see *Updating a bundle install* above); it never rebuilds and never
+touches data volumes, and it keeps the previous image pin for rollback.
 
 Or manually: `git pull`, back up first (see Backups), then
 `docker compose -f docker/docker-compose.prod.yml up -d --build`.

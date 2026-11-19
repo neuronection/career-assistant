@@ -338,6 +338,23 @@ jobs:
             --version "${GITHUB_REF_NAME}" \
             --image "ghcr.io/${repo}@${{ needs.docker.outputs.digest }}" \
             --out-dir dist
+      # Attach the one-line bootstrap when it exists. scripts/bootstrap.sh
+      # is GENERATED from the family installer contract's template — never
+      # hand-written or invented here. Until the sync generates it, this
+      # step is a deliberate no-op and the release simply has no bootstrap
+      # asset yet; the bundle + manifest are still complete.
+      - name: Stage bootstrap assets (when generated)
+        run: |
+          if [ -f scripts/bootstrap.sh ]; then
+            cp scripts/bootstrap.sh "dist/career-bootstrap-${GITHUB_REF_NAME}.sh"
+            cp scripts/bootstrap.sh dist/career-bootstrap.sh
+            (
+              cd dist
+              sha256sum "career-bootstrap-${GITHUB_REF_NAME}.sh" career-bootstrap.sh >> SHA256SUMS
+            )
+          else
+            echo "scripts/bootstrap.sh not generated yet — skipping bootstrap assets."
+          fi
       - name: Verify bundle checksums
         working-directory: dist
         run: sha256sum -c SHA256SUMS
@@ -347,4 +364,6 @@ jobs:
             dist/career-compose-*.tar.gz
             dist/manifest.json
             dist/SHA256SUMS
+            dist/career-bootstrap-v*.sh
+            dist/career-bootstrap.sh
           prerelease: ${{ contains(github.ref_name, '-') }}
