@@ -130,5 +130,8 @@ fi
 
 status_finish "ok" "$UPLOADED"
 echo "==> Done: $UPLOADED"
-[[ -n "$REMOTE" ]] && echo "    Off-host: $REMOTE/$NAME"
-[[ -z "$REMOTE" ]] && echo "    Retention is manual: keep at least the last N archives off-machine."
+if [[ -n "$REMOTE" ]]; then
+  echo "    Off-host: $REMOTE/$NAME"
+else
+  echo "    Retention is manual: keep at least the last N archives off-machine."
+fi
