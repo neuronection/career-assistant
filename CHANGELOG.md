@@ -4,6 +4,35 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Per-app cookie names (auth-kit 0.7):** session cookies are now
+  `career_access` / `career_refresh` / `career_csrf` (previously the
+  shared family `nx_*` names). Cookies are scoped by hostname — ports
+  are ignored — so co-located Neuronection apps on one host no longer
+  shadow each other's sessions or CSRF jars. **You are logged out once
+  on upgrade**; stale `nx_*` cookies are cleared automatically on your
+  first request.
+
+### Changed (installer)
+
+- **Default port is now 8092** (was 80) — the per-product family default
+  (health 8090 / study 8091 / career 8092), so several Neuronection apps
+  coexist on one host with no flags. Existing installs keep their
+  persisted port; an install whose `docker/.env` predates persisted
+  ports stays on 80 with a loud note instead of silently moving.
+- **`--public-url URL`** persists `CAREER_PUBLIC_URL` (drives Secure
+  cookies, CORS and OAuth redirects; `http://` keeps LAN logins
+  working). The summary now prints the configured public URL as the
+  app URL when one is set.
+- **`--bind ADDR`** (default `0.0.0.0`) publishes on a chosen interface
+  — `127.0.0.1` when you front the app with your own reverse proxy.
+- **`scripts/uninstall.sh`**: clean removal that keeps data by default
+  (`--purge` deletes only this project's volumes; `--remove-dir`
+  explicit; label-based teardown works without a readable `.env`).
+- `backup.sh` and `restore.sh` gained `-h|--help` like the other
+  scripts.
+
 ## [0.18.2] - 2026-11-20
 
 ### Fixed (installer)

@@ -67,9 +67,12 @@ plaintext).
 The family auth contract (guideline `identity-auth.md`) — the
 shared `neuronection-auth-kit` package is the implementation:
 
-- **Session cookies + double-submit CSRF** (§10): `nx_access` /
-  `nx_refresh` / `nx_csrf`; cookie-authenticated non-GET requests must
-  echo `nx_csrf` in `X-CSRF-Token`. `Authorization: Bearer <session
+- **Session cookies + double-submit CSRF** (§10): `career_access` /
+  `career_refresh` / `career_csrf` (per-app prefix — cookies are scoped
+  by hostname, ports ignored, so co-located family apps must not share
+  names; pre-prefix `nx_*` cookies are expired automatically on sight);
+  cookie-authenticated non-GET requests must echo `career_csrf` in
+  `X-CSRF-Token`. `Authorization: Bearer <session
   token>` (§9 user clients) is accepted alongside cookies.
 - **Instance access modes** (§4): `instance_settings.auth_mode` is
   DB-authoritative and written only at initialization (`CAREER_AUTH_MODE`

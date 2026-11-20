@@ -88,15 +88,15 @@ def e2e_session_cookies() -> list[dict]:
                 "name": name.strip(),
                 "value": value,
                 "domain": "127.0.0.1",
-                "path": "/api/v1/auth" if name.strip() == "nx_refresh" else "/",
-                "httpOnly": name.strip() != "nx_csrf",
+                "path": "/api/v1/auth" if name.strip() == "career_refresh" else "/",
+                "httpOnly": name.strip() != "career_csrf",
                 "secure": False,
                 "sameSite": "Lax",
             }
         )
     cookies.append(
         {
-            "name": "nx_csrf",
+            "name": "career_csrf",
             "value": E2E_CSRF,
             "domain": "127.0.0.1",
             "path": "/",
