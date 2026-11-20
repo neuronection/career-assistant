@@ -31,6 +31,8 @@ secrets.json
 # Uploads / runtime
 backend/uploads/
 backend/tests/_uploads/
+# runtime tenant data (uploaded documents) — never publish
+uploads/
 backend/tests/_xdist/
 backend/tests/_data/
 logging/

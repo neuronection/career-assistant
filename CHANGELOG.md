@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-11-20
+
 ### Changed
 
 - **Per-app cookie names (auth-kit 0.7):** session cookies are now
