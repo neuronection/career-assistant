@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Per-app cookie names (auth-kit 0.7):** session cookies are now
+  `career_access` / `career_refresh` / `career_csrf` (previously the
+  shared family `nx_*` names). Cookies are scoped by hostname — ports
+  are ignored — so co-located Neuronection apps on one host no longer
+  shadow each other's sessions or CSRF jars. **You are logged out once
+  on upgrade**; stale `nx_*` cookies are cleared automatically on your
+  first request.
+
 ## [0.18.2] - 2026-11-20
 
 ### Fixed (installer)
