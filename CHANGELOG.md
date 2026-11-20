@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-11-20
+
+### Fixed (installer)
+- **One-line installs survive GitHub's release asset redirect.** GitHub now
+  serves `/releases/download/...` assets from
+  `release-assets.githubusercontent.com`; the bootstrap host allowlist only
+  accepted `github.com` and `objects.githubusercontent.com`, so a fresh
+  install aborted before extracting anything. The allowlist now includes the
+  new host, and the release bootstrap is rebuilt from this commit.
+
 ## [0.18.0] - 2026-11-20
 
 ### Added
