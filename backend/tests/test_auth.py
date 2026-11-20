@@ -357,7 +357,9 @@ async def test_kind_mismatch_and_key_separation(client, auth_headers):
         auth_mode=AuthMode.PASSWORD,
     )
     assert (
-        await client.get("/api/v1/auth/me", headers={"Cookie": f"career_access={refresh_as_access}"})
+        await client.get(
+            "/api/v1/auth/me", headers={"Cookie": f"career_access={refresh_as_access}"}
+        )
     ).status_code == 401
 
     # A refresh token signed with the SESSION key must not verify as a
