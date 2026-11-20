@@ -1,0 +1,4 @@
+NAME: Jane Doe
+EDUCATION: B.Sc in Data Science at University of Sample LEVEL=bachelor (2020 - 09/2021)
+EDUCATION: Networking Tech at Vocational Institute (09/2014 - 15/03/2020)
+EDUCATION: Informatics at University of West Attica (2016 - 2020)

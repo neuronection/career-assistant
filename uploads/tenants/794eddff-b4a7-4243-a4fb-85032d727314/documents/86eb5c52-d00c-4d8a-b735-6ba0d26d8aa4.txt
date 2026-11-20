@@ -1,0 +1,19 @@
+NAME: Jane Doe
+HEADLINE: Aspiring data engineer
+EMAIL: jane@example.com
+PHONE: +30 555 0100
+LOCATION: Athens
+CITY: Athens
+COUNTRY: Greece
+BIRTH_YEAR: 2003
+LINK: github=https://github.com/janedoe
+SUMMARY: Student with a passion for pipelines.
+EDUCATION: BSc Computer Science at University of Sample (2022-09 - 2026-06)
+EXPERIENCE: Software Intern at Sample Corp (2024-06 - 2024-09); Built QA tooling
+SKILL: Python: 7
+SKILL: Zzz Craft
+LANGUAGE: en advanced
+CERTIFICATION: Cambridge B2 — Cambridge Assessment
+AWARD: award | Hackathon winner — SampleCon (2025-03)
+INTEREST: technology-software
+EDUCATION: MSc Data at University of Sample (2026-09 - present)
