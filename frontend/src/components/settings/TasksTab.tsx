@@ -26,7 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import * as aiApi from "@/api/ai";
-import type { ProviderModelInfo } from "@/api/ai";
+import type { EffectiveAssignment, ProviderModelInfo } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
 import { ModelPicker, TaskAssignmentPicker } from "@/components/ui";
@@ -189,13 +189,24 @@ interface TasksTabProps {
   onChanged: () => void;
   /** Scope to open on (the first-run wizard follows the provider's scope). */
   initialScope?: Scope;
+  /** A scoped settings page fixes the scope and hides the system/user switch. */
+  lockScope?: boolean;
+  /** Effective assignments for the caller — used to show instance inheritance
+   * on the personal surface instead of a false "unassigned" state. */
+  effectiveByTask?: Record<string, EffectiveAssignment>;
 }
 
 /** Task → model assignments on the family TaskAssignmentPicker, §15
  * defaults-first: capability-slot defaults (text/vision/stt/tts/
  * embeddings) lead, the Decision group (decision:* slots, primary) is
  * second, concrete tasks follow — every row a per-task override. */
-export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabProps) {
+export function TasksTab({
+  canManageGlobal,
+  onChanged,
+  initialScope,
+  lockScope = false,
+  effectiveByTask,
+}: TasksTabProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const [scope, setScope] = useState<Scope>(
@@ -286,6 +297,14 @@ export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabP
   for (const task of taskRows) {
     value[task.value] = assignmentFor(task.value)?.model_id ?? null;
   }
+
+  const inheritedFor = (taskType: string): EffectiveAssignment | null => {
+    if (scope !== "user") return null;
+    const effective = effectiveByTask?.[taskType];
+    if (!effective || !effective.source.startsWith("system")) return null;
+    return effective;
+  };
+  const hasInherited = taskRows.some((task) => inheritedFor(task.value) !== null);
 
   // ADR-0036 §4: what a kind's labeled null option names — the `decision`
   // default row's model (career's kind rows are single-picker; the
@@ -430,11 +449,20 @@ export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskRows, t]);
 
+  if (lockScope && initialScope === undefined) {
+    throw new Error("TasksTab: lockScope requires initialScope");
+  }
+
   return (
     <div className="space-y-4" data-testid="tasks-tab">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-slate-900">{t(STRINGS.title)}</h3>
-        {canManageGlobal && (
+        {lockScope ? (
+          <span className="flex items-center gap-1 text-xs text-slate-500">
+            {scope === "system" ? <Globe className="w-3 h-3" /> : <User className="w-3 h-3" />}
+            {scope === "system" ? t(STRINGS.global) : t(STRINGS.personal)}
+          </span>
+        ) : canManageGlobal ? (
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             {(["system", "user"] as Scope[]).map((s) => (
               <button
@@ -449,10 +477,10 @@ export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabP
               </button>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      {modelsForScope.length === 0 && (
+      {modelsForScope.length === 0 && !hasInherited && (
         <p className="text-sm text-slate-500" data-testid="tasks-scope-empty">
           {t(STRINGS.scopeEmpty)}
         </p>
@@ -465,39 +493,58 @@ export function TasksTab({ canManageGlobal, onChanged, initialScope }: TasksTabP
         onAssign={(taskType, modelId) => void assign(taskType, modelId)}
         clearLabel={t(STRINGS.clearLabel)}
         disabled={busy}
-        renderMeta={(task) =>
-          task.id === DECISION_DEFAULT_TASK_TYPE && !value[task.id] ? (
-            <div className="space-y-1">
-              <p className="text-[11px] text-slate-400">{t(STRINGS.defaultsEmptyHint)}</p>
-              {decisionSuggestion ? (
-                <p className="text-[11px] text-slate-400">
-                  {t("aiSettings.tasks.suggestedDecisionDefault", {
-                    model: decisionSuggestion.model,
-                    provider: decisionSuggestion.provider,
-                  })}
-                </p>
-              ) : null}
-              {simplifyModelId ? (
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
-                  disabled={busy}
-                  onClick={() => void assign(DECISION_DEFAULT_TASK_TYPE, simplifyModelId)}
-                >
-                  {t(STRINGS.simplify, {
-                    model: modelLabelOf(simplifyModelId) ?? simplifyModelId,
-                  })}
-                </button>
-              ) : null}
-            </div>
-          ) : task.id.startsWith(DECISION_TASK_PREFIX) && !value[task.id] ? (
-            <p className="text-[11px] text-slate-400">
-              {t("aiSettings.tasks.decisionUnassignedMeta")}
-            </p>
-          ) : !value[task.id] ? (
-            <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>
-          ) : null
-        }
+        renderMeta={(task) => {
+          const inherited = inheritedFor(task.id);
+          if (!value[task.id] && inherited) {
+            return (
+              <p className="text-[11px] text-slate-400">
+                {t("aiSettings.tasks.inheritedInstance", {
+                  model: inherited.model_name,
+                })}
+              </p>
+            );
+          }
+          if (task.id === DECISION_DEFAULT_TASK_TYPE && !value[task.id]) {
+            return (
+              <div className="space-y-1">
+                <p className="text-[11px] text-slate-400">{t(STRINGS.defaultsEmptyHint)}</p>
+                {decisionSuggestion ? (
+                  <p className="text-[11px] text-slate-400">
+                    {t("aiSettings.tasks.suggestedDecisionDefault", {
+                      model: decisionSuggestion.model,
+                      provider: decisionSuggestion.provider,
+                    })}
+                  </p>
+                ) : null}
+                {simplifyModelId ? (
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                    disabled={busy}
+                    onClick={() => void assign(DECISION_DEFAULT_TASK_TYPE, simplifyModelId)}
+                  >
+                    {t(STRINGS.simplify, {
+                      model: modelLabelOf(simplifyModelId) ?? simplifyModelId,
+                    })}
+                  </button>
+                ) : null}
+              </div>
+            );
+          }
+          if (task.id.startsWith(DECISION_TASK_PREFIX) && !value[task.id]) {
+            return (
+              <p className="text-[11px] text-slate-400">
+                {t("aiSettings.tasks.decisionUnassignedMeta")}
+              </p>
+            );
+          }
+          if (!value[task.id]) {
+            return (
+              <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>
+            );
+          }
+          return null;
+        }}
       />
 
       {/* Decision kinds group (plan 29 / ADR-0036 uniform ruling): the

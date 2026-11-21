@@ -52,7 +52,7 @@ frontend/src/
 | `/catalog/universities`, `/catalog/universities/:id` | University intake |
 | `/guides/market` | UK/DACH market guide |
 | `/cv`, `/cv/synth`, `/cv/:id`, `/cv/templates/:id` | CV Studio, variant library, builder, template editor |
-| `/settings/account`, `/settings/ai`, `/settings/tools`, `/settings/taxonomy`, `/settings/companies`, `/settings/users`, `/settings/automations`, `/settings/notifications`, `/settings/audit` | Settings surfaces (`/settings` lands on account) |
+| `/settings/account`, `/settings/ai`, `/settings/ai-admin`, `/settings/tools`, `/settings/taxonomy`, `/settings/companies`, `/settings/users`, `/settings/automations`, `/settings/notifications`, `/settings/audit` | Settings surfaces (`/settings` lands on account). `/settings/ai` is My AI Configuration (user scope); `/settings/ai-admin` is Instance AI Configuration (system scope, admins) |
 
 `config/nav.ts` and `config/settingsNav.ts` define the sidebar and settings
 navigation — update them with the routes.

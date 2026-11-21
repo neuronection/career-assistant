@@ -2159,8 +2159,12 @@
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
-    "title": "AI Configuration",
-    "subtitle": "Every AI feature (matching, generation, parsing, chat) runs on the resolved provider/model.",
+    "title": "My AI Configuration",
+    "subtitle": "Your personal providers, models and task assignments. Instance settings apply unless you override them.",
+    "titleInstance": "Instance AI Configuration",
+    "subtitleInstance": "Providers, models and task assignments shared by every user.",
+    "openPersonal": "My AI Configuration",
+    "openInstance": "Instance AI Configuration",
     "tab": {
       "providers": "Providers",
       "models": "Models",
@@ -2193,11 +2197,9 @@
     "providers": {
       "hint": "A provider is an API endpoint (OpenAI, OpenRouter, Ollama, LM Studio…) holding the key and base URL.",
       "add": "Add provider",
-      "globalTitle": "Global providers",
       "globalEmpty": "No global providers configured.",
-      "personalTitle": "Personal providers",
       "personalEmpty": "No personal providers yet.",
-      "readOnlyNote": "read-only (admin required)",
+      "instanceNote": "Instance AI is managed by an administrator. Add a personal provider to override it.",
       "inactive": "inactive",
       "hostingLocal": "local",
       "hostingCloud": "cloud",
@@ -2280,6 +2282,7 @@
       "tasksSection": "Per-task assignments",
       "tasksSectionHint": "Overrides the fallback model above for that task.",
       "unassignedMeta": "Unassigned — inherits the capability default until you pick a model.",
+      "inheritedInstance": "Inherited from instance: {{model}}",
       "decisionUnassignedMeta": "Unassigned — decision points fall through to the agent path.",
       "scopeEmpty": "No models are registered in this scope yet — add one on the Models tab, then assign it here.",
       "clearLabel": "Clear assignment",
@@ -2364,6 +2367,8 @@
     "firstRun": {
       "title": "Connect an AI provider",
       "body": "Career Assistant uses your own AI provider key (BYOK). One-click setup validates the key, registers curated models and binds sensible defaults — in under a minute.",
+      "instanceTitle": "Connect an instance AI provider",
+      "instanceBody": "Set up the provider every user inherits. One-click setup validates the key, registers curated models and binds sensible defaults; users can still add personal overrides.",
       "cta": "Set up a provider"
     },
     "decisionSlots": {
@@ -4335,7 +4340,8 @@
   "dictation": {
     "unavailable": "Dictation unavailable",
     "notConfigured": "No speech-to-text model is assigned.",
-    "openSettings": "Open AI settings"
+    "openSettings": "Open AI settings",
+    "dismiss": "Dismiss"
   },
   "chat": {
     "openAiSettings": "Open AI settings",
@@ -5209,8 +5215,12 @@
       "description": "Sessions, password and account deletion"
     },
     "ai": {
-      "label": "AI Configuration",
-      "description": "Providers, models and task assignments"
+      "label": "My AI Configuration",
+      "description": "Your providers, models and task assignments"
+    },
+    "aiAdmin": {
+      "label": "Instance AI Configuration",
+      "description": "Providers, models and task assignments shared by every user"
     },
     "tools": {
       "label": "Tools",

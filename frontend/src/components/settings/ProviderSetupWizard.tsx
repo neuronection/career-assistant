@@ -353,6 +353,10 @@ function SuccessPanel({
 
 export interface ProviderSetupWizardProps {
   canUseSystemScope: boolean;
+  /** Scope a scoped settings page pins for the setup flow. */
+  initialScope?: "user" | "system";
+  /** Hide the scope picker and submit only `initialScope`. */
+  lockScope?: boolean;
   configuredKeys: string[];
   /** `modal` keeps the dialog chrome; `page` lets a route own the frame. */
   frame: "modal" | "page";
@@ -371,6 +375,8 @@ export interface ProviderSetupWizardProps {
  * app's provider form instead of an in-flow form. */
 export function ProviderSetupWizard({
   canUseSystemScope,
+  initialScope,
+  lockScope = false,
   configuredKeys,
   frame,
   onManual,
@@ -387,7 +393,7 @@ export function ProviderSetupWizard({
   const [advancedBase, setAdvancedBase] = useState("");
   const [isLocal, setIsLocal] = useState(false);
   const [country, setCountry] = useState("");
-  const [scope, setScope] = useState<"user" | "system">("user");
+  const [scope, setScope] = useState<"user" | "system">(initialScope ?? "user");
   const [error, setError] = useState<aiApi.ProviderSetupErrorDetail | null>(null);
   const [plainError, setPlainError] = useState<string | null>(null);
   const [result, setResult] = useState<ProviderSetupResult | null>(null);
@@ -405,6 +411,10 @@ export function ProviderSetupWizard({
   const [applyPlainError, setApplyPlainError] = useState<string | null>(null);
   const [liveAssignments, setLiveAssignments] = useState<aiApi.StoredAssignment[]>([]);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (initialScope) setScope(initialScope);
+  }, [initialScope]);
 
   useEffect(() => {
     if (phase !== "review" || result === null) return;
@@ -795,7 +805,9 @@ export function ProviderSetupWizard({
               <>
                 <HostingToggle local={isLocal} onChange={setIsLocal} disabled={preset.local} />
                 <CountrySelect country={country} onChange={setCountry} />
-                {canUseSystemScope && <ScopeSelect scope={scope} onChange={setScope} />}
+                {canUseSystemScope && !lockScope && (
+                  <ScopeSelect scope={scope} onChange={setScope} />
+                )}
               </>
             }
             copyLabel={t("common.copy")}
@@ -814,6 +826,10 @@ export function ProviderSetupWizard({
         ) : null}
       </>
     );
+  }
+
+  if (lockScope && initialScope === undefined) {
+    throw new Error("ProviderSetupWizard: lockScope requires initialScope");
   }
 
   if (frame === "page") {

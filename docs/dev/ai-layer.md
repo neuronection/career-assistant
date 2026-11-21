@@ -22,9 +22,12 @@ SDK (`typesafe_sdk`) is sanctioned inside `app/ai/decide/` only.
 
 Providers, models and per-task assignments live exclusively in the database
 (`ai_providers`, `ai_models`, `ai_task_assignments`) and are managed in
-**Settings → AI Configuration**. There are deliberately **no `AI_*`**
-environment variables. Production starts unconfigured — AI endpoints answer
-`503` until an admin adds a provider.
+**Settings → My AI Configuration** (personal, user scope) and
+**Settings → Instance AI Configuration** (admin, system scope). Each surface
+manages only its own scope; personal rows override the instance defaults.
+There are deliberately **no `AI_*`** environment variables. Production starts
+unconfigured — AI endpoints answer `503` until the caller's personal provider
+or an instance provider is configured.
 
 ### BYOK setup (§15, family contract)
 

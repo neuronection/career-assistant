@@ -33,8 +33,11 @@ database, encrypted, and there are deliberately no AI environment variables.
 **Skip for now** records the choice on your profile and takes you to the
 regular onboarding paths. You are never asked twice, but the setup prompt
 stays on chat, the CV builder's AI actions, generate-with-AI and Autopilot
-until a provider is configured — and `Settings → AI Configuration` always
-works as the manual route.
+until a provider is configured — and `Settings → My AI Configuration` always
+works as the manual route. The wizard keeps its scope picker: an admin may
+create an instance provider or a personal one. After setup, the **Settings**
+link opens the surface for the provider you created — My AI Configuration
+for a personal provider, Instance AI Configuration for an instance provider.
 
 On the desktop app the tray menu carries **Configure AI provider** as the
 same entry point, so the window can stay closed.

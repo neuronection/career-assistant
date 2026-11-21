@@ -34,6 +34,15 @@ export function OnboardingSetup() {
   const [provider, setProvider] = useState<AIProvider | null>(null);
   const [models, setModels] = useState<AIModel[]>([]);
   const [providers, setProviders] = useState<AIProvider[]>([]);
+  const settingsPath = provider
+    ? provider.scope === "system"
+      ? "/settings/ai-admin"
+      : "/settings/ai"
+    : user?.is_admin &&
+        providers.some((row) => row.scope === "system") &&
+        !providers.some((row) => row.scope === "user")
+      ? "/settings/ai-admin"
+      : "/settings/ai";
   const [manualOpen, setManualOpen] = useState(false);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
   const [testCode, setTestCode] = useState("");
@@ -183,7 +192,7 @@ export function OnboardingSetup() {
               <Button size="sm" onClick={finish} data-testid="ai-setup-continue">
                 {t("aiSetup.page.continue")}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate("/settings/ai")}>
+              <Button size="sm" variant="outline" onClick={() => navigate(settingsPath)}>
                 {t("aiSetup.page.settings")}
               </Button>
             </div>
@@ -298,7 +307,7 @@ export function OnboardingSetup() {
       {!configured && step === "connect" && (
         <p className="text-center text-xs text-[var(--as-muted-fg)]">
           {t("aiSetup.page.settingsHint")}{" "}
-          <Link to="/settings/ai" className="underline underline-offset-2">
+          <Link to={settingsPath} className="underline underline-offset-2">
             {t("aiSetup.page.settings")}
           </Link>
         </p>

@@ -2,6 +2,10 @@ import { ProviderSetupWizard } from "@/components/settings/ProviderSetupWizard";
 
 interface ProviderSetupModalProps {
   canUseSystemScope: boolean;
+  /** Scope a scoped settings page pins for the setup flow. */
+  initialScope?: "user" | "system";
+  /** Hide the scope picker and submit only `initialScope`. */
+  lockScope?: boolean;
   configuredKeys: string[];
   onClose: () => void;
   /** "Set up manually" hands off to the full create/edit modal. */
@@ -13,6 +17,8 @@ interface ProviderSetupModalProps {
  * wizard flow (the first-run route hosts the same flow in page frame). */
 export function ProviderSetupModal({
   canUseSystemScope,
+  initialScope,
+  lockScope = false,
   configuredKeys,
   onClose,
   onManual,
@@ -22,6 +28,8 @@ export function ProviderSetupModal({
     <ProviderSetupWizard
       frame="modal"
       canUseSystemScope={canUseSystemScope}
+      initialScope={initialScope}
+      lockScope={lockScope}
       configuredKeys={configuredKeys}
       onClose={onClose}
       onManual={onManual}

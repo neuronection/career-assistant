@@ -10,6 +10,10 @@ import { apiDetail } from "@/api/client";
 interface ProviderModalProps {
   provider: AIProvider | null;
   canUseSystemScope: boolean;
+  /** Scope a scoped settings page pins for a new provider. */
+  initialScope?: "user" | "system";
+  /** Hide the scope picker and submit only `initialScope`/the provider's scope. */
+  lockScope?: boolean;
   mockAllowed: boolean;
   onClose: () => void;
   onSaved: (saved?: AIProvider) => void;
@@ -19,13 +23,21 @@ const CUSTOM = CUSTOM_PRESET_KEY;
 
 /** Create/edit provider: preset catalog, type, base URL, key (*** preserves),
  * hosting + country and scope. */
-export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClose, onSaved }: ProviderModalProps) {
+export function ProviderModal({
+  provider,
+  canUseSystemScope,
+  initialScope,
+  lockScope = false,
+  mockAllowed,
+  onClose,
+  onSaved,
+}: ProviderModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(provider?.name ?? "");
   const [providerType, setProviderType] = useState<string>(provider?.provider_type ?? "openai");
   const [apiBase, setApiBase] = useState(provider?.api_base ?? "https://api.openai.com/v1");
   const [apiKey, setApiKey] = useState("");
-  const [scope, setScope] = useState<string>(provider?.scope ?? "user");
+  const [scope, setScope] = useState<string>(provider?.scope ?? initialScope ?? "user");
   const [isLocal, setIsLocal] = useState<boolean>(provider?.is_local ?? false);
   const [country, setCountry] = useState<string>(provider?.country ?? "");
   const [presets, setPresets] = useState<Record<string, ProviderPreset>>({});
@@ -61,6 +73,13 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
     setBusy(true);
     setError("");
     const trimmedKey = apiKey.trim();
+    const submittedScope = lockScope
+      ? (initialScope ?? provider?.scope)
+      : scope;
+    if (!submittedScope) {
+      setBusy(false);
+      return;
+    }
     try {
       let saved: AIProvider;
       if (provider) {
@@ -68,7 +87,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
           name,
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
-          scope: scope as AIProvider["scope"],
+          scope: submittedScope as AIProvider["scope"],
           is_local: isLocal,
           country: country.trim() || null,
           ...(trimmedKey ? { api_key: trimmedKey } : {}),
@@ -79,7 +98,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
           api_key: trimmedKey || null,
-          scope: scope as AIProvider["scope"],
+          scope: submittedScope as AIProvider["scope"],
           is_local: isLocal,
           country: country.trim() || null,
         });
@@ -91,6 +110,10 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
       setBusy(false);
     }
   };
+
+  if (lockScope && !initialScope && !provider?.scope) {
+    throw new Error("ProviderModal: lockScope requires initialScope");
+  }
 
   return (
     <Modal open onOpenChange={(o) => !o && onClose()}>
@@ -155,18 +178,26 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
           </div>
           <div className="text-sm">
             {t("aiSettings.providerModal.scopeLabel")}
-            <div className="mt-1">
-              <SearchableDropdown
-                options={[
-                  ...(canUseSystemScope
-                    ? [{ value: "system", label: t("aiSettings.providerModal.globalScope") }]
-                    : []),
-                  { value: "user", label: t("aiSettings.providerModal.personalScope") },
-                ]}
-                value={scope}
-                onChange={setScope}
-              />
-            </div>
+            {lockScope ? (
+              <p className="mt-1 text-slate-600">
+                {initialScope === "system"
+                  ? t("aiSettings.providerModal.globalScope")
+                  : t("aiSettings.providerModal.personalScope")}
+              </p>
+            ) : (
+              <div className="mt-1">
+                <SearchableDropdown
+                  options={[
+                    ...(canUseSystemScope
+                      ? [{ value: "system", label: t("aiSettings.providerModal.globalScope") }]
+                      : []),
+                    { value: "user", label: t("aiSettings.providerModal.personalScope") },
+                  ]}
+                  value={scope}
+                  onChange={setScope}
+                />
+              </div>
+            )}
           </div>
           </ProviderForm>
         </div>
