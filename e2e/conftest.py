@@ -113,6 +113,18 @@ def e2e_session_cookies() -> list[dict]:
 _E2E_PROFILE_ID: str | None = None
 
 
+def open_chat_dock(page: Page):
+    """Open the docked chat surface (ADR/plan 75 default is now the closed
+    floating launcher). E2E specs that exercise the dock opt in explicitly:
+    open the launcher, then choose the side panel in the view switcher."""
+    dock = page.get_by_test_id("chat-dock")
+    if not dock.is_visible():
+        page.get_by_role("button", name="Open chat assistant").click()
+        page.get_by_test_id("chat-view-docked").click(timeout=10_000)
+    dock.wait_for(state="visible", timeout=20_000)
+    return dock
+
+
 def api_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     """Headers for raw `page.request` calls: CSRF echo + profile scope.
 
