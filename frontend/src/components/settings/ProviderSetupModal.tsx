@@ -11,6 +11,10 @@ interface ProviderSetupModalProps {
   /** "Set up manually" hands off to the full create/edit modal. */
   onManual: () => void;
   onSaved: () => void;
+  /** Finish: close and open this scope's task assignments. */
+  onContinueToTasks?: () => void;
+  /** Finish: open this scope's models surface. */
+  onOpenModels?: () => void;
 }
 
 /** One-click §15 setup in a dialog — the AI settings entry into the shared
@@ -23,6 +27,8 @@ export function ProviderSetupModal({
   onClose,
   onManual,
   onSaved,
+  onContinueToTasks,
+  onOpenModels,
 }: ProviderSetupModalProps) {
   return (
     <ProviderSetupWizard
@@ -34,6 +40,8 @@ export function ProviderSetupModal({
       onClose={onClose}
       onManual={onManual}
       onSaved={onSaved}
+      onContinueToTasks={onContinueToTasks}
+      onOpenModels={onOpenModels}
     />
   );
 }

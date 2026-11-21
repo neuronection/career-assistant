@@ -195,6 +195,14 @@ export function OnboardingSetup() {
               <Button size="sm" variant="outline" onClick={() => navigate(settingsPath)}>
                 {t("aiSetup.page.settings")}
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate(`${settingsPath}?tab=tasks`)}
+                data-testid="ai-setup-tasks"
+              >
+                {t("aiSetup.page.tasks")}
+              </Button>
             </div>
           </div>
         ) : step === "connect" ? (

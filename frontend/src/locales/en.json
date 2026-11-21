@@ -2288,7 +2288,10 @@
       "clearLabel": "Clear assignment",
       "nonAdminNote": "Global assignments are managed by an administrator; set personal overrides to customize your own AI models.",
       "suggestedDecisionDefault": "Suggested: {{model}} ({{provider}})",
-      "decisionKindsTitle": "Decision kinds"
+      "decisionKindsTitle": "Decision kinds",
+      "advancedTitle": "Advanced — per-task overrides",
+      "advancedHint": "Only change these when a task must use a different model than its default.",
+      "advancedCount": "{{count}} active"
     },
     "taskLabel": {
       "profile_analyze": "Profile Analysis & Guidance",
@@ -2305,7 +2308,8 @@
       "step": {
         "progress": "Setup progress",
         "connect": "Connect provider",
-        "defaults": "Choose defaults"
+        "defaults": "Choose defaults",
+        "tasks": "Task assignments"
       },
       "hint": "Defaults were bound for empty slots only — existing assignments were never touched.",
       "modalHint": "Pick a provider to set up automatically, or add one manually.",
@@ -2322,11 +2326,11 @@
       "done": "{{name}} is ready.",
       "modelsPersisted": "{{count}} models were registered from the provider catalog.",
       "curatedMissed": "None of the recommended models were found in this provider's catalog — everything found was registered instead; assign defaults below.",
-      "noDefaults": "No models were registered for this provider — add models manually to assign defaults.",
       "slot": {
         "chat": "Chat default",
         "vision": "Vision default",
-        "stt": "Transcription default"
+        "stt": "Transcription default",
+        "embeddings": "Embeddings"
       },
       "errors": {
         "invalid_key": "That API key was rejected by the provider — check for typos or create a new key.",
@@ -2362,7 +2366,12 @@
       "chipVision": "Vision",
       "chipStt": "Speech-to-text",
       "chipDecision": "Decision",
-      "chipLocal": "Local"
+      "chipLocal": "Local",
+      "continueToTasks": "Continue to task assignments",
+      "assignModelsTitle": "Assign models",
+      "assignModelsHint": "No default model is set yet. Choose at least a chat model, or add models first — you can finish this later.",
+      "openModels": "Open models",
+      "advancedHandoff": "Per-task overrides live under Advanced on the task page."
     },
     "firstRun": {
       "title": "Connect an AI provider",
@@ -5146,7 +5155,8 @@
       "assignHint": "Assign the chat default to finish — AI features stay off until one is set.",
       "configuredHint": "The chat default is assigned — AI features are live.",
       "finish": "Finish setup",
-      "settingsHint": "Need an API key first? Pick a provider above, or configure everything in"
+      "settingsHint": "Need an API key first? Pick a provider above, or configure everything in",
+      "tasks": "Task assignments"
     }
   },
   "translations": {

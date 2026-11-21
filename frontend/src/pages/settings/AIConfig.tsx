@@ -212,6 +212,15 @@ function AIConfigPage({ scope }: { scope: AIScope }) {
             setEditProvider("new");
           }}
           onSaved={() => void refresh()}
+          onContinueToTasks={() => {
+            setSetupOpen(false);
+            setActive("tasks");
+            void refresh();
+          }}
+          onOpenModels={() => {
+            setSetupOpen(false);
+            setActive("models");
+          }}
         />
       )}
 

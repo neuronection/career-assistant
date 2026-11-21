@@ -913,3 +913,18 @@ before committing changes under `app/ai/`.
 - [API](api.md) — the `ai` and `ai-settings` routers
 - [CV engine](cv-engine.md) — the CV flows in detail
 - [Data model](data-model.md) — the `ai_*` tables
+
+## AI setup workflow
+
+`ProviderSetupWizard` runs the family's ordered flow — connect a provider,
+choose the curated models and capability defaults, then hand off to the
+Tasks tab — with `SetupSteps` naming all three steps. Connecting binds
+nothing; the review step owns defaults (`bind_chat`, `bind_vision`,
+`bind_stt`, `bind_decision`). The wizard never asks a per-task question: the
+single `decision` default is its only decision row. If the provider yields no
+model or no default was filled, the finish panel asks for at least a chat
+model and offers `Open models`; `Continue to task assignments` closes the
+wizard and switches the same scope's AIConfig to `?tab=tasks` (the first-run
+page exposes the same destination). Per-task overrides (decision kinds and
+specialist tasks) render inside one collapsed `Advanced` disclosure in
+`TasksTab`, so defaults stay the primary surface on every scope.

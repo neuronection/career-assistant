@@ -6,6 +6,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **AI setup now ends on task assignments.** The setup wizard asks for the
+  provider, then the defaults, then — only if no default could be set — for
+  models, and its primary action opens the same scope's Tasks tab. The
+  wizard binds capability defaults only (including the single decision
+  default); per-task overrides (specialist tasks and decision kinds) are a
+  collapsed **Advanced** disclosure on the Tasks tab for both personal and
+  instance scope.
 - **The assistant opens as the floating launcher by default.** The side
   panel is now an explicit choice from the view switcher and is remembered
   once you pick it; no page opens with a docked chat panel taking width. A

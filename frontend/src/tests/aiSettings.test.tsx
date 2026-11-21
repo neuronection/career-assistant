@@ -364,6 +364,11 @@ describe("AIConfig (settings > AI)", () => {
     expect(screen.getByText("Default decision model")).toBeInTheDocument();
     expect(screen.getByText("Tool dispatch")).toBeInTheDocument();
     expect(await screen.findByRole("combobox", { name: "Text" })).toHaveTextContent("GPT 4o Mini");
+    // ADR-0070: per-task overrides start collapsed behind Advanced.
+    const advanced = screen.getByTestId("task-overrides-advanced") as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    fireEvent.click(screen.getByText("Advanced — per-task overrides"));
+    expect(advanced.open).toBe(true);
     expect(screen.getByText("Job Match Scoring")).toBeInTheDocument();
     expect(
       screen.getByText("Per-user job match score with rationale + prerequisites")
@@ -654,7 +659,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
         api_key: "sk-live-key",
         name: null,
         scope: "user",
-        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_decision: false },
+        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_embeddings: false, bind_decision: false },
       })
     );
     // step 2 is explicit: the wizard header names it, and the assignment

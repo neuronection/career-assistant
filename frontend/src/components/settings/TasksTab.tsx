@@ -4,6 +4,7 @@ import {
   Briefcase,
   Braces,
   Check,
+  ChevronDown,
   Crosshair,
   Database,
   Eye,
@@ -51,6 +52,9 @@ const STRINGS = {
   suggestedDecisionDefault: "aiSettings.tasks.suggestedDecisionDefault",
   tasksSection: "aiSettings.tasks.tasksSection",
   tasksSectionHint: "aiSettings.tasks.tasksSectionHint",
+  advancedTitle: "aiSettings.tasks.advancedTitle",
+  advancedHint: "aiSettings.tasks.advancedHint",
+  advancedCount: "aiSettings.tasks.advancedCount",
   unassignedMeta: "aiSettings.tasks.unassignedMeta",
   scopeEmpty: "aiSettings.tasks.scopeEmpty",
   clearLabel: "aiSettings.tasks.clearLabel",
@@ -398,6 +402,64 @@ export function TasksTab({
     </div>
   );
 
+  const overrideCount = taskRows.filter(
+    (task) =>
+      !task.is_slot &&
+      task.value !== DECISION_DEFAULT_TASK_TYPE &&
+      assignmentFor(task.value) !== undefined
+  ).length;
+
+  const renderMeta = (task: { id: string }) => {
+    const inherited = inheritedFor(task.id);
+    if (!value[task.id] && inherited) {
+      return (
+        <p className="text-[11px] text-slate-400">
+          {t("aiSettings.tasks.inheritedInstance", {
+            model: inherited.model_name,
+          })}
+        </p>
+      );
+    }
+    if (task.id === DECISION_DEFAULT_TASK_TYPE && !value[task.id]) {
+      return (
+        <div className="space-y-1">
+          <p className="text-[11px] text-slate-400">{t(STRINGS.defaultsEmptyHint)}</p>
+          {decisionSuggestion ? (
+            <p className="text-[11px] text-slate-400">
+              {t("aiSettings.tasks.suggestedDecisionDefault", {
+                model: decisionSuggestion.model,
+                provider: decisionSuggestion.provider,
+              })}
+            </p>
+          ) : null}
+          {simplifyModelId ? (
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+              disabled={busy}
+              onClick={() => void assign(DECISION_DEFAULT_TASK_TYPE, simplifyModelId)}
+            >
+              {t(STRINGS.simplify, {
+                model: modelLabelOf(simplifyModelId) ?? simplifyModelId,
+              })}
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+    if (task.id.startsWith(DECISION_TASK_PREFIX) && !value[task.id]) {
+      return (
+        <p className="text-[11px] text-slate-400">
+          {t("aiSettings.tasks.decisionUnassignedMeta")}
+        </p>
+      );
+    }
+    if (!value[task.id]) {
+      return <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>;
+    }
+    return null;
+  };
+
   const sections: TaskAssignmentSection[] = useMemo(() => {
     const slots = taskRows.filter((t) => t.is_slot);
     const decisionDefaultRow = taskRows.find((t) => t.value === DECISION_DEFAULT_TASK_TYPE);
@@ -487,70 +549,52 @@ export function TasksTab({
       )}
 
       <TaskAssignmentPicker
-        sections={sections}
+        sections={[sections[0]]}
         providers={catalog}
         value={value}
         onAssign={(taskType, modelId) => void assign(taskType, modelId)}
         clearLabel={t(STRINGS.clearLabel)}
         disabled={busy}
-        renderMeta={(task) => {
-          const inherited = inheritedFor(task.id);
-          if (!value[task.id] && inherited) {
-            return (
-              <p className="text-[11px] text-slate-400">
-                {t("aiSettings.tasks.inheritedInstance", {
-                  model: inherited.model_name,
-                })}
-              </p>
-            );
-          }
-          if (task.id === DECISION_DEFAULT_TASK_TYPE && !value[task.id]) {
-            return (
-              <div className="space-y-1">
-                <p className="text-[11px] text-slate-400">{t(STRINGS.defaultsEmptyHint)}</p>
-                {decisionSuggestion ? (
-                  <p className="text-[11px] text-slate-400">
-                    {t("aiSettings.tasks.suggestedDecisionDefault", {
-                      model: decisionSuggestion.model,
-                      provider: decisionSuggestion.provider,
-                    })}
-                  </p>
-                ) : null}
-                {simplifyModelId ? (
-                  <button
-                    type="button"
-                    className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
-                    disabled={busy}
-                    onClick={() => void assign(DECISION_DEFAULT_TASK_TYPE, simplifyModelId)}
-                  >
-                    {t(STRINGS.simplify, {
-                      model: modelLabelOf(simplifyModelId) ?? simplifyModelId,
-                    })}
-                  </button>
-                ) : null}
-              </div>
-            );
-          }
-          if (task.id.startsWith(DECISION_TASK_PREFIX) && !value[task.id]) {
-            return (
-              <p className="text-[11px] text-slate-400">
-                {t("aiSettings.tasks.decisionUnassignedMeta")}
-              </p>
-            );
-          }
-          if (!value[task.id]) {
-            return (
-              <p className="text-[11px] text-slate-400">{t(STRINGS.unassignedMeta)}</p>
-            );
-          }
-          return null;
-        }}
+        renderMeta={renderMeta}
       />
 
-      {/* Decision kinds group (plan 29 / ADR-0036 uniform ruling): the
-          four kind rows with the labeled inherit entry; the privacy
-          notice (§13.5) is the section description. */}
-      {kindsGroup}
+      {/* ADR-0070: per-task overrides are advanced, collapsed by default —
+          the decision kinds and every specialist task live behind one
+          disclosure in every scope. */}
+      <details
+        className="group rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface-raised)]"
+        key={scope}
+        data-testid="task-overrides-advanced"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2">
+          <span className="text-sm font-semibold text-[var(--as-fg)]">
+            {t(STRINGS.advancedTitle)}
+          </span>
+          <span className="flex items-center gap-2 text-xs text-slate-500">
+            {t(STRINGS.advancedCount, { count: overrideCount })}
+            <ChevronDown
+              className="size-4 transition-transform group-open:rotate-180"
+              aria-hidden
+            />
+          </span>
+        </summary>
+        <div className="space-y-3 border-t border-[var(--as-border)] p-3">
+          <p className="text-xs text-slate-500">{t(STRINGS.advancedHint)}</p>
+          <TaskAssignmentPicker
+            sections={[sections[1]]}
+            providers={catalog}
+            value={value}
+            onAssign={(taskType, modelId) => void assign(taskType, modelId)}
+            clearLabel={t(STRINGS.clearLabel)}
+            disabled={busy}
+            renderMeta={renderMeta}
+          />
+          {/* Decision kinds group (plan 29 / ADR-0036 uniform ruling): the
+              four kind rows with the labeled inherit entry; the privacy
+              notice (§13.5) is the section description. */}
+          {kindsGroup}
+        </div>
+      </details>
 
       {!user?.is_admin && (
         <p className="text-xs text-slate-400">{t(STRINGS.nonAdminNote)}</p>

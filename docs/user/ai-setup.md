@@ -15,18 +15,25 @@ exposes:
    TypeSafe, Groq, Mistral, DeepSeek, Ollama or a manual/custom endpoint) and
    paste the key. Local presets need no key. The guided form validates the
    key against the provider before anything is saved.
-2. **Review defaults** — choose which curated models to register and which
-   empty defaults they fill. Nothing existing is ever removed.
+2. **Choose defaults** — pick which curated models to register and which
+   empty capability defaults they fill: **Text** (the default that turns AI
+   on), **Vision**, **Transcription**, **Embeddings** where the preset
+   offers one, and the single **Decision** default. Nothing existing is
+   ever removed. The wizard assigns defaults only — it never asks a
+   per-task question.
 3. **Test the connection** — a tiny completion round-trips through the new
    provider. Failures are explained by cause (rejected key, no credit,
    rate-limited new key, unavailable region, timeout, local server not
    running) rather than by a raw error string.
-4. **Assign models** — every AI task gets a model. The **Text** default is
-   the one that turns AI on; the other slots (vision, transcription,
-   embeddings, decision) fall back to it.
+4. **Continue to task assignments** — the finish action opens the Tasks tab
+   for the same scope. Defaults are what every task falls back to;
+   per-task overrides (specialist tasks and decision kinds) sit under
+   **Advanced — per-task overrides**, collapsed until you need them. If no
+   default could be set, the step asks for at least a chat model and offers
+   **Open models**; you can finish later.
 
-Finish once the chat default is assigned. The connection is stored in the
-database, encrypted, and there are deliberately no AI environment variables.
+The connection is stored in the database, encrypted, and there are
+deliberately no AI environment variables.
 
 ## Skipping
 

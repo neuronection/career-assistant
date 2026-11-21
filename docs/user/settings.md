@@ -42,12 +42,17 @@ variables**. On a fresh install the app leads you to the
   masked in every response; a masked `***` on update means "keep existing".
 - **Models** — register the models a provider offers, with their capabilities
   (text, vision, tools, embeddings, audio).
-- **Tasks** — assign a model to each AI task (matching, generation, parsing,
-  chat, CV drafting, posting extraction, interview coaching, and so on).
-  Assignments can differ per task, so you can use a cheap model for one job
-  and a strong model for another. A task without a personal assignment shows
-  the **instance** assignment it inherits; it is never reported as
-  unassigned when an instance model is actually serving it.
+- **Tasks** — **Default models** are what every task falls back to: chat
+  (text), vision, speech-to-text, embeddings and the decision default. They
+  stay visible and are the first thing to configure. Per-task overrides
+  (specialist tasks and decision kinds) live under **Advanced — per-task
+  overrides**, collapsed by default, so you only open them when one task must
+  use a different model. A task without a personal assignment shows the
+  **instance** assignment it inherits; it is never reported as unassigned
+  when an instance model is actually serving it.
+- **Setup order** — adding a provider walks provider → choose defaults →
+  (assign models only if no default could be set) → task assignments. The
+  finish action opens the Tasks tab for the same scope.
 - **Connection test** — verify a provider before relying on it.
 
 Your personal rows override the instance defaults. If an administrator has

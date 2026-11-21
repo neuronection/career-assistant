@@ -2288,7 +2288,10 @@
       "clearLabel": "Zuweisung löschen",
       "nonAdminNote": "Globale Zuweisungen werden von einem Administrator verwaltet; legen Sie persönliche Überschreibungen fest, um Ihre eigenen KI-Modelle anzupassen.",
       "suggestedDecisionDefault": "Empfohlen: {{model}} ({{provider}})",
-      "decisionKindsTitle": "Entscheidungstypen"
+      "decisionKindsTitle": "Entscheidungstypen",
+      "advancedTitle": "Erweitert — Überschreibungen pro Aufgabe",
+      "advancedHint": "Nur ändern, wenn eine Aufgabe ein anderes Modell als ihr Standardmodell verwenden muss.",
+      "advancedCount": "{{count}} aktiv"
     },
     "taskLabel": {
       "profile_analyze": "Profilanalyse & Empfehlungen",
@@ -2305,7 +2308,8 @@
       "step": {
         "progress": "Fortschritt der Einrichtung",
         "connect": "Provider verbinden",
-        "defaults": "Standardeinstellungen auswählen"
+        "defaults": "Standardeinstellungen auswählen",
+        "tasks": "Aufgabenzuweisungen"
       },
       "hint": "Standardeinstellungen gelten nur für leere Felder — bestehende Einstellungen wurden nicht verändert.",
       "modalHint": "Wählen Sie einen Provider zur automatischen Einrichtung aus, oder fügen Sie ihn manuell hinzu.",
@@ -2322,11 +2326,11 @@
       "done": "{{name}} ist bereit.",
       "modelsPersisted": "{{count}} Modelle wurden aus dem Anbieterkatalog registriert.",
       "curatedMissed": "Keine der empfohlenen Modelle wurden in diesem Anbieters Katalog gefunden — stattdessen wurden alle gefundenen Modelle registriert; Standardwerte unten zuweisen.",
-      "noDefaults": "Keine Modelle wurden für diesen Anbieter registriert — registrieren Sie Modelle manuell, um Standardwerte zuzuweisen.",
       "slot": {
         "chat": "Chat Standard",
         "vision": "Vision Standard",
-        "stt": "Transkriptions Standard"
+        "stt": "Transkriptions Standard",
+        "embeddings": "Embeddings"
       },
       "errors": {
         "invalid_key": "Dieser API-Schlüssel wurde vom Anbieter abgelehnt — überprüfen Sie auf Tippfehler oder erstellen Sie einen neuen Schlüssel.",
@@ -2362,7 +2366,12 @@
       "chipVision": "Vision",
       "chipStt": "Sprache zu Text",
       "chipDecision": "Entscheidung",
-      "chipLocal": "Lokaler"
+      "chipLocal": "Lokaler",
+      "continueToTasks": "Weiter zu den Aufgabenzuweisungen",
+      "assignModelsTitle": "Modelle zuweisen",
+      "assignModelsHint": "Es ist noch kein Standardmodell festgelegt. Wählen Sie mindestens ein Chat-Modell oder fügen Sie zuerst Modelle hinzu — Sie können dies später abschließen.",
+      "openModels": "Modelle öffnen",
+      "advancedHandoff": "Überschreibungen pro Aufgabe finden Sie unter „Erweitert“ auf der Aufgabenseite."
     },
     "firstRun": {
       "title": "Verbinden Sie einen KI-Anbieter",
@@ -5145,7 +5154,8 @@
       "assignHint": "Weisen Sie das Chat-Standardmodell für die Fertigstellung zu — AI-Funktionen sind deaktiviert, bis eines festgelegt wurde.",
       "configuredHint": "Das Chat-Standardmodell wurde zugewiesen — AI-Funktionen sind aktiv.",
       "finish": "Fertigstellen",
-      "settingsHint": "Benötigen Sie zuerst einen API-Schlüssel? Wählen Sie einen Anbieter oben aus oder konfigurieren Sie alles in"
+      "settingsHint": "Benötigen Sie zuerst einen API-Schlüssel? Wählen Sie einen Anbieter oben aus oder konfigurieren Sie alles in",
+      "tasks": "Aufgabenzuweisungen"
     }
   },
   "translations": {
