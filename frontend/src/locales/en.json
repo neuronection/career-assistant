@@ -5219,7 +5219,7 @@
       "description": "Your providers, models and task assignments"
     },
     "aiAdmin": {
-      "label": "Instance AI Configuration",
+      "label": "Instance AI",
       "description": "Providers, models and task assignments shared by every user"
     },
     "tools": {

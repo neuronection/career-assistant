@@ -5218,7 +5218,7 @@
       "description": "Ihre Anbieter, Modelle und Aufgabenzuweisungen"
     },
     "aiAdmin": {
-      "label": "Instanz-KI-Konfiguration",
+      "label": "Instanz-KI",
       "description": "Von allen Benutzern gemeinsam genutzte Anbieter, Modelle und Aufgabenzuweisungen"
     },
     "tools": {
