@@ -2,7 +2,7 @@
   "version": 1,
   "project": "career-assistant",
   "title": "Career Assistant",
-  "description": "AI-guided career discovery, matching and CV generation \u2014 self-hosted web app and local desktop app.",
+  "description": "AI-guided career discovery, matching and CV generation — self-hosted web app and local desktop app.",
   "audiences": [
     {
       "id": "user",
@@ -18,13 +18,19 @@
               "id": "overview",
               "file": "user/README.md",
               "title": "User guide overview",
-              "description": "How to use Career Assistant \u2014 the guided tour and the full list of user guides."
+              "description": "How to use Career Assistant — the guided tour and the full list of user guides."
             },
             {
               "id": "getting-started",
               "file": "user/getting-started.md",
               "title": "Getting started",
               "description": "Install Career Assistant (desktop app, Docker or bare metal), connect an AI provider, complete onboarding and take your first steps."
+            },
+            {
+              "id": "backup-and-migration",
+              "file": "user/backup-and-migration.md",
+              "title": "Backup, restore and migration",
+              "description": "Back up, restore and migrate a self-hosted instance — what a backup contains, restore order, and the cross-VM runbook."
             },
             {
               "id": "ai-setup",
@@ -42,19 +48,19 @@
               "id": "workspace",
               "file": "user/workspace.md",
               "title": "The workspace",
-              "description": "The dashboard you land on \u2014 completeness, quick actions, top matches, the discovery feed and target mode \u2014 plus the chat, rankings and compare surfaces around it."
+              "description": "The dashboard you land on — completeness, quick actions, top matches, the discovery feed and target mode — plus the chat, rankings and compare surfaces around it."
             },
             {
               "id": "features",
               "file": "user/features.md",
               "title": "Feature catalog",
-              "description": "Everything Career Assistant ships, as built \u2014 catalog, matching, postings, Autopilot, CV Studio, chat, scheduler and more."
+              "description": "Everything Career Assistant ships, as built — catalog, matching, postings, Autopilot, CV Studio, chat, scheduler and more."
             },
             {
               "id": "visual-tour",
               "file": "SCREENSHOTS.md",
               "title": "Visual tour",
-              "description": "Screenshots of Career Assistant \u2014 dashboard, catalog, rankings, job insights, universities, profile experience, CV Studio and builder, chat, login and settings, generated from a seeded demo workspace."
+              "description": "Screenshots of Career Assistant — dashboard, catalog, rankings, job insights, universities, profile experience, CV Studio and builder, chat, login and settings, generated from a seeded demo workspace."
             }
           ]
         },
@@ -122,7 +128,7 @@
               "id": "job-radar",
               "file": "user/job-radar.md",
               "title": "Job radar",
-              "description": "Configure your job search once \u2014 keywords, locations, work mode and salary floor \u2014 and use it everywhere."
+              "description": "Configure your job search once — keywords, locations, work mode and salary floor — and use it everywhere."
             },
             {
               "id": "applications",
@@ -140,13 +146,13 @@
               "id": "application-kit",
               "file": "user/application-kit.md",
               "title": "The application kit",
-              "description": "One reviewable application per posting: the requirement report, your CV variant, the cover letter, screening answers to prepare, a sourced checklist and the tracker timeline \u2014 nothing applies for you."
+              "description": "One reviewable application per posting: the requirement report, your CV variant, the cover letter, screening answers to prepare, a sourced checklist and the tracker timeline — nothing applies for you."
             },
             {
               "id": "add-a-job-source",
               "file": "user/add-a-job-source.md",
               "title": "Add a job source",
-              "description": "Enable the zero-config job boards (Arbeitnow, Remotive, Jobicy) and the ATS, JSON-LD, RSS and CSV engines \u2014 including the honest Remotive robots caveat."
+              "description": "Enable the zero-config job boards (Arbeitnow, Remotive, Jobicy) and the ATS, JSON-LD, RSS and CSV engines — including the honest Remotive robots caveat."
             },
             {
               "id": "career-autopilot",
@@ -251,13 +257,13 @@
               "id": "settings",
               "file": "user/settings.md",
               "title": "Settings reference",
-              "description": "Every settings page explained: AI configuration, models and tasks, taxonomy, users, scheduler, notifications, the AI audit, and the Audit \u2192 Usage Data & Cost ledger with system price overrides."
+              "description": "Every settings page explained: AI configuration, models and tasks, taxonomy, users, scheduler, notifications, the AI audit, and the Audit → Usage Data & Cost ledger with system price overrides."
             },
             {
               "id": "mapping-coverage",
               "file": "user/mapping-coverage.md",
               "title": "Mapping coverage and triage",
-              "description": "The admin Tools \u2192 Mappings console: the honest mapping funnel, the accounted-for gate, the unmapped triage queue with typed outcomes and the decision trace, per-source and per-type breakdowns."
+              "description": "The admin Tools → Mappings console: the honest mapping funnel, the accounted-for gate, the unmapped triage queue with typed outcomes and the decision trace, per-source and per-type breakdowns."
             },
             {
               "id": "skills-taxonomy",
@@ -269,7 +275,7 @@
               "id": "skill-pages",
               "file": "user/skills.md",
               "title": "Skill pages",
-              "description": "Every skill has a page at /skills/:key \u2014 what it is, who demands it, how it relates to other skills, and how it has changed."
+              "description": "Every skill has a page at /skills/:key — what it is, who demands it, how it relates to other skills, and how it has changed."
             },
             {
               "id": "import-extensions-from-git",
@@ -299,7 +305,7 @@
               "id": "troubleshooting",
               "file": "user/troubleshooting.md",
               "title": "Troubleshooting",
-              "description": "Common problems and fixes \u2014 AI 503s, upload limits, desktop tray issues, PDF engine and export problems."
+              "description": "Common problems and fixes — AI 503s, upload limits, desktop tray issues, PDF engine and export problems."
             },
             {
               "id": "calendar-feed",
@@ -442,19 +448,19 @@
               "id": "sdk",
               "file": "dev/sdk/overview.md",
               "title": "Connector SDK: overview",
-              "description": "What a posting connector is, the trust-tier ladder, and when to write an extension instead of a builtin feature \u2014 the entry of the ten-chapter SDK doc set."
+              "description": "What a posting connector is, the trust-tier ladder, and when to write an extension instead of a builtin feature — the entry of the ten-chapter SDK doc set."
             },
             {
               "id": "sdk-quickstart",
               "file": "dev/sdk/quickstart.md",
               "title": "Connector SDK: quickstart",
-              "description": "Clone the connector template repo, import it as a local source, consent, enable, sync \u2014 postings land in about ten minutes, with real transcripts."
+              "description": "Clone the connector template repo, import it as a local source, consent, enable, sync — postings land in about ten minutes, with real transcripts."
             },
             {
               "id": "sdk-core-concepts",
               "file": "dev/sdk/core-concepts.md",
               "title": "Connector SDK: core concepts",
-              "description": "Extension, kind, tier, capability, instance, source, consent, digest \u2014 the load-bearing nouns and how they connect."
+              "description": "Extension, kind, tier, capability, instance, source, consent, digest — the load-bearing nouns and how they connect."
             },
             {
               "id": "sdk-installation",
@@ -496,7 +502,7 @@
               "id": "sdk-troubleshooting",
               "file": "dev/sdk/troubleshooting-and-faq.md",
               "title": "Connector SDK: developer diagnostics & FAQ",
-              "description": "Every wall-tested failure mode decoded \u2014 imports, sync, the script tier, the sandbox \u2014 plus the real FAQ."
+              "description": "Every wall-tested failure mode decoded — imports, sync, the script tier, the sandbox — plus the real FAQ."
             }
           ]
         },
