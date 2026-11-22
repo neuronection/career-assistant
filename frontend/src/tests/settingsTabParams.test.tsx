@@ -10,6 +10,7 @@ import {
 } from "@/pages/settings/CompanyRules";
 import { AIConfig, parseAITab } from "@/pages/settings/AIConfig";
 import { ToolsConfig, parseToolsSection } from "@/pages/settings/ToolsConfig";
+import { useAuthStore } from "@/stores/authStore";
 
 vi.mock("@/api/companyRules", () => ({
   fetchSuggestions: vi.fn().mockResolvedValue([]),
@@ -145,6 +146,12 @@ describe("company rules tabs (URL-synced)", () => {
 });
 
 describe("ai config tabs (derived state)", () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
+    });
+  });
+
   it("keeps a bare URL canonical with no rewrite on mount", async () => {
     renderPage("/settings/ai", <AIConfig />);
     expect(
@@ -173,6 +180,23 @@ describe("ai config tabs (derived state)", () => {
       "true",
     );
     await waitFor(() => expect(probe()).toBe("/settings/ai?tab=models"));
+  });
+
+  it("keeps the instance ?tab= deep link intact", async () => {
+    renderPage("/settings/ai-admin?tab=models", <AIConfig scope="system" />);
+    expect(await screen.findByRole("tab", { name: "Models" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await waitFor(() => expect(probe()).toBe("/settings/ai-admin?tab=models"));
+  });
+
+  it("redirects a non-admin to the personal surface", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
+    });
+    renderPage("/settings/ai-admin", <AIConfig scope="system" />);
+    await waitFor(() => expect(probe()).toBe("/settings/ai"));
   });
 });
 

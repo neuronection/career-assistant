@@ -5,7 +5,7 @@ confirmation card resolving a stage change."""
 import json
 import re
 
-from conftest import API, BASE_URL, api_headers
+from conftest import API, BASE_URL, api_headers, open_chat_dock
 
 
 def _posting(page) -> dict:
@@ -93,8 +93,7 @@ def test_chat_stage_change_resolves_through_a_confirmation_card(page) -> None:
     application = _track(page)
 
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import BASE_URL
+from conftest import BASE_URL, open_chat_dock
 
 SHOTS = Path(os.environ.get("E2E_MARKET_SHOTS", "/tmp/e2e-market-intelligence"))
 AXE = Path(__file__).resolve().parents[1] / "frontend" / "node_modules" / "axe-core" / "axe.min.js"
@@ -118,7 +118,7 @@ def test_market_intelligence_with_the_chat_dock_open(
 ) -> None:
     page.set_viewport_size({"width": width, "height": height})
     _open_market(page, chat="open")
-    page.get_by_test_id("chat-dock").wait_for(state="visible", timeout=10_000)
+    open_chat_dock(page)
     _no_horizontal_scroll(page)
     if interactive:
         page.get_by_test_id("market-stats-tab-demand").click()

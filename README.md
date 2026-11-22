@@ -219,12 +219,12 @@ background, native toasts arrive through the desktop notification
 channel, and quitting happens from the tray menu. A second launch focuses
 the running window; auto-start on login is opt-in from the tray menu.
 
-First launch creates a strong `secret.key`, applies migrations and seeds the starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI providers are configured in-app (Settings → AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
+First launch creates a strong `secret.key`, applies migrations and seeds the starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI providers are configured in-app (Settings → My AI Configuration; admins also get Instance AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
 
 ### Prerequisites
 
 - **Docker** and Docker Compose (for the dev database), or **Python 3.12+ / Node 18+** for the app itself.
-- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → AI Configuration**. For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `CAREER_MOCK_AI=1`), so the app works fully without one.
+- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → My AI Configuration** (or **Instance AI Configuration** as an admin). For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `CAREER_MOCK_AI=1`), so the app works fully without one.
 - **PostgreSQL** — the dev compose ships one on port 5433; Redis (6380) is included for a future worker split.
 
 ## Architecture at a glance

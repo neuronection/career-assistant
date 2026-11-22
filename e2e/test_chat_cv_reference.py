@@ -11,7 +11,7 @@ import re
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from conftest import API, BASE_URL, api_headers
+from conftest import API, BASE_URL, api_headers, open_chat_dock
 
 
 def _make_cv(page, title: str) -> str:
@@ -50,8 +50,7 @@ def test_studio_ask_ai_references_cv_in_normal_chat(page) -> None:
     page.goto(f"{BASE_URL}/cv/{cv_id}")
     page.get_by_test_id("cv-ask-ai").click()
 
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
 
     # The open CV is suggested in the composer; the pending-attach bridge
     # may already have attached it — either way it rides the message.
@@ -118,8 +117,7 @@ def test_edit_intent_hands_off_to_builder_in_same_session(page) -> None:
     cv_id = _make_cv(page, "E2E Build CV")
 
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)

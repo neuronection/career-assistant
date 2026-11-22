@@ -27,7 +27,8 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
 - **The JWT-derived Fernet is retired**: the v0.17
   baseline derives nothing from `JWT_SECRET`. Pre-baseline installs were
   drained by the retired `0044` migration (stored AI provider keys wiped
-  once — re-enter them in Settings → AI Configuration — and every other
+  once — re-enter personal keys in Settings → My AI Configuration and
+  instance keys in Settings → Instance AI Configuration — and every other
   sealed value re-encrypted or cleared).
 - **No `AI_*` environment variables.** This is deliberate: it keeps keys out
   of shells, CI logs and process listings.

@@ -4,6 +4,34 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **AI setup now ends on task assignments.** The setup wizard asks for the
+  provider, then the defaults, then — only if no default could be set — for
+  models, and its primary action opens the same scope's Tasks tab. The
+  wizard binds capability defaults only (including the single decision
+  default); per-task overrides (specialist tasks and decision kinds) are a
+  collapsed **Advanced** disclosure on the Tasks tab for both personal and
+  instance scope.
+- **The assistant opens as the floating launcher by default.** The side
+  panel is now an explicit choice from the view switcher and is remembered
+  once you pick it; no page opens with a docked chat panel taking width. A
+  previously chosen docked mode is respected.
+- **AI Configuration is split by scope.** `/settings/ai` is **My AI
+  Configuration** (personal providers, models and assignments) and
+  `/settings/ai-admin` is **Instance AI Configuration** (admin-only, shared
+  by every user). Setup opened from a page is pinned to that page's scope,
+  and the personal Tasks tab shows an inherited instance assignment instead
+  of "unassigned".
+
+### Fixed
+
+- **The "Dictation unavailable" notice no longer squeezes the composer.**
+  It renders as a full-width, dismissible strip above the input row instead
+  of a prose row inside the toolbar; the input keeps a minimum width at
+  narrow panel sizes. The notice stays dismissed per user until speech-to-text
+  is configured again.
+
 ## [0.18.3] - 2026-11-20
 
 ### Changed
