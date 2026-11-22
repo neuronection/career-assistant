@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.19.0] - 2026-11-22
+
 ### Changed
 
 - **AI setup now ends on task assignments.** The setup wizard asks for the
