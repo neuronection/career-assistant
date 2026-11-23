@@ -4,6 +4,115 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **A verified ATS catalog imports in one click.** Tools → Sources →
+  Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
+  employer tenants on direct Recruitee, Teamtailor and Workable feeds —
+  as a preselected operator catalog tile. The click prefills the
+  canonical URL and `operator` tier, fetches the document in your
+  browser and stores the validated result; the tile and the catalog row
+  then show the stored revision and content hash, and **Refresh**
+  re-checks the same document without creating sources.
+
+## [v0.19.0] - 2026-11-22
+
+### Changed
+
+- **AI setup now ends on task assignments.** The setup wizard asks for the
+  provider, then the defaults, then — only if no default could be set — for
+  models, and its primary action opens the same scope's Tasks tab. The
+  wizard binds capability defaults only (including the single decision
+  default); per-task overrides (specialist tasks and decision kinds) are a
+  collapsed **Advanced** disclosure on the Tasks tab for both personal and
+  instance scope.
+- **The assistant opens as the floating launcher by default.** The side
+  panel is now an explicit choice from the view switcher and is remembered
+  once you pick it; no page opens with a docked chat panel taking width. A
+  previously chosen docked mode is respected.
+- **AI Configuration is split by scope.** `/settings/ai` is **My AI
+  Configuration** (personal providers, models and assignments) and
+  `/settings/ai-admin` is **Instance AI Configuration** (admin-only, shared
+  by every user). Setup opened from a page is pinned to that page's scope,
+  and the personal Tasks tab shows an inherited instance assignment instead
+  of "unassigned".
+
+### Fixed
+
+- **The "Dictation unavailable" notice no longer squeezes the composer.**
+  It renders as a full-width, dismissible strip above the input row instead
+  of a prose row inside the toolbar; the input keeps a minimum width at
+  narrow panel sizes. The notice stays dismissed per user until speech-to-text
+  is configured again.
+
+## [0.18.3] - 2026-11-20
+
+### Changed
+
+- **Per-app cookie names (auth-kit 0.7):** session cookies are now
+  `career_access` / `career_refresh` / `career_csrf` (previously the
+  shared family `nx_*` names). Cookies are scoped by hostname — ports
+  are ignored — so co-located Neuronection apps on one host no longer
+  shadow each other's sessions or CSRF jars. **You are logged out once
+  on upgrade**; stale `nx_*` cookies are cleared automatically on your
+  first request.
+
+### Changed (installer)
+
+- **Default port is now 8092** (was 80) — the per-product family default
+  (health 8090 / study 8091 / career 8092), so several Neuronection apps
+  coexist on one host with no flags. Existing installs keep their
+  persisted port; an install whose `docker/.env` predates persisted
+  ports stays on 80 with a loud note instead of silently moving.
+- **`--public-url URL`** persists `CAREER_PUBLIC_URL` (drives Secure
+  cookies, CORS and OAuth redirects; `http://` keeps LAN logins
+  working). The summary now prints the configured public URL as the
+  app URL when one is set.
+- **`--bind ADDR`** (default `0.0.0.0`) publishes on a chosen interface
+  — `127.0.0.1` when you front the app with your own reverse proxy.
+- **`scripts/uninstall.sh`**: clean removal that keeps data by default
+  (`--purge` deletes only this project's volumes; `--remove-dir`
+  explicit; label-based teardown works without a readable `.env`).
+- `backup.sh` and `restore.sh` gained `-h|--help` like the other
+  scripts.
+
+## [0.18.2] - 2026-11-20
+
+### Fixed (installer)
+- **Fresh installs generate a usable Fernet data key.** `CAREER_DATA_KEY` was
+  generated with `secrets.token_urlsafe(32)` — 43 characters with the base64
+  padding stripped — and the backend refused to boot with
+  `CAREER_DATA_KEY must be usable Fernet material`. The installer now uses a
+  dedicated stdlib Fernet generator (32 random bytes, urlsafe base64 with
+  padding). An existing install with the invalid key should replace just that
+  line in `docker/.env` before first boot; do not delete the env file, because
+  the database roles are already initialized with its passwords.
+
+## [0.18.1] - 2026-11-20
+
+### Fixed (installer)
+- **One-line installs survive GitHub's release asset redirect.** GitHub now
+  serves `/releases/download/...` assets from
+  `release-assets.githubusercontent.com`; the bootstrap host allowlist only
+  accepted `github.com` and `objects.githubusercontent.com`, so a fresh
+  install aborted before extracting anything. The allowlist now includes the
+  new host, and the release bootstrap is rebuilt from this commit.
+
+## [0.18.0] - 2026-11-20
+
+### Added
+- **Self-host installer and source-free release bundle (plan 69).** A fresh
+  Docker host can install Career Assistant from the published release with
+  `scripts/install.sh` or the generated one-line `scripts/bootstrap.sh`.
+  `installer.json` is the product contract; the bundle carries
+  `manifest.json` and `SHA256SUMS`, and `scripts/update.sh` provides the
+  idempotent upgrade path. Install flags include `--no-pull`, `--no-wait`,
+  `--auto-ports`, `--no-ports`, `--http-port`, `--env-only`, `--reset`,
+  `--yes` and `--image-tag`. Release CI now publishes
+  `career-compose-v0.18.0.tar.gz`, `career-bootstrap.sh` and
+  `career-bootstrap-v0.18.0.sh`; `install-scripts.yml` and
+  `release-smoke.yml` exercise the installer and the published assets.
+
 ## [0.17.3] - 2026-11-19
 
 ### Fixed

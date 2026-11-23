@@ -365,7 +365,7 @@ structured profile.
   plan deterministically, never generated.
 - **Bring your own LLM** — any OpenAI-compatible endpoint (OpenAI, OpenRouter,
   Ollama, LM Studio). Providers, models and per-task assignments (matching,
-  generation, parsing, chat…) are managed in **Settings → AI Configuration**
+  generation, parsing, chat…) are managed in **Settings → My AI Configuration**
   — stored in the database, encrypted at rest, with no AI environment
   variables at all.
 - **Dev-only mock provider** — opt-in via `CAREER_MOCK_AI=1` (or

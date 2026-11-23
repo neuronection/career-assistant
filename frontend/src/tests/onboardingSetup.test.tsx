@@ -105,6 +105,7 @@ function renderPage() {
         <Route path="/onboarding/setup" element={<OnboardingSetup />} />
         <Route path="/onboarding" element={<div>onboarding-hero</div>} />
         <Route path="/settings/ai" element={<div>ai-settings</div>} />
+        <Route path="/settings/ai-admin" element={<div>ai-admin-settings</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -227,6 +228,24 @@ describe("OnboardingSetup", () => {
     expect(
       await screen.findByText(/That API key was rejected by the provider/i)
     ).toBeInTheDocument();
+  });
+
+  it("sends the ready-state settings link to the instance surface for instance-only AI", async () => {
+    aiApi.fetchProviders.mockResolvedValue([
+      { ...provider, scope: "system", user_id: null, name: "Instance OpenAI" },
+    ]);
+    const configured = aiStatus({
+      configured: true,
+      provider_type: "openai",
+      default_model: "gpt-test",
+    });
+    stagesApi.fetchBootstrap.mockResolvedValue(bootstrap(configured));
+    useBootstrapStore.getState().apply(bootstrap(configured));
+    renderPage();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open AI settings" })
+    );
+    expect(await screen.findByText("ai-admin-settings")).toBeInTheDocument();
   });
 
   it("shows the ready state once a provider is configured", async () => {

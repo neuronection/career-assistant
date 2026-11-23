@@ -28,7 +28,7 @@ First launch creates a strong per-instance key file (`auth_keys.json`,
 0600), applies migrations and seeds the
 starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI
 providers are configured in-app through the [first-run AI setup](ai-setup.md)
-step (or **Settings → AI Configuration**) — for a fully local setup, point a
+step (or **Settings → My AI Configuration**) — for a fully local setup, point a
 provider at Ollama (`http://localhost:11434/v1`) or LM Studio.
 
 ## The tray

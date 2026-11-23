@@ -24,7 +24,7 @@
     {
       "name": "dashboard",
       "group": "Overview",
-      "caption": "Dashboard — career state at a glance with the docked chat.",
+      "caption": "Dashboard — career state at a glance with the assistant launcher.",
       "narration": "The dashboard shows your top matches, fresh postings and applications — with the assistant always one click away.",
       "viewports": [
         "desktop"
@@ -199,6 +199,18 @@
       ],
       "files": {
         "desktop": "market-stats-desktop.png"
+      }
+    },
+    {
+      "name": "contacts",
+      "group": "Applications",
+      "caption": "Outreach contacts — people around applications with a flat interaction log.",
+      "narration": "Keep the humans around each application in one place, with a reviewable draft when you need to reach out.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "contacts-desktop.png"
       }
     },
     {

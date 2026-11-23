@@ -29,8 +29,9 @@ them.
    validated response schema (`app/ai/schemas.py`).
 4. **Invoke** — call it through `app.ai.gateway.ainvoke_structured`; never
    touch a provider SDK outside `app/ai/chat_models.py`.
-5. **Assignment UI** — the task appears in Settings → AI Configuration; make
-   sure the model capabilities line up.
+5. **Assignment UI** — the task appears in Settings → My AI Configuration
+   (personal) and Settings → Instance AI Configuration (admin); make sure the
+   model capabilities line up.
 6. **Tests** — use the mock provider (`CAREER_MOCK_AI=1`); assert the validated shape
    and the audit row.
 7. **Gates** — `scripts/check-ai-alignment.sh`; docs in

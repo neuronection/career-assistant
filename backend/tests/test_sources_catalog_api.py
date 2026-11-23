@@ -7,12 +7,22 @@ max-8-catalogs cap, DELETE and revision/contentHash persistence."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from tests.conftest import mint_session_headers
 
 CATALOGS_URL = "/api/v1/admin/postings/sources/catalogs"
+
+GREECE_FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "frontend"
+    / "src"
+    / "tests"
+    / "fixtures"
+    / "ats-catalog-greece.json"
+)
 
 
 def _envelope(**overrides) -> dict:
@@ -257,3 +267,28 @@ async def test_revision_and_hash_survive_put_round_trip(client, client_admin_hea
     assert entry["contentHash"] == "sha256:" + "b" * 64
     assert entry["etag"] == 'W/"v7"'
     assert entry["fetchedAt"].startswith("2026-11-03T08:00:00")
+
+
+@pytest.mark.asyncio
+async def test_accepts_the_published_greece_catalog(client, client_admin_headers) -> None:
+    """The live operator catalog (revision 2) clears the authoritative wall."""
+    document = json.loads(GREECE_FIXTURE.read_text(encoding="utf-8"))
+    body = {
+        "tier": "operator",
+        "url": "https://neuronection.com/api/v1/career/ats-catalogs/greece.json",
+        "fetchedAt": "2026-11-23T00:00:00Z",
+        **document,
+    }
+    response = await client.put(
+        f"{CATALOGS_URL}/neuronection-greece", json=body, headers=client_admin_headers
+    )
+    assert response.status_code == 200
+    stored = response.json()
+    assert stored["tier"] == "operator"
+    assert stored["revision"] == 2
+    assert stored["contentHash"] == (
+        "sha256:7007ba75b97b5b20c8f7120397e4888ed6e6d312367bf969765be68c16643d23"
+    )
+    assert len(stored["presets"]) == 17
+    assert stored["providers"] == []
+    assert all(preset["country"] == "GR" for preset in stored["presets"])

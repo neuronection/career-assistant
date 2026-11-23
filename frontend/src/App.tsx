@@ -135,6 +135,7 @@ export function App() {
             <Route path="account" element={<Account />} />
             <Route path="radar" element={<Navigate to="/radar" replace />} />
             <Route path="ai" element={<AIConfig />} />
+            <Route path="ai-admin" element={<AIConfig scope="system" />} />
             <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
             <Route path="companies" element={<CompanyRules />} />

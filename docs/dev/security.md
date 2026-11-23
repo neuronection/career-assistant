@@ -27,7 +27,8 @@ disclosure process, see [SECURITY.md](https://github.com/neuronection/career-ass
 - **The JWT-derived Fernet is retired**: the v0.17
   baseline derives nothing from `JWT_SECRET`. Pre-baseline installs were
   drained by the retired `0044` migration (stored AI provider keys wiped
-  once — re-enter them in Settings → AI Configuration — and every other
+  once — re-enter personal keys in Settings → My AI Configuration and
+  instance keys in Settings → Instance AI Configuration — and every other
   sealed value re-encrypted or cleared).
 - **No `AI_*` environment variables.** This is deliberate: it keeps keys out
   of shells, CI logs and process listings.
@@ -67,9 +68,12 @@ plaintext).
 The family auth contract (guideline `identity-auth.md`) — the
 shared `neuronection-auth-kit` package is the implementation:
 
-- **Session cookies + double-submit CSRF** (§10): `nx_access` /
-  `nx_refresh` / `nx_csrf`; cookie-authenticated non-GET requests must
-  echo `nx_csrf` in `X-CSRF-Token`. `Authorization: Bearer <session
+- **Session cookies + double-submit CSRF** (§10): `career_access` /
+  `career_refresh` / `career_csrf` (per-app prefix — cookies are scoped
+  by hostname, ports ignored, so co-located family apps must not share
+  names; pre-prefix `nx_*` cookies are expired automatically on sight);
+  cookie-authenticated non-GET requests must echo `career_csrf` in
+  `X-CSRF-Token`. `Authorization: Bearer <session
   token>` (§9 user clients) is accepted alongside cookies.
 - **Instance access modes** (§4): `instance_settings.auth_mode` is
   DB-authoritative and written only at initialization (`CAREER_AUTH_MODE`

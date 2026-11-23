@@ -1,7 +1,7 @@
 {
   "name": "career-assistant",
   "private": true,
-  "version": "0.17.3",
+  "version": "0.19.0",
   "license": "Apache-2.0",
   "type": "module",
   "description": "Career Assistant — job discovery, AI matching and university pathways for students",
@@ -17,7 +17,7 @@
     "check:api": "npm run gen:api && git diff --exit-code -- src/types/api.gen.ts"
   },
   "dependencies": {
-    "@neuronection/assistant-ui": "0.88.0",
+    "@neuronection/assistant-ui": "0.89.0",
     "axios": "^1.18.1",
     "clsx": "^2.0.0",
     "date-fns": "^4.4.0",

@@ -6,7 +6,7 @@ Common problems and their fixes. For self-hosting specifics, see
 ## AI features answer `503`
 
 A fresh install (or a fresh production deploy) starts **unconfigured**.
-Add a provider in **Settings → AI Configuration** — see
+Add a provider in **Settings → My AI Configuration** — see
 [Getting started](getting-started.md#connect-an-ai-provider).
 
 In development you can instead start the backend with the built-in mock

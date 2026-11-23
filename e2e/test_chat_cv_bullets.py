@@ -5,7 +5,7 @@ override in the plan-106 canonical shape."""
 import json
 import re
 
-from conftest import API, BASE_URL, api_headers
+from conftest import API, BASE_URL, api_headers, open_chat_dock
 
 
 def _make_experience_with_bullet(page) -> None:
@@ -42,8 +42,7 @@ def test_chat_rewrites_attached_cv_bullets(page) -> None:
 
     page.goto(f"{BASE_URL}/cv/{cv_id}")
     page.get_by_test_id("cv-ask-ai").click()
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
 
