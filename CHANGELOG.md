@@ -4,17 +4,6 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
-### Changed
-
-- **Chat got the Airy refresh.** Assistant replies now read as prose beside a
-  small identity orb while your messages keep a soft tinted bubble; the
-  composer floats as an elevated card with a gradient send control, the empty
-  state is a glowing welcome hero with suggestion cards, and the page carries
-  one whisper of the AI accent. Action rows stay on-screen at every width
-  (including touch, where they are always visible). The unconfigured dictation
-  state is now a quiet muted mic whose popover explains how to assign a
-  speech-to-text model — no persistent notice competes with the draft.
-
 ### Added
 
 - **A production instance can enable a feeder for extension bundles.** With
@@ -29,19 +18,6 @@ All notable changes to **Career Assistant** are documented here.
   `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` (default empty), so an MCP bundle can be
   enabled on a self-hosted instance; without it the install succeeded but the
   enable step answered "the mcp connector is not allowlisted".
-
-### Fixed
-
-- **Extension installs and the auth-kit keys now survive a container
-  recreate.** The app's data dir (`career_data`: content-addressed installs,
-  retrieval data, the datastore marker) and config dir (`career_config`: the
-  key file) are named volumes at their existing paths — no `content_path`
-  moves — and the image pins uid `1000` so the volumes initialize as the app
-  user. The object-storage overlay keeps both (`!override` drops only uploads),
-  where `!reset []` would have stripped them silently.
-
-### Added
-
 - **A verified ATS catalog imports in one click.** Tools → Sources →
   Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
   employer tenants on direct Recruitee, Teamtailor and Workable feeds —
@@ -53,6 +29,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **Chat got the Airy refresh.** Assistant replies now read as prose beside a
+  small identity orb while your messages keep a soft tinted bubble; the
+  composer floats as an elevated card with a gradient send control, the empty
+  state is a glowing welcome hero with suggestion cards, and the page carries
+  one whisper of the AI accent. Action rows stay on-screen at every width
+  (including touch, where they are always visible). The unconfigured dictation
+  state is now a quiet muted mic whose popover explains how to assign a
+  speech-to-text model — no persistent notice competes with the draft.
 - **The extension import surface only offers what the deployment allows.**
   A production boot no longer shows **Import bundle (.zip)**, and the
   add-source dialog skips the local-folder option: both are dev/test-only,
@@ -61,6 +45,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Fixed
 
+- **Extension installs and the auth-kit keys now survive a container
+  recreate.** The app's data dir (`career_data`: content-addressed installs,
+  retrieval data, the datastore marker) and config dir (`career_config`: the
+  key file) are named volumes at their existing paths — no `content_path`
+  moves — and the image pins uid `1000` so the volumes initialize as the app
+  user. The object-storage overlay keeps both (`!override` drops only uploads),
+  where `!reset []` would have stripped them silently.
 - **Extension sources work in the Docker image.** The serving image now
   ships the `git` CLI the import layer shells out to (the build layered a
   transient copy only for dependency sync and purged it), so an https git

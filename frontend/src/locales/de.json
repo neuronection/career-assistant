@@ -4362,8 +4362,7 @@
   "dictation": {
     "unavailable": "Diktat nicht verfügbar",
     "notConfigured": "Kein Spracherkennungsmodell zugewiesen.",
-    "openSettings": "KI-Einstellungen öffnen",
-    "dismiss": "Ausblenden"
+    "openSettings": "KI-Einstellungen öffnen"
   },
   "chat": {
     "openAiSettings": "Open AI Einstellungen",

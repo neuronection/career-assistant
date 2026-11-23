@@ -4363,8 +4363,7 @@
   "dictation": {
     "unavailable": "Dictation unavailable",
     "notConfigured": "No speech-to-text model is assigned.",
-    "openSettings": "Open AI settings",
-    "dismiss": "Dismiss"
+    "openSettings": "Open AI settings"
   },
   "chat": {
     "openAiSettings": "Open AI settings",
