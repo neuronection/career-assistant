@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Globe, Loader2, MoreHorizontal, Pencil, Plus, Radar, RefreshCw } from "lucide-react";
+import {
+  BookOpen,
+  Globe,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Radar,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { SearchInput } from "@/components/ui";
 import { CheckIndicator } from "@neuronection/assistant-ui";
@@ -34,12 +44,15 @@ import {
   type JobSourcePreset,
 } from "@/config/jobSourcePresets";
 import {
+  FEATURED_CATALOGS,
   compareDocuments,
   fetchCatalogDocument,
   mergeCatalogs,
+  shortContentHash,
   validateCatalog,
   type CatalogFetchOutcome,
   type CatalogProvenance,
+  type FeaturedCatalog,
   type SourcesCatalog,
 } from "@/config/sourcesCatalogs";
 import * as sourcesApi from "@/api/sources";
@@ -106,10 +119,11 @@ function shortTime(iso: string | null): string | null {
   });
 }
 
-/** Plan 187: the catalog management block — add an operator/community URL,
- * upload a user JSON file, per-catalog refresh (browser-side conditional
- * GET) and remove. Refresh NEVER creates sources: it only updates the
- * gallery data through the admin API. */
+/** Plan 187: the catalog management block — featured operator catalogs as
+ * one-click tiles, a manual operator/community URL, a user JSON file,
+ * per-catalog refresh (browser-side conditional GET) and remove. Nothing
+ * is fetched until the person clicks; refresh NEVER creates sources — it
+ * only updates the gallery data through the admin API. */
 function CatalogsBlock({
   catalogs,
   report,
@@ -118,6 +132,7 @@ function CatalogsBlock({
   onImportFile,
   onRefresh,
   onRemove,
+  featured = FEATURED_CATALOGS,
 }: {
   catalogs: SourcesCatalog[];
   report: string[];
@@ -126,8 +141,10 @@ function CatalogsBlock({
   onImportFile: (file: File) => void;
   onRefresh: (catalog: SourcesCatalog) => void;
   onRemove: (catalog: SourcesCatalog) => void;
+  featured?: FeaturedCatalog[];
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const [url, setUrl] = useState("");
   const [tier, setTier] = useState<"operator" | "community">("community");
   return (
@@ -135,15 +152,93 @@ function CatalogsBlock({
       className="rounded-lg border border-[var(--as-border)] bg-[color-mix(in_srgb,var(--as-muted)_35%,transparent)] p-3"
       data-testid="catalog-block"
     >
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-0 flex-1 basis-40">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-            {t("toolsSettings.connectors.catalogs.title")}
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
-            {t("toolsSettings.connectors.catalogs.hint")}
-          </p>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          {t("toolsSettings.connectors.catalogs.title")}
+        </p>
+        <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+          {t("toolsSettings.connectors.catalogs.hint")}
+        </p>
+      </div>
+
+      {featured.length > 0 ? (
+        <div className="mt-2 space-y-1.5" data-testid="catalog-featured">
+          {featured.map((entry) => {
+            const stored = catalogs.find((catalog) => catalog.url === entry.url);
+            const country = entry.country ? findCountry(entry.country) : null;
+            return (
+              <div
+                key={entry.id}
+                className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5"
+                data-testid={`catalog-featured-${entry.id}`}
+              >
+                <ShieldCheck
+                  className="h-4 w-4 shrink-0 text-[var(--as-accent)]"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-[var(--as-fg)]">
+                    {entry.name}
+                  </p>
+                  <p className="truncate text-[11px] text-[var(--as-muted-fg)]" title={entry.url}>
+                    {t(TIER_LABEL_KEY[entry.tier])}
+                    {country && entry.country
+                      ? ` · ${country.flag} ${countryDisplayName(entry.country, language)}`
+                      : ""}
+                    {` · ${entry.url}`}
+                  </p>
+                </div>
+                {stored ? (
+                  <>
+                    <span
+                      className="text-[11px] text-[var(--as-muted-fg)]"
+                      data-testid={`catalog-featured-state-${entry.id}`}
+                    >
+                      {t("toolsSettings.connectors.catalogs.featuredImported", {
+                        revision: stored.revision,
+                      })}
+                    </span>
+                    <span
+                      className="font-mono text-[10px] text-[var(--as-muted-fg)]"
+                      title={stored.contentHash}
+                      data-testid={`catalog-featured-hash-${entry.id}`}
+                    >
+                      {shortContentHash(stored.contentHash)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => onRefresh(stored)}
+                      data-testid={`catalog-featured-refresh-${entry.id}`}
+                    >
+                      <RefreshCw className="h-3 w-3" />{" "}
+                      {t("toolsSettings.connectors.catalogs.refresh")}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setUrl(entry.url);
+                      setTier(entry.tier);
+                      onImportUrl(entry.url, entry.tier);
+                    }}
+                    data-testid={`catalog-featured-import-${entry.id}`}
+                  >
+                    <Plus className="h-3.5 w-3.5" />{" "}
+                    {t("toolsSettings.connectors.catalogs.importFeatured")}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
+      ) : null}
+
+      <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="block min-w-0 flex-1 basis-56 text-xs text-[var(--as-muted-fg)]">
           <span className="sr-only">{t("toolsSettings.connectors.catalogs.urlPlaceholder")}</span>
           <input
@@ -236,6 +331,13 @@ function CatalogsBlock({
                   revision: catalog.revision,
                   date: shortTime(catalog.fetchedAt) ?? "",
                 })}
+              </span>
+              <span
+                className="font-mono text-[10px] text-[var(--as-muted-fg)]"
+                title={catalog.contentHash}
+                data-testid={`catalog-hash-${catalog.id}`}
+              >
+                {shortContentHash(catalog.contentHash)}
               </span>
               {catalog.url ? (
                 <Button
@@ -602,6 +704,12 @@ function JobSourceConnectors() {
     }
   };
 
+  const catalogMetaLine = (revision: number, contentHash: string) =>
+    t("toolsSettings.connectors.catalogs.reportMeta", {
+      revision,
+      hash: shortContentHash(contentHash),
+    });
+
   const importFromUrl = async (url: string, tier: "operator" | "community") => {
     setCatalogReport([]);
     if (!url) {
@@ -631,6 +739,7 @@ function JobSourceConnectors() {
       if (existing && change?.kind === "same") {
         setCatalogReport([
           t("toolsSettings.connectors.catalogs.reportUpToDate", { revision: existing.revision }),
+          catalogMetaLine(existing.revision, existing.contentHash),
         ]);
         return;
       }
@@ -663,6 +772,7 @@ function JobSourceConnectors() {
               : t("toolsSettings.connectors.catalogs.reportImported", {
                   count: parsed.document.presets.length,
                 }),
+        catalogMetaLine(parsed.document.revision, parsed.document.contentHash),
       ]);
     } catch (err) {
       setCatalogReport([apiDetail(err)]);
@@ -707,6 +817,7 @@ function JobSourceConnectors() {
               count: parsed.document.presets.length,
               providers: parsed.document.providers.length,
             }),
+            catalogMetaLine(parsed.document.revision, parsed.document.contentHash),
           ]);
         } catch (err) {
           setCatalogReport([apiDetail(err)]);
@@ -747,6 +858,7 @@ function JobSourceConnectors() {
       if (change.kind === "same") {
         setCatalogReport([
           t("toolsSettings.connectors.catalogs.reportUpToDate", { revision: target.revision }),
+          catalogMetaLine(target.revision, target.contentHash),
         ]);
         return;
       }
@@ -767,6 +879,7 @@ function JobSourceConnectors() {
               to: change.to,
               count: change.changedPresets,
             }),
+        catalogMetaLine(parsed.document.revision, parsed.document.contentHash),
       ]);
     } catch (err) {
       setCatalogReport([apiDetail(err)]);
