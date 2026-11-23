@@ -116,6 +116,9 @@ export type ExtensionSourceView = {
   consecutive_failures: number;
   candidates: (ExtensionCandidate & { manifest?: Record<string, unknown> })[];
   installs: ExtensionInstallView[];
+  /** Operator feeder provenance (ADR-0071); null for git and uploaded sources. */
+  mountKey?: string | null;
+  mountPath?: string | null;
 };
 
 export type ExtensionImportCapabilities = {
@@ -123,8 +126,12 @@ export type ExtensionImportCapabilities = {
   git: boolean;
   /** Local-path sources are allowed (dev/test boot + allowlisted root). */
   local: boolean;
-  /** Zip bundle import is allowed (dev/test boot only). */
+  /** Zip bundle import is allowed (dev/test, or the operator feeder policy). */
   zip: boolean;
+  /** Mounted-folder import is allowed (operator feeder + allowlisted roots). */
+  mounted?: boolean;
+  /** The operator feeder policy is on (mounted and/or zip in production). */
+  feeder?: boolean;
 };
 
 export async function fetchExtensionImportCapabilities(): Promise<ExtensionImportCapabilities> {

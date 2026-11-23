@@ -183,7 +183,7 @@ Observations never hold computed aggregates (those are derived in
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `extension_sources` | `extension_model.py` | Git sources (https production + dev/test `local` variant): validated descriptor, sealed credential slots, discovery candidates, family status vocabulary |
+| `extension_sources` | `extension_model.py` | Git sources (https production + dev/test `local` variant) and operator-feeder sources (`mount_key`/`mount_path` provenance, ADR-0071): validated descriptor, sealed credential slots, discovery candidates, family status vocabulary |
 | `extension_installs` | `extension_model.py` | Digest-pinned imported extensions: manifest, pin ref + history, consent records (who/when/what-digest), update state, lifecycle state, the minted `job_sources` key |
 
 Imported content itself is data on disk — content-addressed under

@@ -1143,7 +1143,13 @@ async def test_sources_ride_the_admin_api_surface(
         patch.setattr(shutil, "which", lambda _name: "/usr/local/bin/git")
         caps = await client.get("/api/v1/admin/extensions/capabilities", headers=auth_headers)
     assert caps.status_code == 200, caps.text
-    assert caps.json() == {"git": True, "local": True, "zip": True}
+    assert caps.json() == {
+        "git": True,
+        "local": True,
+        "zip": True,
+        "mounted": False,
+        "feeder": True,
+    }
 
     synced = await client.post(
         f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
@@ -1598,6 +1604,111 @@ async def test_zip_staging_strips_venv_and_selects_the_host_interpreter(
     source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
     assert source is not None
     assert _bundle_interpreter(source, "") == _sys.executable
+
+
+# ------------------------------------------------ mounted feeder (ADR-0071)
+
+
+def _write_mount(root: Path) -> Path:
+    mount = root / "bundle"
+    mount.mkdir(parents=True)
+    (mount / "manifest.json").write_text(FIXTURE_MANIFEST.read_text(), encoding="utf-8")
+    shutil.copyfile(FIXTURE_SERVER, mount / "server.py")
+    _copy_docs(mount)
+    return mount
+
+
+@pytest.fixture
+def mounted_policy(tmp_path, monkeypatch):
+    root = tmp_path / "integrations"
+    root.mkdir()
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    monkeypatch.setattr(settings, "extension_mounted_roots", [str(root)])
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    monkeypatch.setattr(settings, "app_env", "production")
+    return root
+
+
+async def test_mounted_import_refreshes_in_place(db, seeded_catalog, mcp_allowlist, mounted_policy):
+    """ADR-0071: one row per (resolved folder, subpath); a second import of
+    the same mount refreshes it, and a changed tree is an OFFERED update."""
+    from app.extensions.lifecycle import import_mounted_source, install_extension, list_sources
+
+    mount = _write_mount(mounted_policy)
+    view = await import_mounted_source(db, str(mount))
+    assert view["sync"]["ok"] is True, view["sync"]
+    assert view["mountPath"] == str(mount.resolve())
+    assert view["mountKey"]
+    source_id = uuid.UUID(view["id"])
+
+    await install_extension(
+        db, source_id, "example-posting-fetcher", consent=await _echo_for(db, source_id)
+    )
+
+    (mount / "extra.txt").write_text("changed\n", encoding="utf-8")
+    again = await import_mounted_source(db, str(mount))
+    assert uuid.UUID(again["id"]) == source_id, "the same mount refreshes its row"
+    assert again["sync"]["ok"] is True
+
+    [row] = [s for s in await list_sources(db) if s["id"] == str(source_id)]
+    [install] = row["installs"]
+    assert install["update"]["state"] == "available", "a change is offered, never applied"
+    assert install["enabled"] is False
+
+
+async def test_mounted_import_needs_the_policy(
+    db, seeded_catalog, mcp_allowlist, tmp_path, monkeypatch
+):
+    from app.extensions.lifecycle import import_mounted_source
+
+    root = tmp_path / "integrations"
+    root.mkdir()
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    monkeypatch.setattr(settings, "extension_mounted_roots", [str(root)])
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", False)
+    monkeypatch.setattr(settings, "app_env", "production")
+    with pytest.raises(LifecycleError) as exc:
+        await import_mounted_source(db, str(_write_mount(root)))
+    assert exc.value.code == "path-denied"
+
+
+async def test_mounted_source_api_refuses_edit_and_refreshes_on_sync(
+    db, client, auth_headers, mounted_policy
+):
+    """The admin surface: import → the row carries the operator's folder →
+    PATCH is refused (refreshed from the folder) → sync re-stages."""
+    from app.models.user_model import User
+
+    user = (await db.execute(select(User).limit(1))).scalars().first()
+    user.is_admin = True
+    await db.commit()
+
+    mount = _write_mount(mounted_policy)
+    created = await client.post(
+        "/api/v1/admin/extensions/sources/mounted",
+        json={"path": str(mount)},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+
+    listed = await client.get("/api/v1/admin/extensions/sources", headers=auth_headers)
+    row = next(r for r in listed.json() if r["id"] == source_id)
+    assert row["mountPath"] == str(mount.resolve())
+
+    patched = await client.patch(
+        f"/api/v1/admin/extensions/sources/{source_id}",
+        json={"descriptor": row["descriptor"]},
+        headers=auth_headers,
+    )
+    assert patched.status_code == 400
+    assert "mounted source" in patched.json()["detail"]
+
+    synced = await client.post(
+        f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
+    )
+    assert synced.status_code == 200, synced.text
+    assert synced.json()["ok"] is True
 
 
 # ------------------------------------------- reinstall over a parked install

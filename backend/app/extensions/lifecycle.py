@@ -332,14 +332,15 @@ def _check_local_root(path_str: str, *, feeder: bool = False) -> Path:
     )
 
 
-def validate_source_descriptor(doc: dict) -> SourceDescriptor:
+def validate_source_descriptor(doc: dict, *, feeder: bool = False) -> SourceDescriptor:
     """Validate a source descriptor against the vendored schema.
 
     Production descriptors validate against the ROOT (https-only by
     structure); a ``local`` document is routed to the distinct
     ``$defs.localSourceDescriptor`` variant and additionally passes the
-    production boot gate + root allowlist above. Unknown shapes fail
-    closed — there is no third kind.
+    production boot gate + root allowlist above. ``feeder=True`` is passed
+    only by the feeder writers (ADR-0071). Unknown shapes fail closed —
+    there is no third kind.
     """
     schema = _sources_schema()
     if isinstance(doc, dict) and "local" in doc:
@@ -349,7 +350,7 @@ def validate_source_descriptor(doc: dict) -> SourceDescriptor:
         err = contract.validate(target, doc, schema)
         if err is not None:
             raise LifecycleError("invalid", f"local source descriptor invalid: {err}")
-        path = _check_local_root(str((doc.get("local") or {}).get("path") or ""))
+        path = _check_local_root(str((doc.get("local") or {}).get("path") or ""), feeder=feeder)
         return SourceDescriptor(
             kind="local", origin=str(path), document=doc, subpath=str(doc.get("subpath") or "")
         )
@@ -1050,7 +1051,7 @@ def _source_view(
             subpath=str(candidate.get("subpath") or ""),
         )
         candidates.append(entry)
-    return {
+    view = {
         "id": str(source.id),
         "kind": source.kind,
         "origin": source.origin,
@@ -1061,6 +1062,10 @@ def _source_view(
             "subpath": source.subpath or descriptor.get("subpath"),
             "credentialSlots": [c.get("slot") for c in descriptor.get("credentials") or []],
         },
+        # Operator feeder provenance (ADR-0071): the operator's folder, not the
+        # staged repository path. Null for git and uploaded sources.
+        "mountKey": source.mount_key,
+        "mountPath": source.mount_path,
         "status": source.status,
         "error": source.error,
         "last_checked_at": source.last_checked_at.isoformat() if source.last_checked_at else None,
@@ -1069,6 +1074,14 @@ def _source_view(
         "candidates": candidates,
         "installs": [_install_view(install, conditions) for install in installs],
     }
+    if source.mount_key:
+        staged = str((descriptor.get("local") or {}).get("path") or "")
+        if not staged or not Path(staged).exists():
+            # A lost data dir / pruned stage is legible instead of a 404 on
+            # the next click; Check re-stages from the recorded folder.
+            view["status"] = "stale"
+            view["error"] = "staged content is missing — press Check to re-stage the folder"
+    return view
 
 
 def _install_view(
@@ -1452,10 +1465,77 @@ async def import_zip_bundle(db: AsyncSession, data: bytes) -> dict:
         "local": {"path": str(root)},
         "ref": {"strategy": "commit-pin", "value": sha},
     }
-    view = await add_source(db, descriptor)
+    view = await add_source(db, descriptor, feeder=True)
     report = await sync_source(db, uuid.UUID(view["id"]))
     view["sync"] = report
     return view
+
+
+async def import_mounted_source(db: AsyncSession, path: str, subpath: str = "") -> dict:
+    """Mount feeder (ADR-0071): stage the operator's folder, then the NORMAL
+    add/update + sync flow — consent and digest pinning happen unchanged.
+
+    One row per ``(resolved folder, subpath)``: a second import of the same
+    mount refreshes the existing source in place (the stable ``mount_key``)
+    instead of creating a duplicate. Staging and the repoint are serialized
+    by one process-wide feeder lock (imports are rare admin actions; the
+    order — feeder lock, then the source lock inside add/update — is fixed).
+    """
+    async with _exclusive("mounted-import"):
+        staged, sha, key, resolved = _stage_mounted_tree(path, subpath)
+        descriptor: dict = {
+            "local": {"path": str(staged)},
+            "ref": {"strategy": "commit-pin", "value": sha},
+        }
+        if subpath:
+            descriptor["subpath"] = subpath
+        existing = (
+            (await db.execute(select(ExtensionSource).where(ExtensionSource.mount_key == key)))
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            view = await update_source(
+                db,
+                existing.id,
+                descriptor,
+                feeder=True,
+                mount_key=key,
+                mount_path=str(resolved),
+            )
+        else:
+            view = await add_source(
+                db, descriptor, feeder=True, mount_key=key, mount_path=str(resolved)
+            )
+    report = await sync_source(db, uuid.UUID(view["id"]))
+    view["sync"] = report
+    return view
+
+
+async def refresh_mounted_source(db: AsyncSession, source: ExtensionSource) -> dict:
+    """Re-stage a mounted source from its recorded folder (Check = refresh).
+
+    The admin sync endpoint calls this *before* ``sync_source``; the sync
+    itself never stages, so the feeder lock and the source lock never nest
+    in the opposite order.
+    """
+    if not source.mount_path:
+        raise LifecycleError("invalid", "this source is not a mounted source")
+    async with _exclusive("mounted-import"):
+        staged, sha, key, resolved = _stage_mounted_tree(source.mount_path, source.subpath)
+        descriptor = dict(source.descriptor or {})
+        descriptor["local"] = {"path": str(staged)}
+        descriptor["ref"] = {"strategy": "commit-pin", "value": sha}
+        if source.subpath:
+            descriptor["subpath"] = source.subpath
+        return await update_source(
+            db,
+            source.id,
+            descriptor,
+            feeder=True,
+            mount_key=key,
+            mount_path=str(resolved),
+        )
 
 
 async def add_source(
@@ -1463,11 +1543,19 @@ async def add_source(
     descriptor: dict,
     *,
     secrets: dict | None = None,
+    feeder: bool = False,
+    mount_key: str | None = None,
+    mount_path: str | None = None,
 ) -> dict:
     """Add a source (validated against the vendored schema — production
     https root or the gated local variant). No fetch happens here: a
-    failed fetch must be a *status*, never a failed add."""
-    parsed = validate_source_descriptor(descriptor)
+    failed fetch must be a *status*, never a failed add.
+
+    ``feeder``/``mount_key``/``mount_path`` are passed only by the operator
+    feeder writers (ADR-0071): the exemption is call-site scoped, so a
+    hand-authored local descriptor never rides it.
+    """
+    parsed = validate_source_descriptor(descriptor, feeder=feeder)
     clash = await db.execute(
         select(ExtensionSource).where(
             ExtensionSource.origin == parsed.origin, ExtensionSource.subpath == parsed.subpath
@@ -1487,6 +1575,8 @@ async def add_source(
         kind=parsed.kind,
         subpath=parsed.subpath,
         descriptor=parsed.document,
+        mount_key=mount_key,
+        mount_path=mount_path,
         secrets={
             slot: encrypt_secret(str(value))
             for slot, value in (secrets or {}).items()
@@ -1505,15 +1595,23 @@ async def update_source(
     descriptor: dict,
     *,
     secrets: dict | None = None,
+    feeder: bool = False,
+    mount_key: str | None = None,
+    mount_path: str | None = None,
 ) -> dict:
     """Replace a source's descriptor (the edit flow): validated exactly
     like an add and applied under the same writer lock. Pins are untouched
-    — the next sync re-resolves and reports drift the ordinary way."""
+    — the next sync re-resolves and reports drift the ordinary way.
+
+    The mounted refresh passes ``feeder=True`` and the two mount columns;
+    the general edit endpoint never does (a mounted source is refused
+    there), so the production exemption stays call-site scoped.
+    """
     async with _exclusive(f"source:{source_id}"):
         source = await db.get(ExtensionSource, source_id)
         if source is None:
             raise LifecycleError("not-found", "source not found")
-        parsed = validate_source_descriptor(descriptor)
+        parsed = validate_source_descriptor(descriptor, feeder=feeder)
         clash = await db.execute(
             select(ExtensionSource).where(
                 ExtensionSource.origin == parsed.origin,
@@ -1532,6 +1630,10 @@ async def update_source(
         source.kind = parsed.kind
         source.subpath = parsed.subpath
         source.descriptor = parsed.document
+        if mount_key is not None:
+            source.mount_key = mount_key
+        if mount_path is not None:
+            source.mount_path = mount_path
         source.status = "stale"
         source.error = ""
         if secrets is not None:

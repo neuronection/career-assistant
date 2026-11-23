@@ -520,6 +520,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/extensions/sources/mounted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Mounted Extension Source
+         * @description Mount feeder (ADR-0071): stage the operator's folder, then the normal
+         *     add/update + sync flow. One row per ``(resolved folder, subpath)``; a
+         *     second import refreshes it. The production exemption is call-site scoped
+         *     to this endpoint and the mounted refresh.
+         */
+        post: operations["import_mounted_extension_source_api_v1_admin_extensions_sources_mounted_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/sources/upload": {
         parameters: {
             query?: never;
@@ -565,6 +588,9 @@ export interface paths {
          * Update Extension Source
          * @description Replace a source's descriptor (the edit flow) — validated exactly
          *     like an add; the next sync re-resolves and reports drift normally.
+         *
+         *     A mounted source is refreshed from its folder, not edited: its descriptor
+         *     points at app-staged content, so a hand edit would be meaningless.
          */
         patch: operations["update_extension_source_api_v1_admin_extensions_sources__source_id__patch"];
         trace?: never;
@@ -630,6 +656,9 @@ export interface paths {
          * Sync Extension Source
          * @description Fetch + discover + validate + update-check. A failed fetch leaves
          *     pins untouched and marks the source failing (typed error body).
+         *
+         *     For a mounted source this is also the refresh: the endpoint re-stages the
+         *     recorded folder first, then syncs (``sync_source`` itself never stages).
          */
         post: operations["sync_extension_source_api_v1_admin_extensions_sources__source_id__sync_post"];
         delete?: never;
@@ -15607,10 +15636,14 @@ export interface components {
         };
         /** ExtensionImportCapabilitiesOut */
         ExtensionImportCapabilitiesOut: {
+            /** Feeder */
+            feeder: boolean;
             /** Git */
             git: boolean;
             /** Local */
             local: boolean;
+            /** Mounted */
+            mounted: boolean;
             /** Zip */
             zip: boolean;
         };
@@ -24017,6 +24050,43 @@ export interface operations {
         };
     };
     add_extension_source_api_v1_admin_extensions_sources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_mounted_extension_source_api_v1_admin_extensions_sources_mounted_post: {
         parameters: {
             query?: never;
             header?: never;

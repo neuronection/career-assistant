@@ -87,9 +87,10 @@ Under `/api/v1/admin` (admin auth):
 
 | Route | Effect |
 |---|---|
-| `GET /extensions/capabilities` | what this deployment can import (`{git, local, zip}`) — the UI's gate source |
+| `GET /extensions/capabilities` | what this deployment can import (`{git, local, zip, mounted, feeder}`) — the UI's gate source |
 | `GET /extensions/sources` | sources with candidates + installs (secret-safe views) |
 | `POST /extensions/sources` | add a source (`{descriptor, secrets}`) |
+| `POST /extensions/sources/mounted` | operator feeder (ADR-0071): `{path, subpath?}` — stages the folder, then add/refresh + sync |
 | `DELETE /extensions/sources/{id}` | remove; installs park |
 | `POST /extensions/sources/{id}/sync` | sync + update-check |
 | `POST /extensions/sources/{id}/install` | `{extension_id, consent}` — consent-gated install (201) |
