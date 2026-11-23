@@ -146,7 +146,7 @@ Both product modes share the whole subsystem — one pipeline, one schema
 
 | | Web/self-host (Postgres) | Desktop (SQLite) |
 |---|---|---|
-| Sources | full surface; production boots allow **https git sources only** | local sources allowed when run in development with allowlisted roots |
+| Sources | full surface; production boots accept **https git sources** — plus the **operator feeder** (zip upload / mounted folder) when the operator enables `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS` | local sources allowed when run in development with allowlisted roots |
 | Scheduler | reconcile at boot + hourly (`system_extension_reconcile`) | same engine, background scheduler in the tray app |
 | Sandboxed T2 | works from source installs | works in dev; frozen builds self-disable honestly (see above) |
 | Admin seat | Settings → Tools → Connectors (auth: admin) | same surface, desktop's implicit local owner |

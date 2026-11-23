@@ -20,10 +20,12 @@ Handy when the bundle lives on your machine instead of a remote: the
 pinned source, and runs the exact same flow — validate, consent,
 digest-pinned install. The zip is never executed directly, and "update"
 means uploading a new zip and consenting again (updates never apply on
-their own). Like local-path sources, zip import is a dev/test feature:
-production boots stay git-only and the control is not offered there. In
-the desktop shell, when the instance allows zip import, the file dialog
-is the native picker.
+their own). Zip import is **off by default in production**: a self-hosting
+operator can enable the feeder policy (`CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS`)
+on the `app` service, after which the button appears and the same flow runs
+on the server. Without it, production stays git-only and the control is not
+offered. In the desktop shell, when the instance allows zip import, the file
+dialog is the native picker.
 
 ## Add a source
 

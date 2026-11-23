@@ -6,6 +6,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Added
 
+- **A production instance can enable a feeder for extension bundles.** With
+  `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` on the `app` service (compose
+  `environment:`; the defaults are off and `CAREER_EXTENSION_MOUNTED_ROOTS`
+  takes a JSON list), an admin can import a bundle zip — or a folder mounted
+  into the container — instead of hosting a git repo. Installs stay
+  consent-gated, digest-pinned and disabled until enabled, and nothing
+  auto-applies. A zip may no longer ship its own `.venv`: staging strips it and
+  the managed spawn runs the host interpreter.
+
+### Added
+
 - **A verified ATS catalog imports in one click.** Tools → Sources →
   Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
   employer tenants on direct Recruitee, Teamtailor and Workable feeds —

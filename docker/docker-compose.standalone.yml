@@ -113,6 +113,12 @@ services:
       CAREER_MAX_UPLOAD_MB: ${CAREER_MAX_UPLOAD_MB:-25}
       # Data exports are capped independently of the per-upload ceiling.
       CAREER_EXPORT_MAX_MB: ${CAREER_EXPORT_MAX_MB:-1024}
+      # Operator feeder (ADR-0071): default off. A `list[str]` field rejects an
+      # empty string, so the roots default is `[]` (a non-JSON value such as
+      # /integrations is a boot crash-loop). The policy reaches the container
+      # only through this map — a docker/.env line alone is invisible.
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: ${CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS:-0}
+      CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}
       # Family object storage (ADR-0057 / plan 55 P2). Empty defaults keep
       # the local volume; a cloud profile sets its provider block (see
       # docker/.env.production.example and docker/docker-compose.cloud.yml).

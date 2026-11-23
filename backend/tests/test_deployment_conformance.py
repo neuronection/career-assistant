@@ -148,6 +148,24 @@ def test_compose_cookie_secure_is_derived_never_hardcoded():
         assert "CAREER_TLS: ${CAREER_TLS:-0}" in text
 
 
+def test_compose_carries_the_feeder_policy():
+    """ADR-0071: the policy reaches the container only through the compose
+    `environment:` allowlist (there is no `env_file:`), so a `docker/.env`
+    line alone is invisible. The roots default must be `[]`, never empty —
+    a `list[str]` field JSON-decodes the value and a non-JSON one
+    (e.g. `/integrations`) is a boot crash-loop."""
+    for compose in (
+        REPO_ROOT / "docker" / "docker-compose.prod.yml",
+        REPO_ROOT / "docker" / "docker-compose.standalone.yml",
+    ):
+        text = compose.read_text(encoding="utf-8")
+        assert (
+            "CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "
+            "${CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS:-0}" in text
+        )
+        assert "CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}" in text
+
+
 # ------------------------------------------------- runtime DDL under split
 
 

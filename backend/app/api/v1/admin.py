@@ -1353,8 +1353,9 @@ def extension_import_capabilities() -> ExtensionImportCapabilitiesOut:
     return ExtensionImportCapabilitiesOut(
         git=git_available,
         local=local_sources_available(),
-        # A zip is staged as a synthetic git checkout, so it needs the CLI too.
-        zip=settings.is_dev and git_available,
+        # A zip is staged as a synthetic git checkout, so it needs the CLI too;
+        # a production host may enable it with the operator feeder policy.
+        zip=(settings.is_dev or settings.extension_allow_feeder_imports) and git_available,
     )
 
 

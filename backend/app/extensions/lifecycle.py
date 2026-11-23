@@ -1139,6 +1139,17 @@ def imports_root() -> Path:
     return (Path(settings.data_dir) / IMPORTS_DIRNAME).resolve()
 
 
+def _under_imports_root(path: str | None) -> bool:
+    """True when ``path`` resolves inside the app-owned staging store. A
+    string-prefix test would also match a sibling like
+    ``extension-imports-archive``; the resolved-relative check cannot."""
+    try:
+        Path(str(path or "")).resolve().relative_to(imports_root())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def _init_staging_repo(root: Path) -> str:
     """A synthetic checkout: the staged tree becomes a one-commit git repo
     so the descriptor's schema-required ``ref`` is a real commit-pin."""
@@ -1201,10 +1212,11 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
 
     from app.core.config import settings
 
-    if not settings.is_dev:
+    if not (settings.is_dev or settings.extension_allow_feeder_imports):
         raise LifecycleError(
             "path-denied",
-            "zip bundle import is dev/test only — production boots stay fail-closed",
+            "zip bundle import is dev/test only — enable the operator feeder "
+            "(CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS) on a production host",
         )
     if len(data) > BUNDLE_ZIP_MAX_BYTES:
         raise LifecycleError("invalid", "zip exceeds the upload size cap")
@@ -1226,8 +1238,9 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
         except Exception as exc:
             shutil.rmtree(root, ignore_errors=True)
             raise LifecycleError("invalid", f"zip extraction failed: {exc}") from exc
-    for junk in root.rglob(".git"):
-        shutil.rmtree(junk, ignore_errors=True)
+    for name in (".git", ".venv", "__pycache__", "node_modules"):
+        for junk in root.rglob(name):
+            shutil.rmtree(junk, ignore_errors=True)
     manifest_hits = [root / "manifest.json", *root.glob("*/manifest.json")]
     if not any(hit.is_file() for hit in manifest_hits):
         shutil.rmtree(root, ignore_errors=True)
@@ -1645,6 +1658,11 @@ def _bundle_interpreter(source: ExtensionSource, subpath: str) -> str:
     import os as _os
 
     if source.kind != "local":
+        return sys.executable
+    if _under_imports_root(source.origin):
+        # A feeder-staged source is content-addressed app state, never a dev
+        # checkout: its bytes must run on the host interpreter (the digest
+        # does not cover a bundled .venv, and zip staging strips it).
         return sys.executable
     try:
         root = _check_local_root(str(source.origin or ""))

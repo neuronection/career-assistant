@@ -1224,6 +1224,14 @@ async def test_import_capabilities_follow_the_boot_gates(tmp_path, monkeypatch):
     assert caps.local is True
     assert caps.zip is True
 
+    # ADR-0071: the operator feeder admits the upload in production (local
+    # paths stay gated — the exemption is call-site-scoped).
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    caps = extension_import_capabilities()
+    assert caps.local is False
+    assert caps.zip is True
+
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     caps = extension_import_capabilities()
     assert caps.git is False
@@ -1543,6 +1551,53 @@ async def test_zip_upload_is_gated_off_in_production(db, local_roots, mcp_allowl
     with pytest.raises(LifecycleError) as exc:
         await import_zip_bundle(db, _bundle_zip())
     assert exc.value.code == "path-denied"
+
+
+def _bundle_zip_with_venv() -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(template_manifest()))
+        zf.writestr("server.py", FIXTURE_SERVER.read_text(encoding="utf-8"))
+        zf.writestr(".venv/bin/python", "#!/bin/sh\nexit 0\n")
+        zf.writestr("docs/overview.md", "# overview\n")
+        zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
+    return buf.getvalue()
+
+
+async def test_zip_import_allowed_in_production_with_the_feeder_flag(tmp_path, monkeypatch):
+    """ADR-0071: the operator feeder admits the upload in a production boot;
+    without the policy the same call stays `path-denied` (the test above)."""
+    from app.extensions.lifecycle import import_zip_bundle_sync_root
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    root, sha = import_zip_bundle_sync_root(_bundle_zip())
+    assert root.is_dir() and (root / ".git").is_dir()
+    assert len(sha) == 40
+
+
+async def test_zip_staging_strips_venv_and_selects_the_host_interpreter(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """A bundle may not ship its own interpreter: the zip stage strips
+    `.venv` (the digest never covered it) and the managed-spawn rule picks
+    the host's python for any source under the staging store, exactly as for
+    an https git source."""
+    import sys as _sys
+
+    from app.extensions.lifecycle import _bundle_interpreter, import_zip_bundle
+    from app.models.extension_model import ExtensionSource
+
+    view = await import_zip_bundle(db, _bundle_zip_with_venv())
+    staged = Path(view["origin"])
+    assert not (staged / ".venv").exists(), "zip staging strips .venv"
+    source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
+    assert source is not None
+    assert _bundle_interpreter(source, "") == _sys.executable
 
 
 # ------------------------------------------- reinstall over a parked install
