@@ -31,7 +31,7 @@ the data keys. A bare string on the wire is rejected by the schema.
 | `unsupported` | the host doesn't do this: kind/tier not hosted, apiVersion too new, unknown RPC method, sandbox unavailable on frozen builds | `no` |
 | `io` | OS-level I/O failure on an allowed path (ENOSPC, EIO, EXDEV class) | `no` |
 | `not-found` | source/extension/install/ref doesn't exist | `no` |
-| `path-denied` | fs-shaped denial in the sandbox; local source outside allowlisted roots / production boot | `no` |
+| `path-denied` | fs-shaped denial in the sandbox; local source outside allowlisted roots / production boot; mounted folder outside `CAREER_EXTENSION_MOUNTED_ROOTS` or the feeder policy off | `no` |
 | `net-denied` | SSRF guard, robots verdict, undeclared domain (any hop), private ranges | `no` (posture) |
 | `auth` | upstream 401/403 | `after-config-change` |
 | `rate-limited` | upstream 429 (Retry-After surfaces as `retry_after_ms`) | `after-delay` |
@@ -92,7 +92,7 @@ Under `/api/v1/admin` (admin auth):
 | `POST /extensions/sources` | add a source (`{descriptor, secrets}`) |
 | `POST /extensions/sources/mounted` | operator feeder (ADR-0071): `{path, subpath?}` — stages the folder, then add/refresh + sync |
 | `DELETE /extensions/sources/{id}` | remove; installs park |
-| `POST /extensions/sources/{id}/sync` | sync + update-check |
+| `POST /extensions/sources/{id}/sync` | sync + update-check; a mounted source re-stages its folder first (Check = refresh) |
 | `POST /extensions/sources/{id}/install` | `{extension_id, consent}` — consent-gated install (201) |
 | `POST /extensions/installs/{id}/apply` | the only apply path (explicit re-consent) |
 | `POST /extensions/installs/{id}/enabled` | `{enabled}` — the only enable path |
@@ -167,6 +167,8 @@ Settings (env `CAREER_EXTENSION_SANDBOX_*`; defaults per the charter):
 | `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` | `[]` | admin opt-in: entry-point plugins + the `mcp` builtin (JSON list, e.g. `["mcp"]`) |
 | `CAREER_MARKET_DATA_PLUGINS_ALLOWLIST` | `[]` | admin opt-in for `career_assistant.market_data` entry-point providers (JSON list) — same opt-in rule as connectors, a separate registry |
 | `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS` | `[]` | allowlisted parents for dev/test `local` sources (JSON list) |
+| `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS` | `false` | operator feeder (ADR-0071): admit a mounted folder / bundle upload in production; must ride the compose `environment:` map |
+| `CAREER_EXTENSION_MOUNTED_ROOTS` | `[]` | allowlisted container paths a mounted source may come from (JSON list; a non-JSON value crash-loops the boot) |
 | `CAREER_EXTENSION_FETCH_TIMEOUT_SECONDS` | 60.0 | git subprocess timeout |
 | `CAREER_DATA_DIR` | platform default | where installs, artifacts and sealed stores live — `<data_dir>/extensions/…` |
 | `CAREER_APP_ENV` | `production` | production boots reject local sources (`path-denied`) |

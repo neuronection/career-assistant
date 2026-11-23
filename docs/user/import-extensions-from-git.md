@@ -1,11 +1,12 @@
-# Import extensions from git
+# Import extensions
 
 Beyond the bundled engines, Career Assistant can import connectors and
-mini-apps from **git sources** — any repository that carries extension
-manifests. Every import is digest-pinned and consent-gated: you see
-exactly what you're installing, and updates never apply on their own.
-The surface lives at **Settings → Tools → Connectors → Import
-connectors from git sources** (admin).
+mini-apps three ways: from **git sources** (any repository that carries
+extension manifests), from an uploaded **bundle zip**, or from a **folder
+mounted into the container** (self-hosted, operator-enabled). Every import
+is digest-pinned and consent-gated: you see exactly what you're installing,
+and updates never apply on their own. The surface lives at **Settings →
+Tools → Connectors → Extension sources** (admin).
 
 A source is one **origin + subpath** pair: a multi-bundle repository
 (several `*/src/` bundles in one repo) registers one source per bundle
@@ -53,11 +54,12 @@ restore.
 
 ## Add a source
 
-A source is a git repository plus which ref to track. In production the
+A git source is a repository plus which ref to track. In production the
 address must be an **https git URL**; private repositories work with a
 credential slot (a sealed token — never stored in the URL). Developer
 setups can also use a local checkout, confined to allowlisted folders
-and rejected outright on production instances.
+and rejected outright on production instances. A **mounted folder** takes
+no ref at all — the host pins the snapshot it stages.
 
 Adding a source fetches it once and lists every extension it offers
 with its compatibility — an incompatible extension says so with a

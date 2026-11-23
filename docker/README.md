@@ -93,6 +93,12 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
   (and `.config/CareerAssistant`), then restore into the volumes:
   `docker run --rm -v "$PWD/data-backup:/from:ro" -v career-assistant_career_data:/to alpine sh -c 'cp -a /from/. /to/'`
   (same for `career-assistant_career_config`).
+- **Operator feeder (ADR-0071, off by default)**: set
+  `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` — and, for a mounted folder,
+  `CAREER_EXTENSION_MOUNTED_ROOTS='["/integrations"]'` plus a read-only volume
+  (`./integrations:/integrations:ro`) — to import a bundle zip or a mounted
+  folder without hosting a git repo. Installs stay consent-gated,
+  digest-pinned and disabled until enabled.
 - Optional scheduled database backups (pg_dump to `./backups`; the
   uploads volume is covered by the manual tar step in the restore
   drill — see docs/dev/deployment.md):

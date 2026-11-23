@@ -22,6 +22,24 @@ manifest declares (`entry` + `mcp` ⇒ T3, `entry` ⇒ T2, no `entry` ⇒
 T0), never a caller claim — so no prose can talk a bundle up the
 ladder.
 
+## The operator feeder (ADR-0071)
+
+A production host can accept extension bytes from a **mounted folder** or an
+**uploaded bundle** only when the operator enables it (default off) and the
+path resolves under an allowlisted root. The feed is a **staging**
+mechanism: the host copies the tree, rejects symlinks and special files,
+strips runtime junk (`.git`, `.venv`, `__pycache__`, `node_modules`), caps
+size, digests the snapshot and initializes a synthetic commit before the
+normal consent/pin pipeline runs — nothing executes at import.
+
+The trust anchor is the operator: a feeder source has no remote identity, no
+catalog and no marketplace semantics, and an install from it is still
+`originClass: imported`, tiered, consent-recorded and minted disabled. The
+dev/test `local` kind keeps its production gate — the exemption is
+call-site scoped to the feeder writers, so a hand-authored `local` descriptor
+can never ride it. The mount is not part of the backup; after a restore,
+re-attach it and press Check.
+
 ## The consent model and the disclosures (verbatim)
 
 Consent is required before any install of imported code/data; it names
