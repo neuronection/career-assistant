@@ -6,7 +6,7 @@ import {
 } from "react";
 import { Link, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bot, GitBranch, Plus, Wrench, X } from "lucide-react";
+import { Bot, FileText, GitBranch, Plus, Sparkles, Wrench, X } from "lucide-react";
 
 import { MessageProposals, ProposalCards } from "@/features/chat/components/chat/MessageProposals";
 import { ChatSelectionMenu } from "@/features/chat/components/chat/ChatSelectionMenu";
@@ -19,7 +19,6 @@ import {
 } from "@/features/chat/components/chat/TemplatePreviews";
 import { CvAttachButton, CvAttachChips } from "@/features/chat/components/chat/CvAttachBar";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
-import { useAuthStore } from "@/stores/authStore";
 import {
   ChatBranchTree,
   ChatComposer,
@@ -32,14 +31,17 @@ import {
   ChatTraceTimeline,
   ChatTranscript,
   ChatTurnStatus,
+  ChatWelcome,
+  ChatSuggestionCard,
   MarkdownSurface,
   buildBranchTree,
   type BranchTree,
   type ChatMessageView,
+  type ChatPanelVariant,
   type HitlDensity,
 } from "@/components/ui/chat";
 import type { ChatMessage as ChatMessageRow } from "@/types";
-import { Button, PopoverButton } from "@/components/ui";
+import { Button, Popover, PopoverButton, PopoverContent, PopoverTrigger } from "@/components/ui";
 import {
   DictationButton,
   DictationStrip,
@@ -239,80 +241,102 @@ function ReferenceChips({
   );
 }
 
-function ChatEmptyState({ compact }: { compact: boolean }) {
+function AssistantAvatar() {
+  return (
+    <span
+      aria-hidden
+      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--as-primary),var(--as-ai))] text-[var(--as-ai-fg)] shadow-[var(--as-shadow-1)]"
+    >
+      <Sparkles className="size-3.5" />
+    </span>
+  );
+}
+
+function ChatEmptyState({ variant }: { variant: ChatPanelVariant }) {
   const { t } = useTranslation();
   const chat = useCareerChatContext();
   // Plan 78: with a CV open in Studio, the CV prompt chips replace the
   // generic suggestions — the suggested attach chip rides in the composer.
   const studioMatch = useMatch("/cv/:id");
   const studioCv = studioMatch?.params.id ?? null;
+  const welcomeVariant =
+    variant === "page" ? "page" : variant === "bubble" ? "bubble" : "sidebar";
+  const setup = (
+    <AiSetupPrompt variant="card" className="w-full text-left sm:col-span-2" />
+  );
   if (studioCv !== null) {
-    const chips = CV_PROMPT_KEYS.resume.map((key) => t(key));
     return (
-      <div className="flex flex-col items-center gap-3 py-8 text-center">
-        <span className="flex size-10 items-center justify-center rounded-full bg-primary-50">
-          <Bot className="size-5 text-primary-600" aria-hidden />
-        </span>
-        <p className="max-w-[16rem] text-sm text-slate-400">
-          {t("chat.cvEmptyBody")}
-        </p>
-        <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
-        <div className="flex w-full max-w-xs flex-col gap-1.5" data-testid="cv-chat-prompts">
-          {chips.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              data-testid="cv-chat-prompt"
-              onClick={() => chat.setDraft(prompt)}
-              className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ChatWelcome
+        variant={welcomeVariant}
+        title={t("chat.cvWelcomeTitle")}
+        subtitle={t("chat.cvEmptyBody")}
+        icon={<FileText className="size-5 text-[var(--as-ai-fg)]" aria-hidden />}
+        suggestions={
+          <>
+            {setup}
+            {CV_PROMPT_KEYS.resume.map((key) => (
+              <ChatSuggestionCard
+                key={key}
+                icon={Sparkles}
+                data-testid="cv-chat-prompt"
+                onClick={() => chat.setDraft(t(key))}
+              >
+                {t(key)}
+              </ChatSuggestionCard>
+            ))}
+          </>
+        }
+      />
     );
   }
   return (
-    <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <span className="flex size-10 items-center justify-center rounded-full bg-primary-50">
-        <Bot className="size-5 text-primary-600" aria-hidden />
-      </span>
-      <p className={`text-sm text-slate-400 ${compact ? "max-w-[16rem]" : "max-w-sm"}`}>
-        {studioCv !== null ? t("chat.studioEmptyBody") : t("chat.emptyBody")}
-      </p>
-      <AiSetupPrompt variant="card" className="w-full max-w-xs text-left" />
-      <div className="flex flex-col gap-1.5">
-        {GENERIC_SUGGESTION_KEYS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            data-testid="chat-suggestion"
-            onClick={() => chat.setDraft(t(key))}
-            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-50"
-          >
-            {t(key)}
-          </button>
-        ))}
-      </div>
-    </div>
+    <ChatWelcome
+      variant={welcomeVariant}
+      title={t("chat.welcomeTitle")}
+      subtitle={t("chat.emptyBody")}
+      icon={<Bot className="size-5 text-[var(--as-ai-fg)]" aria-hidden />}
+      suggestions={
+        <>
+          {setup}
+          {GENERIC_SUGGESTION_KEYS.map((key) => (
+            <ChatSuggestionCard
+              key={key}
+              icon={Sparkles}
+              data-testid="chat-suggestion"
+              onClick={() => chat.setDraft(t(key))}
+            >
+              {t(key)}
+            </ChatSuggestionCard>
+          ))}
+        </>
+      }
+    />
   );
 }
 
 function MessageList({
-  compact,
+  variant,
   density,
 }: {
-  compact: boolean;
+  variant: ChatPanelVariant;
   density: HitlDensity;
 }) {
   const chat = useCareerChatContext();
   const { t } = useTranslation();
+  const compact = variant === "bubble";
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
 
-  const renderItem = (message: ChatMessageView) => {
+  const renderItem = (
+    message: ChatMessageView,
+    _index: number,
+    groupPos?: "single" | "start" | "mid" | "end",
+  ) => {
     const raw = chat.messages.find((candidate) => candidate.id === message.id);
+    const showAvatar =
+      message.role === "assistant" &&
+      (groupPos === undefined || groupPos === "single" || groupPos === "start");
+    const avatar = showAvatar ? <AssistantAvatar /> : undefined;
     const parentUser =
       raw?.role === "assistant"
         ? chat.messages.find((candidate) => candidate.id === raw.parent_id)
@@ -339,6 +363,8 @@ function MessageList({
           key={message.id}
           role="assistant"
           status="error"
+          design="flat"
+          avatar={avatar}
           content={null}
           error={{
             code: turnFailed.code,
@@ -371,6 +397,8 @@ function MessageList({
       <ChatMessage
         key={message.id}
         role={message.role}
+        design="flat"
+        avatar={avatar}
         content={<MarkdownSurface value={message.content} />}
         compact={compact}
         editing={
@@ -460,12 +488,16 @@ function MessageList({
       <ChatTranscript
         className="selection:bg-[color-mix(in_srgb,var(--as-accent)_22%,transparent)]"
         items={chat.viewMessages}
+        design="flat"
+        groupConsecutive
         renderItem={renderItem}
-        emptyState={<ChatEmptyState compact={compact} />}
+        emptyState={<ChatEmptyState variant={variant} />}
         live={
           live ? (
             <ChatMessage
               role="assistant"
+              design="flat"
+              avatar={<AssistantAvatar />}
               status={
                 chat.stream.status === "interrupted"
                   ? "interrupted"
@@ -522,43 +554,12 @@ function ComposerBar() {
   const navigate = useNavigate();
   const chat = useCareerChatContext();
   const configSummary = useConfigSummary();
-  const userId = useAuthStore((state) => state.user?.id ?? null);
-  const noticeKey = userId
-    ? `ca:chat:dictation-dismissed:${userId}`
-    : null;
   const transcribeAssignment = configSummary.data?.tasks.find(
     (task) => task.task_type === "transcribe",
   );
   const dictationUnavailable =
     configSummary.error === null &&
     transcribeAssignment?.source === "unconfigured";
-  const [noticeDismissed, setNoticeDismissed] = useState(false);
-  useEffect(() => {
-    if (typeof localStorage === "undefined" || noticeKey === null) {
-      setNoticeDismissed(false);
-      return;
-    }
-    setNoticeDismissed(localStorage.getItem(noticeKey) === "1");
-  }, [noticeKey]);
-  useEffect(() => {
-    if (
-      typeof localStorage === "undefined" ||
-      noticeKey === null ||
-      configSummary.data === null ||
-      dictationUnavailable
-    ) {
-      return;
-    }
-    localStorage.removeItem(noticeKey);
-    setNoticeDismissed(false);
-  }, [configSummary.data, dictationUnavailable, noticeKey]);
-  const dismissNotice = () => {
-    if (typeof localStorage !== "undefined" && noticeKey !== null) {
-      localStorage.setItem(noticeKey, "1");
-    }
-    setNoticeDismissed(true);
-  };
-  const noticeVisible = dictationUnavailable && !noticeDismissed;
   const draftRef = useRef(chat.draft);
   draftRef.current = chat.draft;
   const dictation = useDictation({
@@ -598,6 +599,37 @@ function ComposerBar() {
   const attachStripVisible =
     chat.attachments.length > 0 || openCvId !== null;
 
+  // Quiet mic: when speech-to-text is unconfigured the mic stays visible
+  // in its muted state and explains itself on demand — no persistent
+  // notice competing with the draft.
+  const mic = dictationUnavailable ? (
+    <Popover>
+      <PopoverTrigger asChild>
+        <DictationButton
+          unavailable
+          status={dictation.status}
+          onStart={() => void dictation.start()}
+          unavailableLabel={t("dictation.unavailable")}
+        />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="w-72 p-2">
+        <DictationUnavailable
+          label={t("dictation.unavailable")}
+          detail={t("dictation.notConfigured")}
+          action={{
+            label: t("dictation.openSettings"),
+            onClick: () => navigate("/settings/ai?tab=tasks"),
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  ) : micHidden ? undefined : (
+    <DictationButton
+      status={dictation.status}
+      onStart={() => void dictation.start()}
+    />
+  );
+
   return (
     <ChatComposer
       value={chat.draft}
@@ -607,33 +639,10 @@ function ComposerBar() {
       onStop={() => void chat.stream.stop()}
       placeholder={t("chat.composerPlaceholder")}
       toolbarStart={<CvAttachButton />}
-      toolbarEnd={
-        dictationUnavailable || micHidden ? undefined : (
-          <DictationButton
-            status={dictation.status}
-            onStart={() => void dictation.start()}
-          />
-        )
-      }
+      toolbarEnd={mic}
       suggestions={
-        noticeVisible ||
-        attachStripVisible ||
-        dictationStrip !== undefined ? (
+        attachStripVisible || dictationStrip !== undefined ? (
           <>
-            {noticeVisible ? (
-              <div className="w-full">
-                <DictationUnavailable
-                  label={t("dictation.unavailable")}
-                  detail={t("dictation.notConfigured")}
-                  action={{
-                    label: t("dictation.openSettings"),
-                    onClick: () => navigate("/settings/ai?tab=tasks"),
-                  }}
-                  onDismiss={dismissNotice}
-                  dismissLabel={t("dictation.dismiss")}
-                />
-              </div>
-            ) : null}
             {attachStripVisible ? <CvAttachChips /> : null}
             {dictationStrip}
           </>
@@ -727,7 +736,6 @@ function ChatSurface({
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const compact = variant === "bubble";
   const density: HitlDensity = variant === "page" ? "full" : "compact";
   return (
     <ChatPanel
@@ -749,7 +757,7 @@ function ChatSurface({
           )}
         </>
       }
-      transcript={<MessageList compact={compact} density={density} />}
+      transcript={<MessageList variant={variant} density={density} />}
       composer={<ComposerBar />}
     />
   );

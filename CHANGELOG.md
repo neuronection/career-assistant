@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat got the Airy refresh.** Assistant replies now read as prose beside a
+  small identity orb while your messages keep a soft tinted bubble; the
+  composer floats as an elevated card with a gradient send control, the empty
+  state is a glowing welcome hero with suggestion cards, and the page carries
+  one whisper of the AI accent. Action rows stay on-screen at every width
+  (including touch, where they are always visible). The unconfigured dictation
+  state is now a quiet muted mic whose popover explains how to assign a
+  speech-to-text model — no persistent notice competes with the draft.
+
 ### Added
 
 - **A verified ATS catalog imports in one click.** Tools → Sources →

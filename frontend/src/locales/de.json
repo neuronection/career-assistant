@@ -4351,15 +4351,16 @@
   "dictation": {
     "unavailable": "Diktat nicht verfügbar",
     "notConfigured": "Kein Spracherkennungsmodell zugewiesen.",
-    "openSettings": "KI-Einstellungen öffnen",
-    "dismiss": "Ausblenden"
+    "openSettings": "KI-Einstellungen öffnen"
   },
   "chat": {
     "openAiSettings": "Open AI Einstellungen",
     "retryLabel": "Wiederholen",
     "openInExplore": "Öffnen in Explore →",
     "cvEmptyBody": "Stelle Fragen zu diesem Lebenslauf — Ich kann ihn neu gestalten, umstrukturieren und umschreiben, und die generierte Vorschau überprüfen.",
+    "cvWelcomeTitle": "Was möchtest du an diesem Lebenslauf verbessern?",
     "emptyBody": "Stelle Fragen zu Karriere, Jobs oder Ausbildungswegen.",
+    "welcomeTitle": "Wie kann ich bei deiner Karriere helfen?",
     "composerPlaceholder": "Frage nach einem Job…",
     "toolsAria": "Verfügbare Tools",
     "branchesLabel": "Gesprächsverläufe",
