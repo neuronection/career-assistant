@@ -15,6 +15,16 @@ All notable changes to **Career Assistant** are documented here.
   auto-applies. A zip may no longer ship its own `.venv`: staging strips it and
   the managed spawn runs the host interpreter.
 
+### Fixed
+
+- **Extension installs and the auth-kit keys now survive a container
+  recreate.** The app's data dir (`career_data`: content-addressed installs,
+  retrieval data, the datastore marker) and config dir (`career_config`: the
+  key file) are named volumes at their existing paths — no `content_path`
+  moves — and the image pins uid `1000` so the volumes initialize as the app
+  user. The object-storage overlay keeps both (`!override` drops only uploads),
+  where `!reset []` would have stripped them silently.
+
 ### Added
 
 - **A verified ATS catalog imports in one click.** Tools → Sources →

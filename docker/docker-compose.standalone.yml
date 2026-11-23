@@ -101,6 +101,11 @@ services:
       CAREER_COOKIE_SECURE: ${CAREER_COOKIE_SECURE:-}
       CAREER_PUBLIC_URL: ${CAREER_PUBLIC_URL:-}
       CAREER_TLS: ${CAREER_TLS:-0}
+      # Explicit, stable host-local paths (the same defaults the app derives):
+      # they are mounted as named volumes above, so installs and the auth-kit
+      # keys survive a container recreate.
+      CAREER_DATA_DIR: /home/career/.local/share/CareerAssistant
+      CAREER_CONFIG_DIR: /home/career/.config/CareerAssistant
       # Per-purpose key family (identity-auth §8) — generate each with:
       #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
       CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
@@ -162,6 +167,11 @@ services:
     # No host ports: all traffic is routed via the nginx service.
     volumes:
       - uploads_data:/app/uploads
+      # Host-local state that must survive a recreate: extension installs and
+      # their content-addressed store, retrieval/vector data, the datastore
+      # marker — and, separately, the auth-kit key file.
+      - career_data:/home/career/.local/share/CareerAssistant
+      - career_config:/home/career/.config/CareerAssistant
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3); sys.exit(0 if r.status < 500 else 1)\""]
       interval: 30s
@@ -225,6 +235,8 @@ services:
 volumes:
   db_data:
   uploads_data:
+  career_data:
+  career_config:
 
 networks:
   career-assistant-network:

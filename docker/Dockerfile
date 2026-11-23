@@ -63,9 +63,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN chmod +x /usr/local/bin/entrypoint.sh \
-    && useradd --create-home --shell /usr/sbin/nologin career \
+    && useradd -u 1000 --create-home --shell /usr/sbin/nologin career \
     && mkdir -p /app/uploads /data \
-    && chown -R career:career /app /data
+      /home/career/.local/share/CareerAssistant \
+      /home/career/.config/CareerAssistant \
+    && chown -R career:career /app /data /home/career
 USER career
 
 EXPOSE 8100
