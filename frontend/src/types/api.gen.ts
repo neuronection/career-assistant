@@ -316,6 +316,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/extensions/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Extension Import Capabilities
+         * @description What this deployment can actually import (plan 132 follow-up): the
+         *     local-path and zip kinds are gated server-side, so the surface asks
+         *     first instead of offering controls that can only answer ``path-denied``;
+         *     ``git`` reports whether the import layer's CLI exists on this host.
+         */
+        get: operations["extension_import_capabilities_api_v1_admin_extensions_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/desired-state": {
         parameters: {
             query?: never;
@@ -15582,6 +15605,15 @@ export interface components {
             /** Target Mode */
             target_mode: boolean;
         };
+        /** ExtensionImportCapabilitiesOut */
+        ExtensionImportCapabilitiesOut: {
+            /** Git */
+            git: boolean;
+            /** Local */
+            local: boolean;
+            /** Zip */
+            zip: boolean;
+        };
         /** FavoriteSubject */
         FavoriteSubject: {
             /** Key */
@@ -23680,6 +23712,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extension_import_capabilities_api_v1_admin_extensions_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtensionImportCapabilitiesOut"];
                 };
             };
         };

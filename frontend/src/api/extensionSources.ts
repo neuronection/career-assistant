@@ -118,6 +118,20 @@ export type ExtensionSourceView = {
   installs: ExtensionInstallView[];
 };
 
+export type ExtensionImportCapabilities = {
+  /** The import layer's git CLI exists on this host. */
+  git: boolean;
+  /** Local-path sources are allowed (dev/test boot + allowlisted root). */
+  local: boolean;
+  /** Zip bundle import is allowed (dev/test boot only). */
+  zip: boolean;
+};
+
+export async function fetchExtensionImportCapabilities(): Promise<ExtensionImportCapabilities> {
+  const response = await api.get<ExtensionImportCapabilities>("/admin/extensions/capabilities");
+  return response.data;
+}
+
 export async function fetchExtensionSources(): Promise<ExtensionSourceView[]> {
   const response = await api.get<ExtensionSourceView[]>("/admin/extensions/sources");
   return response.data;

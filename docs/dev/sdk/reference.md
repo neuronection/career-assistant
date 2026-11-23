@@ -25,7 +25,7 @@ the data keys. A bare string on the wire is rejected by the schema.
 
 | Code | Meaning | Typical retryable |
 |---|---|---|
-| `not-ready` | the runtime isn't injected / the tier is admin-disabled (e.g. `mcp` not allowlisted) | `after-config-change` |
+| `not-ready` | the runtime isn't injected / the tier is admin-disabled (e.g. `mcp` not allowlisted) / the host lacks the `git` CLI the import layer shells out to | `after-config-change` |
 | `needs-secret` | a credentials-required source is missing a sealed slot value | `after-config-change` |
 | `invalid` | malformed data: bad rows, bad manifests, plaintext secrets in config, over-cap trees | `no` |
 | `unsupported` | the host doesn't do this: kind/tier not hosted, apiVersion too new, unknown RPC method, sandbox unavailable on frozen builds | `no` |
@@ -87,6 +87,7 @@ Under `/api/v1/admin` (admin auth):
 
 | Route | Effect |
 |---|---|
+| `GET /extensions/capabilities` | what this deployment can import (`{git, local, zip}`) — the UI's gate source |
 | `GET /extensions/sources` | sources with candidates + installs (secret-safe views) |
 | `POST /extensions/sources` | add a source (`{descriptor, secrets}`) |
 | `DELETE /extensions/sources/{id}` | remove; installs park |

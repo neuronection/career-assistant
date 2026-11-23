@@ -257,6 +257,8 @@ jobs:
         run: |
           cp docker/.env.production.example docker/.env
           docker compose -f docker/docker-compose.prod.yml config -q
+      - name: Image carries git (extension sources fetch at runtime)
+        run: docker run --rm --entrypoint git career-assistant:ci --version
       - name: Smoke test image (boot + /health)
         run: |
           docker network create smoke >/dev/null

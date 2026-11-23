@@ -11442,6 +11442,29 @@
         "title": "ExpressOut",
         "type": "object"
       },
+      "ExtensionImportCapabilitiesOut": {
+        "properties": {
+          "git": {
+            "title": "Git",
+            "type": "boolean"
+          },
+          "local": {
+            "title": "Local",
+            "type": "boolean"
+          },
+          "zip": {
+            "title": "Zip",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "git",
+          "local",
+          "zip"
+        ],
+        "title": "ExtensionImportCapabilitiesOut",
+        "type": "object"
+      },
       "FavoriteSubject": {
         "properties": {
           "key": {
@@ -32062,6 +32085,28 @@
           }
         },
         "summary": "Upsert Company Profile",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/extensions/capabilities": {
+      "get": {
+        "description": "What this deployment can actually import (plan 132 follow-up): the\nlocal-path and zip kinds are gated server-side, so the surface asks\nfirst instead of offering controls that can only answer ``path-denied``;\n``git`` reports whether the import layer's CLI exists on this host.",
+        "operationId": "extension_import_capabilities_api_v1_admin_extensions_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionImportCapabilitiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Extension Import Capabilities",
         "tags": [
           "admin"
         ]

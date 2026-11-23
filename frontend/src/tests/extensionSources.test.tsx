@@ -17,6 +17,7 @@ vi.mock("@/api/extensionSources", async (importOriginal) => {
   return {
     ...actual,
     fetchExtensionSources: vi.fn(),
+    fetchExtensionImportCapabilities: vi.fn(),
     addExtensionSource: vi.fn(),
     syncExtensionSource: vi.fn(),
     removeExtensionSource: vi.fn(),
@@ -141,6 +142,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchExtensionSources.mockResolvedValue([]);
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({ git: true, local: true, zip: true });
     mocked.fetchInstallPreview.mockResolvedValue(PREVIEW);
     mocked.fetchUpdatePreview.mockResolvedValue(PREVIEW);
     mockedSources.fetchAdminSources.mockResolvedValue([]);
@@ -152,6 +154,34 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     expect(screen.getByTestId("extension-sources-block")).toBeTruthy();
     expect(screen.getByTestId("integration-sources-empty")).toBeTruthy();
     expect(screen.getByTestId("add-extension-source")).toBeTruthy();
+    expect(await screen.findByTestId("import-bundle")).toBeTruthy();
+  });
+
+  it("hides zip import and pins the dialog to git on a production deployment", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: false,
+    });
+    renderSection();
+    await waitFor(() => expect(mocked.fetchExtensionImportCapabilities).toHaveBeenCalled());
+    expect(screen.queryByTestId("import-bundle")).toBeNull();
+    expect(screen.queryByTestId("import-bundle-input")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("add-extension-source"));
+    expect(await screen.findByTestId("integration-source-form")).toBeTruthy();
+    expect(screen.queryByTestId("integration-source-kind-chooser")).toBeNull();
+    expect(screen.queryByLabelText("Local repo path (dev/test only)")).toBeNull();
+  });
+
+  it("explains a host without git instead of letting every sync fail", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: false,
+      local: false,
+      zip: false,
+    });
+    renderSection();
+    expect(await screen.findByTestId("extension-git-unavailable")).toBeTruthy();
   });
 
   it("renders a candidate whose consent opens with the VERBATIM disclosure", async () => {

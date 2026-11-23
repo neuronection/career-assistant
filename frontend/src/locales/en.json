@@ -2617,6 +2617,8 @@
       "extSources": {
         "title": "Extension sources (git import)",
         "hint": "Import connectors from git sources — every install is digest-pinned and consent-gated; updates never auto-apply. Local file-path sources are dev/test only (allowlisted roots).",
+        "hintGitOnly": "Import connectors from https git sources — every install is digest-pinned and consent-gated; updates never auto-apply.",
+        "gitUnavailable": "Git is not available in this deployment, so sources cannot be fetched. Rebuild or upgrade the image (current images ship git).",
         "empty": "No extension sources added yet.",
         "add": "Install from Git",
         "url": "https git URL",

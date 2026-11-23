@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **The extension import surface only offers what the deployment allows.**
+  A production boot no longer shows **Import bundle (.zip)**, and the
+  add-source dialog skips the local-folder option: both are dev/test-only,
+  so the surface asks the new `GET /api/v1/admin/extensions/capabilities`
+  instead of letting the controls answer `path-denied`.
+
+### Fixed
+
+- **Extension sources work in the Docker image.** The serving image now
+  ships the `git` CLI the import layer shells out to (the build layered a
+  transient copy only for dependency sync and purged it), so an https git
+  source can be added, synced and installed in a compose deployment instead
+  of failing at fetch. A host still without git answers a typed `not-ready`
+  naming the remedy instead of a 500 — for git sources and zip staging
+  alike (a zip is staged as a synthetic git checkout, so the capabilities
+  probe stops offering it there too).
+
 ## [v0.19.0] - 2026-11-22
 
 ### Changed

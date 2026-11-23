@@ -20,8 +20,9 @@ Handy when the bundle lives on your machine instead of a remote: the
 pinned source, and runs the exact same flow — validate, consent,
 digest-pinned install. The zip is never executed directly, and "update"
 means uploading a new zip and consenting again (updates never apply on
-their own). Like local-path sources, zip import is a dev/test feature
-(production boots stay git-only). In the desktop shell the file dialog
+their own). Like local-path sources, zip import is a dev/test feature:
+production boots stay git-only and the control is not offered there. In
+the desktop shell, when the instance allows zip import, the file dialog
 is the native picker.
 
 ## Add a source

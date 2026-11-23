@@ -336,6 +336,28 @@ def validate_source_descriptor(doc: dict) -> SourceDescriptor:
 # ------------------------------------------------------------ git transport
 
 
+GIT_BINARIES = frozenset({"git", "git.exe"})
+
+
+def _git_spawn_error(exc: FileNotFoundError, cwd: Path | str | None) -> LifecycleError:
+    """Discriminate the two ENOENT shapes a git spawn can produce: the CLI
+    is absent (host config — typed `not-ready` with the remedy) versus the
+    working directory vanished (OS-level — typed `io`). CPython puts the
+    missing path in ``filename``: the program name when exec fails, the cwd
+    when the child's chdir fails."""
+    missing = str(exc.filename or "git")
+    if Path(missing).name in GIT_BINARIES:
+        return LifecycleError(
+            "not-ready",
+            "git is not installed in this deployment — extension sources shell out to "
+            "the git CLI (production images ship it; older images must be rebuilt)",
+        )
+    return LifecycleError(
+        "io",
+        f"git could not start in {cwd or 'the current directory'} — that directory is missing",
+    )
+
+
 @dataclass
 class ResolvedRef:
     ref: str  # the pin identity: tag NAME for tag strategies, the commit SHA otherwise
@@ -354,14 +376,17 @@ class GitTransport:
     ) -> str:
         from app.core.config import settings
 
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            *args,
-            cwd=str(cwd) if cwd else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                *args,
+                cwd=str(cwd) if cwd else None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        except FileNotFoundError as exc:
+            raise _git_spawn_error(exc, cwd) from exc
         try:
             out, err = await asyncio.wait_for(
                 proc.communicate(), timeout=settings.extension_fetch_timeout_seconds
@@ -1119,21 +1144,24 @@ def _init_staging_repo(root: Path) -> str:
     so the descriptor's schema-required ``ref`` is a real commit-pin."""
 
     def git(*args: str) -> str:
-        proc = subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=career-assistant",
-                "-c",
-                "user.email=noreply@career.local",
-                "-c",
-                "commit.gpgsign=false",
-                *args,
-            ],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-        )
+        try:
+            proc = subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=career-assistant",
+                    "-c",
+                    "user.email=noreply@career.local",
+                    "-c",
+                    "commit.gpgsign=false",
+                    *args,
+                ],
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            raise _git_spawn_error(exc, root) from exc
         if proc.returncode != 0:
             raise LifecycleError(
                 "not-ready", f"git failed while staging the bundle: {proc.stderr.strip()[:200]}"
@@ -1204,7 +1232,12 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
     if not any(hit.is_file() for hit in manifest_hits):
         shutil.rmtree(root, ignore_errors=True)
         raise LifecycleError("invalid", "no manifest.json in the bundle root (or one level down)")
-    sha = _init_staging_repo(root)
+    try:
+        sha = _init_staging_repo(root)
+    except LifecycleError:
+        # No orphan staged tree when the host cannot pin it (git missing).
+        shutil.rmtree(root, ignore_errors=True)
+        raise
     return root, sha
 
 

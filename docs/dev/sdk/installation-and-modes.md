@@ -77,6 +77,22 @@ configSchema unchanged). **Digest drift on a pinned ref** ⇒ loud
 failure: install flags `digest-drift`, the source degrades, pins stay
 untouched.
 
+### Runtime prerequisites
+
+The pipeline shells out to the **git CLI** (`GitTransport`), so the
+*serving* process needs `git` on `PATH` — not just the build. The shipped
+`docker/Dockerfile` installs it in the runtime stage (the dependency layer
+purges its transient copy after `uv sync`, which is why an older image can
+look healthy but fail every source), and CI asserts `git --version` in the
+built image. A host without it answers the typed `not-ready` ("git is not
+installed in this deployment") rather than crashing; rebuild/upgrade the
+image. The settings surface asks
+`GET /api/v1/admin/extensions/capabilities` (`git`/`local`/`zip`) and
+gates the zip and local-path kinds on what this deployment allows — a
+production boot hides those controls instead of letting them answer
+`path-denied`. The git kind is always offered; a host without the CLI
+shows the explicit warning instead.
+
 ## Where artifacts live
 
 ```

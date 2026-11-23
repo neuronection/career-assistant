@@ -1113,7 +1113,7 @@ async def test_reconcile_without_desired_state_is_a_noop(db):
 
 
 async def test_sources_ride_the_admin_api_surface(
-    db, client, auth_headers, local_roots, mcp_allowlist
+    db, client, auth_headers, local_roots, mcp_allowlist, monkeypatch
 ):
     """The settings-UI surface: add → sync → consent install (400 without
     consent) → enable → desired-state PUT validated → secret-safe list."""
@@ -1136,6 +1136,14 @@ async def test_sources_ride_the_admin_api_surface(
     assert listed.status_code == 200
     assert listed.json()[0]["origin"] == str(repo)
     assert listed.json()[0]["kind"] == "local"
+
+    import shutil
+
+    with monkeypatch.context() as patch:
+        patch.setattr(shutil, "which", lambda _name: "/usr/local/bin/git")
+        caps = await client.get("/api/v1/admin/extensions/capabilities", headers=auth_headers)
+    assert caps.status_code == 200, caps.text
+    assert caps.json() == {"git": True, "local": True, "zip": True}
 
     synced = await client.post(
         f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
@@ -1194,6 +1202,32 @@ async def test_sources_ride_the_admin_api_surface(
     assert doc.status_code == 200
     got = await client.get("/api/v1/admin/extensions/desired-state", headers=auth_headers)
     assert got.json() == {"schema": 1, "sources": [], "extensions": []}
+
+
+async def test_import_capabilities_follow_the_boot_gates(tmp_path, monkeypatch):
+    """The settings surface asks instead of offering controls that can only
+    answer `path-denied`: a production boot reports zip/local unavailable,
+    and a zip (staged as a git checkout) needs the CLI as well."""
+    import shutil
+
+    from app.api.v1.admin import extension_import_capabilities
+
+    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/local/bin/git")
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_local_source_roots", [str(tmp_path)])
+    caps = extension_import_capabilities()
+    assert caps.local is False
+    assert caps.zip is False
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    caps = extension_import_capabilities()
+    assert caps.local is True
+    assert caps.zip is True
+
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    caps = extension_import_capabilities()
+    assert caps.git is False
+    assert caps.zip is False
 
 
 # ------------------------------------------------- template-repo fidelity
@@ -1376,6 +1410,38 @@ async def test_value_requiring_strategies_reject_empty(
     assert "missing required property 'value'" in exc.value.detail
 
 
+async def test_missing_git_binary_is_a_typed_host_error(monkeypatch):
+    """A serving image without the git binary answers `not-ready` with the
+    remedy — never a FileNotFoundError bubbling out as a 500 (the Docker
+    runtime layer used to purge the very CLI the import layer shells out to)."""
+
+    async def no_git(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(lifecycle.asyncio, "create_subprocess_exec", no_git)
+    with pytest.raises(LifecycleError) as exc:
+        await GitTransport().resolve(
+            "https://git.example.com/example/ext-repo",
+            {"strategy": "branch", "value": "main"},
+        )
+    assert exc.value.code == "not-ready"
+    assert "git is not installed" in exc.value.detail
+
+
+async def test_missing_working_directory_is_io_not_a_missing_git(tmp_path, monkeypatch):
+    """The two ENOENT shapes are discriminated: a vanished cwd is an
+    OS-level `io` failure, never misreported as 'git is not installed'."""
+
+    async def no_cwd(*_args, cwd=None, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", str(cwd))
+
+    monkeypatch.setattr(lifecycle.asyncio, "create_subprocess_exec", no_cwd)
+    with pytest.raises(LifecycleError) as exc:
+        await GitTransport()._git(["--version"], cwd=tmp_path / "gone")
+    assert exc.value.code == "io"
+    assert "directory is missing" in exc.value.detail
+
+
 # ------------------------------------------------- zip bundle import (132)
 
 
@@ -1390,6 +1456,24 @@ def _bundle_zip() -> bytes:
         zf.writestr("docs/overview.md", "# overview\n")
         zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
     return buf.getvalue()
+
+
+async def test_zip_import_without_git_is_a_typed_host_error(tmp_path, monkeypatch):
+    """Staging a zip shells out to git for the synthetic commit: a gitless
+    host answers `not-ready` (and leaves no orphan tree), never a 500."""
+    from app.extensions.lifecycle import import_zip_bundle_sync_root
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+
+    def no_git(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(lifecycle.subprocess, "run", no_git)
+    with pytest.raises(LifecycleError) as exc:
+        import_zip_bundle_sync_root(_bundle_zip())
+    assert exc.value.code == "not-ready"
+    assert "git is not installed" in exc.value.detail
+    assert list((tmp_path / "extension-imports").glob("*")) == [], "no orphan staged tree"
 
 
 async def test_zip_upload_stages_and_runs_the_source_flow(

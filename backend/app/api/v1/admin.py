@@ -1332,6 +1332,32 @@ def _lifecycle_error(exc) -> HTTPException:
     return HTTPException(status_code, f"{exc.code}: {exc.detail}")
 
 
+class ExtensionImportCapabilitiesOut(BaseModel):
+    git: bool
+    local: bool
+    zip: bool
+
+
+@router.get("/extensions/capabilities", response_model=ExtensionImportCapabilitiesOut)
+def extension_import_capabilities() -> ExtensionImportCapabilitiesOut:
+    """What this deployment can actually import (plan 132 follow-up): the
+    local-path and zip kinds are gated server-side, so the surface asks
+    first instead of offering controls that can only answer ``path-denied``;
+    ``git`` reports whether the import layer's CLI exists on this host."""
+    import shutil
+
+    from app.core.config import settings
+    from app.extensions.lifecycle import local_sources_available
+
+    git_available = shutil.which("git") is not None
+    return ExtensionImportCapabilitiesOut(
+        git=git_available,
+        local=local_sources_available(),
+        # A zip is staged as a synthetic git checkout, so it needs the CLI too.
+        zip=settings.is_dev and git_available,
+    )
+
+
 @router.get("/extensions/sources", response_model=list[dict])
 async def extension_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Sources with their discovered candidates and installs (secret-safe:

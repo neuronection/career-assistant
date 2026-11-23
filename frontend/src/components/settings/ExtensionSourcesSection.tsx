@@ -173,6 +173,7 @@ export function ExtensionSourcesSection() {
   const [busy, setBusy] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [caps, setCaps] = useState<extApi.ExtensionImportCapabilities | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -185,6 +186,16 @@ export function ExtensionSourcesSection() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // plan 132: the zip and local-path kinds are gated server-side (a
+  // production boot answers `path-denied`), so the surface asks what this
+  // deployment allows instead of offering controls that can only fail.
+  useEffect(() => {
+    extApi
+      .fetchExtensionImportCapabilities()
+      .then(setCaps)
+      .catch(() => setCaps(null));
+  }, []);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -316,7 +327,11 @@ export function ExtensionSourcesSection() {
     <SettingsSectionCard
       name="extension-sources"
       title={t("toolsSettings.connectors.extSources.title")}
-      description={t("toolsSettings.connectors.extSources.hint")}
+      description={t(
+        caps?.local === false
+          ? "toolsSettings.connectors.extSources.hintGitOnly"
+          : "toolsSettings.connectors.extSources.hint",
+      )}
       adminOnly
     >
       <div className="space-y-3" data-testid="extension-sources-block">
@@ -404,25 +419,39 @@ export function ExtensionSourcesSection() {
         }
       />
 
+      {caps?.git === false && (
+        <p
+          role="alert"
+          className="text-sm text-[var(--as-danger)]"
+          data-testid="extension-git-unavailable"
+        >
+          {t("toolsSettings.connectors.extSources.gitUnavailable")}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={() => setAddOpen(true)} data-testid="add-extension-source">
           {t("toolsSettings.connectors.extSources.add")}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => bundleInputRef.current?.click()} data-testid="import-bundle">
-          {t("toolsSettings.connectors.extSources.importBundle")}
-        </Button>
-        <input
-          ref={bundleInputRef}
-          type="file"
-          accept=".zip,application/zip"
-          className="hidden"
-          data-testid="import-bundle-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (file) void importBundle(file);
-          }}
-        />
+        {caps?.zip && (
+          <>
+            <Button size="sm" variant="outline" onClick={() => bundleInputRef.current?.click()} data-testid="import-bundle">
+              {t("toolsSettings.connectors.extSources.importBundle")}
+            </Button>
+            <input
+              ref={bundleInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              data-testid="import-bundle-input"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void importBundle(file);
+              }}
+            />
+          </>
+        )}
       </div>
 
       <AddIntegrationSourceDialog
@@ -437,7 +466,15 @@ export function ExtensionSourcesSection() {
         onSubmit={(draft) => void (editTarget ? editSource(draft) : addSource(draft))}
         busy={busy}
         secretSlot="repo-token"
-        kind={editTarget ? (editTarget.kind === "local" ? "local" : "git") : "chooser"}
+        kind={
+          editTarget
+            ? editTarget.kind === "local"
+              ? "local"
+              : "git"
+            : caps?.local === false
+              ? "git"
+              : "chooser"
+        }
         initial={editTarget ? toDraft(editTarget) : undefined}
         labels={{
           title: editTarget
