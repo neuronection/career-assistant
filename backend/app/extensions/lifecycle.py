@@ -40,9 +40,13 @@ import fnmatch
 import hashlib
 import json
 import logging
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -265,13 +269,41 @@ def local_sources_available() -> bool:
     return settings.is_dev and bool(settings.extension_local_source_roots)
 
 
-def _check_local_root(path_str: str) -> Path:
+def mounted_sources_available() -> bool:
+    """The operator feeder's mounted kind (ADR-0071): an explicit policy (or a
+    dev boot) plus at least one allowlisted root. Fail-closed both ways."""
+    from app.core.config import settings
+
+    return bool(settings.extension_mounted_roots) and (
+        settings.is_dev or settings.extension_allow_feeder_imports
+    )
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _check_local_root(path_str: str, *, feeder: bool = False) -> Path:
     """net_guard-style path discipline for local sources: the repo root
     must RESOLVE under an allowlisted parent (symlinks followed, traversal
     collapsed — the comparison happens on resolved paths, never on input
-    text)."""
+    text).
+
+    ``feeder=True`` is passed only by the feeder writers (mounted import,
+    mounted refresh, zip import): it admits a path inside the app-owned
+    staging store in production, and only while the operator policy is on.
+    A hand-authored ``local`` descriptor never gets the exemption.
+    """
     from app.core.config import settings
 
+    resolved = Path(path_str).expanduser().resolve()
+    staging = imports_root()
+    if feeder and settings.extension_allow_feeder_imports and _is_under(resolved, staging):
+        return resolved
     if not settings.is_dev:
         raise LifecycleError(
             "path-denied",
@@ -279,14 +311,13 @@ def _check_local_root(path_str: str) -> Path:
             "(CAREER_APP_ENV=production) — fail-closed",
         )
     roots = [Path(root).expanduser().resolve() for root in settings.extension_local_source_roots]
-    roots.append(imports_root())
+    roots.append(staging)
     if not roots:
         raise LifecycleError(
             "path-denied",
             "local extension sources need an allowlisted root "
             "(CAREER_EXTENSION_LOCAL_SOURCE_ROOTS) — none configured, fail-closed",
         )
-    resolved = Path(path_str).expanduser().resolve()
     for root in roots:
         try:
             resolved.relative_to(root)
@@ -1180,9 +1211,168 @@ def _init_staging_repo(root: Path) -> str:
         return proc.stdout.strip()
 
     git("init", "--quiet", "--initial-branch", "main")
-    git("add", ".")
+    git("add", "--all", "--force", ".")
     git("commit", "--quiet", "--allow-empty", "-m", "bundle import")
     return git("rev-parse", "HEAD")
+
+
+def _sweep_stage_tmp(base: Path) -> None:
+    """Drop half-finished staging dirs (a crash or a killed copy leaves only
+    `.tmp-*`; a trusted content address is created exclusively by a rename)."""
+    cutoff = time.time() - 3600
+    for stale in base.glob(".tmp-*"):
+        try:
+            if stale.stat().st_mtime < cutoff:
+                shutil.rmtree(stale, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _staged_head(root: Path) -> str:
+    """The synthetic pin of a staged checkout; repairs an unborn HEAD once."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise _git_spawn_error(exc, root) from exc
+    if proc.returncode != 0:
+        raise LifecycleError("not-ready", "the staged checkout has no commit — re-stage the source")
+    return proc.stdout.strip()
+
+
+def _copy_mount_tree(src: Path, dest: Path) -> None:
+    """Copy a mounted bundle into a staging dir (ADR-0071).
+
+    Regular files only (`lstat`): symlinks — files or directories — and
+    special files are refused, hardlinks are copied (the copy severs the
+    alias), runtime junk and `.git` are skipped, the tree caps apply, a
+    manifest must exist at the root or one level down, and a post-copy
+    stability check turns a folder mutated mid-copy into a typed failure
+    instead of a spliced snapshot.
+    """
+    dest.mkdir(parents=True, exist_ok=False)
+    seen: list[tuple[Path, int, int]] = []
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(src, followlinks=False):
+        here = Path(dirpath)
+        dirnames[:] = [d for d in dirnames if d not in _RUNTIME_JUNK_DIRS and d != ".git"]
+        for name in dirnames:
+            if (here / name).is_symlink():
+                raise LifecycleError(
+                    "invalid", f"mounted source contains a symlinked directory: {here / name}"
+                )
+        for name in filenames:
+            path = here / name
+            st = path.lstat()
+            if stat.S_ISLNK(st.st_mode):
+                raise LifecycleError("invalid", f"mounted source contains a symlink: {path}")
+            if not stat.S_ISREG(st.st_mode):
+                raise LifecycleError(
+                    "invalid", f"mounted source contains a non-regular file: {path}"
+                )
+            if path.name.endswith(_RUNTIME_JUNK_SUFFIXES):
+                continue
+            total += st.st_size
+            if len(seen) + 1 > TREE_MAX_FILES or total > TREE_MAX_BYTES:
+                raise LifecycleError(
+                    "invalid",
+                    f"extension content exceeds caps ({len(seen) + 1} files / {total} bytes)",
+                )
+            rel = path.relative_to(src)
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(path.read_bytes())
+            seen.append((rel, st.st_size, st.st_mtime_ns))
+    hits = [dest / "manifest.json", *dest.glob("*/manifest.json")]
+    if not any(hit.is_file() for hit in hits):
+        raise LifecycleError(
+            "invalid", "no manifest.json in the mounted folder (root or one level down)"
+        )
+    for rel, size, mtime in seen:
+        try:
+            st = (src / rel).lstat()
+        except OSError as exc:
+            raise LifecycleError(
+                "invalid", "the mounted folder changed while it was staged — retry"
+            ) from exc
+        if st.st_size != size or st.st_mtime_ns != mtime:
+            raise LifecycleError(
+                "invalid", "the mounted folder changed while it was staged — retry"
+            )
+
+
+def _stage_mounted_tree(mount: str | Path, subpath: str = "") -> tuple[Path, str, str, Path]:
+    """Stage a mounted folder into the app-owned store and pin it.
+
+    Returns ``(staged_repo, commit_sha, mount_key, resolved_mount)``. The
+    stage is a snapshot: copy into ``.tmp-<uuid>``, digest it, initialize the
+    synthetic repository there, then rename into the content address — so a
+    trusted address only ever holds a complete tree (ADR-0071).
+    """
+    from app.core.config import settings
+
+    if not mounted_sources_available():
+        raise LifecycleError(
+            "path-denied",
+            "mounted sources need the operator feeder policy and an allowlisted "
+            "root (CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS + CAREER_EXTENSION_MOUNTED_ROOTS)",
+        )
+    try:
+        resolved = Path(mount).expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise LifecycleError("not-found", f"mounted folder does not exist: {mount}") from exc
+    if not resolved.is_dir():
+        raise LifecycleError("invalid", f"mounted source is not a directory: {resolved}")
+    roots = [Path(root).expanduser().resolve() for root in settings.extension_mounted_roots]
+    if not any(_is_under(resolved, root) for root in roots):
+        raise LifecycleError(
+            "path-denied",
+            f"mounted folder {resolved} is outside every allowlisted root "
+            "(CAREER_EXTENSION_MOUNTED_ROOTS) — refusing",
+        )
+    staging = imports_root()
+    if _is_under(staging, resolved) or _is_under(resolved, staging):
+        raise LifecycleError(
+            "invalid", "the mounted folder and the staging store must not contain each other"
+        )
+    key = hashlib.sha256(f"{resolved}\0{subpath or ''}".encode()).hexdigest()[:16]
+    base = staging / "mounted" / key
+    base.mkdir(parents=True, exist_ok=True)
+    _sweep_stage_tmp(base)
+    tmp = base / f".tmp-{uuid.uuid4().hex}"
+    try:
+        _copy_mount_tree(resolved, tmp)
+        digest = digest_tree(tmp)
+        final = base / digest
+        if len(str(final)) >= 512:
+            raise LifecycleError(
+                "invalid",
+                "the staged path exceeds the descriptor's 512-character limit — "
+                "shorten CAREER_DATA_DIR",
+            )
+        if final.exists():
+            if digest_tree(final) != digest:
+                raise LifecycleError(
+                    "invalid", "staged content at its address does not match its digest"
+                )
+            try:
+                sha = _staged_head(final)
+            except LifecycleError:
+                sha = _init_staging_repo(final)
+        else:
+            sha = _init_staging_repo(tmp)
+            os.replace(tmp, final)
+    except LifecycleError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except OSError as exc:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise LifecycleError("io", f"staging the mounted folder failed: {exc}") from exc
+    return final, sha, key, resolved
 
 
 def _validate_zip_entries(names: list[tuple[str, bool, bool]], total_size: int) -> None:
