@@ -20,6 +20,7 @@ from collections.abc import Callable
 
 import pytest
 from playwright.sync_api import APIResponse, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8111")
 API = f"{BASE_URL}/api/v1"
@@ -119,7 +120,20 @@ def open_chat_dock(page: Page):
     open the launcher, then choose the side panel in the view switcher."""
     dock = page.get_by_test_id("chat-dock")
     if not dock.is_visible():
-        page.get_by_role("button", name="Open chat assistant").click()
+        launcher = page.get_by_role("button", name="Open chat assistant")
+        launcher.wait_for(state="visible", timeout=20_000)
+        # The shell can replace the launcher node while the route's data
+        # settles (CV pages push a pending attachment right after
+        # navigation), so a locator click can lose its element mid-flight.
+        # Retry once, then click the fixed bottom-right coordinates — the
+        # launcher occupies the same spot whichever node is mounted.
+        try:
+            launcher.click(timeout=8_000)
+        except PlaywrightTimeoutError:
+            box = launcher.bounding_box()
+            if box is None:
+                raise
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.get_by_test_id("chat-view-docked").click(timeout=10_000)
     dock.wait_for(state="visible", timeout=20_000)
     return dock

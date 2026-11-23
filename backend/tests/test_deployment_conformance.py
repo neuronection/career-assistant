@@ -175,7 +175,9 @@ def test_compose_forwards_the_connector_allowlist():
         REPO_ROOT / "docker" / "docker-compose.standalone.yml",
     ):
         text = compose.read_text(encoding="utf-8")
-        assert "CAREER_CONNECTOR_PLUGINS_ALLOWLIST: ${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}" in text
+        assert (
+            "CAREER_CONNECTOR_PLUGINS_ALLOWLIST: ${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}" in text
+        )
 
 
 def test_compose_persists_host_local_state():
