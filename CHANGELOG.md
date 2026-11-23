@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.20.0] - 2026-11-24
+
 ### Added
 
 - **A production instance can enable a feeder for extension bundles.** With
