@@ -637,7 +637,7 @@
         "Imported extensions run out-of-process: sandboxed subprocess or external MCP script",
         "Installs are consent-gated and digest-pinned — they never auto-update",
         "MCP clients read your career data through a locally generated, rotatable token; writes ride approval cards",
-        "Bundles install from https git sources — or, with the operator feeder enabled, a zip upload or a mounted folder — the bundle's own settings form drives config, consent and pinning",
+        "Bundles install from https git, a zip upload or a mounted folder with the operator feeder; consent and pinning always apply",
         "A drifted page still yields minimal valid rows the deep-extraction pass structures — typed errors, never a crash"
       ],
       "links": [
