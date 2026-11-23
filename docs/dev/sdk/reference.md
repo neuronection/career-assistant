@@ -90,7 +90,7 @@ Under `/api/v1/admin` (admin auth):
 | `GET /extensions/capabilities` | what this deployment can import (`{git, local, zip, mounted, feeder}`) — the UI's gate source |
 | `GET /extensions/sources` | sources with candidates + installs (secret-safe views) |
 | `POST /extensions/sources` | add a source (`{descriptor, secrets}`) |
-| `POST /extensions/sources/mounted` | operator feeder (ADR-0071): `{path, subpath?}` — stages the folder, then add/refresh + sync |
+| `POST /extensions/sources/mounted` | operator feeder: `{path, subpath?}` — stages the folder, then add/refresh + sync |
 | `DELETE /extensions/sources/{id}` | remove; installs park |
 | `POST /extensions/sources/{id}/sync` | sync + update-check; a mounted source re-stages its folder first (Check = refresh) |
 | `POST /extensions/sources/{id}/install` | `{extension_id, consent}` — consent-gated install (201) |
@@ -167,7 +167,7 @@ Settings (env `CAREER_EXTENSION_SANDBOX_*`; defaults per the charter):
 | `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` | `[]` | admin opt-in: entry-point plugins + the `mcp` builtin (JSON list, e.g. `["mcp"]`) |
 | `CAREER_MARKET_DATA_PLUGINS_ALLOWLIST` | `[]` | admin opt-in for `career_assistant.market_data` entry-point providers (JSON list) — same opt-in rule as connectors, a separate registry |
 | `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS` | `[]` | allowlisted parents for dev/test `local` sources (JSON list) |
-| `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS` | `false` | operator feeder (ADR-0071): admit a mounted folder / bundle upload in production; must ride the compose `environment:` map |
+| `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS` | `false` | operator feeder: admit a mounted folder / bundle upload in production; must ride the compose `environment:` map |
 | `CAREER_EXTENSION_MOUNTED_ROOTS` | `[]` | allowlisted container paths a mounted source may come from (JSON list; a non-JSON value crash-loops the boot) |
 | `CAREER_EXTENSION_FETCH_TIMEOUT_SECONDS` | 60.0 | git subprocess timeout |
 | `CAREER_DATA_DIR` | platform default | where installs, artifacts and sealed stores live — `<data_dir>/extensions/…` |

@@ -22,7 +22,7 @@ manifest declares (`entry` + `mcp` ⇒ T3, `entry` ⇒ T2, no `entry` ⇒
 T0), never a caller claim — so no prose can talk a bundle up the
 ladder.
 
-## The operator feeder (ADR-0071)
+## The operator feeder
 
 A production host can accept extension bytes from a **mounted folder** or an
 **uploaded bundle** only when the operator enables it (default off) and the

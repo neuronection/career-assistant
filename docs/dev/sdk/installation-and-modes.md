@@ -93,11 +93,11 @@ production boot hides those controls instead of letting them answer
 `path-denied`. The git kind is always offered; a host without the CLI
 shows the explicit warning instead.
 
-### The operator feeder (ADR-0071)
+### The operator feeder
 
 A host may also accept **feeder** imports — a folder mounted into the
 container, or an uploaded bundle zip — when the operator explicitly enables
-them. This is a staging mechanism, never a live source (ADR-0071):
+them. This is a staging mechanism, never a live source:
 
 - **Policy, default off:** `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` plus an
   allowlist of container paths in `CAREER_EXTENSION_MOUNTED_ROOTS` (JSON list,
@@ -133,7 +133,7 @@ them. This is a staging mechanism, never a live source (ADR-0071):
   step answers `not-ready: the mcp connector is not allowlisted`.
 - **Contract:** the vendored schema bytes are unchanged; the
   `localSourceDescriptor` comment that says hosts must gate the local kind
-  off in production is **superseded for opted-in hosts** by ADR-0071 (the
+  off in production is **superseded for opted-in hosts** by the operator feeder (the
   next scheduled re-vendor corrects the text). The exemption is call-site
   scoped to the feeder writers — a hand-authored `local` descriptor never
   rides it.

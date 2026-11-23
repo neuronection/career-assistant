@@ -93,7 +93,7 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
   (and `.config/CareerAssistant`), then restore into the volumes:
   `docker run --rm -v "$PWD/data-backup:/from:ro" -v career-assistant_career_data:/to alpine sh -c 'cp -a /from/. /to/'`
   (same for `career-assistant_career_config`).
-- **Operator feeder (ADR-0071, off by default)**: `bash scripts/install.sh
+- **Operator feeder (off by default)**: `bash scripts/install.sh
   --integrations-dir /srv/career/integrations` (or the one-time prompt on a
   first install) writes `docker/docker-compose.integrations.yml` and the two
   `CAREER_EXTENSION_*` values, so a bundle zip or a mounted folder can be
