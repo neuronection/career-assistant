@@ -27,7 +27,7 @@ describe("streamChatMessage", () => {
 
   afterEach(() => {
     setActiveProfile(null);
-    document.cookie = "nx_csrf=; Max-Age=0; path=/";
+    document.cookie = "career_csrf=; Max-Age=0; path=/";
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -219,7 +219,7 @@ describe("streamChatMessage", () => {
   });
 
   it("rides the identity headers (CSRF echo, profile) on the POST", async () => {
-    document.cookie = "nx_csrf=csrf-token; path=/";
+    document.cookie = "career_csrf=csrf-token; path=/";
     const fetchMock = vi.fn().mockResolvedValue(sseResponse([event("done", { ok: true })]));
     vi.stubGlobal("fetch", fetchMock);
     await streamChatMessage("s1", "hi", {});

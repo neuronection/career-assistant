@@ -55,7 +55,7 @@ the tour below. For the exhaustive list of everything the app does, see the
 1. **Install** the desktop app from the
    [Releases](https://github.com/neuronection/career-assistant/releases)
    page, or run the self-hosted stack with Docker.
-2. **Connect an AI provider** in **Settings → AI Configuration** — any
+2. **Connect an AI provider** in **Settings → My AI Configuration** — any
    OpenAI-compatible endpoint (OpenAI, OpenRouter, or a local Ollama/LM
    Studio). The app starts unconfigured and AI features answer `503` until
    you do.

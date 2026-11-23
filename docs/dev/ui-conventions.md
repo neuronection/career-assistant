@@ -487,6 +487,22 @@ Every settings page composes from the app kit in `components/settings/`
   Administration) via each item's `sectionKey`; `settingsMap.test.ts`
   pins both the derivation and the contiguous runs. The library
   `SettingsShell` renders the labels (chip mode hides them).
+- **Scoped AI settings** (family decision record): `/settings/ai` is My
+  AI Configuration (user scope) and `/settings/ai-admin` is Instance AI
+  Configuration (`adminOnly`, system scope). Each page filters providers to its scope,
+  pins provider setup and the Tasks scope, and the personal Tasks tab
+  shows an inherited instance assignment rather than an "unassigned" row.
+
+## 2f-bis. Assistant surface + composer slots
+
+- Assistant surfaces are **user-invoked**: the assistant opens as the
+  floating launcher by default. The docked side panel is an explicit,
+  remembered choice; never make it the ambient default. The view switcher
+  (bubble ↔ dock ↔ page) keeps the session.
+- `ChatComposer.toolbarStart` / `toolbarEnd` are icon-scale slots. Prose
+  notices (the dictation-unavailable gate, errors) render full-width above
+  the input row (`suggestions` or the panel `banner`), never in a toolbar.
+  The textarea's library `min-w-32` floor is the last line of defence.
 
 ## 2g. The taxonomy listing pattern
 

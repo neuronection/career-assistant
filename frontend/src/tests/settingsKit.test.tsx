@@ -278,6 +278,26 @@ describe("SettingsShell glue (app)", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("renders every nav entry for a web admin", async () => {
+    desktopEnv.value = false;
+    useAuthStore.setState({
+      user: { id: "u1", email: "a@b.c", full_name: "A", is_admin: true } as never,
+    } as never);
+    const { container } = render(
+      <MemoryRouter initialEntries={["/settings/account"]}>
+        <Routes>
+          <Route path="/settings" element={<AppSettingsShell />}>
+            <Route path="account" element={<p>account body</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(
+      container.querySelectorAll('[data-as="settings-shell-navitem"]').length
+    ).toBe(11);
+    await expectNoA11yViolations(container);
+  });
+
   it("hides the web-only storage entry in the desktop shell", async () => {
     desktopEnv.value = true;
     useAuthStore.setState({
@@ -295,7 +315,7 @@ describe("SettingsShell glue (app)", () => {
     expect(screen.queryByText("Storage")).not.toBeInTheDocument();
     expect(
       container.querySelectorAll('[data-as="settings-shell-navitem"]').length
-    ).toBe(9);
+    ).toBe(10);
   });
 });
 

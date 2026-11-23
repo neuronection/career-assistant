@@ -7,6 +7,7 @@ import type { ChatStreamCallbacks } from "@/api/chatStream";
 import { ChatDock } from "@/features/chat/components/chat/ChatWidget";
 import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 import { useChatStore } from "@/stores/chatStore";
+import { useAuthStore } from "@/stores/authStore";
 import type { ConfigSummary, EffectiveAssignment } from "@/api/ai";
 
 const aiApi = vi.hoisted(() => ({
@@ -87,6 +88,8 @@ async function flush() {
 describe("composer dictation capability gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    useAuthStore.setState({ user: null });
     resetConfigSummaryCache();
     useChatStore.setState({
       sessions: [SESSION],
@@ -139,6 +142,83 @@ describe("composer dictation capability gate", () => {
       screen.getByText("No speech-to-text model is assigned."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Dictate" })).not.toBeInTheDocument();
+  });
+
+  it("renders the unavailable notice above the input row, not in a toolbar slot", async () => {
+    aiApi.fetchConfigSummary.mockResolvedValue(
+      summary([assignment("unconfigured")]),
+    );
+    mount();
+    const notice = await screen.findByRole("note");
+    expect(notice.closest('[data-as="chat-composer-row"]')).toBeNull();
+    expect(notice.closest('[data-as="chat-composer"]')).not.toBeNull();
+  });
+
+  it("dismisses the notice per user and keeps the mic absent", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@b.c", full_name: "A", is_active: true, is_admin: false },
+    });
+    aiApi.fetchConfigSummary.mockResolvedValue(
+      summary([assignment("unconfigured")]),
+    );
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByText("Dictation unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dictate" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("ca:chat:dictation-dismissed:user-a")).toBe("1");
+  });
+
+  it("keeps dismissals isolated between users", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@b.c", full_name: "A", is_active: true, is_admin: false },
+    });
+    aiApi.fetchConfigSummary.mockResolvedValue(
+      summary([assignment("unconfigured")]),
+    );
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+    expect(localStorage.getItem("ca:chat:dictation-dismissed:user-a")).toBe("1");
+
+    act(() => {
+      useAuthStore.setState({
+        user: { id: "user-b", email: "b@b.c", full_name: "B", is_active: true, is_admin: false },
+      });
+    });
+    expect(await screen.findByRole("note")).toBeInTheDocument();
+    expect(localStorage.getItem("ca:chat:dictation-dismissed:user-b")).toBeNull();
+  });
+
+  it("does not persist a dismissal before the user resolves", async () => {
+    useAuthStore.setState({ user: null });
+    aiApi.fetchConfigSummary.mockResolvedValue(
+      summary([assignment("unconfigured")]),
+    );
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByRole("button", { name: "Dismiss" }));
+    expect(
+      Object.keys(localStorage).some((key) =>
+        key.startsWith("ca:chat:dictation-dismissed")
+      )
+    ).toBe(false);
+  });
+
+  it("clears a stored dismissal once the transcribe task is configured", async () => {
+    useAuthStore.setState({
+      user: { id: "user-a", email: "a@b.c", full_name: "A", is_active: true, is_admin: false },
+    });
+    localStorage.setItem("ca:chat:dictation-dismissed:user-a", "1");
+    aiApi.fetchConfigSummary.mockResolvedValue(summary([assignment("user")]));
+    mount();
+    await flush();
+
+    await waitFor(() => {
+      expect(localStorage.getItem("ca:chat:dictation-dismissed:user-a")).toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Dictate" })).toBeInTheDocument();
   });
 
   it("swaps back to the mic after a settings reset reports a configured task", async () => {

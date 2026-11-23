@@ -161,8 +161,15 @@ The preset gallery grows beyond the bundled presets by layering
 **catalogs** — JSON documents of curated sources (and provider
 connection hints) that anyone can publish:
 
-- **From a URL** — an operator or community catalog (for example a
-  `catalog.json` in a GitHub repository). Fetching happens in your
+- **The verified catalog tile** — **Neuronection verified — Greece**
+  (17 Greek employer tenants on direct Recruitee, Teamtailor and
+  Workable feeds) sits above the manual form. One click imports it as an
+  `operator` catalog from
+  `https://neuronection.com/api/v1/career/ats-catalogs/greece.json`.
+  Nothing is fetched until you click, and the tile then shows the stored
+  **revision** and truncated **content hash** beside **Refresh**.
+- **From a URL** — any other operator or community catalog (for example
+  a `catalog.json` in a GitHub repository). Fetching happens in your
   browser, so the catalog host must send CORS headers.
 - **From a file** — upload your own catalog JSON; nothing leaves your
   machine.
@@ -174,11 +181,14 @@ each entry carries a **provenance tier** shown on every preset card:
 `user` (your own file). If a catalog entry and a bundled preset share a
 slug, the imported one wins.
 
-**Refresh** re-checks a catalog with a conditional request — a 304
-means you already have the latest; otherwise the report tells you
-exactly what changed (`revision 5 → 7, 12 presets changed`). Refreshing
-only updates the gallery; it never creates or removes sources. Provider
-entries open the custom-source wizard with the connector prefilled.
+**Refresh** re-checks a catalog — where the host supports HTTP
+validators a 304 means you already have the latest; otherwise the
+report tells you exactly what changed (`revision 5 → 7, 12 presets
+changed`). Every
+import and refresh also reports the document's revision and content
+hash, and catalog rows keep both visible. Refreshing only updates the
+gallery; it never creates or removes sources. Provider entries open the
+custom-source wizard with the connector prefilled.
 
 ## Related
 

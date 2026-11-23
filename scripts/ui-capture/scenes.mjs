@@ -56,7 +56,7 @@ export const scenes = [
   {
     name: "dashboard",
     group: "Overview",
-    caption: "Dashboard — career state at a glance with the docked chat.",
+    caption: "Dashboard — career state at a glance with the assistant launcher.",
     narration: "The dashboard shows your top matches, fresh postings and applications — with the assistant always one click away.",
     path: "/",
     viewports: ["desktop"],

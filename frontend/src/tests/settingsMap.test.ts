@@ -30,6 +30,7 @@ const map = JSON.parse(
         id: string;
         group: string;
         admin?: boolean;
+        scope?: string;
         sections?: { id: string; domains: string[]; status?: string }[];
       }[];
     }
@@ -79,6 +80,14 @@ describe("settings-map contract", () => {
 
   it("the declared ai tab sections match the app's AI tabs", () => {
     expect(declaredSections("ai")).toEqual([...AI_TABS]);
+  });
+
+  it("the declared instance AI tab declares the same ai sections", () => {
+    expect(declaredSections("ai-admin")).toEqual([...AI_TABS]);
+    const adminTab = declared.find((tab) => tab.id === "ai-admin");
+    expect(adminTab?.scope).toBe("system");
+    expect(Boolean(adminTab?.admin)).toBe(true);
+    expect(declared.find((tab) => tab.id === "ai")?.scope).toBe("user");
   });
 
   it("the declared tools tab sections match the app's tools sections", () => {

@@ -528,7 +528,7 @@ describe("ChatWidget (library surface)", () => {
   });
 });
 
-describe("opt-in bubble launcher (plan 75)", () => {
+describe("default bubble launcher (plan 215)", () => {
   beforeEach(() => {
     localStorage.clear();
     useChatStore.setState({
@@ -536,15 +536,26 @@ describe("opt-in bubble launcher (plan 75)", () => {
       activeSessionId: null,
       messages: [],
       chatMode: "docked",
+      chatModeChosen: false,
     });
   });
 
-  it("does not render the launcher in docked mode (the default)", () => {
+  it("defaults to the closed bubble launcher when no surface was chosen", () => {
+    localStorage.clear();
+    useChatStore.getState().reset();
+    expect(useChatStore.getState().chatMode).toBe("bubble");
+    expect(useChatStore.getState().chatModeChosen).toBe(false);
+    renderWidget();
+    expect(screen.getByRole("button", { name: "Open chat assistant" })).toBeInTheDocument();
+  });
+
+  it("does not render the launcher when the user explicitly chose the dock", () => {
+    useChatStore.getState().setChatMode("docked");
     renderWidget();
     expect(screen.queryByRole("button", { name: "Open chat assistant" })).not.toBeInTheDocument();
   });
 
-  it("renders the launcher only after the user opts into bubble mode", () => {
+  it("renders the launcher after the user switches to bubble mode", () => {
     useChatStore.getState().setChatMode("bubble");
     renderWidget();
     expect(screen.getByRole("button", { name: "Open chat assistant" })).toBeInTheDocument();
