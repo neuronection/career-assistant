@@ -55,13 +55,23 @@ to the builder copilot on build intent. The copilot:
 
 See [CV Studio overview](cv-studio.md) for the workspace it operates.
 
+## Opening the assistant
+
+The assistant opens as a **floating launcher** (bottom-right); the side panel
+is an explicit choice from the view switcher and is remembered once you pick
+it. No page opens with a docked panel taking width by default. `/chat` is the
+full-page surface, and the same conversation moves between the launcher, the
+side panel and the page.
+
 ## Dictation
 
 The composer's mic turns speech into draft text. It appears unless the
 effective `transcribe` assignment is explicitly unconfigured; in that case
-the composer shows **Dictation unavailable** with a direct link to
-Settings → AI → Tasks. If the configuration cannot be read, the mic stays
-visible rather than locking the feature out on a guess.
+the composer shows a full-width **Dictation unavailable** notice above the
+input with a direct link to Settings → AI → Tasks. The notice can be
+dismissed and stays dismissed for that user until the assignment is
+configured again. If the configuration cannot be read, the mic stays visible
+rather than locking the feature out on a guess.
 
 ## Postings in chat
 

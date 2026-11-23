@@ -185,13 +185,19 @@ function SuccessDefaults({
   provider,
   result,
   scope,
+  onContinueToTasks,
+  onOpenModels,
+  onClose,
 }: {
   provider: AIProvider;
   result: ProviderSetupResult;
   scope: "user" | "system";
+  onContinueToTasks?: () => void;
+  onOpenModels?: () => void;
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const [models, setModels] = useState<aiApi.ProviderModelInfo[]>([]);
+  const [models, setModels] = useState<aiApi.ProviderModelInfo[] | null>(null);
   const [assignments, setAssignments] = useState<aiApi.StoredAssignment[]>([]);
   const [error, setError] = useState("");
 
@@ -210,18 +216,18 @@ function SuccessDefaults({
     {
       id: provider.id,
       name: provider.name,
-      models: models.map((model) => ({
+      models: (models ?? []).map((model) => ({
         id: model.id,
         name: model.name || model.model_name,
         capabilities: model.caps ?? [],
       })),
     },
   ];
-  const externalToId = new Map(models.map((model) => [model.model_name, model.id]));
+  const externalToId = new Map((models ?? []).map((model) => [model.model_name, model.id]));
   const assignmentFor = (taskType: string) =>
     assignments.find((a) => a.task_type === taskType && a.is_active);
 
-  const decisionModels = models.filter(
+  const decisionModels = (models ?? []).filter(
     (model) => Boolean(model.decision_transport) || (model.caps ?? []).includes("decision")
   );
   const decisionCatalog: ModelPickerProvider[] =
@@ -256,7 +262,7 @@ function SuccessDefaults({
     return assignmentFor(taskType)?.model_id ?? "";
   };
 
-  const hasCap = (cap: string) => models.some((model) => (model.caps ?? []).includes(cap));
+  const hasCap = (cap: string) => (models ?? []).some((model) => (model.caps ?? []).includes(cap));
   const rows = [
     { taskType: "text", labelKey: "aiSettings.setup.slot.chat", assigned: result.assigned_chat_model },
     ...(hasCap("vision")
@@ -277,6 +283,15 @@ function SuccessDefaults({
           },
         ]
       : []),
+    ...(hasCap("embeddings") || result.assigned_embeddings_model
+      ? [
+          {
+            taskType: "embeddings",
+            labelKey: "aiSettings.setup.slot.embeddings",
+            assigned: result.assigned_embeddings_model ?? null,
+          },
+        ]
+      : []),
   ];
   const decisionRows = decisionModels.length > 0
     ? [
@@ -288,13 +303,50 @@ function SuccessDefaults({
       ]
     : [];
 
+  const finishActions = (
+    <div className="flex flex-wrap justify-end gap-2 pt-1">
+      {onClose ? (
+        <Button size="sm" variant="outline" onClick={onClose}>
+          {t("common.close")}
+        </Button>
+      ) : null}
+      <Button size="sm" disabled={!onContinueToTasks} onClick={onContinueToTasks}>
+        {t("aiSettings.setup.continueToTasks")}
+      </Button>
+    </div>
+  );
+
+  if (models === null) return null;
+
   if (models.length === 0) {
-    return <p className="text-xs text-slate-500">{t("aiSettings.setup.noDefaults")}</p>;
+    return (
+      <div
+        className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3"
+        data-testid="setup-assign-models"
+      >
+        <h3 className="text-sm font-semibold">{t("aiSettings.setup.assignModelsTitle")}</h3>
+        <p className="text-xs text-slate-600">{t("aiSettings.setup.assignModelsHint")}</p>
+        {onOpenModels ? (
+          <Button size="sm" variant="outline" onClick={onOpenModels}>
+            {t("aiSettings.setup.openModels")}
+          </Button>
+        ) : null}
+        <p className="text-xs text-slate-500">{t("aiSettings.setup.advancedHandoff")}</p>
+        {finishActions}
+      </div>
+    );
   }
+
+  const hasDefault =
+    rows.some((row) => Boolean(slotValue(row.taskType, row.assigned))) ||
+    decisionRows.some((row) => Boolean(slotValue(row.taskType, row.assigned)));
 
   return (
     <div className="space-y-2 rounded-md border border-slate-200 p-3">
       <h3 className="text-sm font-semibold">{t("aiSettings.tasks.defaultModelsTitle")}</h3>
+      {!hasDefault ? (
+        <p className="text-xs text-amber-600">{t("aiSettings.setup.assignModelsHint")}</p>
+      ) : null}
       {rows.map((row) => (
         <ModelPicker
           key={row.taskType}
@@ -320,6 +372,8 @@ function SuccessDefaults({
         />
       ))}
       {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      <p className="text-xs text-slate-500">{t("aiSettings.setup.advancedHandoff")}</p>
+      {finishActions}
     </div>
   );
 }
@@ -328,10 +382,16 @@ function SuccessPanel({
   result,
   presetName,
   scope,
+  onContinueToTasks,
+  onOpenModels,
+  onClose,
 }: {
   result: ProviderSetupResult;
   presetName: string;
   scope: "user" | "system";
+  onContinueToTasks?: () => void;
+  onOpenModels?: () => void;
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -346,13 +406,24 @@ function SuccessPanel({
       {result.curated_missed ? (
         <p className="text-xs text-amber-600">{t("aiSettings.setup.curatedMissed")}</p>
       ) : null}
-      <SuccessDefaults provider={result.provider} result={result} scope={scope} />
+      <SuccessDefaults
+        provider={result.provider}
+        result={result}
+        scope={scope}
+        onContinueToTasks={onContinueToTasks}
+        onOpenModels={onOpenModels}
+        onClose={onClose}
+      />
     </div>
   );
 }
 
 export interface ProviderSetupWizardProps {
   canUseSystemScope: boolean;
+  /** Scope a scoped settings page pins for the setup flow. */
+  initialScope?: "user" | "system";
+  /** Hide the scope picker and submit only `initialScope`. */
+  lockScope?: boolean;
   configuredKeys: string[];
   /** `modal` keeps the dialog chrome; `page` lets a route own the frame. */
   frame: "modal" | "page";
@@ -362,6 +433,10 @@ export interface ProviderSetupWizardProps {
   onSaved: () => void;
   /** Page frame: the review applied — the host continues to its next step. */
   onConfigured?: (result: ProviderSetupResult) => void;
+  /** Finish: close the wizard and open the same scope's task assignments. */
+  onContinueToTasks?: () => void;
+  /** Finish: open the scope's Models surface (the model ask found none). */
+  onOpenModels?: () => void;
 }
 
 /** One-click §15 setup as a reusable flow: preset tiles → guided form →
@@ -371,12 +446,16 @@ export interface ProviderSetupWizardProps {
  * app's provider form instead of an in-flow form. */
 export function ProviderSetupWizard({
   canUseSystemScope,
+  initialScope,
+  lockScope = false,
   configuredKeys,
   frame,
   onManual,
   onClose,
   onSaved,
   onConfigured,
+  onContinueToTasks,
+  onOpenModels,
 }: ProviderSetupWizardProps) {
   const { t } = useTranslation();
   const [presets, setPresets] = useState<Record<string, ProviderPreset>>({});
@@ -387,12 +466,13 @@ export function ProviderSetupWizard({
   const [advancedBase, setAdvancedBase] = useState("");
   const [isLocal, setIsLocal] = useState(false);
   const [country, setCountry] = useState("");
-  const [scope, setScope] = useState<"user" | "system">("user");
+  const [scope, setScope] = useState<"user" | "system">(initialScope ?? "user");
   const [error, setError] = useState<aiApi.ProviderSetupErrorDetail | null>(null);
   const [plainError, setPlainError] = useState<string | null>(null);
   const [result, setResult] = useState<ProviderSetupResult | null>(null);
   const [resultName, setResultName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bindEmbeddings, setBindEmbeddings] = useState(true);
   const [reviewOptions, setReviewOptions] = useState<SetupReviewOptions>({
     curatedIds: [],
     bindChat: true,
@@ -405,6 +485,10 @@ export function ProviderSetupWizard({
   const [applyPlainError, setApplyPlainError] = useState<string | null>(null);
   const [liveAssignments, setLiveAssignments] = useState<aiApi.StoredAssignment[]>([]);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (initialScope) setScope(initialScope);
+  }, [initialScope]);
 
   useEffect(() => {
     if (phase !== "review" || result === null) return;
@@ -487,6 +571,7 @@ export function ProviderSetupWizard({
           assigned_chat_model: null,
           assigned_vision_model: null,
           assigned_stt_model: null,
+          assigned_embeddings_model: null,
           assigned_decision_slots: null,
         };
       } else {
@@ -498,6 +583,7 @@ export function ProviderSetupWizard({
             bind_chat: false,
             bind_vision: false,
             bind_stt: false,
+            bind_embeddings: false,
             bind_decision: false,
           },
         });
@@ -545,6 +631,7 @@ export function ProviderSetupWizard({
           bind_chat: reviewOptions.bindChat,
           bind_vision: reviewOptions.bindVision,
           bind_stt: reviewOptions.bindStt,
+          bind_embeddings: bindEmbeddings,
           bind_decision: reviewOptions.bindDecision && decisionDeclared,
         },
       });
@@ -576,6 +663,7 @@ export function ProviderSetupWizard({
     const wizardSteps = [
       { id: "connect", label: t("aiSettings.setup.step.connect") },
       { id: "defaults", label: t("aiSettings.setup.step.defaults") },
+      { id: "tasks", label: t("aiSettings.setup.step.tasks") },
     ];
     const selectedCurated = (preset.curated_models ?? []).filter((id) =>
       reviewOptions.curatedIds.includes(id)
@@ -636,6 +724,18 @@ export function ProviderSetupWizard({
                     bind: reviewOptions.bindStt,
                     set: (next: boolean) =>
                       setReviewOptions((current) => ({ ...current, bindStt: next })),
+                  },
+                ]
+              : []),
+            ...(preset.embeddings_model
+              ? [
+                  {
+                    id: "embeddings",
+                    label: t("aiSettings.setup.slot.embeddings"),
+                    sub: fillsLabel(preset.embeddings_model, "embeddings"),
+                    candidate: preset.embeddings_model,
+                    bind: bindEmbeddings,
+                    set: setBindEmbeddings,
                   },
                 ]
               : []),
@@ -717,12 +817,23 @@ export function ProviderSetupWizard({
     description = t("aiSettings.setup.hint");
     body = (
       <>
-        <SuccessPanel result={result} presetName={resultName} scope={scope} />
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" onClick={onClose}>
-            {t("common.close")}
-          </Button>
-        </div>
+        <SetupSteps
+          steps={[
+            { id: "connect", label: t("aiSettings.setup.step.connect") },
+            { id: "defaults", label: t("aiSettings.setup.step.defaults") },
+            { id: "tasks", label: t("aiSettings.setup.step.tasks") },
+          ]}
+          current={2}
+          label={t("aiSettings.setup.step.progress")}
+        />
+        <SuccessPanel
+          result={result}
+          presetName={resultName}
+          scope={scope}
+          onContinueToTasks={onContinueToTasks}
+          onOpenModels={onOpenModels}
+          onClose={onClose}
+        />
       </>
     );
   } else {
@@ -735,6 +846,7 @@ export function ProviderSetupWizard({
           steps={[
             { id: "connect", label: t("aiSettings.setup.step.connect") },
             { id: "defaults", label: t("aiSettings.setup.step.defaults") },
+            { id: "tasks", label: t("aiSettings.setup.step.tasks") },
           ]}
           current={0}
           label={t("aiSettings.setup.step.progress")}
@@ -795,7 +907,9 @@ export function ProviderSetupWizard({
               <>
                 <HostingToggle local={isLocal} onChange={setIsLocal} disabled={preset.local} />
                 <CountrySelect country={country} onChange={setCountry} />
-                {canUseSystemScope && <ScopeSelect scope={scope} onChange={setScope} />}
+                {canUseSystemScope && !lockScope && (
+                  <ScopeSelect scope={scope} onChange={setScope} />
+                )}
               </>
             }
             copyLabel={t("common.copy")}
@@ -814,6 +928,10 @@ export function ProviderSetupWizard({
         ) : null}
       </>
     );
+  }
+
+  if (lockScope && initialScope === undefined) {
+    throw new Error("ProviderSetupWizard: lockScope requires initialScope");
   }
 
   if (frame === "page") {

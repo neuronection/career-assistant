@@ -22,9 +22,9 @@ _Sign-in screen — cookie-session auth with CSRF double-submit._
 
 ### dashboard
 
-_Dashboard — career state at a glance with the docked chat._
+_Dashboard — career state at a glance with the assistant launcher._
 
-![dashboard — Dashboard — career state at a glance with the docked chat.](images/dashboard-desktop.png)
+![dashboard — Dashboard — career state at a glance with the assistant launcher.](images/dashboard-desktop.png)
 
 ### onboarding
 

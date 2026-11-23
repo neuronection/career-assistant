@@ -79,6 +79,9 @@ def test_tasks_tab_decision_group_renders(page) -> None:
     page.wait_for_selector('[data-testid="tasks-tab"]')
     tab = page.locator('[data-testid="tasks-tab"]')
 
+    # Per-task overrides (the Decision kinds group) live under the collapsed
+    # Advanced disclosure (plan 72): open it explicitly first.
+    tab.get_by_text("Advanced — per-task overrides", exact=True).click()
     # The quiet "Decision kinds" group (retitled by the ADR-0037 uniform
     # shape): the verbatim decision privacy notice rides as the group
     # hint, and all four family slots render

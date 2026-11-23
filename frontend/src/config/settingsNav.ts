@@ -8,6 +8,7 @@ import {
   HardDrive,
   ListTree,
   ScrollText,
+  ShieldCheck,
   Users,
   Wrench,
 } from "lucide-react";
@@ -50,6 +51,14 @@ export const settingsNav: SettingsNavItem[] = [
     icon: Cpu,
     labelKey: "settingsNav.ai.label",
     descriptionKey: "settingsNav.ai.description",
+    sectionKey: "aiTools",
+  },
+  {
+    to: "/settings/ai-admin",
+    icon: ShieldCheck,
+    labelKey: "settingsNav.aiAdmin.label",
+    descriptionKey: "settingsNav.aiAdmin.description",
+    adminOnly: true,
     sectionKey: "aiTools",
   },
   {

@@ -156,10 +156,12 @@ marker and boot with a loud warning at serve time.
 2. **Load the starter catalog** (optional, recommended):
    `./scripts/seed.sh` against the compose database (see *Bare metal access*
    below), or leave it empty and generate everything with AI.
-3. **Configure AI** — Settings → AI Configuration. A fresh production install
-   starts unconfigured: AI endpoints answer `503` until an admin adds a
-   provider (OpenAI, OpenRouter, or a local Ollama/LM Studio via an
-   OpenAI-compatible base URL). There are deliberately no `AI_*` env vars.
+3. **Configure AI** — Settings → Instance AI Configuration (admin) or My AI
+   Configuration (personal). A fresh production install starts unconfigured:
+   AI endpoints answer `503` until the caller's personal provider or an
+   instance provider is configured (OpenAI, OpenRouter, or a local
+   Ollama/LM Studio via an OpenAI-compatible base URL). There are deliberately
+   no `AI_*` env vars.
 4. Onboard your profile and start exploring.
 
 ### Configuration reference (docker/.env)

@@ -88,15 +88,15 @@ def e2e_session_cookies() -> list[dict]:
                 "name": name.strip(),
                 "value": value,
                 "domain": "127.0.0.1",
-                "path": "/api/v1/auth" if name.strip() == "nx_refresh" else "/",
-                "httpOnly": name.strip() != "nx_csrf",
+                "path": "/api/v1/auth" if name.strip() == "career_refresh" else "/",
+                "httpOnly": name.strip() != "career_csrf",
                 "secure": False,
                 "sameSite": "Lax",
             }
         )
     cookies.append(
         {
-            "name": "nx_csrf",
+            "name": "career_csrf",
             "value": E2E_CSRF,
             "domain": "127.0.0.1",
             "path": "/",
@@ -111,6 +111,18 @@ def e2e_session_cookies() -> list[dict]:
 #: The e2e user's Default profile id (identity-auth §6/§15) — resolved
 #: once from `GET /profiles`; every raw API call must scope to it.
 _E2E_PROFILE_ID: str | None = None
+
+
+def open_chat_dock(page: Page):
+    """Open the docked chat surface (ADR/plan 75 default is now the closed
+    floating launcher). E2E specs that exercise the dock opt in explicitly:
+    open the launcher, then choose the side panel in the view switcher."""
+    dock = page.get_by_test_id("chat-dock")
+    if not dock.is_visible():
+        page.get_by_role("button", name="Open chat assistant").click()
+        page.get_by_test_id("chat-view-docked").click(timeout=10_000)
+    dock.wait_for(state="visible", timeout=20_000)
+    return dock
 
 
 def api_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
