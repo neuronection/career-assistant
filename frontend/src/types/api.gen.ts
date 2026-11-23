@@ -316,6 +316,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/extensions/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Extension Import Capabilities
+         * @description What this deployment can actually import (plan 132 follow-up): the
+         *     local-path and zip kinds are gated server-side, so the surface asks
+         *     first instead of offering controls that can only answer ``path-denied``;
+         *     ``git`` reports whether the import layer's CLI exists on this host.
+         */
+        get: operations["extension_import_capabilities_api_v1_admin_extensions_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/desired-state": {
         parameters: {
             query?: never;
@@ -497,6 +520,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/extensions/sources/mounted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Mounted Extension Source
+         * @description Mount feeder (ADR-0071): stage the operator's folder, then the normal
+         *     add/update + sync flow. One row per ``(resolved folder, subpath)``; a
+         *     second import refreshes it. The production exemption is call-site scoped
+         *     to this endpoint and the mounted refresh.
+         */
+        post: operations["import_mounted_extension_source_api_v1_admin_extensions_sources_mounted_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/sources/upload": {
         parameters: {
             query?: never;
@@ -542,6 +588,9 @@ export interface paths {
          * Update Extension Source
          * @description Replace a source's descriptor (the edit flow) — validated exactly
          *     like an add; the next sync re-resolves and reports drift normally.
+         *
+         *     A mounted source is refreshed from its folder, not edited: its descriptor
+         *     points at app-staged content, so a hand edit would be meaningless.
          */
         patch: operations["update_extension_source_api_v1_admin_extensions_sources__source_id__patch"];
         trace?: never;
@@ -607,6 +656,9 @@ export interface paths {
          * Sync Extension Source
          * @description Fetch + discover + validate + update-check. A failed fetch leaves
          *     pins untouched and marks the source failing (typed error body).
+         *
+         *     For a mounted source this is also the refresh: the endpoint re-stages the
+         *     recorded folder first, then syncs (``sync_source`` itself never stages).
          */
         post: operations["sync_extension_source_api_v1_admin_extensions_sources__source_id__sync_post"];
         delete?: never;
@@ -15582,6 +15634,19 @@ export interface components {
             /** Target Mode */
             target_mode: boolean;
         };
+        /** ExtensionImportCapabilitiesOut */
+        ExtensionImportCapabilitiesOut: {
+            /** Feeder */
+            feeder: boolean;
+            /** Git */
+            git: boolean;
+            /** Local */
+            local: boolean;
+            /** Mounted */
+            mounted: boolean;
+            /** Zip */
+            zip: boolean;
+        };
         /** FavoriteSubject */
         FavoriteSubject: {
             /** Key */
@@ -23684,6 +23749,26 @@ export interface operations {
             };
         };
     };
+    extension_import_capabilities_api_v1_admin_extensions_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtensionImportCapabilitiesOut"];
+                };
+            };
+        };
+    };
     get_extension_desired_state_api_v1_admin_extensions_desired_state_get: {
         parameters: {
             query?: never;
@@ -23965,6 +24050,43 @@ export interface operations {
         };
     };
     add_extension_source_api_v1_admin_extensions_sources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_mounted_extension_source_api_v1_admin_extensions_sources_mounted_post: {
         parameters: {
             query?: never;
             header?: never;

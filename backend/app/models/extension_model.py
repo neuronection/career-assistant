@@ -70,6 +70,7 @@ class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "extension_sources"
     __table_args__ = (
         UniqueConstraint("origin", "subpath", name="uq_extension_sources_origin_subpath"),
+        Index("ix_extension_sources_mount_key", "mount_key", unique=True),
         CheckConstraint("kind IN ('git', 'local')", name="source_kind_allowed"),
         CheckConstraint(
             "status IN ('ok', 'degraded', 'failing', 'stale')",
@@ -89,6 +90,11 @@ class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_checked_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(nullable=False, default=0)
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Operator feeder (ADR-0071): the mounted source's stable identity
+    # (sha256 of the resolved folder + subpath) and the operator's folder.
+    # Null for git sources and for uploaded bundles.
+    mount_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mount_path: Mapped[str | None] = mapped_column(String(600), nullable=True)
 
 
 class ExtensionInstall(UUIDPrimaryKeyMixin, TimestampMixin, Base):

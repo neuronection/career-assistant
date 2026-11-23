@@ -280,8 +280,8 @@
             {
               "id": "import-extensions-from-git",
               "file": "user/import-extensions-from-git.md",
-              "title": "Import extensions from git",
-              "description": "Add connectors and mini-apps from git sources: consent-gated, digest-pinned installs that never update without your explicit re-consent."
+              "title": "Import extensions",
+              "description": "Add connectors and mini-apps from git sources, a bundle zip, or a folder mounted into the container: consent-gated, digest-pinned installs that never update without your explicit re-consent."
             },
             {
               "id": "extension-consent",

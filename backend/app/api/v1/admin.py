@@ -1332,6 +1332,38 @@ def _lifecycle_error(exc) -> HTTPException:
     return HTTPException(status_code, f"{exc.code}: {exc.detail}")
 
 
+class ExtensionImportCapabilitiesOut(BaseModel):
+    git: bool
+    local: bool
+    zip: bool
+    mounted: bool
+    feeder: bool
+
+
+@router.get("/extensions/capabilities", response_model=ExtensionImportCapabilitiesOut)
+def extension_import_capabilities() -> ExtensionImportCapabilitiesOut:
+    """What this deployment can actually import (plan 132 follow-up): the
+    local-path and zip kinds are gated server-side, so the surface asks
+    first instead of offering controls that can only answer ``path-denied``;
+    ``git`` reports whether the import layer's CLI exists on this host."""
+    import shutil
+
+    from app.core.config import settings
+    from app.extensions.lifecycle import local_sources_available, mounted_sources_available
+
+    git_available = shutil.which("git") is not None
+    feeder = settings.is_dev or settings.extension_allow_feeder_imports
+    return ExtensionImportCapabilitiesOut(
+        git=git_available,
+        local=local_sources_available(),
+        # A zip is staged as a synthetic git checkout, so it needs the CLI too;
+        # a production host may enable it with the operator feeder policy.
+        zip=feeder and git_available,
+        mounted=mounted_sources_available() and git_available,
+        feeder=feeder,
+    )
+
+
 @router.get("/extensions/sources", response_model=list[dict])
 async def extension_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Sources with their discovered candidates and installs (secret-safe:
@@ -1360,9 +1392,19 @@ async def update_extension_source(
     source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Replace a source's descriptor (the edit flow) — validated exactly
-    like an add; the next sync re-resolves and reports drift normally."""
-    from app.extensions.lifecycle import LifecycleError, update_source
+    like an add; the next sync re-resolves and reports drift normally.
 
+    A mounted source is refreshed from its folder, not edited: its descriptor
+    points at app-staged content, so a hand edit would be meaningless."""
+    from app.extensions.lifecycle import LifecycleError, update_source
+    from app.models.extension_model import ExtensionSource
+
+    current = await db.get(ExtensionSource, source_id)
+    if current is not None and current.mount_key:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "invalid: a mounted source is refreshed from its folder, not edited",
+        )
     try:
         return await update_source(
             db,
@@ -1392,6 +1434,25 @@ async def upload_extension_source(
     return {"id": view["id"], "kind": view["kind"], "sync": view.get("sync")}
 
 
+@router.post("/extensions/sources/mounted", status_code=201)
+async def import_mounted_extension_source(
+    payload: dict, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Mount feeder (ADR-0071): stage the operator's folder, then the normal
+    add/update + sync flow. One row per ``(resolved folder, subpath)``; a
+    second import refreshes it. The production exemption is call-site scoped
+    to this endpoint and the mounted refresh."""
+    from app.extensions.lifecycle import LifecycleError, import_mounted_source
+
+    try:
+        view = await import_mounted_source(
+            db, str(payload.get("path") or ""), str(payload.get("subpath") or "")
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+    return {"id": view["id"], "kind": view["kind"], "sync": view.get("sync")}
+
+
 @router.delete("/extensions/sources/{source_id}")
 async def remove_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Remove a source: installs park (disabled, data intact, tombstone-
@@ -1407,10 +1468,22 @@ async def remove_extension_source(source_id: uuid.UUID, db: AsyncSession = Depen
 @router.post("/extensions/sources/{source_id}/sync")
 async def sync_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Fetch + discover + validate + update-check. A failed fetch leaves
-    pins untouched and marks the source failing (typed error body)."""
-    from app.extensions.lifecycle import LifecycleError, sync_source
+    pins untouched and marks the source failing (typed error body).
+
+    For a mounted source this is also the refresh: the endpoint re-stages the
+    recorded folder first, then syncs (``sync_source`` itself never stages).
+    """
+    from app.extensions.lifecycle import (
+        LifecycleError,
+        refresh_mounted_source,
+        sync_source,
+    )
+    from app.models.extension_model import ExtensionSource
 
     try:
+        source = await db.get(ExtensionSource, source_id)
+        if source is not None and source.mount_key:
+            await refresh_mounted_source(db, source)
         return await sync_source(db, source_id)
     except LifecycleError as exc:
         raise _lifecycle_error(exc) from exc

@@ -77,6 +77,67 @@ configSchema unchanged). **Digest drift on a pinned ref** ⇒ loud
 failure: install flags `digest-drift`, the source degrades, pins stay
 untouched.
 
+### Runtime prerequisites
+
+The pipeline shells out to the **git CLI** (`GitTransport`), so the
+*serving* process needs `git` on `PATH` — not just the build. The shipped
+`docker/Dockerfile` installs it in the runtime stage (the dependency layer
+purges its transient copy after `uv sync`, which is why an older image can
+look healthy but fail every source), and CI asserts `git --version` in the
+built image. A host without it answers the typed `not-ready` ("git is not
+installed in this deployment") rather than crashing; rebuild/upgrade the
+image. The settings surface asks
+`GET /api/v1/admin/extensions/capabilities` (`git`/`local`/`zip`) and
+gates the zip and local-path kinds on what this deployment allows — a
+production boot hides those controls instead of letting them answer
+`path-denied`. The git kind is always offered; a host without the CLI
+shows the explicit warning instead.
+
+### The operator feeder
+
+A host may also accept **feeder** imports — a folder mounted into the
+container, or an uploaded bundle zip — when the operator explicitly enables
+them. This is a staging mechanism, never a live source:
+
+- **Policy, default off:** `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` plus an
+  allowlist of container paths in `CAREER_EXTENSION_MOUNTED_ROOTS` (JSON list,
+  e.g. `["/integrations"]`). The values must ride the compose
+  `environment:` map — a `docker/.env` line alone never reaches the app (the
+  compose files pass an explicit key map, and `extra="ignore"` would swallow
+  it silently). A non-JSON roots value (e.g. `/integrations`) is a boot
+  crash-loop, not a default.
+- **Staged, not read:** the host copies the whole folder into
+  `<data_dir>/extension-imports/mounted/<key>/<treeDigest>/` (regular files
+  only; symlinks and special files refused, hardlinks copied so the alias is
+  severed, tree caps, `.git`/`.venv`/`__pycache__`/`node_modules` stripped, a
+  post-copy stability re-walk that fails typed if the folder changed
+  mid-copy), initializes the synthetic one-commit repository inside a temp
+  dir, then renames into the content address. Installs copy from there into
+  `data_dir/extensions/<id>/<digest>/` — the mount is never executed or read
+  by an installed instance.
+- **Identity:** one source row per `(resolved folder, subpath)`, matched by
+  the stable `mount_key` and displayed as the operator's `mount_path`. A
+  second import refreshes in place; **Check** re-stages the folder, so a
+  changed tree is a new digest *offered* as an update, applied only by an
+  explicit re-consent.
+- **No distribution channel:** feeder sources are `managedBy: manual`, are
+  rejected by the desired-state document, and their host-local provenance
+  never reaches a non-admin surface. An install from a feeder is still
+  `originClass: imported`, minted disabled, consent-recorded and tiered.
+- **Interpreter:** feeder-staged bundles run on the host's `sys.executable`
+  (a `.venv` is never staged, so it cannot be executed outside the digest).
+  Heavy dependencies need a custom image or vendored pure-Python packages.
+- **T3 tier:** an MCP bundle also needs the script tier allowlisted
+  (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST`, likewise through the compose
+  `environment:` map) — without it the install mints disabled and the enable
+  step answers `not-ready: the mcp connector is not allowlisted`.
+- **Contract:** the vendored schema bytes are unchanged; the
+  `localSourceDescriptor` comment that says hosts must gate the local kind
+  off in production is **superseded for opted-in hosts** by the operator feeder (the
+  next scheduled re-vendor corrects the text). The exemption is call-site
+  scoped to the feeder writers — a hand-authored `local` descriptor never
+  rides it.
+
 ## Where artifacts live
 
 ```
@@ -112,7 +173,9 @@ time (`lifecycle._bundle_interpreter`):
 - **local sources** — the bundle checkout's own
   `.venv/bin/python` when it exists (one `uv sync` in the checkout
   gives the bundle its dependencies), re-minted identically on
-  re-import;
+  re-import; **feeder-staged sources never use a `.venv`** (it is stripped
+  during staging, so it cannot sit outside the digest) and run the host
+  interpreter;
 - otherwise — the host's `sys.executable` (frozen desktop builds ship
   their own interpreter, so this is the working default there).
 
@@ -130,7 +193,7 @@ Both product modes share the whole subsystem — one pipeline, one schema
 
 | | Web/self-host (Postgres) | Desktop (SQLite) |
 |---|---|---|
-| Sources | full surface; production boots allow **https git sources only** | local sources allowed when run in development with allowlisted roots |
+| Sources | full surface; production boots accept **https git sources** — plus the **operator feeder** (zip upload / mounted folder) when the operator enables `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS` | local sources allowed when run in development with allowlisted roots |
 | Scheduler | reconcile at boot + hourly (`system_extension_reconcile`) | same engine, background scheduler in the tray app |
 | Sandboxed T2 | works from source installs | works in dev; frozen builds self-disable honestly (see above) |
 | Admin seat | Settings → Tools → Connectors (auth: admin) | same surface, desktop's implicit local owner |

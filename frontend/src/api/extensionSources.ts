@@ -116,7 +116,28 @@ export type ExtensionSourceView = {
   consecutive_failures: number;
   candidates: (ExtensionCandidate & { manifest?: Record<string, unknown> })[];
   installs: ExtensionInstallView[];
+  /** Operator feeder provenance (ADR-0071); null for git and uploaded sources. */
+  mountKey?: string | null;
+  mountPath?: string | null;
 };
+
+export type ExtensionImportCapabilities = {
+  /** The import layer's git CLI exists on this host. */
+  git: boolean;
+  /** Local-path sources are allowed (dev/test boot + allowlisted root). */
+  local: boolean;
+  /** Zip bundle import is allowed (dev/test, or the operator feeder policy). */
+  zip: boolean;
+  /** Mounted-folder import is allowed (operator feeder + allowlisted roots). */
+  mounted?: boolean;
+  /** The operator feeder policy is on (mounted and/or zip in production). */
+  feeder?: boolean;
+};
+
+export async function fetchExtensionImportCapabilities(): Promise<ExtensionImportCapabilities> {
+  const response = await api.get<ExtensionImportCapabilities>("/admin/extensions/capabilities");
+  return response.data;
+}
 
 export async function fetchExtensionSources(): Promise<ExtensionSourceView[]> {
   const response = await api.get<ExtensionSourceView[]>("/admin/extensions/sources");
@@ -128,6 +149,27 @@ export async function addExtensionSource(payload: {
   secrets?: Record<string, string>;
 }): Promise<ExtensionSourceView> {
   const response = await api.post("/admin/extensions/sources", payload);
+  return response.data;
+}
+
+/** Operator feeder (ADR-0071): stage a folder mounted into the container,
+ * then the normal add/refresh + sync flow. Returns the same shape as the zip
+ * upload: the source id plus the sync report. */
+export async function importMountedSource(
+  path: string,
+  subpath?: string,
+): Promise<{
+  id: string;
+  kind: string;
+  sync?: {
+    ok: boolean;
+    error?: { code: string; detail: { message?: string } | string; retryable?: string };
+  };
+}> {
+  const response = await api.post("/admin/extensions/sources/mounted", {
+    path,
+    ...(subpath ? { subpath } : {}),
+  });
   return response.data;
 }
 

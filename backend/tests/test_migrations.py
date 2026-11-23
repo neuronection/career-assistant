@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0016"
+BASELINE = "0017"
 
 
 def _configured() -> Config:
@@ -961,3 +961,40 @@ def test_0015_adds_object_key_without_data_backfill_on_postgres(tmp_path, monkey
         asyncio.run(_assert_0015_async(temp, document_id, user_id, job_id))
     finally:
         asyncio.run(_pg_drop(admin, name))
+
+
+def test_0017_adds_mount_columns_without_backfill_on_sqlite(tmp_path, monkeypatch):
+    """ADR-0071: the operator-feeder provenance columns are additive and
+    nullable; existing sources keep NULL (no backfill, no rewrite)."""
+    import sqlite3
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'mount-cols.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0016")
+    path = tmp_path / "mount-cols.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO extension_sources (origin, subpath, kind, descriptor, candidates, "
+        "secrets, status, consecutive_failures, error, id) VALUES "
+        "('https://git.example.com/x/y', '', 'git', '{}', '[]', '{}', 'ok', 0, '', ?)",
+        ("0" * 32,),
+    )
+    con.commit()
+    con.close()
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(extension_sources)")}
+        assert {"mount_key", "mount_path"} <= cols
+        assert con.execute(
+            "SELECT mount_key, mount_path FROM extension_sources WHERE id = ?",
+            ("0" * 32,),
+        ).fetchone() == (None, None)
+        indexes = {row[1] for row in con.execute("PRAGMA index_list(extension_sources)")}
+        assert "ix_extension_sources_mount_key" in indexes
+    finally:
+        con.close()

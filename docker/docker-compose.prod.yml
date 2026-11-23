@@ -102,6 +102,11 @@ services:
       CAREER_COOKIE_SECURE: ${CAREER_COOKIE_SECURE:-}
       CAREER_PUBLIC_URL: ${CAREER_PUBLIC_URL:-}
       CAREER_TLS: ${CAREER_TLS:-0}
+      # Explicit, stable host-local paths (the same defaults the app derives):
+      # they are mounted as named volumes above, so installs and the auth-kit
+      # keys survive a container recreate.
+      CAREER_DATA_DIR: /home/career/.local/share/CareerAssistant
+      CAREER_CONFIG_DIR: /home/career/.config/CareerAssistant
       # Per-purpose key family (identity-auth §8) — generate each with:
       #   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
       CAREER_SESSION_KEY: ${CAREER_SESSION_KEY:?Set CAREER_SESSION_KEY in docker/.env}
@@ -114,6 +119,16 @@ services:
       CAREER_MAX_UPLOAD_MB: ${CAREER_MAX_UPLOAD_MB:-25}
       # Data exports are capped independently of the per-upload ceiling.
       CAREER_EXPORT_MAX_MB: ${CAREER_EXPORT_MAX_MB:-1024}
+      # Operator feeder (ADR-0071): default off. A `list[str]` field rejects an
+      # empty string, so the roots default is `[]` (a non-JSON value such as
+      # /integrations is a boot crash-loop). The policy reaches the container
+      # only through this map — a docker/.env line alone is invisible.
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: ${CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS:-0}
+      CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}
+      # The T3 script tier is admin-opt-in; the allowlist must ride this map
+      # too (a .env line alone is invisible), or an MCP bundle installs but
+      # cannot be enabled ("mcp connector is not allowlisted").
+      CAREER_CONNECTOR_PLUGINS_ALLOWLIST: ${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}
       # Family object storage (ADR-0057 / plan 55 P2). Empty defaults keep
       # the local volume; a cloud profile sets its provider block (see
       # docker/.env.production.example and docker/docker-compose.cloud.yml).
@@ -163,6 +178,11 @@ services:
       - "127.0.0.1:${CAREER_API_PORT:-8100}:8100"
     volumes:
       - uploads_data:/app/uploads
+      # Host-local state that must survive a recreate: extension installs and
+      # their content-addressed store, retrieval/vector data, the datastore
+      # marker — and, separately, the auth-kit key file.
+      - career_data:/home/career/.local/share/CareerAssistant
+      - career_config:/home/career/.config/CareerAssistant
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3); sys.exit(0 if r.status < 500 else 1)\""]
       interval: 30s
@@ -203,3 +223,5 @@ services:
 volumes:
   db_data:
   uploads_data:
+  career_data:
+  career_config:

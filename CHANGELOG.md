@@ -4,6 +4,29 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **A production instance can enable a feeder for extension bundles.** With
+  `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` on the `app` service (compose
+  `environment:`; the defaults are off and `CAREER_EXTENSION_MOUNTED_ROOTS`
+  takes a JSON list), an admin can import a bundle zip — or a folder mounted
+  into the container (**Install from Git → Mounted folder**) — instead of
+  hosting a git repo. Installs stay
+  consent-gated, digest-pinned and disabled until enabled, and nothing
+  auto-applies. A zip may no longer ship its own `.venv`: staging strips it and
+  the managed spawn runs the host interpreter. The compose stacks also forward
+  `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` (default empty), so an MCP bundle can be
+  enabled on a self-hosted instance; without it the install succeeded but the
+  enable step answered "the mcp connector is not allowlisted".
+- **A verified ATS catalog imports in one click.** Tools → Sources →
+  Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
+  employer tenants on direct Recruitee, Teamtailor and Workable feeds —
+  as a preselected operator catalog tile. The click prefills the
+  canonical URL and `operator` tier, fetches the document in your
+  browser and stores the validated result; the tile and the catalog row
+  then show the stored revision and content hash, and **Refresh**
+  re-checks the same document without creating sources.
+
 ### Changed
 
 - **Chat got the Airy refresh.** Assistant replies now read as prose beside a
@@ -14,17 +37,29 @@ All notable changes to **Career Assistant** are documented here.
   (including touch, where they are always visible). The unconfigured dictation
   state is now a quiet muted mic whose popover explains how to assign a
   speech-to-text model — no persistent notice competes with the draft.
+- **The extension import surface only offers what the deployment allows.**
+  A production boot no longer shows **Import bundle (.zip)**, and the
+  add-source dialog skips the local-folder option: both are dev/test-only,
+  so the surface asks the new `GET /api/v1/admin/extensions/capabilities`
+  instead of letting the controls answer `path-denied`.
 
-### Added
+### Fixed
 
-- **A verified ATS catalog imports in one click.** Tools → Sources →
-  Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
-  employer tenants on direct Recruitee, Teamtailor and Workable feeds —
-  as a preselected operator catalog tile. The click prefills the
-  canonical URL and `operator` tier, fetches the document in your
-  browser and stores the validated result; the tile and the catalog row
-  then show the stored revision and content hash, and **Refresh**
-  re-checks the same document without creating sources.
+- **Extension installs and the auth-kit keys now survive a container
+  recreate.** The app's data dir (`career_data`: content-addressed installs,
+  retrieval data, the datastore marker) and config dir (`career_config`: the
+  key file) are named volumes at their existing paths — no `content_path`
+  moves — and the image pins uid `1000` so the volumes initialize as the app
+  user. The object-storage overlay keeps both (`!override` drops only uploads),
+  where `!reset []` would have stripped them silently.
+- **Extension sources work in the Docker image.** The serving image now
+  ships the `git` CLI the import layer shells out to (the build layered a
+  transient copy only for dependency sync and purged it), so an https git
+  source can be added, synced and installed in a compose deployment instead
+  of failing at fetch. A host still without git answers a typed `not-ready`
+  naming the remedy instead of a 500 — for git sources and zip staging
+  alike (a zip is staged as a synthetic git checkout, so the capabilities
+  probe stops offering it there too).
 
 ## [v0.19.0] - 2026-11-22
 

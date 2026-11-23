@@ -38,7 +38,7 @@ Bootstrap flags: `--dir DIR`, `--ref vX.Y.Z` (pin an exact release),
 `--dry-run` (resolve + verify + print, write nothing), `--offline
 career-compose-vX.Y.Z.tar.gz` (already-downloaded bundle, no network
 download), and `--` to forward installer flags — e.g.
-`-- --http-port 8092`. The one-liner URL 302-redirects to the GitHub
+`-- --http-port 8092` or `-- --integrations-dir /srv/career/integrations`. The one-liner URL 302-redirects to the GitHub
 release asset (trust anchor = the release, not the website); until that
 route is published, use the asset from the release page.
 
@@ -60,6 +60,10 @@ fresh secrets (`umask 077`, never printed, never overwritten on a re-run) →
 pins `CAREER_IMAGE` from the release manifest (the bootstrap forwards
 `--image app=<digest>`; priority: `--image [KEY=]REF` > `--image-tag` >
 `$CAREER_IMAGE` > manifest > existing `.env`) → sets `HTTP_PORT` →
+optionally configures the **operator feeder** (a first install asks once,
+default No; `--integrations-dir PATH` / `--no-integrations` decide it
+non-interactively — it writes `docker/docker-compose.integrations.yml` plus
+the two `CAREER_EXTENSION_*` values) →
 pre-flights published ports → pulls → `up -d` → waits for `/health` →
 prints the URL and the first-admin note. Exit codes: `0` ok · `1`
 usage/prereq · `2` image pull · `3` compose config/start or health · `4`

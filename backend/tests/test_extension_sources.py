@@ -1113,7 +1113,7 @@ async def test_reconcile_without_desired_state_is_a_noop(db):
 
 
 async def test_sources_ride_the_admin_api_surface(
-    db, client, auth_headers, local_roots, mcp_allowlist
+    db, client, auth_headers, local_roots, mcp_allowlist, monkeypatch
 ):
     """The settings-UI surface: add → sync → consent install (400 without
     consent) → enable → desired-state PUT validated → secret-safe list."""
@@ -1136,6 +1136,20 @@ async def test_sources_ride_the_admin_api_surface(
     assert listed.status_code == 200
     assert listed.json()[0]["origin"] == str(repo)
     assert listed.json()[0]["kind"] == "local"
+
+    import shutil
+
+    with monkeypatch.context() as patch:
+        patch.setattr(shutil, "which", lambda _name: "/usr/local/bin/git")
+        caps = await client.get("/api/v1/admin/extensions/capabilities", headers=auth_headers)
+    assert caps.status_code == 200, caps.text
+    assert caps.json() == {
+        "git": True,
+        "local": True,
+        "zip": True,
+        "mounted": False,
+        "feeder": True,
+    }
 
     synced = await client.post(
         f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
@@ -1194,6 +1208,40 @@ async def test_sources_ride_the_admin_api_surface(
     assert doc.status_code == 200
     got = await client.get("/api/v1/admin/extensions/desired-state", headers=auth_headers)
     assert got.json() == {"schema": 1, "sources": [], "extensions": []}
+
+
+async def test_import_capabilities_follow_the_boot_gates(tmp_path, monkeypatch):
+    """The settings surface asks instead of offering controls that can only
+    answer `path-denied`: a production boot reports zip/local unavailable,
+    and a zip (staged as a git checkout) needs the CLI as well."""
+    import shutil
+
+    from app.api.v1.admin import extension_import_capabilities
+
+    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/local/bin/git")
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_local_source_roots", [str(tmp_path)])
+    caps = extension_import_capabilities()
+    assert caps.local is False
+    assert caps.zip is False
+
+    monkeypatch.setattr(settings, "app_env", "development")
+    caps = extension_import_capabilities()
+    assert caps.local is True
+    assert caps.zip is True
+
+    # ADR-0071: the operator feeder admits the upload in production (local
+    # paths stay gated — the exemption is call-site-scoped).
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    caps = extension_import_capabilities()
+    assert caps.local is False
+    assert caps.zip is True
+
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    caps = extension_import_capabilities()
+    assert caps.git is False
+    assert caps.zip is False
 
 
 # ------------------------------------------------- template-repo fidelity
@@ -1376,6 +1424,38 @@ async def test_value_requiring_strategies_reject_empty(
     assert "missing required property 'value'" in exc.value.detail
 
 
+async def test_missing_git_binary_is_a_typed_host_error(monkeypatch):
+    """A serving image without the git binary answers `not-ready` with the
+    remedy — never a FileNotFoundError bubbling out as a 500 (the Docker
+    runtime layer used to purge the very CLI the import layer shells out to)."""
+
+    async def no_git(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(lifecycle.asyncio, "create_subprocess_exec", no_git)
+    with pytest.raises(LifecycleError) as exc:
+        await GitTransport().resolve(
+            "https://git.example.com/example/ext-repo",
+            {"strategy": "branch", "value": "main"},
+        )
+    assert exc.value.code == "not-ready"
+    assert "git is not installed" in exc.value.detail
+
+
+async def test_missing_working_directory_is_io_not_a_missing_git(tmp_path, monkeypatch):
+    """The two ENOENT shapes are discriminated: a vanished cwd is an
+    OS-level `io` failure, never misreported as 'git is not installed'."""
+
+    async def no_cwd(*_args, cwd=None, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", str(cwd))
+
+    monkeypatch.setattr(lifecycle.asyncio, "create_subprocess_exec", no_cwd)
+    with pytest.raises(LifecycleError) as exc:
+        await GitTransport()._git(["--version"], cwd=tmp_path / "gone")
+    assert exc.value.code == "io"
+    assert "directory is missing" in exc.value.detail
+
+
 # ------------------------------------------------- zip bundle import (132)
 
 
@@ -1390,6 +1470,24 @@ def _bundle_zip() -> bytes:
         zf.writestr("docs/overview.md", "# overview\n")
         zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
     return buf.getvalue()
+
+
+async def test_zip_import_without_git_is_a_typed_host_error(tmp_path, monkeypatch):
+    """Staging a zip shells out to git for the synthetic commit: a gitless
+    host answers `not-ready` (and leaves no orphan tree), never a 500."""
+    from app.extensions.lifecycle import import_zip_bundle_sync_root
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+
+    def no_git(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(lifecycle.subprocess, "run", no_git)
+    with pytest.raises(LifecycleError) as exc:
+        import_zip_bundle_sync_root(_bundle_zip())
+    assert exc.value.code == "not-ready"
+    assert "git is not installed" in exc.value.detail
+    assert list((tmp_path / "extension-imports").glob("*")) == [], "no orphan staged tree"
 
 
 async def test_zip_upload_stages_and_runs_the_source_flow(
@@ -1459,6 +1557,158 @@ async def test_zip_upload_is_gated_off_in_production(db, local_roots, mcp_allowl
     with pytest.raises(LifecycleError) as exc:
         await import_zip_bundle(db, _bundle_zip())
     assert exc.value.code == "path-denied"
+
+
+def _bundle_zip_with_venv() -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(template_manifest()))
+        zf.writestr("server.py", FIXTURE_SERVER.read_text(encoding="utf-8"))
+        zf.writestr(".venv/bin/python", "#!/bin/sh\nexit 0\n")
+        zf.writestr("docs/overview.md", "# overview\n")
+        zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
+    return buf.getvalue()
+
+
+async def test_zip_import_allowed_in_production_with_the_feeder_flag(tmp_path, monkeypatch):
+    """ADR-0071: the operator feeder admits the upload in a production boot;
+    without the policy the same call stays `path-denied` (the test above)."""
+    from app.extensions.lifecycle import import_zip_bundle_sync_root
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    root, sha = import_zip_bundle_sync_root(_bundle_zip())
+    assert root.is_dir() and (root / ".git").is_dir()
+    assert len(sha) == 40
+
+
+async def test_zip_staging_strips_venv_and_selects_the_host_interpreter(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """A bundle may not ship its own interpreter: the zip stage strips
+    `.venv` (the digest never covered it) and the managed-spawn rule picks
+    the host's python for any source under the staging store, exactly as for
+    an https git source."""
+    import sys as _sys
+
+    from app.extensions.lifecycle import _bundle_interpreter, import_zip_bundle
+    from app.models.extension_model import ExtensionSource
+
+    view = await import_zip_bundle(db, _bundle_zip_with_venv())
+    staged = Path(view["origin"])
+    assert not (staged / ".venv").exists(), "zip staging strips .venv"
+    source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
+    assert source is not None
+    assert _bundle_interpreter(source, "") == _sys.executable
+
+
+# ------------------------------------------------ mounted feeder (ADR-0071)
+
+
+def _write_mount(root: Path) -> Path:
+    mount = root / "bundle"
+    mount.mkdir(parents=True)
+    (mount / "manifest.json").write_text(FIXTURE_MANIFEST.read_text(), encoding="utf-8")
+    shutil.copyfile(FIXTURE_SERVER, mount / "server.py")
+    _copy_docs(mount)
+    return mount
+
+
+@pytest.fixture
+def mounted_policy(tmp_path, monkeypatch):
+    root = tmp_path / "integrations"
+    root.mkdir()
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    monkeypatch.setattr(settings, "extension_mounted_roots", [str(root)])
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", True)
+    monkeypatch.setattr(settings, "app_env", "production")
+    return root
+
+
+async def test_mounted_import_refreshes_in_place(db, seeded_catalog, mcp_allowlist, mounted_policy):
+    """ADR-0071: one row per (resolved folder, subpath); a second import of
+    the same mount refreshes it, and a changed tree is an OFFERED update."""
+    from app.extensions.lifecycle import import_mounted_source, install_extension, list_sources
+
+    mount = _write_mount(mounted_policy)
+    view = await import_mounted_source(db, str(mount))
+    assert view["sync"]["ok"] is True, view["sync"]
+    assert view["mountPath"] == str(mount.resolve())
+    assert view["mountKey"]
+    source_id = uuid.UUID(view["id"])
+
+    await install_extension(
+        db, source_id, "example-posting-fetcher", consent=await _echo_for(db, source_id)
+    )
+
+    (mount / "extra.txt").write_text("changed\n", encoding="utf-8")
+    again = await import_mounted_source(db, str(mount))
+    assert uuid.UUID(again["id"]) == source_id, "the same mount refreshes its row"
+    assert again["sync"]["ok"] is True
+
+    [row] = [s for s in await list_sources(db) if s["id"] == str(source_id)]
+    [install] = row["installs"]
+    assert install["update"]["state"] == "available", "a change is offered, never applied"
+    assert install["enabled"] is False
+
+
+async def test_mounted_import_needs_the_policy(
+    db, seeded_catalog, mcp_allowlist, tmp_path, monkeypatch
+):
+    from app.extensions.lifecycle import import_mounted_source
+
+    root = tmp_path / "integrations"
+    root.mkdir()
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    monkeypatch.setattr(settings, "extension_mounted_roots", [str(root)])
+    monkeypatch.setattr(settings, "extension_allow_feeder_imports", False)
+    monkeypatch.setattr(settings, "app_env", "production")
+    with pytest.raises(LifecycleError) as exc:
+        await import_mounted_source(db, str(_write_mount(root)))
+    assert exc.value.code == "path-denied"
+
+
+async def test_mounted_source_api_refuses_edit_and_refreshes_on_sync(
+    db, client, auth_headers, mounted_policy
+):
+    """The admin surface: import → the row carries the operator's folder →
+    PATCH is refused (refreshed from the folder) → sync re-stages."""
+    from app.models.user_model import User
+
+    user = (await db.execute(select(User).limit(1))).scalars().first()
+    user.is_admin = True
+    await db.commit()
+
+    mount = _write_mount(mounted_policy)
+    created = await client.post(
+        "/api/v1/admin/extensions/sources/mounted",
+        json={"path": str(mount)},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+
+    listed = await client.get("/api/v1/admin/extensions/sources", headers=auth_headers)
+    row = next(r for r in listed.json() if r["id"] == source_id)
+    assert row["mountPath"] == str(mount.resolve())
+
+    patched = await client.patch(
+        f"/api/v1/admin/extensions/sources/{source_id}",
+        json={"descriptor": row["descriptor"]},
+        headers=auth_headers,
+    )
+    assert patched.status_code == 400
+    assert "mounted source" in patched.json()["detail"]
+
+    synced = await client.post(
+        f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
+    )
+    assert synced.status_code == 200, synced.text
+    assert synced.json()["ok"] is True
 
 
 # ------------------------------------------- reinstall over a parked install

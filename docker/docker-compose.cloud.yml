@@ -13,9 +13,12 @@
 # SSE=none before serving traffic.
 #
 # Object bytes live in the provider, so the app container is stateless for
-# them: the uploads volume is reset (Compose >= 2.24 for `!reset`). The
-# compose `backup` sidecar is database-only in this stack — there is no
-# uploads tar to skip; provider durability/versioning covers document bytes.
+# them: the uploads volume is dropped (Compose >= 2.24 for `!override`), while
+# the host-local state volumes (extension installs, retrieval data, auth keys)
+# stay — dropping them would silently make every install and the key file
+# ephemeral again. The compose `backup` sidecar is database-only in this stack —
+# there is no uploads tar to skip; provider durability/versioning covers
+# document bytes.
 
 name: career-assistant
 
@@ -25,4 +28,6 @@ services:
       CAREER_CLOUD_PROFILE: ${CAREER_CLOUD_PROFILE:?Set CAREER_CLOUD_PROFILE to aws, azure, gcp or cloud}
       CAREER_OBJECT_STORAGE_BACKEND: ${CAREER_OBJECT_STORAGE_BACKEND:?Set CAREER_OBJECT_STORAGE_BACKEND to s3 or azure_blob}
       CAREER_OBJECT_STORAGE_REQUIRED: "true"
-    volumes: !reset []
+    volumes: !override
+      - career_data:/home/career/.local/share/CareerAssistant
+      - career_config:/home/career/.config/CareerAssistant

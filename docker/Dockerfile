@@ -28,7 +28,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
 # Dependency layer first (cache-friendly): workspace manifests + lockfile.
 # The auth-kit git-SHA pin clones from GitHub during sync; git is
-# transient and purged before the layer commits (study's recipe).
+# transient HERE and purged before the layer commits (study's recipe) —
+# the serving layer reinstalls it below, because the extension import
+# layer shells out to the git CLI at runtime.
 COPY pyproject.toml uv.lock ./
 COPY backend/pyproject.toml backend/pyproject.toml
 COPY backend/app backend/app
@@ -50,10 +52,22 @@ COPY contracts ./contracts
 COPY --from=frontend-build /build/dist ./frontend/dist
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Extension sources (Settings → Tools → Connectors → Extension sources)
+# fetch over https git at runtime: the import layer shells out to the git
+# CLI, so the SERVING image must carry it — the dependency layer above
+# purges its transient copy. Without it every git source fails before a
+# single manifest is discovered.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN chmod +x /usr/local/bin/entrypoint.sh \
-    && useradd --create-home --shell /usr/sbin/nologin career \
+    && useradd -u 1000 --create-home --shell /usr/sbin/nologin career \
     && mkdir -p /app/uploads /data \
-    && chown -R career:career /app /data
+      /home/career/.local/share/CareerAssistant \
+      /home/career/.config/CareerAssistant \
+    && chown -R career:career /app /data /home/career
 USER career
 
 EXPOSE 8100

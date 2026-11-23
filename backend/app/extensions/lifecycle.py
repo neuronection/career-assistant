@@ -40,9 +40,13 @@ import fnmatch
 import hashlib
 import json
 import logging
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -265,13 +269,41 @@ def local_sources_available() -> bool:
     return settings.is_dev and bool(settings.extension_local_source_roots)
 
 
-def _check_local_root(path_str: str) -> Path:
+def mounted_sources_available() -> bool:
+    """The operator feeder's mounted kind (ADR-0071): an explicit policy (or a
+    dev boot) plus at least one allowlisted root. Fail-closed both ways."""
+    from app.core.config import settings
+
+    return bool(settings.extension_mounted_roots) and (
+        settings.is_dev or settings.extension_allow_feeder_imports
+    )
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _check_local_root(path_str: str, *, feeder: bool = False) -> Path:
     """net_guard-style path discipline for local sources: the repo root
     must RESOLVE under an allowlisted parent (symlinks followed, traversal
     collapsed — the comparison happens on resolved paths, never on input
-    text)."""
+    text).
+
+    ``feeder=True`` is passed only by the feeder writers (mounted import,
+    mounted refresh, zip import): it admits a path inside the app-owned
+    staging store in production, and only while the operator policy is on.
+    A hand-authored ``local`` descriptor never gets the exemption.
+    """
     from app.core.config import settings
 
+    resolved = Path(path_str).expanduser().resolve()
+    staging = imports_root()
+    if feeder and settings.extension_allow_feeder_imports and _is_under(resolved, staging):
+        return resolved
     if not settings.is_dev:
         raise LifecycleError(
             "path-denied",
@@ -279,14 +311,13 @@ def _check_local_root(path_str: str) -> Path:
             "(CAREER_APP_ENV=production) — fail-closed",
         )
     roots = [Path(root).expanduser().resolve() for root in settings.extension_local_source_roots]
-    roots.append(imports_root())
+    roots.append(staging)
     if not roots:
         raise LifecycleError(
             "path-denied",
             "local extension sources need an allowlisted root "
             "(CAREER_EXTENSION_LOCAL_SOURCE_ROOTS) — none configured, fail-closed",
         )
-    resolved = Path(path_str).expanduser().resolve()
     for root in roots:
         try:
             resolved.relative_to(root)
@@ -301,14 +332,15 @@ def _check_local_root(path_str: str) -> Path:
     )
 
 
-def validate_source_descriptor(doc: dict) -> SourceDescriptor:
+def validate_source_descriptor(doc: dict, *, feeder: bool = False) -> SourceDescriptor:
     """Validate a source descriptor against the vendored schema.
 
     Production descriptors validate against the ROOT (https-only by
     structure); a ``local`` document is routed to the distinct
     ``$defs.localSourceDescriptor`` variant and additionally passes the
-    production boot gate + root allowlist above. Unknown shapes fail
-    closed — there is no third kind.
+    production boot gate + root allowlist above. ``feeder=True`` is passed
+    only by the feeder writers (ADR-0071). Unknown shapes fail closed —
+    there is no third kind.
     """
     schema = _sources_schema()
     if isinstance(doc, dict) and "local" in doc:
@@ -318,7 +350,7 @@ def validate_source_descriptor(doc: dict) -> SourceDescriptor:
         err = contract.validate(target, doc, schema)
         if err is not None:
             raise LifecycleError("invalid", f"local source descriptor invalid: {err}")
-        path = _check_local_root(str((doc.get("local") or {}).get("path") or ""))
+        path = _check_local_root(str((doc.get("local") or {}).get("path") or ""), feeder=feeder)
         return SourceDescriptor(
             kind="local", origin=str(path), document=doc, subpath=str(doc.get("subpath") or "")
         )
@@ -334,6 +366,28 @@ def validate_source_descriptor(doc: dict) -> SourceDescriptor:
 
 
 # ------------------------------------------------------------ git transport
+
+
+GIT_BINARIES = frozenset({"git", "git.exe"})
+
+
+def _git_spawn_error(exc: FileNotFoundError, cwd: Path | str | None) -> LifecycleError:
+    """Discriminate the two ENOENT shapes a git spawn can produce: the CLI
+    is absent (host config — typed `not-ready` with the remedy) versus the
+    working directory vanished (OS-level — typed `io`). CPython puts the
+    missing path in ``filename``: the program name when exec fails, the cwd
+    when the child's chdir fails."""
+    missing = str(exc.filename or "git")
+    if Path(missing).name in GIT_BINARIES:
+        return LifecycleError(
+            "not-ready",
+            "git is not installed in this deployment — extension sources shell out to "
+            "the git CLI (production images ship it; older images must be rebuilt)",
+        )
+    return LifecycleError(
+        "io",
+        f"git could not start in {cwd or 'the current directory'} — that directory is missing",
+    )
 
 
 @dataclass
@@ -354,14 +408,17 @@ class GitTransport:
     ) -> str:
         from app.core.config import settings
 
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            *args,
-            cwd=str(cwd) if cwd else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git",
+                *args,
+                cwd=str(cwd) if cwd else None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        except FileNotFoundError as exc:
+            raise _git_spawn_error(exc, cwd) from exc
         try:
             out, err = await asyncio.wait_for(
                 proc.communicate(), timeout=settings.extension_fetch_timeout_seconds
@@ -994,7 +1051,7 @@ def _source_view(
             subpath=str(candidate.get("subpath") or ""),
         )
         candidates.append(entry)
-    return {
+    view = {
         "id": str(source.id),
         "kind": source.kind,
         "origin": source.origin,
@@ -1005,6 +1062,10 @@ def _source_view(
             "subpath": source.subpath or descriptor.get("subpath"),
             "credentialSlots": [c.get("slot") for c in descriptor.get("credentials") or []],
         },
+        # Operator feeder provenance (ADR-0071): the operator's folder, not the
+        # staged repository path. Null for git and uploaded sources.
+        "mountKey": source.mount_key,
+        "mountPath": source.mount_path,
         "status": source.status,
         "error": source.error,
         "last_checked_at": source.last_checked_at.isoformat() if source.last_checked_at else None,
@@ -1013,6 +1074,14 @@ def _source_view(
         "candidates": candidates,
         "installs": [_install_view(install, conditions) for install in installs],
     }
+    if source.mount_key:
+        staged = str((descriptor.get("local") or {}).get("path") or "")
+        if not staged or not Path(staged).exists():
+            # A lost data dir / pruned stage is legible instead of a 404 on
+            # the next click; Check re-stages from the recorded folder.
+            view["status"] = "stale"
+            view["error"] = "staged content is missing — press Check to re-stage the folder"
+    return view
 
 
 def _install_view(
@@ -1114,26 +1183,40 @@ def imports_root() -> Path:
     return (Path(settings.data_dir) / IMPORTS_DIRNAME).resolve()
 
 
+def _under_imports_root(path: str | None) -> bool:
+    """True when ``path`` resolves inside the app-owned staging store. A
+    string-prefix test would also match a sibling like
+    ``extension-imports-archive``; the resolved-relative check cannot."""
+    try:
+        Path(str(path or "")).resolve().relative_to(imports_root())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def _init_staging_repo(root: Path) -> str:
     """A synthetic checkout: the staged tree becomes a one-commit git repo
     so the descriptor's schema-required ``ref`` is a real commit-pin."""
 
     def git(*args: str) -> str:
-        proc = subprocess.run(
-            [
-                "git",
-                "-c",
-                "user.name=career-assistant",
-                "-c",
-                "user.email=noreply@career.local",
-                "-c",
-                "commit.gpgsign=false",
-                *args,
-            ],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-        )
+        try:
+            proc = subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=career-assistant",
+                    "-c",
+                    "user.email=noreply@career.local",
+                    "-c",
+                    "commit.gpgsign=false",
+                    *args,
+                ],
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            raise _git_spawn_error(exc, root) from exc
         if proc.returncode != 0:
             raise LifecycleError(
                 "not-ready", f"git failed while staging the bundle: {proc.stderr.strip()[:200]}"
@@ -1141,9 +1224,168 @@ def _init_staging_repo(root: Path) -> str:
         return proc.stdout.strip()
 
     git("init", "--quiet", "--initial-branch", "main")
-    git("add", ".")
+    git("add", "--all", "--force", ".")
     git("commit", "--quiet", "--allow-empty", "-m", "bundle import")
     return git("rev-parse", "HEAD")
+
+
+def _sweep_stage_tmp(base: Path) -> None:
+    """Drop half-finished staging dirs (a crash or a killed copy leaves only
+    `.tmp-*`; a trusted content address is created exclusively by a rename)."""
+    cutoff = time.time() - 3600
+    for stale in base.glob(".tmp-*"):
+        try:
+            if stale.stat().st_mtime < cutoff:
+                shutil.rmtree(stale, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _staged_head(root: Path) -> str:
+    """The synthetic pin of a staged checkout; repairs an unborn HEAD once."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise _git_spawn_error(exc, root) from exc
+    if proc.returncode != 0:
+        raise LifecycleError("not-ready", "the staged checkout has no commit — re-stage the source")
+    return proc.stdout.strip()
+
+
+def _copy_mount_tree(src: Path, dest: Path) -> None:
+    """Copy a mounted bundle into a staging dir (ADR-0071).
+
+    Regular files only (`lstat`): symlinks — files or directories — and
+    special files are refused, hardlinks are copied (the copy severs the
+    alias), runtime junk and `.git` are skipped, the tree caps apply, a
+    manifest must exist at the root or one level down, and a post-copy
+    stability check turns a folder mutated mid-copy into a typed failure
+    instead of a spliced snapshot.
+    """
+    dest.mkdir(parents=True, exist_ok=False)
+    seen: list[tuple[Path, int, int]] = []
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(src, followlinks=False):
+        here = Path(dirpath)
+        dirnames[:] = [d for d in dirnames if d not in _RUNTIME_JUNK_DIRS and d != ".git"]
+        for name in dirnames:
+            if (here / name).is_symlink():
+                raise LifecycleError(
+                    "invalid", f"mounted source contains a symlinked directory: {here / name}"
+                )
+        for name in filenames:
+            path = here / name
+            st = path.lstat()
+            if stat.S_ISLNK(st.st_mode):
+                raise LifecycleError("invalid", f"mounted source contains a symlink: {path}")
+            if not stat.S_ISREG(st.st_mode):
+                raise LifecycleError(
+                    "invalid", f"mounted source contains a non-regular file: {path}"
+                )
+            if path.name.endswith(_RUNTIME_JUNK_SUFFIXES):
+                continue
+            total += st.st_size
+            if len(seen) + 1 > TREE_MAX_FILES or total > TREE_MAX_BYTES:
+                raise LifecycleError(
+                    "invalid",
+                    f"extension content exceeds caps ({len(seen) + 1} files / {total} bytes)",
+                )
+            rel = path.relative_to(src)
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(path.read_bytes())
+            seen.append((rel, st.st_size, st.st_mtime_ns))
+    hits = [dest / "manifest.json", *dest.glob("*/manifest.json")]
+    if not any(hit.is_file() for hit in hits):
+        raise LifecycleError(
+            "invalid", "no manifest.json in the mounted folder (root or one level down)"
+        )
+    for rel, size, mtime in seen:
+        try:
+            st = (src / rel).lstat()
+        except OSError as exc:
+            raise LifecycleError(
+                "invalid", "the mounted folder changed while it was staged — retry"
+            ) from exc
+        if st.st_size != size or st.st_mtime_ns != mtime:
+            raise LifecycleError(
+                "invalid", "the mounted folder changed while it was staged — retry"
+            )
+
+
+def _stage_mounted_tree(mount: str | Path, subpath: str = "") -> tuple[Path, str, str, Path]:
+    """Stage a mounted folder into the app-owned store and pin it.
+
+    Returns ``(staged_repo, commit_sha, mount_key, resolved_mount)``. The
+    stage is a snapshot: copy into ``.tmp-<uuid>``, digest it, initialize the
+    synthetic repository there, then rename into the content address — so a
+    trusted address only ever holds a complete tree (ADR-0071).
+    """
+    from app.core.config import settings
+
+    if not mounted_sources_available():
+        raise LifecycleError(
+            "path-denied",
+            "mounted sources need the operator feeder policy and an allowlisted "
+            "root (CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS + CAREER_EXTENSION_MOUNTED_ROOTS)",
+        )
+    try:
+        resolved = Path(mount).expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise LifecycleError("not-found", f"mounted folder does not exist: {mount}") from exc
+    if not resolved.is_dir():
+        raise LifecycleError("invalid", f"mounted source is not a directory: {resolved}")
+    roots = [Path(root).expanduser().resolve() for root in settings.extension_mounted_roots]
+    if not any(_is_under(resolved, root) for root in roots):
+        raise LifecycleError(
+            "path-denied",
+            f"mounted folder {resolved} is outside every allowlisted root "
+            "(CAREER_EXTENSION_MOUNTED_ROOTS) — refusing",
+        )
+    staging = imports_root()
+    if _is_under(staging, resolved) or _is_under(resolved, staging):
+        raise LifecycleError(
+            "invalid", "the mounted folder and the staging store must not contain each other"
+        )
+    key = hashlib.sha256(f"{resolved}\0{subpath or ''}".encode()).hexdigest()[:16]
+    base = staging / "mounted" / key
+    base.mkdir(parents=True, exist_ok=True)
+    _sweep_stage_tmp(base)
+    tmp = base / f".tmp-{uuid.uuid4().hex}"
+    try:
+        _copy_mount_tree(resolved, tmp)
+        digest = digest_tree(tmp)
+        final = base / digest
+        if len(str(final)) >= 512:
+            raise LifecycleError(
+                "invalid",
+                "the staged path exceeds the descriptor's 512-character limit — "
+                "shorten CAREER_DATA_DIR",
+            )
+        if final.exists():
+            if digest_tree(final) != digest:
+                raise LifecycleError(
+                    "invalid", "staged content at its address does not match its digest"
+                )
+            try:
+                sha = _staged_head(final)
+            except LifecycleError:
+                sha = _init_staging_repo(final)
+        else:
+            sha = _init_staging_repo(tmp)
+            os.replace(tmp, final)
+    except LifecycleError:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except OSError as exc:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise LifecycleError("io", f"staging the mounted folder failed: {exc}") from exc
+    return final, sha, key, resolved
 
 
 def _validate_zip_entries(names: list[tuple[str, bool, bool]], total_size: int) -> None:
@@ -1173,10 +1415,11 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
 
     from app.core.config import settings
 
-    if not settings.is_dev:
+    if not (settings.is_dev or settings.extension_allow_feeder_imports):
         raise LifecycleError(
             "path-denied",
-            "zip bundle import is dev/test only — production boots stay fail-closed",
+            "zip bundle import is dev/test only — enable the operator feeder "
+            "(CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS) on a production host",
         )
     if len(data) > BUNDLE_ZIP_MAX_BYTES:
         raise LifecycleError("invalid", "zip exceeds the upload size cap")
@@ -1198,13 +1441,19 @@ def import_zip_bundle_sync_root(data: bytes) -> tuple[Path, str]:
         except Exception as exc:
             shutil.rmtree(root, ignore_errors=True)
             raise LifecycleError("invalid", f"zip extraction failed: {exc}") from exc
-    for junk in root.rglob(".git"):
-        shutil.rmtree(junk, ignore_errors=True)
+    for name in (".git", ".venv", "__pycache__", "node_modules"):
+        for junk in root.rglob(name):
+            shutil.rmtree(junk, ignore_errors=True)
     manifest_hits = [root / "manifest.json", *root.glob("*/manifest.json")]
     if not any(hit.is_file() for hit in manifest_hits):
         shutil.rmtree(root, ignore_errors=True)
         raise LifecycleError("invalid", "no manifest.json in the bundle root (or one level down)")
-    sha = _init_staging_repo(root)
+    try:
+        sha = _init_staging_repo(root)
+    except LifecycleError:
+        # No orphan staged tree when the host cannot pin it (git missing).
+        shutil.rmtree(root, ignore_errors=True)
+        raise
     return root, sha
 
 
@@ -1216,10 +1465,77 @@ async def import_zip_bundle(db: AsyncSession, data: bytes) -> dict:
         "local": {"path": str(root)},
         "ref": {"strategy": "commit-pin", "value": sha},
     }
-    view = await add_source(db, descriptor)
+    view = await add_source(db, descriptor, feeder=True)
     report = await sync_source(db, uuid.UUID(view["id"]))
     view["sync"] = report
     return view
+
+
+async def import_mounted_source(db: AsyncSession, path: str, subpath: str = "") -> dict:
+    """Mount feeder (ADR-0071): stage the operator's folder, then the NORMAL
+    add/update + sync flow — consent and digest pinning happen unchanged.
+
+    One row per ``(resolved folder, subpath)``: a second import of the same
+    mount refreshes the existing source in place (the stable ``mount_key``)
+    instead of creating a duplicate. Staging and the repoint are serialized
+    by one process-wide feeder lock (imports are rare admin actions; the
+    order — feeder lock, then the source lock inside add/update — is fixed).
+    """
+    async with _exclusive("mounted-import"):
+        staged, sha, key, resolved = _stage_mounted_tree(path, subpath)
+        descriptor: dict = {
+            "local": {"path": str(staged)},
+            "ref": {"strategy": "commit-pin", "value": sha},
+        }
+        if subpath:
+            descriptor["subpath"] = subpath
+        existing = (
+            (await db.execute(select(ExtensionSource).where(ExtensionSource.mount_key == key)))
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            view = await update_source(
+                db,
+                existing.id,
+                descriptor,
+                feeder=True,
+                mount_key=key,
+                mount_path=str(resolved),
+            )
+        else:
+            view = await add_source(
+                db, descriptor, feeder=True, mount_key=key, mount_path=str(resolved)
+            )
+    report = await sync_source(db, uuid.UUID(view["id"]))
+    view["sync"] = report
+    return view
+
+
+async def refresh_mounted_source(db: AsyncSession, source: ExtensionSource) -> dict:
+    """Re-stage a mounted source from its recorded folder (Check = refresh).
+
+    The admin sync endpoint calls this *before* ``sync_source``; the sync
+    itself never stages, so the feeder lock and the source lock never nest
+    in the opposite order.
+    """
+    if not source.mount_path:
+        raise LifecycleError("invalid", "this source is not a mounted source")
+    async with _exclusive("mounted-import"):
+        staged, sha, key, resolved = _stage_mounted_tree(source.mount_path, source.subpath)
+        descriptor = dict(source.descriptor or {})
+        descriptor["local"] = {"path": str(staged)}
+        descriptor["ref"] = {"strategy": "commit-pin", "value": sha}
+        if source.subpath:
+            descriptor["subpath"] = source.subpath
+        return await update_source(
+            db,
+            source.id,
+            descriptor,
+            feeder=True,
+            mount_key=key,
+            mount_path=str(resolved),
+        )
 
 
 async def add_source(
@@ -1227,11 +1543,19 @@ async def add_source(
     descriptor: dict,
     *,
     secrets: dict | None = None,
+    feeder: bool = False,
+    mount_key: str | None = None,
+    mount_path: str | None = None,
 ) -> dict:
     """Add a source (validated against the vendored schema — production
     https root or the gated local variant). No fetch happens here: a
-    failed fetch must be a *status*, never a failed add."""
-    parsed = validate_source_descriptor(descriptor)
+    failed fetch must be a *status*, never a failed add.
+
+    ``feeder``/``mount_key``/``mount_path`` are passed only by the operator
+    feeder writers (ADR-0071): the exemption is call-site scoped, so a
+    hand-authored local descriptor never rides it.
+    """
+    parsed = validate_source_descriptor(descriptor, feeder=feeder)
     clash = await db.execute(
         select(ExtensionSource).where(
             ExtensionSource.origin == parsed.origin, ExtensionSource.subpath == parsed.subpath
@@ -1251,6 +1575,8 @@ async def add_source(
         kind=parsed.kind,
         subpath=parsed.subpath,
         descriptor=parsed.document,
+        mount_key=mount_key,
+        mount_path=mount_path,
         secrets={
             slot: encrypt_secret(str(value))
             for slot, value in (secrets or {}).items()
@@ -1269,15 +1595,23 @@ async def update_source(
     descriptor: dict,
     *,
     secrets: dict | None = None,
+    feeder: bool = False,
+    mount_key: str | None = None,
+    mount_path: str | None = None,
 ) -> dict:
     """Replace a source's descriptor (the edit flow): validated exactly
     like an add and applied under the same writer lock. Pins are untouched
-    — the next sync re-resolves and reports drift the ordinary way."""
+    — the next sync re-resolves and reports drift the ordinary way.
+
+    The mounted refresh passes ``feeder=True`` and the two mount columns;
+    the general edit endpoint never does (a mounted source is refused
+    there), so the production exemption stays call-site scoped.
+    """
     async with _exclusive(f"source:{source_id}"):
         source = await db.get(ExtensionSource, source_id)
         if source is None:
             raise LifecycleError("not-found", "source not found")
-        parsed = validate_source_descriptor(descriptor)
+        parsed = validate_source_descriptor(descriptor, feeder=feeder)
         clash = await db.execute(
             select(ExtensionSource).where(
                 ExtensionSource.origin == parsed.origin,
@@ -1296,6 +1630,10 @@ async def update_source(
         source.kind = parsed.kind
         source.subpath = parsed.subpath
         source.descriptor = parsed.document
+        if mount_key is not None:
+            source.mount_key = mount_key
+        if mount_path is not None:
+            source.mount_path = mount_path
         source.status = "stale"
         source.error = ""
         if secrets is not None:
@@ -1612,6 +1950,11 @@ def _bundle_interpreter(source: ExtensionSource, subpath: str) -> str:
     import os as _os
 
     if source.kind != "local":
+        return sys.executable
+    if _under_imports_root(source.origin):
+        # A feeder-staged source is content-addressed app state, never a dev
+        # checkout: its bytes must run on the host interpreter (the digest
+        # does not cover a bundled .venv, and zip staging strips it).
         return sys.executable
     try:
         root = _check_local_root(str(source.origin or ""))

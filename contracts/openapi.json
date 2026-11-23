@@ -11442,6 +11442,39 @@
         "title": "ExpressOut",
         "type": "object"
       },
+      "ExtensionImportCapabilitiesOut": {
+        "properties": {
+          "feeder": {
+            "title": "Feeder",
+            "type": "boolean"
+          },
+          "git": {
+            "title": "Git",
+            "type": "boolean"
+          },
+          "local": {
+            "title": "Local",
+            "type": "boolean"
+          },
+          "mounted": {
+            "title": "Mounted",
+            "type": "boolean"
+          },
+          "zip": {
+            "title": "Zip",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "git",
+          "local",
+          "zip",
+          "mounted",
+          "feeder"
+        ],
+        "title": "ExtensionImportCapabilitiesOut",
+        "type": "object"
+      },
       "FavoriteSubject": {
         "properties": {
           "key": {
@@ -32067,6 +32100,28 @@
         ]
       }
     },
+    "/api/v1/admin/extensions/capabilities": {
+      "get": {
+        "description": "What this deployment can actually import (plan 132 follow-up): the\nlocal-path and zip kinds are gated server-side, so the surface asks\nfirst instead of offering controls that can only answer ``path-denied``;\n``git`` reports whether the import layer's CLI exists on this host.",
+        "operationId": "extension_import_capabilities_api_v1_admin_extensions_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionImportCapabilitiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Extension Import Capabilities",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/extensions/desired-state": {
       "get": {
         "description": "The GitOps desired-state document (admin-owned; the model never\nauthors it \u2014 ADR-0011 \u00a77).",
@@ -32484,6 +32539,52 @@
         ]
       }
     },
+    "/api/v1/admin/extensions/sources/mounted": {
+      "post": {
+        "description": "Mount feeder (ADR-0071): stage the operator's folder, then the normal\nadd/update + sync flow. One row per ``(resolved folder, subpath)``; a\nsecond import refreshes it. The production exemption is call-site scoped\nto this endpoint and the mounted refresh.",
+        "operationId": "import_mounted_extension_source_api_v1_admin_extensions_sources_mounted_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Mounted Extension Source Api V1 Admin Extensions Sources Mounted Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Mounted Extension Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/extensions/sources/upload": {
       "post": {
         "description": "Zip bundle import (plan 132): a FEEDER for the sources pipeline \u2014\nthe zip is staged as a local source tree (host-owned staging dir, one\nsynthetic commit), then the normal add + sync run unchanged (consent\nand digest-pinned install are still the admin's acts). Dev/test only.",
@@ -32574,7 +32675,7 @@
         ]
       },
       "patch": {
-        "description": "Replace a source's descriptor (the edit flow) \u2014 validated exactly\nlike an add; the next sync re-resolves and reports drift normally.",
+        "description": "Replace a source's descriptor (the edit flow) \u2014 validated exactly\nlike an add; the next sync re-resolves and reports drift normally.\n\nA mounted source is refreshed from its folder, not edited: its descriptor\npoints at app-staged content, so a hand edit would be meaningless.",
         "operationId": "update_extension_source_api_v1_admin_extensions_sources__source_id__patch",
         "parameters": [
           {
@@ -32745,7 +32846,7 @@
     },
     "/api/v1/admin/extensions/sources/{source_id}/sync": {
       "post": {
-        "description": "Fetch + discover + validate + update-check. A failed fetch leaves\npins untouched and marks the source failing (typed error body).",
+        "description": "Fetch + discover + validate + update-check. A failed fetch leaves\npins untouched and marks the source failing (typed error body).\n\nFor a mounted source this is also the refresh: the endpoint re-stages the\nrecorded folder first, then syncs (``sync_source`` itself never stages).",
         "operationId": "sync_extension_source_api_v1_admin_extensions_sources__source_id__sync_post",
         "parameters": [
           {

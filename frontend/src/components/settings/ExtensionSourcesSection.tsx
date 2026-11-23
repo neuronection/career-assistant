@@ -37,6 +37,16 @@ import type {
  * VERBATIM from the backend payload through the kit, never authored here.
  */
 
+const FEEDER_INSTALLER = "bash scripts/install.sh --integrations-dir /path";
+
+const FEEDER_SNIPPET = `services:
+  app:
+    volumes:
+      - ./integrations:/integrations:ro
+    environment:
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "1"
+      CAREER_EXTENSION_MOUNTED_ROOTS: '["/integrations"]'`;
+
 function mapConsent(payload: ConsentPayload): IntegrationConsentPayloadView {
   return {
     variant: "install",
@@ -105,15 +115,20 @@ function mapGroups(installs: ExtensionInstallView[]): IntegrationExtensionGroupV
   }));
 }
 
+function shortPath(raw: string): string {
+  const tilde = raw.replace(/^\/home\/[^/]+/, "~");
+  if (!tilde.startsWith("~/")) return raw;
+  const segments = tilde.split("/").filter(Boolean);
+  return segments.length > 3 ? `~/${segments.slice(-2).join("/")}` : tilde;
+}
+
 function shortOrigin(view: ExtensionSourceView): string {
   const sub = view.descriptor.subpath ? ` · ${view.descriptor.subpath}` : "";
   if (view.kind === "local") {
-    const raw = view.descriptor.local?.path ?? view.origin;
-    const tilde = raw.replace(/^\/home\/[^/]+/, "~");
-    const segments = tilde.split("/").filter(Boolean);
-    const short =
-      segments.length > 3 ? `~/${segments.slice(-2).join("/")}` : tilde;
-    return `${short}${sub}`;
+    // A mounted source shows the operator's folder (ADR-0071), never the
+    // app-internal staged path.
+    const raw = view.mountPath ?? view.descriptor.local?.path ?? view.origin;
+    return `${shortPath(raw)}${sub}`;
   }
   const host = view.origin.replace(/^https?:\/\//, "").replace(/^www\./, "");
   return `${host}${sub}`;
@@ -173,6 +188,7 @@ export function ExtensionSourcesSection() {
   const [busy, setBusy] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [caps, setCaps] = useState<extApi.ExtensionImportCapabilities | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -185,6 +201,16 @@ export function ExtensionSourcesSection() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // plan 132: the zip and local-path kinds are gated server-side (a
+  // production boot answers `path-denied`), so the surface asks what this
+  // deployment allows instead of offering controls that can only fail.
+  useEffect(() => {
+    extApi
+      .fetchExtensionImportCapabilities()
+      .then(setCaps)
+      .catch(() => setCaps(null));
+  }, []);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -248,6 +274,15 @@ export function ExtensionSourcesSection() {
 
   const addSource = async (draft: IntegrationSourceDraft) => {
     const local = draft.localPath.trim() !== "";
+    // Operator feeder (ADR-0071): a mounted folder goes through the staging
+    // endpoint — the ref fields are irrelevant (the host pins the snapshot).
+    if (local && caps?.mounted) {
+      await run(async () => {
+        await extApi.importMountedSource(draft.localPath.trim(), draft.subpath.trim());
+      });
+      setAddOpen(false);
+      return;
+    }
     const isGit = draft.url.trim().startsWith("https://");
     if (!local && !isGit) {
       setNotice(t("toolsSettings.connectors.extSources.needUrlOrPath"));
@@ -316,7 +351,13 @@ export function ExtensionSourcesSection() {
     <SettingsSectionCard
       name="extension-sources"
       title={t("toolsSettings.connectors.extSources.title")}
-      description={t("toolsSettings.connectors.extSources.hint")}
+      description={t(
+        caps?.mounted
+          ? "toolsSettings.connectors.extSources.hintMounted"
+          : caps?.local === false
+            ? "toolsSettings.connectors.extSources.hintGitOnly"
+            : "toolsSettings.connectors.extSources.hint",
+      )}
       adminOnly
     >
       <div className="space-y-3" data-testid="extension-sources-block">
@@ -342,6 +383,7 @@ export function ExtensionSourcesSection() {
           tombstoneLabel: t("toolsSettings.connectors.extSources.tombstone"),
           configureLabel: t("toolsSettings.connectors.extSources.configure"),
           applyUpdateLabel: t("toolsSettings.connectors.extSources.applyUpdate"),
+          kindLabels: { local: t("toolsSettings.connectors.extSources.folderKind") },
           updateAvailableLabel: t("toolsSettings.connectors.extSources.updateAvailableShort"),
           reconsentRequiredLabel: t("toolsSettings.connectors.extSources.needsReconsent"),
           digestDriftLabel: t("toolsSettings.connectors.extSources.digestDriftShort"),
@@ -404,25 +446,60 @@ export function ExtensionSourcesSection() {
         }
       />
 
+      {caps?.feeder === false && (
+        <details
+          className="rounded-lg border border-[var(--as-border)] px-3 py-2"
+          data-testid="feeder-setup"
+        >
+          <summary className="cursor-pointer text-sm text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupTitle")}
+          </summary>
+          <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupHint")}
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded bg-[var(--as-muted)] p-2 text-xs">
+            {FEEDER_SNIPPET}
+          </pre>
+          <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupInstaller")}{" "}
+            <code>{FEEDER_INSTALLER}</code>
+          </p>
+        </details>
+      )}
+
+      {caps?.git === false && (
+        <p
+          role="alert"
+          className="text-sm text-[var(--as-danger)]"
+          data-testid="extension-git-unavailable"
+        >
+          {t("toolsSettings.connectors.extSources.gitUnavailable")}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={() => setAddOpen(true)} data-testid="add-extension-source">
           {t("toolsSettings.connectors.extSources.add")}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => bundleInputRef.current?.click()} data-testid="import-bundle">
-          {t("toolsSettings.connectors.extSources.importBundle")}
-        </Button>
-        <input
-          ref={bundleInputRef}
-          type="file"
-          accept=".zip,application/zip"
-          className="hidden"
-          data-testid="import-bundle-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (file) void importBundle(file);
-          }}
-        />
+        {caps?.zip && (
+          <>
+            <Button size="sm" variant="outline" onClick={() => bundleInputRef.current?.click()} data-testid="import-bundle">
+              {t("toolsSettings.connectors.extSources.importBundle")}
+            </Button>
+            <input
+              ref={bundleInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              data-testid="import-bundle-input"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void importBundle(file);
+              }}
+            />
+          </>
+        )}
       </div>
 
       <AddIntegrationSourceDialog
@@ -437,29 +514,51 @@ export function ExtensionSourcesSection() {
         onSubmit={(draft) => void (editTarget ? editSource(draft) : addSource(draft))}
         busy={busy}
         secretSlot="repo-token"
-        kind={editTarget ? (editTarget.kind === "local" ? "local" : "git") : "chooser"}
+        kind={
+          editTarget
+            ? editTarget.kind === "local"
+              ? "local"
+              : "git"
+            : caps?.local === false && !caps?.mounted
+              ? "git"
+              : "chooser"
+        }
         initial={editTarget ? toDraft(editTarget) : undefined}
         labels={{
           title: editTarget
             ? t("toolsSettings.connectors.extSources.editTitle")
             : t("toolsSettings.connectors.extSources.addTitle"),
           urlLabel: t("toolsSettings.connectors.extSources.url"),
-          localPathLabel: t("toolsSettings.connectors.extSources.localPath"),
+          localPathLabel: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedPathLabel"
+              : "toolsSettings.connectors.extSources.localPath",
+          ),
           refStrategyLabel: t("toolsSettings.connectors.extSources.strategy"),
           refValueLabel: t("toolsSettings.connectors.extSources.refValue"),
           subpathLabel: t("toolsSettings.connectors.extSources.subpath"),
           secretLabel: t("toolsSettings.connectors.extSources.token"),
           submitLabel: editTarget
             ? t("toolsSettings.connectors.extSources.save")
-            : t("toolsSettings.connectors.extSources.add"),
+            : caps?.mounted
+              ? t("toolsSettings.connectors.extSources.mountedSubmit")
+              : t("toolsSettings.connectors.extSources.add"),
           cancelLabel: t("toolsSettings.connectors.sources.cancel"),
           closeLabel: t("toolsSettings.connectors.extSources.close"),
           submittingLabel: t("toolsSettings.connectors.extSources.submitting"),
           kindPrompt: t("toolsSettings.connectors.extSources.kindPrompt"),
           gitKindLabel: t("toolsSettings.connectors.extSources.gitKind"),
           gitKindHint: t("toolsSettings.connectors.extSources.gitKindHint"),
-          localKindLabel: t("toolsSettings.connectors.extSources.localKind"),
-          localKindHint: t("toolsSettings.connectors.extSources.localKindHint"),
+          localKindLabel: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedKind"
+              : "toolsSettings.connectors.extSources.localKind",
+          ),
+          localKindHint: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedKindHint"
+              : "toolsSettings.connectors.extSources.localKindHint",
+          ),
         }}
       />
 

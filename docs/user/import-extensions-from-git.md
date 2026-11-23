@@ -1,11 +1,12 @@
-# Import extensions from git
+# Import extensions
 
 Beyond the bundled engines, Career Assistant can import connectors and
-mini-apps from **git sources** — any repository that carries extension
-manifests. Every import is digest-pinned and consent-gated: you see
-exactly what you're installing, and updates never apply on their own.
-The surface lives at **Settings → Tools → Connectors → Import
-connectors from git sources** (admin).
+mini-apps three ways: from **git sources** (any repository that carries
+extension manifests), from an uploaded **bundle zip**, or from a **folder
+mounted into the container** (self-hosted, operator-enabled). Every import
+is digest-pinned and consent-gated: you see exactly what you're installing,
+and updates never apply on their own. The surface lives at **Settings →
+Tools → Connectors → Extension sources** (admin).
 
 A source is one **origin + subpath** pair: a multi-bundle repository
 (several `*/src/` bundles in one repo) registers one source per bundle
@@ -20,17 +21,49 @@ Handy when the bundle lives on your machine instead of a remote: the
 pinned source, and runs the exact same flow — validate, consent,
 digest-pinned install. The zip is never executed directly, and "update"
 means uploading a new zip and consenting again (updates never apply on
-their own). Like local-path sources, zip import is a dev/test feature
-(production boots stay git-only). In the desktop shell the file dialog
-is the native picker.
+their own). Zip import is **off by default in production**: a self-hosting
+operator can enable the feeder policy (`CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS`)
+on the `app` service, after which the button appears and the same flow runs
+on the server. Without it, production stays git-only and the control is not
+offered. In the desktop shell, when the instance allows zip import, the file
+dialog is the native picker.
+
+## Import from a mounted folder (self-hosted)
+
+When the operator has enabled the feeder policy, a folder mounted into the
+container is importable as a source: the host copies it into its own store,
+pins the snapshot and runs the same consent flow. Mount it read-only and
+allowlist the container path, for example:
+
+```yaml
+services:
+  app:
+    volumes:
+      - ./integrations:/integrations:ro
+    environment:
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "1"
+      CAREER_EXTENSION_MOUNTED_ROOTS: '["/integrations"]'
+```
+
+On a bundle install the installer can do the compose part for you:
+`bash scripts/install.sh --integrations-dir /srv/career/integrations` (a
+first install also asks once, defaulting to no).
+
+Then **Install from Git** → *Mounted folder*, enter the folder path inside the
+container (for example `integrations/my-tool`) and confirm. **Check**
+re-stages the folder: a changed tree is offered as an update and applies only
+after a second consent. A mounted source is never managed by GitOps, and its
+folder is not part of the backup — re-attach it before pressing Check after a
+restore.
 
 ## Add a source
 
-A source is a git repository plus which ref to track. In production the
+A git source is a repository plus which ref to track. In production the
 address must be an **https git URL**; private repositories work with a
 credential slot (a sealed token — never stored in the URL). Developer
 setups can also use a local checkout, confined to allowlisted folders
-and rejected outright on production instances.
+and rejected outright on production instances. A **mounted folder** takes
+no ref at all — the host pins the snapshot it stages.
 
 Adding a source fetches it once and lists every extension it offers
 with its compatibility — an incompatible extension says so with a

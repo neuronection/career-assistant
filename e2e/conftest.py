@@ -119,7 +119,15 @@ def open_chat_dock(page: Page):
     open the launcher, then choose the side panel in the view switcher."""
     dock = page.get_by_test_id("chat-dock")
     if not dock.is_visible():
-        page.get_by_role("button", name="Open chat assistant").click()
+        # The launcher is a fixed bottom-right 48 px FAB. A locator click can
+        # lose its node to a shell re-render (CV pages push an attachment
+        # right after navigation), so wait for it to exist and dispatch the
+        # pointer click at its fixed spot instead of on the node itself.
+        page.locator('[data-as="chat-launcher"]').first.wait_for(
+            state="attached", timeout=20_000
+        )
+        viewport = page.viewport_size or {"width": 1280, "height": 720}
+        page.mouse.click(viewport["width"] - 40, viewport["height"] - 40)
         page.get_by_test_id("chat-view-docked").click(timeout=10_000)
     dock.wait_for(state="visible", timeout=20_000)
     return dock

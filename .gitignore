@@ -91,3 +91,6 @@ frontend/coverage/
 .openchamber/
 *.db-shm
 *.db-wal
+
+# Operator-feeder compose override written by scripts/install.sh (host-local).
+docker/docker-compose.integrations.yml

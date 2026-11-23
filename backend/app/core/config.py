@@ -290,6 +290,12 @@ class Settings(BaseSettings):
     # clone root must resolve under one (net_guard-style path discipline).
     # Empty list = no local sources anywhere, even in dev.
     extension_local_source_roots: list[str] = []
+    # Operator feeder (ADR-0071, plan 216): a production host may import from
+    # an app-staged feeder (mounted folder / uploaded bundle) when the operator
+    # explicitly enables it. Both default off; the compose `environment:` map
+    # must carry them — a `docker/.env` line alone never reaches the app.
+    extension_allow_feeder_imports: bool = False
+    extension_mounted_roots: list[str] = []
     # Bound for one git resolve/fetch subprocess (seconds).
     extension_fetch_timeout_seconds: float = 60.0
 

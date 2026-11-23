@@ -148,6 +148,69 @@ def test_compose_cookie_secure_is_derived_never_hardcoded():
         assert "CAREER_TLS: ${CAREER_TLS:-0}" in text
 
 
+def test_compose_carries_the_feeder_policy():
+    """ADR-0071: the policy reaches the container only through the compose
+    `environment:` allowlist (there is no `env_file:`), so a `docker/.env`
+    line alone is invisible. The roots default must be `[]`, never empty —
+    a `list[str]` field JSON-decodes the value and a non-JSON one
+    (e.g. `/integrations`) is a boot crash-loop."""
+    for compose in (
+        REPO_ROOT / "docker" / "docker-compose.prod.yml",
+        REPO_ROOT / "docker" / "docker-compose.standalone.yml",
+    ):
+        text = compose.read_text(encoding="utf-8")
+        assert (
+            "CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "
+            "${CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS:-0}" in text
+        )
+        assert "CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}" in text
+
+
+def test_compose_forwards_the_connector_allowlist():
+    """The T3 script tier is admin-opt-in, and the compose environment map is
+    an allowlist: without this key an imported MCP bundle installs but cannot
+    be enabled ("the mcp connector is not allowlisted")."""
+    for compose in (
+        REPO_ROOT / "docker" / "docker-compose.prod.yml",
+        REPO_ROOT / "docker" / "docker-compose.standalone.yml",
+    ):
+        text = compose.read_text(encoding="utf-8")
+        assert (
+            "CAREER_CONNECTOR_PLUGINS_ALLOWLIST: ${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}" in text
+        )
+
+
+def test_compose_persists_host_local_state():
+    """ADR-0071 / plan 216: extension installs live under the data dir and the
+    auth-kit key file under the config dir. Both must be named volumes at the
+    explicit paths, or a container recreate empties them while the database
+    rows survive and keep pointing at the missing bytes."""
+    for compose in (
+        REPO_ROOT / "docker" / "docker-compose.prod.yml",
+        REPO_ROOT / "docker" / "docker-compose.standalone.yml",
+    ):
+        model = yaml.safe_load(compose.read_text(encoding="utf-8"))
+        app = model["services"]["app"]
+        assert app["environment"]["CAREER_DATA_DIR"] == "/home/career/.local/share/CareerAssistant"
+        assert app["environment"]["CAREER_CONFIG_DIR"] == "/home/career/.config/CareerAssistant"
+        assert "career_data:/home/career/.local/share/CareerAssistant" in app["volumes"]
+        assert "career_config:/home/career/.config/CareerAssistant" in app["volumes"]
+        assert "career_data" in model["volumes"]
+        assert "career_config" in model["volumes"]
+    dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
+    assert "useradd -u 1000" in dockerfile, "the container uid is pinned for volume ownership"
+
+
+def test_cloud_overlay_keeps_host_local_volumes():
+    """The object-storage overlay drops the uploads volume (provider bytes) but
+    must keep data/config: `!reset []` would strip them silently."""
+    text = (REPO_ROOT / "docker" / "docker-compose.cloud.yml").read_text(encoding="utf-8")
+    assert "volumes: !override" in text
+    assert "career_data:/home/career/.local/share/CareerAssistant" in text
+    assert "career_config:/home/career/.config/CareerAssistant" in text
+    assert "volumes: !reset" not in text
+
+
 # ------------------------------------------------- runtime DDL under split
 
 

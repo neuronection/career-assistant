@@ -81,6 +81,25 @@ docker compose -f docker/docker-compose.standalone.yml up -d --build
 ```
 
 - App + Postgres + nginx; the app image serves API and SPA same-origin.
+- **Persistent host-local state**: `career_data` (extension installs and their
+  content-addressed store, retrieval data, the datastore marker) and
+  `career_config` (the auth-kit key file) are named volumes at the app's
+  default paths — `CAREER_DATA_DIR` / `CAREER_CONFIG_DIR` are set explicitly in
+  the compose files. Without them, a recreate empties both while the database
+  rows survive and keep pointing at the missing bytes.
+  **Upgrading an older install:** the previous container-layer copies are lost
+  on any recreate anyway; copy them out first if they matter —
+  `docker cp <app>:/home/career/.local/share/CareerAssistant ./data-backup`
+  (and `.config/CareerAssistant`), then restore into the volumes:
+  `docker run --rm -v "$PWD/data-backup:/from:ro" -v career-assistant_career_data:/to alpine sh -c 'cp -a /from/. /to/'`
+  (same for `career-assistant_career_config`).
+- **Operator feeder (off by default)**: `bash scripts/install.sh
+  --integrations-dir /srv/career/integrations` (or the one-time prompt on a
+  first install) writes `docker/docker-compose.integrations.yml` and the two
+  `CAREER_EXTENSION_*` values, so a bundle zip or a mounted folder can be
+  imported without hosting a git repo. `--no-integrations` turns it off and
+  removes only the installer-managed mount. Installs stay consent-gated,
+  digest-pinned and disabled until enabled.
 - Optional scheduled database backups (pg_dump to `./backups`; the
   uploads volume is covered by the manual tar step in the restore
   drill — see docs/dev/deployment.md):

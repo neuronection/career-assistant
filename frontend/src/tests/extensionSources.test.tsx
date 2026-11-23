@@ -17,7 +17,9 @@ vi.mock("@/api/extensionSources", async (importOriginal) => {
   return {
     ...actual,
     fetchExtensionSources: vi.fn(),
+    fetchExtensionImportCapabilities: vi.fn(),
     addExtensionSource: vi.fn(),
+    importMountedSource: vi.fn(),
     syncExtensionSource: vi.fn(),
     removeExtensionSource: vi.fn(),
     fetchInstallPreview: vi.fn(),
@@ -141,6 +143,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchExtensionSources.mockResolvedValue([]);
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({ git: true, local: true, zip: true });
     mocked.fetchInstallPreview.mockResolvedValue(PREVIEW);
     mocked.fetchUpdatePreview.mockResolvedValue(PREVIEW);
     mockedSources.fetchAdminSources.mockResolvedValue([]);
@@ -152,6 +155,100 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     expect(screen.getByTestId("extension-sources-block")).toBeTruthy();
     expect(screen.getByTestId("integration-sources-empty")).toBeTruthy();
     expect(screen.getByTestId("add-extension-source")).toBeTruthy();
+    expect(await screen.findByTestId("import-bundle")).toBeTruthy();
+  });
+
+  it("imports a mounted folder through the feeder endpoint when enabled", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: true,
+      mounted: true,
+      feeder: true,
+    });
+    mocked.importMountedSource.mockResolvedValue({
+      id: "src-m",
+      kind: "local",
+      sync: { ok: true },
+    });
+    renderSection();
+    await userEvent.click(await screen.findByTestId("add-extension-source"));
+    // the chooser still offers a folder card — relabelled for the feeder
+    await userEvent.click(await screen.findByTestId("integration-source-kind-local"));
+    await userEvent.type(
+      await screen.findByLabelText("Folder path inside the container"),
+      "/integrations/foo",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add mounted folder" }));
+    await waitFor(() =>
+      expect(mocked.importMountedSource).toHaveBeenCalledWith("/integrations/foo", ""),
+    );
+    expect(mocked.addExtensionSource).not.toHaveBeenCalled();
+  });
+
+  it("explains the operator feeder when the policy is off", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: false,
+      mounted: false,
+      feeder: false,
+    });
+    renderSection();
+    const block = await screen.findByTestId("feeder-setup");
+    expect(block.textContent).toContain("CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS");
+    expect(block.textContent).toContain("bash scripts/install.sh --integrations-dir");
+  });
+
+  it("shows the operator's folder for a mounted source, not the staged path", async () => {
+    mocked.fetchExtensionSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        origin: "/data/extension-imports/mounted/abc/def",
+        mountKey: "abc",
+        mountPath: "/srv/career/integrations/foo",
+        descriptor: {
+          url: null,
+          local: { path: "/data/extension-imports/mounted/abc/def" },
+          ref: { strategy: "commit-pin" as const, value: "a".repeat(40) },
+          credentialSlots: [],
+        },
+        candidates: [],
+        installs: [],
+      },
+    ]);
+    renderSection();
+    const row = await screen.findByTestId("integration-source-src-1");
+    expect(row.textContent).toContain("/srv/career/integrations/foo");
+    expect(row.textContent).not.toContain("extension-imports");
+  });
+
+  it("hides zip import and pins the dialog to git on a production deployment", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: false,
+    });
+    renderSection();
+    await waitFor(() => expect(mocked.fetchExtensionImportCapabilities).toHaveBeenCalled());
+    expect(screen.queryByTestId("import-bundle")).toBeNull();
+    expect(screen.queryByTestId("import-bundle-input")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("add-extension-source"));
+    expect(await screen.findByTestId("integration-source-form")).toBeTruthy();
+    expect(screen.queryByTestId("integration-source-kind-chooser")).toBeNull();
+    expect(screen.queryByLabelText("Local repo path (dev/test only)")).toBeNull();
+  });
+
+  it("explains a host without git instead of letting every sync fail", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: false,
+      local: false,
+      zip: false,
+    });
+    renderSection();
+    expect(await screen.findByTestId("extension-git-unavailable")).toBeTruthy();
   });
 
   it("renders a candidate whose consent opens with the VERBATIM disclosure", async () => {

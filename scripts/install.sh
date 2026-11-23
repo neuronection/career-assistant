@@ -17,6 +17,10 @@
 #   bash scripts/install.sh --image app=ghcr.io/…@sha256:…   # pin-passing form (what the bootstrap forwards)
 #   bash scripts/install.sh --image-tag 0.17.1         # pin a published release tag
 #   bash scripts/install.sh --env-only                 # write docker/.env only
+#   bash scripts/install.sh --integrations-dir /srv/career/integrations
+#                                                       # mount a read-only folder for extension bundles (operator feeder)
+#   bash scripts/install.sh --no-integrations          # keep the feeder off (skip the prompt)
+#   bash scripts/install.sh --ask                      # force the integrations prompt (test/provisioning seam)
 #   bash scripts/install.sh --no-pull                  # reuse local images (offline)
 #   bash scripts/install.sh --no-wait                  # skip the /health wait
 #   bash scripts/install.sh --auto-ports               # move busy ports to free ones
@@ -55,6 +59,7 @@ source "$SCRIPT_DIR/lib-docker.sh"
 
 # ── flags ───────────────────────────────────────────────────────────────────
 ENV_ONLY=0 NO_PULL=0 NO_WAIT=0 AUTO_PORTS=0 NO_PORTS=0 RESET=0 RESET_YES=0
+NO_INTEGRATIONS=0 ASK=0 INTEGRATIONS_DIR_ARG=""
 IMAGE_TAG_ARG="" HTTP_PORT_ARG="" PUBLIC_URL_ARG="" BIND_ARG="" ALLOW_ROOT="${ALLOW_ROOT:-}"
 IMAGE_ARGS=()   # --image values ([KEY=]REF), resolved after the config load
 while [ "$#" -gt 0 ]; do
@@ -68,6 +73,11 @@ while [ "$#" -gt 0 ]; do
         --reset) RESET=1 ;;
         --yes) RESET_YES=1 ;;
         --allow-root) ALLOW_ROOT=1 ;;
+        --no-integrations) NO_INTEGRATIONS=1 ;;
+        --ask) ASK=1 ;;
+        --integrations-dir)
+            [ "$#" -ge 2 ] || die "--integrations-dir needs a folder path"
+            INTEGRATIONS_DIR_ARG="$2"; shift ;;
         --image)
             [ "$#" -ge 2 ] || die "--image needs a value ([KEY=]REF)"
             IMAGE_ARGS+=("$2"); shift ;;
@@ -317,6 +327,82 @@ gen_fernet_key() {
     python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
 }
 
+# ── operator feeder (ADR-0071): mounted extension bundles ───────────────────
+INTEGRATIONS_MOUNT="/integrations"
+INTEGRATIONS_OVERRIDE="docker/docker-compose.integrations.yml"
+INTEGRATIONS_MARKER="# managed by scripts/install.sh --integrations-dir (do not edit)"
+
+integrations_selinux_opt() {
+    if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled 2>/dev/null; then
+        printf ':z'
+    elif [ -r /sys/fs/selinux/enforce ] && [ "$(cat /sys/fs/selinux/enforce 2>/dev/null)" = "1" ]; then
+        printf ':z'
+    fi
+}
+
+# One writer for the flag, the prompt and the docs: creates the folder, writes
+# the managed compose override (a distinct filename, never an operator's own
+# docker-compose.override.yml) and persists the two policy values.
+configure_integrations() { # PATH | off
+    local choice="$1" path owner mode selinux
+    if [ "$choice" = "off" ]; then
+        if [ -f "$INTEGRATIONS_OVERRIDE" ]; then
+            if head -n1 "$INTEGRATIONS_OVERRIDE" | grep -qxF "$INTEGRATIONS_MARKER"; then
+                rm -f "$INTEGRATIONS_OVERRIDE"
+                echo -e "${GREEN}Removed the managed integrations mount,${NC} (the host folder is untouched)."
+            else
+                echo -e "${YELLOW}${INTEGRATIONS_OVERRIDE} is not installer-managed — leaving it untouched.${NC}"
+            fi
+        fi
+        set_env_value CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS 0
+        set_env_value CAREER_EXTENSION_MOUNTED_ROOTS "'[]'"
+        # The compose args were built when the lib was sourced; drop the
+        # override we just removed so this run does not pass a missing -f.
+        # shellcheck disable=SC2034  # consumed by lib-docker.sh run_compose
+        COMPOSE_ENV_ARGS=(--env-file docker/.env -f "${COMPOSE_FILE}")
+        return 0
+    fi
+    case "$choice" in
+        /*) ;;
+        *) die "--integrations-dir needs an ABSOLUTE host path (got: $choice)" ;;
+    esac
+    case "$choice" in
+        *$'\n'*|*$'\r'*|*:*) die "--integrations-dir path must not contain newlines or ':' (got: $choice)" ;;
+    esac
+    [ "$choice" = "/" ] && die "--integrations-dir must not be / — pick a dedicated folder"
+    path="$choice"
+    if [ -f "$INTEGRATIONS_OVERRIDE" ] \
+       && ! head -n1 "$INTEGRATIONS_OVERRIDE" | grep -qxF "$INTEGRATIONS_MARKER"; then
+        die "${INTEGRATIONS_OVERRIDE} exists and is not installer-managed — refusing to overwrite it"
+    fi
+    mkdir -p "$path" || die "could not create the integrations folder: ${path}"
+    chmod 755 "$path" 2>/dev/null || true
+    owner="$(stat -c '%u' "$path" 2>/dev/null || echo '')"
+    if [ -n "$owner" ] && [ "$owner" != "1000" ]; then
+        echo -e "${YELLOW}Note: ${path} is owned by uid ${owner}; the app runs as uid 1000 and must read it.${NC}"
+    fi
+    mode="$(stat -c '%a' "$path" 2>/dev/null || echo '')"
+    case "$mode" in
+        *[2367]) echo -e "${YELLOW}Note: ${path} is world-writable; restrict it to the operator and the app.${NC}" ;;
+    esac
+    selinux="$(integrations_selinux_opt)"
+    cat > "$INTEGRATIONS_OVERRIDE" <<YAML
+${INTEGRATIONS_MARKER}
+services:
+  app:
+    volumes:
+      - "${path}:${INTEGRATIONS_MOUNT}:ro${selinux}"
+YAML
+    set_env_value CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS 1
+    set_env_value CAREER_EXTENSION_MOUNTED_ROOTS "'[\"${INTEGRATIONS_MOUNT}\"]'"
+    # Add the just-written override to this run's compose args (the lib built
+    # the array before the file existed).
+    # shellcheck disable=SC2034  # consumed by lib-docker.sh run_compose
+    COMPOSE_ENV_ARGS=(--env-file docker/.env -f "${COMPOSE_FILE}" -f "${INTEGRATIONS_OVERRIDE}")
+    echo -e "${GREEN}Extension bundles will be importable from ${path} (read-only at ${INTEGRATIONS_MOUNT}).${NC}"
+    echo "  Next: Settings → Tools → Connectors → Extension sources → Install from folder."
+}
+
 ENV_WAS_FRESH=0
 if [ -f "$ENV_FILE" ]; then
     echo -e "${GREEN}${ENV_FILE} already exists — leaving it untouched (secrets, pin and port are kept).${NC}"
@@ -378,6 +464,35 @@ if [ -n "$PUBLIC_URL_ARG" ]; then
         echo -e "${GREEN}Set CAREER_PUBLIC_URL=${PUBLIC_URL_ARG} (saved in ${ENV_FILE}).${NC}"
     fi
 fi
+# Operator feeder (ADR-0071): a flag always wins; a first install may ask once
+# (default No); a re-run keeps its recorded choice. --yes suppresses the
+# prompt, --ask forces it (the selftest seam).
+if [ "$NO_INTEGRATIONS" -eq 0 ] && [ -z "$INTEGRATIONS_DIR_ARG" ] \
+   && [ ! -f "$INTEGRATIONS_OVERRIDE" ] && [ "$ENV_WAS_FRESH" = "1" ]; then
+    if [ "$ASK" -eq 1 ] || { [ -t 0 ] && [ "$RESET_YES" -eq 0 ] && [ "$ENV_ONLY" -eq 0 ]; }; then
+        INTEGRATIONS_DEFAULT="${INSTALL_DIR}/integrations"
+        echo
+        echo -e "${GREEN}Extension bundles can be imported from a folder mounted into the container.${NC}"
+        echo "  It is mounted read-only; you vouch for the bundles you put there."
+        if read -r -p "Mount a folder for extension bundles? [y/N] " REPLY; then
+            case "$REPLY" in
+                [yY]|[yY][eE][sS])
+                    read -r -p "Host folder [${INTEGRATIONS_DEFAULT}]: " INTEGRATIONS_REPLY || INTEGRATIONS_REPLY=""
+                    configure_integrations "${INTEGRATIONS_REPLY:-$INTEGRATIONS_DEFAULT}"
+                    ;;
+                *) configure_integrations off ;;
+            esac
+        else
+            configure_integrations off  # EOF counts as No
+        fi
+    fi
+fi
+if [ -n "$INTEGRATIONS_DIR_ARG" ]; then
+    configure_integrations "$INTEGRATIONS_DIR_ARG"
+elif [ "$NO_INTEGRATIONS" -eq 1 ]; then
+    configure_integrations off
+fi
+
 # The port may have moved in the pre-flight below; keep the health URL honest.
 HEALTH_URL="http://127.0.0.1:$(env_value HTTP_PORT "$HTTP_PORT")${HEALTH_PATH}"
 HTTP_PORT="$(env_value HTTP_PORT "$HTTP_PORT")"
@@ -541,6 +656,11 @@ else
 fi
 echo "  Bind:     ${HTTP_BIND}:${HTTP_PORT} → container :80"
 echo "  Health:   ${HEALTH_URL}"
+if [ -f "$INTEGRATIONS_OVERRIDE" ]; then
+    echo "  Bundles:  mounted folder at ${INTEGRATIONS_MOUNT} (Settings → Tools → Install from folder)"
+else
+    echo "  Bundles:  off (enable later: bash scripts/install.sh --integrations-dir /path)"
+fi
 # readyPath null = /ready not shipped at this release — no line, no probe.
 [ -n "$READY_PATH" ] && echo "  Ready:    http://127.0.0.1:${HTTP_PORT}${READY_PATH}"
 echo "  Setup:    ${SETUP_HINT}"
