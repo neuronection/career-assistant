@@ -86,6 +86,36 @@ export const CATALOG_LIMITS = {
   catalogs: 8,
 } as const;
 
+/** A curated catalog offered as a preselected tile. Nothing is fetched
+ * until the person clicks: the tile prefills the canonical URL and tier
+ * and rides the same browser fetch + PUT rail as a manual import. */
+export interface FeaturedCatalog {
+  id: string;
+  name: string;
+  url: string;
+  tier: Exclude<CatalogTier, "user">;
+  country?: string;
+}
+
+export const FEATURED_CATALOGS: FeaturedCatalog[] = [
+  {
+    id: "neuronection-greece",
+    name: "Neuronection verified — Greece",
+    url: "https://neuronection.com/api/v1/career/ats-catalogs/greece.json",
+    tier: "operator",
+    country: "GR",
+  },
+];
+
+/** `sha256:…` trimmed to its algorithm plus the first eight digest
+ * characters for rows; the full value stays in the element title. */
+export function shortContentHash(hash: string): string {
+  const separator = hash.indexOf(":");
+  const algorithm = separator > 0 ? hash.slice(0, separator + 1) : "";
+  const digest = hash.slice(algorithm.length);
+  return digest.length > 8 ? `${algorithm}${digest.slice(0, 8)}…` : hash;
+}
+
 const PRESET_KEYS = new Set<string>(PRESET_CONNECTOR_KEYS);
 const PRESET_FIELDS = new Set([
   "slug",

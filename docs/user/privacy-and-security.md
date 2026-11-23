@@ -28,7 +28,8 @@ is created on first launch; on servers you pin all three `CAREER_*_KEY`
 secrets in the environment. Older releases encrypted with a key derived
 from `JWT_SECRET`; the v0.17 baseline derives nothing from it (pre-baseline
 installations had that ciphertext retired once, with AI provider keys
-re-entered in Settings → AI Configuration).
+re-entered in Settings → My AI Configuration, or Settings → Instance AI
+Configuration for instance-scope providers).
 
 ## Authentication
 

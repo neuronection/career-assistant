@@ -94,6 +94,31 @@ scripts/    run-dev.sh, run-docker.sh, update-docker.sh, check-changelog.sh,
 4. Update `CHANGELOG.md` if the change is user-visible (CI checks this).
 5. Open the PR against `main` and make sure CI is green.
 
+### Commit identity and release-cut hygiene
+
+The `main` branch is protected by the **main protection** ruleset
+(`gh api repos/neuronection/career-assistant/rules/branches/main`). Two
+lessons from release cuts — keep both in mind:
+
+- **Commit with an email tied to the GitHub account.** Use
+  `50883154+constLiakos@users.noreply.github.com` (the repo's configured
+  `git config user.email`) so every commit stays attributed to the PR
+  author; GitHub attributes a commit when its author/committer email maps
+  to the author's account. Commit attribution is what keeps
+  branch-protection "unattributed changes" machinery from adding surprise
+  review demands to a PR. On 2026-11-20 the ruleset's *require an
+  additional approval for unattributed changes* flag (a GitHub-injected
+  default, never chosen here) was set to `false` — this is a solo-maintainer
+  repo and release bumps are local commits, so no extra approval can ever
+  be satisfiable; if a merge is still refused while every required check is
+  green and no review is requested, inspect `mergeStateStatus` and the
+  required checks on the *latest* head SHA before reaching for `--admin`.
+- **Bump commits stage explicit paths, never `git add -A`.** A release
+  bump is `git add VERSION` (or the exact files the bump touches) plus the
+  changelog paths — a blanket add once shipped local runtime uploads to
+  the public repo on 2026-11-20 (that branch was deleted unmerged and the
+  clean bump re-landed as PR #24).
+
 ## Security issues
 
 Do not report vulnerabilities through public issues — see

@@ -6,14 +6,13 @@ provider."""
 import json
 import re
 
-from conftest import API, BASE_URL, api_headers
+from conftest import API, BASE_URL, api_headers, open_chat_dock
 
 
 def test_chat_proposes_and_approval_applies(page) -> None:
     page.goto(f"{BASE_URL}/")
 
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
 
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
@@ -51,8 +50,7 @@ def test_destructive_card_requires_confirm(page) -> None:
     assert response.ok, response.text()
 
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
@@ -101,8 +99,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
     assert item["description"] == "Kept the pipelines healthy."
 
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
@@ -163,8 +160,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
 
 def _workspace_chat(page, message: str):
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, PlugZap, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { getCountryFlag } from "@neuronection/assistant-ui/countries";
@@ -13,20 +13,8 @@ import {
 import type { ConnectionTestStatus } from "@neuronection/assistant-ui";
 import { apiDetail } from "@/api/client";
 
-const GROUPS = [
-  {
-    scope: "system",
-    titleKey: "aiSettings.providers.globalTitle",
-    emptyKey: "aiSettings.providers.globalEmpty",
-  },
-  {
-    scope: "user",
-    titleKey: "aiSettings.providers.personalTitle",
-    emptyKey: "aiSettings.providers.personalEmpty",
-  },
-] as const;
-
 interface ProvidersTabProps {
+  scope: AIProvider["scope"];
   providers: AIProvider[];
   canManageGlobal: boolean;
   onChanged: () => void;
@@ -41,6 +29,7 @@ interface TestResult {
 }
 
 export function ProvidersTab({
+  scope,
   providers,
   canManageGlobal,
   onChanged,
@@ -129,16 +118,11 @@ export function ProvidersTab({
     return result.ok ? "ok" : "fail";
   };
 
-  const cards = useMemo(
-    () =>
-      GROUPS.map(({ scope, titleKey, emptyKey }) => ({
-        scope: scope as AIProvider["scope"],
-        titleKey,
-        emptyKey,
-        items: providers.filter((p) => p.scope === scope),
-      })),
-    [providers],
-  );
+  const emptyKey =
+    scope === "system"
+      ? "aiSettings.providers.globalEmpty"
+      : "aiSettings.providers.personalEmpty";
+  const editable = scope === "user" || canManageGlobal;
 
   return (
     <div className="space-y-6" data-testid="providers-tab">
@@ -151,20 +135,15 @@ export function ProvidersTab({
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {cards.map(({ scope, titleKey, emptyKey, items }) => (
-        <section key={scope}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-slate-700">{t(titleKey)}</h3>
-            {scope === "system" && !canManageGlobal && (
-              <span className="text-xs text-slate-400">{t("aiSettings.providers.readOnlyNote")}</span>
-            )}
-          </div>
-          {items.length === 0 ? (
+      <section>
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">
+            {t("aiSettings.tab.providers")}
+          </h3>
+          {providers.length === 0 ? (
             <EmptyState icon={Zap} compact title={t(emptyKey)} />
           ) : (
             <div className="grid gap-3">
-              {items.map((p) => {
-                const editable = scope === "user" || canManageGlobal;
+              {providers.map((p) => {
                 const testModel = testModelFor(p.id);
                 const activeCount = modelsByProvider[p.id]?.length ?? 0;
                 const testing = testingId === p.id;
@@ -278,8 +257,7 @@ export function ProvidersTab({
               })}
             </div>
           )}
-        </section>
-      ))}
+      </section>
 
       <ConfirmationModal
         open={deleting !== null}

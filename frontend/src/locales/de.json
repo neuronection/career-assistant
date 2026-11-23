@@ -2159,8 +2159,12 @@
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
-    "title": "KI-Konfiguration",
-    "subtitle": "Jede KI-Funktion (Matching, Generierung, Parsen, Chat) läuft auf dem ausgewählten Anbieter/Modell.",
+    "title": "Meine KI-Konfiguration",
+    "subtitle": "Ihre persönlichen Anbieter, Modelle und Aufgabenzuweisungen. Instanz-Einstellungen gelten, sofern Sie sie nicht überschreiben.",
+    "titleInstance": "Instanz-KI-Konfiguration",
+    "subtitleInstance": "Anbieter, Modelle und Aufgabenzuweisungen, die alle Benutzer gemeinsam nutzen.",
+    "openPersonal": "Meine KI-Konfiguration",
+    "openInstance": "Instanz-KI-Konfiguration",
     "tab": {
       "providers": "Anbieter",
       "models": "Modelle",
@@ -2193,11 +2197,9 @@
     "providers": {
       "hint": "Ein Anbieter ist ein API-Endpunkt (OpenAI, OpenRouter, Ollama, LM Studio…) mit dem Schlüssel und der Basis-URL.",
       "add": "Anbieter hinzufügen",
-      "globalTitle": "Globale Anbieter",
       "globalEmpty": "Keine globalen Anbieter konfiguriert.",
-      "personalTitle": "Persönliche Anbieter",
       "personalEmpty": "Noch keine persönlichen Anbieter.",
-      "readOnlyNote": "Nur-Lese-Modus (Admin erforderlich)",
+      "instanceNote": "Instanz-KI wird von einem Administrator verwaltet. Fügen Sie einen persönlichen Anbieter hinzu, um sie zu überschreiben.",
       "inactive": "inaktiv",
       "hostingLocal": "lokal",
       "hostingCloud": "Cloud",
@@ -2280,12 +2282,16 @@
       "tasksSection": "Aufgabenweise Zuweisungen",
       "tasksSectionHint": "Überschreibt das Standardmodell oben für diese Aufgabe.",
       "unassignedMeta": "Nicht zugewiesen — übernimmt die Standardeinstellung für die Fähigkeit, bis Sie ein Modell auswählen.",
+      "inheritedInstance": "Von der Instanz geerbt: {{model}}",
       "decisionUnassignedMeta": "Nicht zugewiesen — Entscheidungsstellen fallen auf den Agentenpfad.",
       "scopeEmpty": "Noch keine Modelle sind in diesem Bereich registriert — fügen Sie eines im Bereich 'Modelle' hinzu und weisen Sie es hier zu.",
       "clearLabel": "Zuweisung löschen",
       "nonAdminNote": "Globale Zuweisungen werden von einem Administrator verwaltet; legen Sie persönliche Überschreibungen fest, um Ihre eigenen KI-Modelle anzupassen.",
       "suggestedDecisionDefault": "Empfohlen: {{model}} ({{provider}})",
-      "decisionKindsTitle": "Entscheidungstypen"
+      "decisionKindsTitle": "Entscheidungstypen",
+      "advancedTitle": "Erweitert — Überschreibungen pro Aufgabe",
+      "advancedHint": "Nur ändern, wenn eine Aufgabe ein anderes Modell als ihr Standardmodell verwenden muss.",
+      "advancedCount": "{{count}} aktiv"
     },
     "taskLabel": {
       "profile_analyze": "Profilanalyse & Empfehlungen",
@@ -2302,7 +2308,8 @@
       "step": {
         "progress": "Fortschritt der Einrichtung",
         "connect": "Provider verbinden",
-        "defaults": "Standardeinstellungen auswählen"
+        "defaults": "Standardeinstellungen auswählen",
+        "tasks": "Aufgabenzuweisungen"
       },
       "hint": "Standardeinstellungen gelten nur für leere Felder — bestehende Einstellungen wurden nicht verändert.",
       "modalHint": "Wählen Sie einen Provider zur automatischen Einrichtung aus, oder fügen Sie ihn manuell hinzu.",
@@ -2319,11 +2326,11 @@
       "done": "{{name}} ist bereit.",
       "modelsPersisted": "{{count}} Modelle wurden aus dem Anbieterkatalog registriert.",
       "curatedMissed": "Keine der empfohlenen Modelle wurden in diesem Anbieters Katalog gefunden — stattdessen wurden alle gefundenen Modelle registriert; Standardwerte unten zuweisen.",
-      "noDefaults": "Keine Modelle wurden für diesen Anbieter registriert — registrieren Sie Modelle manuell, um Standardwerte zuzuweisen.",
       "slot": {
         "chat": "Chat Standard",
         "vision": "Vision Standard",
-        "stt": "Transkriptions Standard"
+        "stt": "Transkriptions Standard",
+        "embeddings": "Embeddings"
       },
       "errors": {
         "invalid_key": "Dieser API-Schlüssel wurde vom Anbieter abgelehnt — überprüfen Sie auf Tippfehler oder erstellen Sie einen neuen Schlüssel.",
@@ -2359,11 +2366,18 @@
       "chipVision": "Vision",
       "chipStt": "Sprache zu Text",
       "chipDecision": "Entscheidung",
-      "chipLocal": "Lokaler"
+      "chipLocal": "Lokaler",
+      "continueToTasks": "Weiter zu den Aufgabenzuweisungen",
+      "assignModelsTitle": "Modelle zuweisen",
+      "assignModelsHint": "Es ist noch kein Standardmodell festgelegt. Wählen Sie mindestens ein Chat-Modell oder fügen Sie zuerst Modelle hinzu — Sie können dies später abschließen.",
+      "openModels": "Modelle öffnen",
+      "advancedHandoff": "Überschreibungen pro Aufgabe finden Sie unter „Erweitert“ auf der Aufgabenseite."
     },
     "firstRun": {
       "title": "Verbinden Sie einen KI-Anbieter",
       "body": "Career Assistant verwendet Ihren eigenen KI-Anbieter-Schlüssel (BYOK). Ein Klick-Setup validiert den Schlüssel, registriert kuratierte Modelle und wendet sinnvolle Standardeinstellungen an – in weniger als einer Minute.",
+      "instanceTitle": "Instanz-KI-Anbieter verbinden",
+      "instanceBody": "Richten Sie den Anbieter ein, den alle Benutzer erben. Das Ein-Klick-Setup validiert den Schlüssel, registriert kuratierte Modelle und bindet sinnvolle Standardeinstellungen; Benutzer können weiterhin persönliche Überschreibungen hinzufügen.",
       "cta": "Anbieter einrichten"
     },
     "decisionSlots": {
@@ -2554,6 +2568,9 @@
         "addUrl": "URL hinzufügen",
         "upload": "JSON hochladen",
         "empty": "Noch keine Kataloge importiert.",
+        "importFeatured": "Katalog importieren",
+        "featuredImported": "Importiert — Revision {{revision}}",
+        "reportMeta": "{{hash}} · Revision {{revision}}",
         "revision": "Revision {{revision}} · geprüft {{date}}",
         "refresh": "Aktualisieren",
         "remove": "Entfernen",
@@ -4334,7 +4351,8 @@
   "dictation": {
     "unavailable": "Diktat nicht verfügbar",
     "notConfigured": "Kein Spracherkennungsmodell zugewiesen.",
-    "openSettings": "KI-Einstellungen öffnen"
+    "openSettings": "KI-Einstellungen öffnen",
+    "dismiss": "Ausblenden"
   },
   "chat": {
     "openAiSettings": "Open AI Einstellungen",
@@ -5139,7 +5157,8 @@
       "assignHint": "Weisen Sie das Chat-Standardmodell für die Fertigstellung zu — AI-Funktionen sind deaktiviert, bis eines festgelegt wurde.",
       "configuredHint": "Das Chat-Standardmodell wurde zugewiesen — AI-Funktionen sind aktiv.",
       "finish": "Fertigstellen",
-      "settingsHint": "Benötigen Sie zuerst einen API-Schlüssel? Wählen Sie einen Anbieter oben aus oder konfigurieren Sie alles in"
+      "settingsHint": "Benötigen Sie zuerst einen API-Schlüssel? Wählen Sie einen Anbieter oben aus oder konfigurieren Sie alles in",
+      "tasks": "Aufgabenzuweisungen"
     }
   },
   "translations": {
@@ -5208,8 +5227,12 @@
       "description": "Sitzungen, Passwort und Kontoentfernung"
     },
     "ai": {
-      "label": "KI-Konfiguration",
-      "description": "Anbieter, Modelle und Aufgabenzuweisungen"
+      "label": "Meine KI-Konfiguration",
+      "description": "Ihre Anbieter, Modelle und Aufgabenzuweisungen"
+    },
+    "aiAdmin": {
+      "label": "Instanz-KI",
+      "description": "Von allen Benutzern gemeinsam genutzte Anbieter, Modelle und Aufgabenzuweisungen"
     },
     "tools": {
       "label": "Tools",

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import * as aiApi from "@/api/ai";
-import type { AIProvider } from "@/api/ai";
+import type { AIProvider, ConfigSummary, EffectiveAssignment } from "@/api/ai";
 import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
 import { SegmentedTabs, SetupFirstRunCard, Spinner } from "@/components/ui";
@@ -15,6 +15,7 @@ import { ReRunSetupDialog } from "@/components/settings/ReRunSetupDialog";
 import { resetConfigSummaryCache } from "@/hooks/useConfigSummary";
 
 type AITab = "providers" | "models" | "tasks";
+export type AIScope = "user" | "system";
 
 // The AI tab hosts exactly ai.* domains (ADR-0033): providers, models and
 // task assignments. The former `web` tab moved to /settings/tools in plan 27
@@ -26,8 +27,18 @@ export function parseAITab(raw: string | null): AITab {
   return (AI_TABS as readonly string[]).includes(raw ?? "") ? (raw as AITab) : "providers";
 }
 
-/** AI configuration with URL-synced tabs (?tab=providers|models|tasks). */
-export function AIConfig() {
+/** AI configuration with URL-synced tabs (?tab=providers|models|tasks).
+ * Scope is fixed by the route: `/settings/ai` is the personal (user)
+ * surface, `/settings/ai-admin` the instance (system) surface. */
+export function AIConfig({ scope = "user" }: { scope?: AIScope }) {
+  const user = useAuthStore((s) => s.user);
+  if (scope === "system" && !user?.is_admin) {
+    return <Navigate to="/settings/ai" replace />;
+  }
+  return <AIConfigPage scope={scope} />;
+}
+
+function AIConfigPage({ scope }: { scope: AIScope }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -35,6 +46,7 @@ export function AIConfig() {
   const tabFromUrl = searchParams.get("tab");
   const activeTab = parseAITab(tabFromUrl);
   const [providers, setProviders] = useState<AIProvider[]>([]);
+  const [summary, setSummary] = useState<ConfigSummary | null>(null);
   const [canManageGlobal, setCanManageGlobal] = useState(false);
   const [mockAllowed, setMockAllowed] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -72,6 +84,7 @@ export function AIConfig() {
         aiApi.fetchConfigSummary(),
         aiApi.fetchProviders(),
       ]);
+      setSummary(summaryData);
       setCanManageGlobal(summaryData.can_manage_global);
       setMockAllowed(summaryData.mock_allowed);
       setProviders(providerData);
@@ -96,15 +109,39 @@ export function AIConfig() {
     );
   }
 
+  const pageProviders = providers.filter((provider) => provider.scope === scope);
+  const hasScopeProviders = pageProviders.length > 0;
+  const hasSystemProviders = providers.some((provider) => provider.scope === "system");
+  const showFirstRun =
+    scope === "system" ? !hasScopeProviders : !hasScopeProviders && !hasSystemProviders;
+  const showInstanceNote = scope === "user" && !hasScopeProviders && hasSystemProviders;
+  const effectiveByTask: Record<string, EffectiveAssignment> = Object.fromEntries(
+    (summary?.tasks ?? []).map((task) => [task.task_type, task]),
+  );
+  const titleKey = scope === "system" ? "aiSettings.titleInstance" : "aiSettings.title";
+  const subtitleKey =
+    scope === "system" ? "aiSettings.subtitleInstance" : "aiSettings.subtitle";
+
   return (
-    <div className="space-y-6" data-testid="ai-config">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6" data-testid="ai-config" data-scope={scope}>
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{t("aiSettings.title")}</h1>
-          <p className="text-sm text-slate-500">
-            {t("aiSettings.subtitle")}
-          </p>
+          <h1 className="text-xl font-bold text-slate-900">{t(titleKey)}</h1>
+          <p className="text-sm text-slate-500">{t(subtitleKey)}</p>
         </div>
+        {user?.is_admin ? (
+          <Link
+            to={scope === "system" ? "/settings/ai" : "/settings/ai-admin"}
+            className="shrink-0 text-sm font-medium text-[var(--as-primary)] hover:underline"
+            data-testid="ai-scope-cross-link"
+          >
+            {t(
+              scope === "system"
+                ? "aiSettings.openPersonal"
+                : "aiSettings.openInstance"
+            )}
+          </Link>
+        ) : null}
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -120,9 +157,14 @@ export function AIConfig() {
         onValueChange={(next) => setActive(next as AITab)}
       />
 
+      <h2 className="sr-only">
+        {t(`aiSettings.tab.${activeTab}`, { defaultValue: activeTab })}
+      </h2>
+
       {activeTab === "providers" && (
         <ProvidersTab
-          providers={providers}
+          scope={scope}
+          providers={pageProviders}
           canManageGlobal={canManageGlobal}
           onChanged={() => void refresh()}
           onAdd={() => setSetupOpen(true)}
@@ -132,19 +174,36 @@ export function AIConfig() {
       )}
       {activeTab === "models" && (
         <ModelsTab
-          providers={providers}
+          providers={pageProviders}
           canManageGlobal={canManageGlobal}
           onChanged={() => void refresh()}
         />
       )}
       {activeTab === "tasks" && (
-        <TasksTab canManageGlobal={canManageGlobal} onChanged={() => void refresh()} />
+        <TasksTab
+          canManageGlobal={canManageGlobal}
+          onChanged={() => void refresh()}
+          initialScope={scope}
+          lockScope
+          effectiveByTask={scope === "user" ? effectiveByTask : undefined}
+        />
+      )}
+
+      {showInstanceNote && activeTab === "providers" && (
+        <div
+          className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-3 text-sm text-[var(--as-muted-fg)]"
+          data-testid="ai-instance-note"
+        >
+          {t("aiSettings.providers.instanceNote")}
+        </div>
       )}
 
       {setupOpen && (
         <ProviderSetupModal
-          canUseSystemScope={Boolean(user?.is_admin)}
-          configuredKeys={providers
+          canUseSystemScope={scope === "system"}
+          initialScope={scope}
+          lockScope
+          configuredKeys={pageProviders
             .map((p) => p.preset_key)
             .filter((key): key is string => Boolean(key))}
           onClose={() => setSetupOpen(false)}
@@ -153,6 +212,15 @@ export function AIConfig() {
             setEditProvider("new");
           }}
           onSaved={() => void refresh()}
+          onContinueToTasks={() => {
+            setSetupOpen(false);
+            setActive("tasks");
+            void refresh();
+          }}
+          onOpenModels={() => {
+            setSetupOpen(false);
+            setActive("models");
+          }}
         />
       )}
 
@@ -167,7 +235,9 @@ export function AIConfig() {
       {editProvider && (
         <ProviderModal
           provider={editProvider === "new" ? null : editProvider}
-          canUseSystemScope={Boolean(user?.is_admin)}
+          canUseSystemScope={scope === "system"}
+          initialScope={scope}
+          lockScope
           mockAllowed={mockAllowed}
           onClose={() => setEditProvider(null)}
           onSaved={() => {
@@ -177,10 +247,18 @@ export function AIConfig() {
         />
       )}
 
-      {providers.length === 0 && !loading && activeTab === "providers" && (
+      {showFirstRun && !loading && activeTab === "providers" && (
         <SetupFirstRunCard
-          title={t("aiSettings.firstRun.title")}
-          body={t("aiSettings.firstRun.body")}
+          title={t(
+            scope === "system"
+              ? "aiSettings.firstRun.instanceTitle"
+              : "aiSettings.firstRun.title"
+          )}
+          body={t(
+            scope === "system"
+              ? "aiSettings.firstRun.instanceBody"
+              : "aiSettings.firstRun.body"
+          )}
           setupLabel={t("aiSettings.firstRun.cta")}
           onSetup={() => setSetupOpen(true)}
           data-testid="ai-first-run"

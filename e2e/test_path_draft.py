@@ -2,14 +2,13 @@
 activate → rendered in the /paths explorer. Runs against the mock
 provider; the draft is the review artifact."""
 
-from conftest import BASE_URL
+from conftest import BASE_URL, open_chat_dock
 
 
 def test_chat_path_draft_review_save_activate(page) -> None:
     page.goto(f"{BASE_URL}/")
 
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
