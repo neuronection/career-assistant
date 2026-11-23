@@ -14,6 +14,11 @@ NC='\033[0m'
 
 COMPOSE_FILE="docker/docker-compose.standalone.yml"
 COMPOSE_ENV_ARGS=(--env-file docker/.env -f "${COMPOSE_FILE}")
+# Operator feeder (ADR-0071): the installer writes this override; every
+# compose caller that sources this lib must pass it or the mount disappears.
+if [ -f docker/docker-compose.integrations.yml ]; then
+    COMPOSE_ENV_ARGS+=(-f docker/docker-compose.integrations.yml)
+fi
 HEALTH_URL="http://127.0.0.1:${HTTP_PORT:-80}/health"
 
 die() {

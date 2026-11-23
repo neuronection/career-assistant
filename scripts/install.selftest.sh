@@ -221,7 +221,7 @@ assert cfg["installUrl"] == "https://neuronection.com/install/career.sh", cfg["i
 assert cfg["contractVersion"] == "1"
 flags = set(cfg["installFlags"])
 need = {"no-pull", "no-wait", "auto-ports", "no-ports", "http-port", "public-url", "bind",
-        "env-only", "reset", "yes", "image-tag"}
+        "env-only", "reset", "yes", "image-tag", "integrations-dir", "no-integrations"}
 assert need <= flags, "installFlags missing: %s" % (need - flags)
 assert "no-token" not in flags, "no-token is health-only"
 assert cfg["cookiePrefix"] == "career_", cfg["cookiePrefix"]
@@ -248,7 +248,7 @@ run_docker_script() { # sandbox script args...
         DOCKER_FIXTURES="$DIR/fixtures" DOCKER_CALLS="$DIR/calls" \
         HEALTH_WAIT_INTERVAL=1 HEALTH_WAIT_ATTEMPTS=2 \
         CURL_MODE="${CURL_MODE:-ok}" \
-        bash "$CORE/scripts/$SCRIPT" "$@" 2>&1)"
+        bash "$CORE/scripts/$SCRIPT" "$@" </dev/null 2>&1)"
     RUN_STATUS=$?
     RUN_CALLS="$(cat "$DIR/calls" 2>/dev/null || true)"
     : > "$DIR/calls"
@@ -309,6 +309,71 @@ assert_contains "root refusal names the fix" "$CASE_OUT" "Refusing to run as roo
 assert_not_contains "root refusal starts nothing" "$RUN_CALLS" "up -d"
 
 # ── installer.json is the canonical config ────────────────────────────────────
+say "${YELLOW}install.sh: operator feeder (--integrations-dir)${NC}"
+SB="$(new_sandbox feeder-flag "$PIN_DIGEST" "$FREE_PORT")"
+HOSTDIR="$WORK/host-integrations"
+run_docker_script "$SB" install.sh --integrations-dir "$HOSTDIR"
+assert_eq "flag install exits 0" "$RUN_STATUS" "0"
+assert_eq "host folder created" "$([ -d "$HOSTDIR" ] && echo yes)" "yes"
+OVERRIDE="$SB/docker/docker-compose.integrations.yml"
+assert_contains "managed override written" "$(cat "$OVERRIDE" 2>/dev/null)" "managed by scripts/install.sh"
+assert_contains "override mounts read-only" "$(cat "$OVERRIDE" 2>/dev/null)" "$HOSTDIR:/integrations:ro"
+assert_eq "feeder enabled in .env" "$(grep '^CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=' "$SB/docker/.env")" "CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1"
+assert_contains "roots persisted" "$(grep '^CAREER_EXTENSION_MOUNTED_ROOTS=' "$SB/docker/.env")" '["/integrations"]'
+assert_contains "compose call includes the override" "$RUN_CALLS" "-f docker/docker-compose.integrations.yml"
+
+say "${YELLOW}install.sh: feeder prompt (--ask) writes the same artifacts${NC}"
+SB2="$(new_sandbox feeder-ask "$PIN_DIGEST" "$FREE_PORT")"
+CASE_OUT="$(cd "$SB2" && printf 'y\n%s\n' "$HOSTDIR" | env PATH="$PATH" \
+    DOCKER_FIXTURES="$SB2/fixtures" DOCKER_CALLS="$SB2/calls" \
+    HEALTH_WAIT_INTERVAL=1 HEALTH_WAIT_ATTEMPTS=2 \
+    bash "$CORE/scripts/install.sh" --ask --env-only 2>&1)"
+RUN_STATUS=$?
+assert_eq "ask run exits 0" "$RUN_STATUS" "0"
+assert_eq "prompt path == flag path (override bytes)" "$(cmp -s "$OVERRIDE" "$SB2/docker/docker-compose.integrations.yml" && echo same)" "same"
+assert_eq "prompt path == flag path (enabled line)" "$(grep '^CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=' "$SB2/docker/.env")" "CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1"
+assert_eq "prompt path == flag path (roots line)" "$(grep '^CAREER_EXTENSION_MOUNTED_ROOTS=' "$SB2/docker/.env")" "CAREER_EXTENSION_MOUNTED_ROOTS='[\"/integrations\"]'"
+
+say "${YELLOW}install.sh: feeder choice is kept on a re-run${NC}"
+BEFORE="$(cat "$OVERRIDE")"
+CASE_OUT="$(cd "$SB" && printf 'y\n%s/other\n' "$WORK" | env PATH="$PATH" \
+    DOCKER_FIXTURES="$SB/fixtures" DOCKER_CALLS="$SB/calls" \
+    HEALTH_WAIT_INTERVAL=1 HEALTH_WAIT_ATTEMPTS=2 \
+    bash "$CORE/scripts/install.sh" --ask --env-only 2>&1)"
+assert_not_contains "no prompt on an existing choice" "$CASE_OUT" "Mount a folder for extension bundles?"
+assert_eq "existing override untouched" "$(cat "$OVERRIDE")" "$BEFORE"
+
+say "${YELLOW}install.sh: --no-integrations removes only the managed mount${NC}"
+touch "$SB/docker/docker-compose.override.yml"
+run_docker_script "$SB" install.sh --no-integrations --env-only
+assert_eq "disable exits 0" "$RUN_STATUS" "0"
+assert_eq "managed override removed" "$([ -f "$OVERRIDE" ] && echo present || echo absent)" "absent"
+assert_eq "feeder disabled in .env" "$(grep '^CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=' "$SB/docker/.env")" "CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=0"
+assert_contains "roots cleared" "$(grep '^CAREER_EXTENSION_MOUNTED_ROOTS=' "$SB/docker/.env")" "[]"
+assert_eq "host folder untouched" "$([ -d "$HOSTDIR" ] && echo yes)" "yes"
+assert_eq "operator override untouched" "$([ -f "$SB/docker/docker-compose.override.yml" ] && echo yes)" "yes"
+
+say "${YELLOW}install.sh: feeder path validation${NC}"
+SB3="$(new_sandbox feeder-bad "$PIN_DIGEST" "$FREE_PORT")"
+run_docker_script "$SB3" install.sh --integrations-dir relative/path
+assert_eq "relative path exits 1" "$RUN_STATUS" "1"
+run_docker_script "$SB3" install.sh --integrations-dir /
+assert_eq "'/' exits 1" "$RUN_STATUS" "1"
+printf 'not ours\n' > "$SB3/docker/docker-compose.integrations.yml"
+run_docker_script "$SB3" install.sh --integrations-dir "$WORK/other"
+assert_eq "markerless override refused" "$RUN_STATUS" "1"
+assert_contains "refusal names the file" "$CASE_OUT" "not installer-managed"
+
+say "${YELLOW}install.sh: SELinux label${NC}"
+SB4="$(new_sandbox feeder-selinux "$PIN_DIGEST" "$FREE_PORT")"
+mkdir -p "$WORK/bin-selinux"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/bin-selinux/selinuxenabled"
+chmod +x "$WORK/bin-selinux/selinuxenabled"
+TEST_PATH="$WORK/bin-selinux"
+run_docker_script "$SB4" install.sh --integrations-dir "$WORK/selinux-host"
+TEST_PATH=""
+assert_contains "SELinux adds :z" "$(cat "$SB4/docker/docker-compose.integrations.yml" 2>/dev/null)" ':ro:z'
+
 say "${YELLOW}installer.json: canonical contract config${NC}"
 if check_installer_shape "$CORE/installer.json" >/dev/null 2>&1; then
     ok "repo installer.json matches the schema shape"

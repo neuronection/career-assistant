@@ -37,6 +37,16 @@ import type {
  * VERBATIM from the backend payload through the kit, never authored here.
  */
 
+const FEEDER_INSTALLER = "bash scripts/install.sh --integrations-dir /path";
+
+const FEEDER_SNIPPET = `services:
+  app:
+    volumes:
+      - ./integrations:/integrations:ro
+    environment:
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "1"
+      CAREER_EXTENSION_MOUNTED_ROOTS: '["/integrations"]'`;
+
 function mapConsent(payload: ConsentPayload): IntegrationConsentPayloadView {
   return {
     variant: "install",
@@ -435,6 +445,27 @@ export function ExtensionSourcesSection() {
           void run(() => extApi.tombstoneExtensionInstall(instance.id))
         }
       />
+
+      {caps?.feeder === false && (
+        <details
+          className="rounded-lg border border-[var(--as-border)] px-3 py-2"
+          data-testid="feeder-setup"
+        >
+          <summary className="cursor-pointer text-sm text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupTitle")}
+          </summary>
+          <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupHint")}
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded bg-[var(--as-muted)] p-2 text-xs">
+            {FEEDER_SNIPPET}
+          </pre>
+          <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.extSources.feederSetupInstaller")}{" "}
+            <code>{FEEDER_INSTALLER}</code>
+          </p>
+        </details>
+      )}
 
       {caps?.git === false && (
         <p

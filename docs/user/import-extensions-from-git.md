@@ -45,6 +45,10 @@ services:
       CAREER_EXTENSION_MOUNTED_ROOTS: '["/integrations"]'
 ```
 
+On a bundle install the installer can do the compose part for you:
+`bash scripts/install.sh --integrations-dir /srv/career/integrations` (a
+first install also asks once, defaulting to no).
+
 Then **Install from Git** → *Mounted folder*, enter the folder path inside the
 container (for example `integrations/my-tool`) and confirm. **Check**
 re-stages the folder: a changed tree is offered as an update and applies only

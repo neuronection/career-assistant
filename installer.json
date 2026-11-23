@@ -9,7 +9,9 @@
   "bootstrapAsset": "career-bootstrap",
   "envPrefix": "CAREER",
   "imageEnv": "CAREER_IMAGE",
-  "imageKeys": ["app"],
+  "imageKeys": [
+    "app"
+  ],
   "defaultDirName": "career-assistant",
   "defaultPort": 8092,
   "healthPath": "/health",
@@ -19,6 +21,20 @@
   "docsUrl": "https://neuronection.com/docs/career",
   "installUrl": "https://neuronection.com/install/career.sh",
   "contractVersion": "1",
-  "installFlags": ["no-pull", "no-wait", "auto-ports", "no-ports", "http-port", "public-url", "bind", "env-only", "reset", "yes", "image-tag"],
+  "installFlags": [
+    "no-pull",
+    "no-wait",
+    "auto-ports",
+    "no-ports",
+    "http-port",
+    "public-url",
+    "bind",
+    "env-only",
+    "reset",
+    "yes",
+    "image-tag",
+    "integrations-dir",
+    "no-integrations"
+  ],
   "cookiePrefix": "career_"
 }

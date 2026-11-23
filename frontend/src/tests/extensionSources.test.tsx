@@ -187,6 +187,20 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     expect(mocked.addExtensionSource).not.toHaveBeenCalled();
   });
 
+  it("explains the operator feeder when the policy is off", async () => {
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: false,
+      mounted: false,
+      feeder: false,
+    });
+    renderSection();
+    const block = await screen.findByTestId("feeder-setup");
+    expect(block.textContent).toContain("CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS");
+    expect(block.textContent).toContain("bash scripts/install.sh --integrations-dir");
+  });
+
   it("shows the operator's folder for a mounted source, not the staged path", async () => {
     mocked.fetchExtensionSources.mockResolvedValue([
       {
