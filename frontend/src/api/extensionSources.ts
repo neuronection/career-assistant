@@ -152,6 +152,27 @@ export async function addExtensionSource(payload: {
   return response.data;
 }
 
+/** Operator feeder (ADR-0071): stage a folder mounted into the container,
+ * then the normal add/refresh + sync flow. Returns the same shape as the zip
+ * upload: the source id plus the sync report. */
+export async function importMountedSource(
+  path: string,
+  subpath?: string,
+): Promise<{
+  id: string;
+  kind: string;
+  sync?: {
+    ok: boolean;
+    error?: { code: string; detail: { message?: string } | string; retryable?: string };
+  };
+}> {
+  const response = await api.post("/admin/extensions/sources/mounted", {
+    path,
+    ...(subpath ? { subpath } : {}),
+  });
+  return response.data;
+}
+
 export async function updateExtensionSource(
   id: string,
   payload: {

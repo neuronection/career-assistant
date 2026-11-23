@@ -10,7 +10,8 @@ All notable changes to **Career Assistant** are documented here.
   `CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS=1` on the `app` service (compose
   `environment:`; the defaults are off and `CAREER_EXTENSION_MOUNTED_ROOTS`
   takes a JSON list), an admin can import a bundle zip — or a folder mounted
-  into the container — instead of hosting a git repo. Installs stay
+  into the container (**Install from Git → Mounted folder**) — instead of
+  hosting a git repo. Installs stay
   consent-gated, digest-pinned and disabled until enabled, and nothing
   auto-applies. A zip may no longer ship its own `.venv`: staging strips it and
   the managed spawn runs the host interpreter.

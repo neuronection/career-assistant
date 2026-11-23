@@ -105,15 +105,20 @@ function mapGroups(installs: ExtensionInstallView[]): IntegrationExtensionGroupV
   }));
 }
 
+function shortPath(raw: string): string {
+  const tilde = raw.replace(/^\/home\/[^/]+/, "~");
+  if (!tilde.startsWith("~/")) return raw;
+  const segments = tilde.split("/").filter(Boolean);
+  return segments.length > 3 ? `~/${segments.slice(-2).join("/")}` : tilde;
+}
+
 function shortOrigin(view: ExtensionSourceView): string {
   const sub = view.descriptor.subpath ? ` · ${view.descriptor.subpath}` : "";
   if (view.kind === "local") {
-    const raw = view.descriptor.local?.path ?? view.origin;
-    const tilde = raw.replace(/^\/home\/[^/]+/, "~");
-    const segments = tilde.split("/").filter(Boolean);
-    const short =
-      segments.length > 3 ? `~/${segments.slice(-2).join("/")}` : tilde;
-    return `${short}${sub}`;
+    // A mounted source shows the operator's folder (ADR-0071), never the
+    // app-internal staged path.
+    const raw = view.mountPath ?? view.descriptor.local?.path ?? view.origin;
+    return `${shortPath(raw)}${sub}`;
   }
   const host = view.origin.replace(/^https?:\/\//, "").replace(/^www\./, "");
   return `${host}${sub}`;
@@ -259,6 +264,15 @@ export function ExtensionSourcesSection() {
 
   const addSource = async (draft: IntegrationSourceDraft) => {
     const local = draft.localPath.trim() !== "";
+    // Operator feeder (ADR-0071): a mounted folder goes through the staging
+    // endpoint — the ref fields are irrelevant (the host pins the snapshot).
+    if (local && caps?.mounted) {
+      await run(async () => {
+        await extApi.importMountedSource(draft.localPath.trim(), draft.subpath.trim());
+      });
+      setAddOpen(false);
+      return;
+    }
     const isGit = draft.url.trim().startsWith("https://");
     if (!local && !isGit) {
       setNotice(t("toolsSettings.connectors.extSources.needUrlOrPath"));
@@ -328,9 +342,11 @@ export function ExtensionSourcesSection() {
       name="extension-sources"
       title={t("toolsSettings.connectors.extSources.title")}
       description={t(
-        caps?.local === false
-          ? "toolsSettings.connectors.extSources.hintGitOnly"
-          : "toolsSettings.connectors.extSources.hint",
+        caps?.mounted
+          ? "toolsSettings.connectors.extSources.hintMounted"
+          : caps?.local === false
+            ? "toolsSettings.connectors.extSources.hintGitOnly"
+            : "toolsSettings.connectors.extSources.hint",
       )}
       adminOnly
     >
@@ -357,6 +373,7 @@ export function ExtensionSourcesSection() {
           tombstoneLabel: t("toolsSettings.connectors.extSources.tombstone"),
           configureLabel: t("toolsSettings.connectors.extSources.configure"),
           applyUpdateLabel: t("toolsSettings.connectors.extSources.applyUpdate"),
+          kindLabels: { local: t("toolsSettings.connectors.extSources.folderKind") },
           updateAvailableLabel: t("toolsSettings.connectors.extSources.updateAvailableShort"),
           reconsentRequiredLabel: t("toolsSettings.connectors.extSources.needsReconsent"),
           digestDriftLabel: t("toolsSettings.connectors.extSources.digestDriftShort"),
@@ -471,7 +488,7 @@ export function ExtensionSourcesSection() {
             ? editTarget.kind === "local"
               ? "local"
               : "git"
-            : caps?.local === false
+            : caps?.local === false && !caps?.mounted
               ? "git"
               : "chooser"
         }
@@ -481,22 +498,36 @@ export function ExtensionSourcesSection() {
             ? t("toolsSettings.connectors.extSources.editTitle")
             : t("toolsSettings.connectors.extSources.addTitle"),
           urlLabel: t("toolsSettings.connectors.extSources.url"),
-          localPathLabel: t("toolsSettings.connectors.extSources.localPath"),
+          localPathLabel: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedPathLabel"
+              : "toolsSettings.connectors.extSources.localPath",
+          ),
           refStrategyLabel: t("toolsSettings.connectors.extSources.strategy"),
           refValueLabel: t("toolsSettings.connectors.extSources.refValue"),
           subpathLabel: t("toolsSettings.connectors.extSources.subpath"),
           secretLabel: t("toolsSettings.connectors.extSources.token"),
           submitLabel: editTarget
             ? t("toolsSettings.connectors.extSources.save")
-            : t("toolsSettings.connectors.extSources.add"),
+            : caps?.mounted
+              ? t("toolsSettings.connectors.extSources.mountedSubmit")
+              : t("toolsSettings.connectors.extSources.add"),
           cancelLabel: t("toolsSettings.connectors.sources.cancel"),
           closeLabel: t("toolsSettings.connectors.extSources.close"),
           submittingLabel: t("toolsSettings.connectors.extSources.submitting"),
           kindPrompt: t("toolsSettings.connectors.extSources.kindPrompt"),
           gitKindLabel: t("toolsSettings.connectors.extSources.gitKind"),
           gitKindHint: t("toolsSettings.connectors.extSources.gitKindHint"),
-          localKindLabel: t("toolsSettings.connectors.extSources.localKind"),
-          localKindHint: t("toolsSettings.connectors.extSources.localKindHint"),
+          localKindLabel: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedKind"
+              : "toolsSettings.connectors.extSources.localKind",
+          ),
+          localKindHint: t(
+            caps?.mounted
+              ? "toolsSettings.connectors.extSources.mountedKindHint"
+              : "toolsSettings.connectors.extSources.localKindHint",
+          ),
         }}
       />
 

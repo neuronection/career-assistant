@@ -27,6 +27,30 @@ on the server. Without it, production stays git-only and the control is not
 offered. In the desktop shell, when the instance allows zip import, the file
 dialog is the native picker.
 
+## Import from a mounted folder (self-hosted)
+
+When the operator has enabled the feeder policy, a folder mounted into the
+container is importable as a source: the host copies it into its own store,
+pins the snapshot and runs the same consent flow. Mount it read-only and
+allowlist the container path, for example:
+
+```yaml
+services:
+  app:
+    volumes:
+      - ./integrations:/integrations:ro
+    environment:
+      CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: "1"
+      CAREER_EXTENSION_MOUNTED_ROOTS: '["/integrations"]'
+```
+
+Then **Install from Git** → *Mounted folder*, enter the folder path inside the
+container (for example `integrations/my-tool`) and confirm. **Check**
+re-stages the folder: a changed tree is offered as an update and applies only
+after a second consent. A mounted source is never managed by GitOps, and its
+folder is not part of the backup — re-attach it before pressing Check after a
+restore.
+
 ## Add a source
 
 A source is a git repository plus which ref to track. In production the

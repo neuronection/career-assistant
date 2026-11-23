@@ -19,6 +19,7 @@ vi.mock("@/api/extensionSources", async (importOriginal) => {
     fetchExtensionSources: vi.fn(),
     fetchExtensionImportCapabilities: vi.fn(),
     addExtensionSource: vi.fn(),
+    importMountedSource: vi.fn(),
     syncExtensionSource: vi.fn(),
     removeExtensionSource: vi.fn(),
     fetchInstallPreview: vi.fn(),
@@ -155,6 +156,58 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
     expect(screen.getByTestId("integration-sources-empty")).toBeTruthy();
     expect(screen.getByTestId("add-extension-source")).toBeTruthy();
     expect(await screen.findByTestId("import-bundle")).toBeTruthy();
+  });
+
+  it("imports a mounted folder through the feeder endpoint when enabled", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    mocked.fetchExtensionImportCapabilities.mockResolvedValue({
+      git: true,
+      local: false,
+      zip: true,
+      mounted: true,
+      feeder: true,
+    });
+    mocked.importMountedSource.mockResolvedValue({
+      id: "src-m",
+      kind: "local",
+      sync: { ok: true },
+    });
+    renderSection();
+    await userEvent.click(await screen.findByTestId("add-extension-source"));
+    // the chooser still offers a folder card — relabelled for the feeder
+    await userEvent.click(await screen.findByTestId("integration-source-kind-local"));
+    await userEvent.type(
+      await screen.findByLabelText("Folder path inside the container"),
+      "/integrations/foo",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add mounted folder" }));
+    await waitFor(() =>
+      expect(mocked.importMountedSource).toHaveBeenCalledWith("/integrations/foo", ""),
+    );
+    expect(mocked.addExtensionSource).not.toHaveBeenCalled();
+  });
+
+  it("shows the operator's folder for a mounted source, not the staged path", async () => {
+    mocked.fetchExtensionSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        origin: "/data/extension-imports/mounted/abc/def",
+        mountKey: "abc",
+        mountPath: "/srv/career/integrations/foo",
+        descriptor: {
+          url: null,
+          local: { path: "/data/extension-imports/mounted/abc/def" },
+          ref: { strategy: "commit-pin" as const, value: "a".repeat(40) },
+          credentialSlots: [],
+        },
+        candidates: [],
+        installs: [],
+      },
+    ]);
+    renderSection();
+    const row = await screen.findByTestId("integration-source-src-1");
+    expect(row.textContent).toContain("/srv/career/integrations/foo");
+    expect(row.textContent).not.toContain("extension-imports");
   });
 
   it("hides zip import and pins the dialog to git on a production deployment", async () => {
