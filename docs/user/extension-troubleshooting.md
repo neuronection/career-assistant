@@ -31,7 +31,7 @@ actually see. (Deep diagnostics for extension authors live in the
 | `path-denied` on a mounted source | the folder is not allowlisted or the operator feeder is off | ask the operator to add the folder to the allowlist and enable the feeder policy |
 | `not-found: mounted folder does not exist` | the folder is no longer mounted | re-attach it and press **Check** |
 | `not-ready: git is not installed in this deployment` | The serving image lacks the git CLI the source pipeline shells out to (older images purged it) | Upgrade/rebuild the image — current images ship git; verify with `docker compose exec app git --version` |
-| The MCP option is missing entirely | The external-script tier is off by default on the instance | An admin can enable it (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST`) — it's an opt-in because its perimeter is wider |
+| The MCP option is missing entirely | The external-script tier is off by default on the instance | An admin can enable it (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST` in the compose environment, then restart) — it's an opt-in because its perimeter is wider |
 | A mini-app page vanished | Its instance was disabled — the route only exists while enabled | Re-enable the instance, or remove it via tombstone |
 
 ## Chat tools

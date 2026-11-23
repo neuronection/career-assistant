@@ -127,6 +127,10 @@ them. This is a staging mechanism, never a live source (ADR-0071):
 - **Interpreter:** feeder-staged bundles run on the host's `sys.executable`
   (a `.venv` is never staged, so it cannot be executed outside the digest).
   Heavy dependencies need a custom image or vendored pure-Python packages.
+- **T3 tier:** an MCP bundle also needs the script tier allowlisted
+  (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST`, likewise through the compose
+  `environment:` map) — without it the install mints disabled and the enable
+  step answers `not-ready: the mcp connector is not allowlisted`.
 - **Contract:** the vendored schema bytes are unchanged; the
   `localSourceDescriptor` comment that says hosts must gate the local kind
   off in production is **superseded for opted-in hosts** by ADR-0071 (the

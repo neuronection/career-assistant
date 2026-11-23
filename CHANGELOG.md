@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat got the Airy refresh.** Assistant replies now read as prose beside a
+  small identity orb while your messages keep a soft tinted bubble; the
+  composer floats as an elevated card with a gradient send control, the empty
+  state is a glowing welcome hero with suggestion cards, and the page carries
+  one whisper of the AI accent. Action rows stay on-screen at every width
+  (including touch, where they are always visible). The unconfigured dictation
+  state is now a quiet muted mic whose popover explains how to assign a
+  speech-to-text model — no persistent notice competes with the draft.
+
 ### Added
 
 - **A production instance can enable a feeder for extension bundles.** With
@@ -14,7 +25,10 @@ All notable changes to **Career Assistant** are documented here.
   hosting a git repo. Installs stay
   consent-gated, digest-pinned and disabled until enabled, and nothing
   auto-applies. A zip may no longer ship its own `.venv`: staging strips it and
-  the managed spawn runs the host interpreter.
+  the managed spawn runs the host interpreter. The compose stacks also forward
+  `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` (default empty), so an MCP bundle can be
+  enabled on a self-hosted instance; without it the install succeeded but the
+  enable step answered "the mcp connector is not allowlisted".
 
 ### Fixed
 

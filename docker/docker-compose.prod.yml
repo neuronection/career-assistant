@@ -125,6 +125,10 @@ services:
       # only through this map — a docker/.env line alone is invisible.
       CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS: ${CAREER_EXTENSION_ALLOW_FEEDER_IMPORTS:-0}
       CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}
+      # The T3 script tier is admin-opt-in; the allowlist must ride this map
+      # too (a .env line alone is invisible), or an MCP bundle installs but
+      # cannot be enabled ("mcp connector is not allowlisted").
+      CAREER_CONNECTOR_PLUGINS_ALLOWLIST: ${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}
       # Family object storage (ADR-0057 / plan 55 P2). Empty defaults keep
       # the local volume; a cloud profile sets its provider block (see
       # docker/.env.production.example and docker/docker-compose.cloud.yml).
