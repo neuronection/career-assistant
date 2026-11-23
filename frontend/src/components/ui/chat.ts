@@ -90,6 +90,12 @@ export type { ChatComposerProps, ChatComposerLabels, ChatComposerIcons } from "@
 export { ChatTranscript } from "@neuronection/assistant-ui/chat-transcript";
 export type { ChatTranscriptProps, ChatTranscriptLabels } from "@neuronection/assistant-ui/chat-transcript";
 
+export { ChatWelcome } from "@neuronection/assistant-ui/chat-welcome";
+export type { ChatWelcomeProps } from "@neuronection/assistant-ui/chat-welcome";
+
+export { ChatSuggestionCard } from "@neuronection/assistant-ui/chat-suggestion-card";
+export type { ChatSuggestionCardProps } from "@neuronection/assistant-ui/chat-suggestion-card";
+
 export { ChatBranchTree } from "@neuronection/assistant-ui/chat-branch-tree";
 export type {
   ChatBranchTreeProps,

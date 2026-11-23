@@ -4352,15 +4352,16 @@
   "dictation": {
     "unavailable": "Dictation unavailable",
     "notConfigured": "No speech-to-text model is assigned.",
-    "openSettings": "Open AI settings",
-    "dismiss": "Dismiss"
+    "openSettings": "Open AI settings"
   },
   "chat": {
     "openAiSettings": "Open AI settings",
     "retryLabel": "Retry",
     "openInExplore": "Open in Explore →",
     "cvEmptyBody": "Ask anything about this CV — I can restyle, restructure and rewrite it, and review the rendered preview.",
+    "cvWelcomeTitle": "What would you like to improve in this CV?",
     "emptyBody": "Ask anything about careers, jobs or study paths.",
+    "welcomeTitle": "How can I help with your career?",
     "composerPlaceholder": "Ask about a job…",
     "toolsAria": "Available tools",
     "branchesLabel": "Conversation branches",
