@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **A verified ATS catalog imports in one click.** Tools → Sources →
+  Preset catalogs offers **Neuronection verified — Greece** — 17 Greek
+  employer tenants on direct Recruitee, Teamtailor and Workable feeds —
+  as a preselected operator catalog tile. The click prefills the
+  canonical URL and `operator` tier, fetches the document in your
+  browser and stores the validated result; the tile and the catalog row
+  then show the stored revision and content hash, and **Refresh**
+  re-checks the same document without creating sources.
+
 ## [v0.19.0] - 2026-11-22
 
 ### Changed
