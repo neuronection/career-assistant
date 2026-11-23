@@ -166,6 +166,21 @@ def test_compose_carries_the_feeder_policy():
         assert "CAREER_EXTENSION_MOUNTED_ROOTS: ${CAREER_EXTENSION_MOUNTED_ROOTS:-[]}" in text
 
 
+def test_compose_forwards_the_connector_allowlist():
+    """The T3 script tier is admin-opt-in, and the compose environment map is
+    an allowlist: without this key an imported MCP bundle installs but cannot
+    be enabled ("the mcp connector is not allowlisted")."""
+    for compose in (
+        REPO_ROOT / "docker" / "docker-compose.prod.yml",
+        REPO_ROOT / "docker" / "docker-compose.standalone.yml",
+    ):
+        text = compose.read_text(encoding="utf-8")
+        assert (
+            "CAREER_CONNECTOR_PLUGINS_ALLOWLIST: "
+            "${CAREER_CONNECTOR_PLUGINS_ALLOWLIST:-[]}" in text
+        )
+
+
 def test_compose_persists_host_local_state():
     """ADR-0071 / plan 216: extension installs live under the data dir and the
     auth-kit key file under the config dir. Both must be named volumes at the
