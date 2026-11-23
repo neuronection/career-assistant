@@ -22,9 +22,12 @@ SDK (`typesafe_sdk`) is sanctioned inside `app/ai/decide/` only.
 
 Providers, models and per-task assignments live exclusively in the database
 (`ai_providers`, `ai_models`, `ai_task_assignments`) and are managed in
-**Settings → AI Configuration**. There are deliberately **no `AI_*`**
-environment variables. Production starts unconfigured — AI endpoints answer
-`503` until an admin adds a provider.
+**Settings → My AI Configuration** (personal, user scope) and
+**Settings → Instance AI Configuration** (admin, system scope). Each surface
+manages only its own scope; personal rows override the instance defaults.
+There are deliberately **no `AI_*`** environment variables. Production starts
+unconfigured — AI endpoints answer `503` until the caller's personal provider
+or an instance provider is configured.
 
 ### BYOK setup (§15, family contract)
 
@@ -910,3 +913,18 @@ before committing changes under `app/ai/`.
 - [API](api.md) — the `ai` and `ai-settings` routers
 - [CV engine](cv-engine.md) — the CV flows in detail
 - [Data model](data-model.md) — the `ai_*` tables
+
+## AI setup workflow
+
+`ProviderSetupWizard` runs the family's ordered flow — connect a provider,
+choose the curated models and capability defaults, then hand off to the
+Tasks tab — with `SetupSteps` naming all three steps. Connecting binds
+nothing; the review step owns defaults (`bind_chat`, `bind_vision`,
+`bind_stt`, `bind_decision`). The wizard never asks a per-task question: the
+single `decision` default is its only decision row. If the provider yields no
+model or no default was filled, the finish panel asks for at least a chat
+model and offers `Open models`; `Continue to task assignments` closes the
+wizard and switches the same scope's AIConfig to `?tab=tasks` (the first-run
+page exposes the same destination). Per-task overrides (decision kinds and
+specialist tasks) render inside one collapsed `Advanced` disclosure in
+`TasksTab`, so defaults stay the primary surface on every scope.

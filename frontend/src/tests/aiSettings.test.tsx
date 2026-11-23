@@ -38,7 +38,7 @@ const mocked = vi.mocked(await import("@/api/ai"));
 const provider: AIProvider = {
   id: "p1",
   name: "Org OpenAI",
-  scope: "system",
+  scope: "user",
   user_id: null,
   provider_type: "openai",
   api_base: "https://api.openai.com/v1",
@@ -49,6 +49,14 @@ const provider: AIProvider = {
   preset_key: "openai",
   is_mine: true,
   created_at: "2026-01-01T00:00:00Z",
+};
+
+const systemProvider: AIProvider = {
+  ...provider,
+  id: "sp1",
+  name: "Instance OpenAI",
+  scope: "system",
+  user_id: null,
 };
 
 const presets = {
@@ -116,10 +124,13 @@ const model: AIModel = {
   caps: ["text", "vision", "tools"],
 };
 
-function renderPage(initialEntries = ["/settings/ai"]) {
+function renderPage(
+  initialEntries = ["/settings/ai"],
+  scope: "user" | "system" = "user",
+) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <AIConfig />
+      <AIConfig scope={scope} />
     </MemoryRouter>
   );
 }
@@ -160,7 +171,8 @@ describe("AIConfig (settings > AI)", () => {
       )
     );
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
-    expect(screen.getByText("Global providers")).toBeInTheDocument();
+    expect(screen.queryByText("Global providers")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal providers")).not.toBeInTheDocument();
   });
 
   it("models tab: fetches every provider's models and expands a provider card", async () => {
@@ -253,23 +265,16 @@ describe("AIConfig (settings > AI)", () => {
     await waitFor(() => expect(mocked.deleteModel).toHaveBeenCalledWith("m1"));
   });
 
-  it("models tab: system providers are read-only without global rights", async () => {
-    useAuthStore.setState({
-      
-      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
-    });
-    mocked.fetchConfigSummary.mockResolvedValue({
-      can_manage_global: false,
-      mock_allowed: false,
-      tasks: [],
-    });
+  it("models tab: hides instance providers on the personal page", async () => {
+    mocked.fetchProviders.mockResolvedValue([provider, systemProvider]);
     mocked.fetchModels.mockResolvedValue([model]);
     renderPage(["/settings/ai?tab=models"]);
-    fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
+    const userProvider = await screen.findByRole("button", { name: /Org OpenAI/ });
+    expect(userProvider).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Instance OpenAI/ })).not.toBeInTheDocument();
+    fireEvent.click(userProvider);
     await waitFor(() => expect(screen.getByText("gpt-4o-mini")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit gpt-4o-mini" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove gpt-4o-mini" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
   });
 
   it("providers tab: tests a connection through the first active model", async () => {
@@ -285,10 +290,10 @@ describe("AIConfig (settings > AI)", () => {
         caps: ["decision"],
         decision_transport: "systemone",
         provider_name: "Org OpenAI",
-        provider_scope: "system",
+        provider_scope: "user",
         provider_type: "openai",
       },
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     mocked.testConnection.mockResolvedValue({ ok: true, reply: "OK" });
     renderPage();
@@ -348,10 +353,10 @@ describe("AIConfig (settings > AI)", () => {
       },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     mocked.fetchAssignments.mockResolvedValue([
-      { id: "a1", task_type: "text", scope: "system", model_id: "m1", is_active: true },
+      { id: "a1", task_type: "text", scope: "user", model_id: "m1", is_active: true },
     ]);
     renderPage(["/settings/ai?tab=tasks"]);
     await waitFor(() => expect(screen.getByText("Default models")).toBeInTheDocument());
@@ -359,6 +364,11 @@ describe("AIConfig (settings > AI)", () => {
     expect(screen.getByText("Default decision model")).toBeInTheDocument();
     expect(screen.getByText("Tool dispatch")).toBeInTheDocument();
     expect(await screen.findByRole("combobox", { name: "Text" })).toHaveTextContent("GPT 4o Mini");
+    // ADR-0070: per-task overrides start collapsed behind Advanced.
+    const advanced = screen.getByTestId("task-overrides-advanced") as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    fireEvent.click(screen.getByText("Advanced — per-task overrides"));
+    expect(advanced.open).toBe(true);
     expect(screen.getByText("Job Match Scoring")).toBeInTheDocument();
     expect(
       screen.getByText("Per-user job match score with rationale + prerequisites")
@@ -373,7 +383,7 @@ describe("AIConfig (settings > AI)", () => {
       { value: "match_score", label: "match score", requires: "text" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     renderPage(["/settings/ai?tab=tasks"]);
     await waitFor(() => expect(screen.getByText("Default models")).toBeInTheDocument());
@@ -387,12 +397,12 @@ describe("AIConfig (settings > AI)", () => {
       { value: "match_score", label: "match score" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     mocked.setAssignment.mockResolvedValue({
       id: "a2",
       task_type: "match_score",
-      scope: "system",
+      scope: "user",
       model_id: "m1",
       is_active: true,
     });
@@ -402,7 +412,7 @@ describe("AIConfig (settings > AI)", () => {
     fireEvent.click(await screen.findByRole("option", { name: /GPT 4o Mini/ }));
     await waitFor(() =>
       expect(mocked.setAssignment).toHaveBeenCalledWith("match_score", {
-        scope: "system",
+        scope: "user",
         model_id: "m1",
       }),
     );
@@ -421,16 +431,45 @@ describe("AIConfig (settings > AI)", () => {
     renderPage(["/settings/ai?tab=tasks"]);
     await waitFor(() => expect(screen.getByText("Task Assignments")).toBeInTheDocument());
     expect(screen.queryByText("Global")).not.toBeInTheDocument();
-    expect(screen.queryByText("Personal")).not.toBeInTheDocument();
+    expect(screen.getByText("Personal")).toBeInTheDocument();
     await waitFor(() => expect(mocked.fetchAssignments).toHaveBeenCalledWith("user"));
   });
 
   it("tasks tab: explains an empty scope instead of silent empty pickers", async () => {
+    mocked.fetchConfigSummary.mockResolvedValue({
+      can_manage_global: true,
+      mock_allowed: true,
+      tasks: [],
+    });
     mocked.fetchTasks.mockResolvedValue([{ value: "match_score", label: "match score" }]);
     mocked.fetchAllModels.mockResolvedValue([]);
     renderPage(["/settings/ai?tab=tasks"]);
     await waitFor(() => expect(screen.getByTestId("tasks-scope-empty")).toBeInTheDocument());
     expect(screen.getByText(/No models are registered in this scope/)).toBeInTheDocument();
+  });
+
+  it("tasks tab: shows an instance assignment as inherited, not unassigned", async () => {
+    mocked.fetchConfigSummary.mockResolvedValue({
+      can_manage_global: false,
+      mock_allowed: false,
+      tasks: [
+        {
+          task_type: "match_score",
+          source: "system:match_score",
+          provider_type: "openai",
+          model_name: "gpt-4o-mini",
+          api_base: "https://api.openai.com/v1",
+        },
+      ],
+    });
+    mocked.fetchTasks.mockResolvedValue([{ value: "match_score", label: "match score" }]);
+    mocked.fetchAllModels.mockResolvedValue([]);
+    renderPage(["/settings/ai?tab=tasks"]);
+    expect(
+      await screen.findByText("Inherited from instance: gpt-4o-mini")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-scope-empty")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unassigned — inherits/)).not.toBeInTheDocument();
   });
 
   it("tasks tab: clears an assignment with the row button", async () => {
@@ -439,18 +478,106 @@ describe("AIConfig (settings > AI)", () => {
       { value: "match_score", label: "match score" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     mocked.fetchAssignments.mockResolvedValue([
-      { id: "a2", task_type: "match_score", scope: "system", model_id: "m1", is_active: true },
+      { id: "a2", task_type: "match_score", scope: "user", model_id: "m1", is_active: true },
     ]);
     renderPage(["/settings/ai?tab=tasks"]);
     fireEvent.click(await screen.findByRole("button", { name: "Clear assignment — Job Match Scoring" }));
     await waitFor(() =>
       expect(mocked.setAssignment).toHaveBeenCalledWith("match_score", {
-        scope: "system",
+        scope: "user",
         model_id: null,
       }),
+    );
+  });
+});
+
+describe("AIConfig (instance scope)", () => {
+  it("renders the instance surface with only system providers", async () => {
+    mocked.fetchProviders.mockResolvedValue([provider, systemProvider]);
+    renderPage(["/settings/ai-admin"], "system");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Instance AI Configuration" })
+      ).toBeInTheDocument()
+    );
+    expect(await screen.findByText("Instance OpenAI")).toBeInTheDocument();
+    expect(screen.queryByText("Org OpenAI")).not.toBeInTheDocument();
+    expect(screen.getByTestId("ai-config")).toHaveAttribute("data-scope", "system");
+  });
+
+  it("pins provider setup to the instance scope", async () => {
+    mocked.fetchProviders.mockResolvedValue([]);
+    mocked.createProvider.mockResolvedValue({
+      ...systemProvider,
+      id: "sp-new",
+      name: "Instance Provider",
+    });
+    renderPage(["/settings/ai-admin"], "system");
+    await screen.findByRole("heading", { name: "Instance AI Configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Set up manually" }));
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Instance Provider" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save provider" }));
+    await waitFor(() =>
+      expect(mocked.createProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Instance Provider", scope: "system" })
+      )
+    );
+  });
+
+  it("links admins between the personal and instance surfaces", async () => {
+    mocked.fetchProviders.mockResolvedValue([provider, systemProvider]);
+    const personal = renderPage(["/settings/ai"]);
+    const toInstance = await screen.findByRole("link", {
+      name: "Instance AI Configuration",
+    });
+    expect(toInstance).toHaveAttribute("href", "/settings/ai-admin");
+    personal.unmount();
+
+    renderPage(["/settings/ai-admin"], "system");
+    const toPersonal = await screen.findByRole("link", {
+      name: "My AI Configuration",
+    });
+    expect(toPersonal).toHaveAttribute("href", "/settings/ai");
+  });
+
+  it("pins provider setup to the personal scope", async () => {
+    mocked.fetchProviders.mockResolvedValue([]);
+    mocked.createProvider.mockResolvedValue({
+      ...provider,
+      id: "p-new",
+      name: "Personal Provider",
+    });
+    renderPage();
+    await screen.findByRole("heading", { name: "My AI Configuration" });
+    fireEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Set up manually" }));
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Personal Provider" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save provider" }));
+    await waitFor(() =>
+      expect(mocked.createProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Personal Provider", scope: "user" })
+      )
+    );
+  });
+
+  it("redirects a non-admin away from the instance surface", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: false },
+    });
+    mocked.fetchProviders.mockResolvedValue([systemProvider]);
+    renderPage(["/settings/ai-admin"], "system");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Instance AI Configuration" })
+      ).not.toBeInTheDocument()
     );
   });
 });
@@ -517,7 +644,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
       assigned_decision_slots: null,
     });
     mocked.fetchAllModels.mockResolvedValue([
-      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+      { ...model, provider_name: "Org OpenAI", provider_scope: "user", provider_type: "openai" },
     ]);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
@@ -532,7 +659,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
         api_key: "sk-live-key",
         name: null,
         scope: "user",
-        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_decision: false },
+        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_embeddings: false, bind_decision: false },
       })
     );
     // step 2 is explicit: the wizard header names it, and the assignment
@@ -575,7 +702,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
         model_name: "openrouter/auto",
         name: "Auto (best match)",
         provider_name: "OpenRouter",
-        provider_scope: "system",
+        provider_scope: "user",
         provider_type: "openai_compatible",
       },
       {
@@ -586,7 +713,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
         caps: ["decision"],
         decision_transport: "systemone",
         provider_name: "OpenRouter",
-        provider_scope: "system",
+        provider_scope: "user",
         provider_type: "openai_compatible",
       },
     ]);
@@ -669,7 +796,7 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
         "openrouter",
         expect.objectContaining({
           api_key: null,
-          scope: "system",
+          scope: "user",
           options: expect.objectContaining({
             bind_chat: true,
             bind_vision: true,

@@ -19,6 +19,7 @@ import {
 } from "@/features/chat/components/chat/TemplatePreviews";
 import { CvAttachButton, CvAttachChips } from "@/features/chat/components/chat/CvAttachBar";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
+import { useAuthStore } from "@/stores/authStore";
 import {
   ChatBranchTree,
   ChatComposer,
@@ -521,12 +522,43 @@ function ComposerBar() {
   const navigate = useNavigate();
   const chat = useCareerChatContext();
   const configSummary = useConfigSummary();
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const noticeKey = userId
+    ? `ca:chat:dictation-dismissed:${userId}`
+    : null;
   const transcribeAssignment = configSummary.data?.tasks.find(
     (task) => task.task_type === "transcribe",
   );
   const dictationUnavailable =
     configSummary.error === null &&
     transcribeAssignment?.source === "unconfigured";
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+  useEffect(() => {
+    if (typeof localStorage === "undefined" || noticeKey === null) {
+      setNoticeDismissed(false);
+      return;
+    }
+    setNoticeDismissed(localStorage.getItem(noticeKey) === "1");
+  }, [noticeKey]);
+  useEffect(() => {
+    if (
+      typeof localStorage === "undefined" ||
+      noticeKey === null ||
+      configSummary.data === null ||
+      dictationUnavailable
+    ) {
+      return;
+    }
+    localStorage.removeItem(noticeKey);
+    setNoticeDismissed(false);
+  }, [configSummary.data, dictationUnavailable, noticeKey]);
+  const dismissNotice = () => {
+    if (typeof localStorage !== "undefined" && noticeKey !== null) {
+      localStorage.setItem(noticeKey, "1");
+    }
+    setNoticeDismissed(true);
+  };
+  const noticeVisible = dictationUnavailable && !noticeDismissed;
   const draftRef = useRef(chat.draft);
   draftRef.current = chat.draft;
   const dictation = useDictation({
@@ -576,16 +608,7 @@ function ComposerBar() {
       placeholder={t("chat.composerPlaceholder")}
       toolbarStart={<CvAttachButton />}
       toolbarEnd={
-        dictationUnavailable ? (
-          <DictationUnavailable
-            label={t("dictation.unavailable")}
-            detail={t("dictation.notConfigured")}
-            action={{
-              label: t("dictation.openSettings"),
-              onClick: () => navigate("/settings/ai?tab=tasks"),
-            }}
-          />
-        ) : micHidden ? undefined : (
+        dictationUnavailable || micHidden ? undefined : (
           <DictationButton
             status={dictation.status}
             onStart={() => void dictation.start()}
@@ -593,8 +616,24 @@ function ComposerBar() {
         )
       }
       suggestions={
-        attachStripVisible || dictationStrip !== undefined ? (
+        noticeVisible ||
+        attachStripVisible ||
+        dictationStrip !== undefined ? (
           <>
+            {noticeVisible ? (
+              <div className="w-full">
+                <DictationUnavailable
+                  label={t("dictation.unavailable")}
+                  detail={t("dictation.notConfigured")}
+                  action={{
+                    label: t("dictation.openSettings"),
+                    onClick: () => navigate("/settings/ai?tab=tasks"),
+                  }}
+                  onDismiss={dismissNotice}
+                  dismissLabel={t("dictation.dismiss")}
+                />
+              </div>
+            ) : null}
             {attachStripVisible ? <CvAttachChips /> : null}
             {dictationStrip}
           </>

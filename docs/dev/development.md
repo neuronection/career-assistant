@@ -53,7 +53,8 @@ and dependency exceptions are up-only; the process is documented in
 - **Structured over plain text.** AI outputs must be pydantic-validated into
   typed JSONB shapes (`app/ai/schemas.py`), never free-form strings.
 - **Reference the taxonomy by stable `key` slugs**, never display labels.
-- **AI configuration lives in the database** (Settings → AI Configuration).
+- **AI configuration lives in the database** (Settings → My AI Configuration
+  for user scope; Settings → Instance AI Configuration for system scope).
   Never add `AI_*` environment variables.
 - **JSONB mutations** need `flag_modified(obj, "field")` before commit.
 - **Secrets** never go into env files, code or logs. AI keys belong in the

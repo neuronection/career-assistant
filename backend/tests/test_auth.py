@@ -26,10 +26,10 @@ PASSWORD = "supersecret1"
 
 def _refresh_headers(cookie_value: str) -> dict:
     """Refresh probe headers: the raw cookie under test plus a CSRF pair
-    (cookie-bearing non-GET echoes nx_csrf — §10 applies to refresh too)."""
+    (cookie-bearing non-GET echoes career_csrf — §10 applies to refresh too)."""
     csrf = "test-csrf-token"
     return {
-        "Cookie": f"nx_refresh={cookie_value}; nx_csrf={csrf}",
+        "Cookie": f"career_refresh={cookie_value}; career_csrf={csrf}",
         "X-CSRF-Token": csrf,
     }
 
@@ -269,16 +269,16 @@ async def test_cookie_flags_are_exact(client):
     from nx_auth.testing import assert_cookie_flags
 
     lines = response.headers.get_list("set-cookie")
-    assert_cookie_flags(lines, "nx_access", http_only=True, secure=False, path="/")
-    assert_cookie_flags(lines, "nx_refresh", http_only=True, secure=False, path="/api/v1/auth")
-    assert_cookie_flags(lines, "nx_csrf", http_only=False, secure=False, path="/")
-    same_site = next(ln for ln in lines if ln.startswith("nx_access="))
+    assert_cookie_flags(lines, "career_access", http_only=True, secure=False, path="/")
+    assert_cookie_flags(lines, "career_refresh", http_only=True, secure=False, path="/api/v1/auth")
+    assert_cookie_flags(lines, "career_csrf", http_only=False, secure=False, path="/")
+    same_site = next(ln for ln in lines if ln.startswith("career_access="))
     assert "samesite=lax" in same_site.lower()
 
 
 @pytest.mark.contract  # §18.5 — CSRF enforced on cookie-authenticated POSTs
 async def test_csrf_enforced_on_cookie_posts(client, auth_headers):
-    """Double-submit: cookie-authenticated non-GET must echo nx_csrf."""
+    """Double-submit: cookie-authenticated non-GET must echo career_csrf."""
     cookie_only = {"Cookie": auth_headers["Cookie"]}
     missing = await client.post("/api/v1/auth/logout", headers=cookie_only)
     assert missing.status_code == 403
@@ -311,12 +311,12 @@ async def _session_cookie(client, email: str) -> dict:
 
 
 def _access_token(headers: dict) -> str:
-    return headers["Cookie"].split("nx_access=", 1)[1].split(";", 1)[0]
+    return headers["Cookie"].split("career_access=", 1)[1].split(";", 1)[0]
 
 
 def _refresh_cookie(response) -> str | None:
     for line in response.headers.get_list("set-cookie"):
-        if line.startswith("nx_refresh="):
+        if line.startswith("career_refresh="):
             return line.split("=", 1)[1].split(";", 1)[0]
     return None
 
@@ -332,10 +332,10 @@ async def test_forged_and_wrong_key_tokens_rejected(client, auth_headers):
         "wrong-key-0123456789abcdefghijklmnop",
         {"sub": user_id_from_headers(auth_headers)},
     )
-    probe = {"Cookie": f"nx_access={forged}"}
+    probe = {"Cookie": f"career_access={forged}"}
     assert (await client.get("/api/v1/auth/me", headers=probe)).status_code == 401
 
-    garbage = {"Cookie": "nx_access=not-a-jwt"}
+    garbage = {"Cookie": "career_access=not-a-jwt"}
     assert (await client.get("/api/v1/auth/me", headers=garbage)).status_code == 401
     assert real  # the real one verified above
 
@@ -357,7 +357,9 @@ async def test_kind_mismatch_and_key_separation(client, auth_headers):
         auth_mode=AuthMode.PASSWORD,
     )
     assert (
-        await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={refresh_as_access}"})
+        await client.get(
+            "/api/v1/auth/me", headers={"Cookie": f"career_access={refresh_as_access}"}
+        )
     ).status_code == 401
 
     # A refresh token signed with the SESSION key must not verify as a
@@ -402,7 +404,7 @@ async def test_expired_access_is_401_and_refresh_recovers(client):
         auth_mode=AuthMode.PASSWORD,
         ttl_seconds=-60,
     )
-    stale = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={expired}"})
+    stale = await client.get("/api/v1/auth/me", headers={"Cookie": f"career_access={expired}"})
     assert stale.status_code == 401
 
     # The refresh cookie rotates the session back to life (§8/§12).

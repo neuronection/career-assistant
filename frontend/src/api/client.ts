@@ -115,7 +115,7 @@ export async function apiRequestHeaders(
     headers["X-Profile-Id"] = activeProfileId;
   }
   if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-    const csrf = cookieValue("nx_csrf");
+    const csrf = cookieValue("career_csrf");
     if (csrf !== null) {
       headers["X-CSRF-Token"] = csrf;
     }
@@ -134,7 +134,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     // session, or another family app's cookies on this host — cookies
     // ignore ports) so login never trips the backend's CSRF gate on
     // cookies it did not mint (identity-auth §10/§12).
-    for (const name of ['nx_access', 'nx_refresh', 'nx_csrf']) {
+    for (const name of ['career_access', 'career_refresh', 'career_csrf', 'nx_access', 'nx_refresh', 'nx_csrf']) {
       document.cookie = `${name}=; Max-Age=0; path=/`;
       document.cookie = `${name}=; Max-Age=0; path=/api/v1/auth`;
     }
@@ -143,6 +143,7 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     // rejected for "invalid prefix" and the stale cookie survives.
     // It can only be set from a secure context, so gate the same way.
     if (window.isSecureContext) {
+      document.cookie = '__Host-career_access=; Max-Age=0; path=/; Secure';
       document.cookie = '__Host-nx_access=; Max-Age=0; path=/; Secure';
     }
   }

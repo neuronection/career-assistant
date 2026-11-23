@@ -25,7 +25,7 @@ describe('signalShellRendered', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     window.sessionStorage.removeItem('nx_shell')
-    document.cookie = 'nx_csrf=; Max-Age=0; path=/'
+    document.cookie = 'career_csrf=; Max-Age=0; path=/'
   })
 
   it('posts once after two animation frames', async () => {
@@ -69,7 +69,7 @@ describe('signalShellRendered', () => {
     // client.ts captures the shell token at module load — set it before
     // the beacon (and its client import) are evaluated.
     window.sessionStorage.setItem('nx_shell', 'boot-secret')
-    document.cookie = 'nx_csrf=csrf-token; path=/'
+    document.cookie = 'career_csrf=csrf-token; path=/'
     const fetchMock = stubFramesAndFetch()
     const { signalShellRendered } = await loadBeacon()
     signalShellRendered()

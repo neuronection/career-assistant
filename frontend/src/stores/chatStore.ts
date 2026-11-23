@@ -14,8 +14,8 @@ export type ComposerCvAttachment = ChatCvAttachment & { auto?: boolean };
 const CHAT_MODE_KEY = "ca:chat:mode";
 
 function loadPersistedChatMode(): ChatMode {
-  if (typeof localStorage === "undefined") return "docked";
-  return localStorage.getItem(CHAT_MODE_KEY) === "bubble" ? "bubble" : "docked";
+  if (typeof localStorage === "undefined") return "bubble";
+  return localStorage.getItem(CHAT_MODE_KEY) === "docked" ? "docked" : "bubble";
 }
 
 /** True only when the user actually picked a surface (the switcher, the
@@ -51,7 +51,9 @@ interface ChatState {
   messages: ChatMessage[];
   /** Chat surface mode: floating bubble launcher or docked resizable
    * side column ( review — one chatbot, three shapes: bubble,
-   *  docked, page). The page stays route-based (/chat). */
+   *  docked, page). The page stays route-based (/chat). Bubble is the
+   *  no-preference default: no assistant panel takes page width until the
+   *  user opens it or explicitly chooses the dock. */
   chatMode: ChatMode;
   /** Whether the user explicitly chose the surface. Unchosen keeps the
    *  workspace defaults (CV Studio opens without the sidepanel chatbot). */

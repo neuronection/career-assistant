@@ -651,9 +651,10 @@ and the sweep inventory lives in the wave record.
 ## AI configuration is data, not env
 
 AI providers/models/task assignments live exclusively in the database
-(Settings → AI Configuration). There are deliberately no `AI_*` env vars.
-Production starts unconfigured (AI endpoints answer `503` until an admin
-adds a provider). The built-in mock provider is strictly opt-in: with the
+(Settings → My AI Configuration for personal/user scope; Settings → Instance
+AI Configuration for the admin/system scope). There are deliberately no
+`AI_*` env vars. Production starts unconfigured (AI endpoints answer `503`
+until the caller's personal provider or an instance provider is configured). The built-in mock provider is strictly opt-in: with the
 `CAREER_MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
 `.env.test` sets it) a system mock provider is auto-provisioned so the app
 works without keys; with the knob off, mock rows are invisible to task

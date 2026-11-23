@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-13",
+  "updated": "2026-11-23",
   "capabilities": [
     {
       "id": "update-checks",
@@ -128,7 +128,7 @@
         "Answers ground in your own data via tool-calling; long runs show a readable progress trace",
         "Profile edits are anchored proposal cards with before/after previews and one-click revert, behind a read-before-edit gate",
         "The builder copilot sees rendered CV pages and applies validated operations on one audited path",
-        "Dictation appears unless the effective speech-to-text assignment is explicitly unconfigured, where a settings link replaces the mic",
+        "Dictation appears unless the speech-to-text assignment is unconfigured, where a dismissible settings notice replaces the mic",
         "Postings carry short ref ids — ask by board, recency or reference and get Explore deep-links"
       ],
       "links": [
@@ -182,7 +182,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Seventeen connectors pull deep-extracted postings with resolved employers, eligibility signals and an evidence-backed gap report; Explore filters by opportunity type, visa and closing window, plus trust signals.",
+      "summary": "Seventeen connectors pull deep-extracted postings with resolved employers, eligibility signals and an evidence-backed gap report; layer curated ATS catalogs and filter Explore by visa, closing window and trust signals.",
       "category": "integrate",
       "status": "beta",
       "links": [

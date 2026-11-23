@@ -570,6 +570,18 @@ def _cookie_access_name() -> str:
     return cookie_names(auth_kit().config).access
 
 
+def _cookie_refresh_name() -> str:
+    from nx_auth.cookies import cookie_names
+
+    return cookie_names(auth_kit().config).refresh
+
+
+def _cookie_csrf_name() -> str:
+    from nx_auth.cookies import cookie_names
+
+    return cookie_names(auth_kit().config).csrf
+
+
 def default_profile_id(user_id: str) -> str | None:
     """The user's Default profile id (identity-auth §6), read through the
     sync identity bridge — minted rows are committed there."""
@@ -623,7 +635,7 @@ def mint_session_headers(
     )
     csrf = secrets.token_urlsafe(32)
     headers = {
-        "Cookie": f"{_cookie_access_name()}={token}; nx_csrf={csrf}",
+        "Cookie": f"{_cookie_access_name()}={token}; {_cookie_csrf_name()}={csrf}",
         "X-CSRF-Token": csrf,
         "Authorization": f"Bearer {token}",
     }
@@ -659,15 +671,15 @@ def session_headers(response) -> dict:
         value = rest.split(";", 1)[0]
         if name.strip() == _cookie_access_name():
             access = value
-        elif name.strip() == "nx_refresh":
+        elif name.strip() == _cookie_refresh_name():
             refresh = value
-        elif name.strip() == "nx_csrf":
+        elif name.strip() == _cookie_csrf_name():
             csrf = value
     assert access, f"no session cookie in response: {response.headers.get_list('set-cookie')}"
     cookie = f"{_cookie_access_name()}={access}"
     if refresh:
-        cookie += f"; nx_refresh={refresh}"
-    cookie += f"; nx_csrf={csrf}"
+        cookie += f"; {_cookie_refresh_name()}={refresh}"
+    cookie += f"; {_cookie_csrf_name()}={csrf}"
     headers = {
         "Cookie": cookie,
         "X-CSRF-Token": csrf or "",

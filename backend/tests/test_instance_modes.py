@@ -141,7 +141,7 @@ async def test_local_boot_token_rejected_on_authenticated_instance(client):
     from app.main import app
 
     token = _mint_token(app, kind="session", auth_mode="local-boot", sub="x")
-    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"career_access={token}"})
     assert response.status_code == 401, "local-boot is open-desktop only (§4.3)"
 
 
@@ -149,7 +149,7 @@ async def test_demo_token_rejected_on_non_demo_instance(client):
     from app.main import app
 
     token = _mint_token(app, kind="session", auth_mode="demo", sub="demo-user")
-    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"career_access={token}"})
     assert response.status_code == 401
 
 
@@ -214,7 +214,7 @@ async def test_desktop_open_exchanges_the_implicit_owner(desktop_factory):
 
     # DIM mints a session token only (§11.3) — no refresh family.
     assert all(
-        not line.startswith("nx_refresh=") for line in exchange.headers.get_list("set-cookie")
+        not line.startswith("career_refresh=") for line in exchange.headers.get_list("set-cookie")
     )
 
 
@@ -265,7 +265,7 @@ async def test_desktop_authenticated_rejects_local_boot(desktop_factory):
     )
     response = await client.get(
         "/api/v1/auth/me",
-        headers={"Cookie": f"nx_access={token}", "X-Shell-Token": secret},
+        headers={"Cookie": f"career_access={token}", "X-Shell-Token": secret},
     )
     assert response.status_code == 401, "no local-boot token is ever valid here (§11.5)"
 
@@ -277,7 +277,7 @@ async def test_shell_secret_gates_every_api_request(desktop_factory):
         ("POST", "/api/v1/auth/login"),
         ("GET", "/api/v1/me/bootstrap"),
     ):
-        denied = await client.request(method, path, headers={"Cookie": "nx_access=x"})
+        denied = await client.request(method, path, headers={"Cookie": "career_access=x"})
         assert denied.status_code == 403, f"{method} {path} without the shell secret"
     # The liveness probe stays reachable (outside /api — §11 gates API traffic).
     assert (await client.get("/health")).status_code == 200
@@ -353,7 +353,7 @@ async def test_unknown_stored_mode_fails_closed(client):
 
     token = _mint_token(app, kind="session", auth_mode="local-boot", sub="x")
     assert (
-        await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={token}"})
+        await client.get("/api/v1/auth/me", headers={"Cookie": f"career_access={token}"})
     ).status_code == 401
 
 

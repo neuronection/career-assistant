@@ -12,7 +12,7 @@ the wizard is the deterministic mock type.
 
 import re
 
-from conftest import API, BASE_URL, api_headers
+from conftest import API, BASE_URL, api_headers, open_chat_dock
 
 
 def _unconfigure(page) -> None:
@@ -121,8 +121,7 @@ def test_first_run_setup_wizard_connects_and_chats(page) -> None:
 
     # And the feature that needs a provider now works end-to-end.
     page.goto(f"{BASE_URL}/")
-    dock = page.get_by_test_id("chat-dock")
-    dock.wait_for(state="visible", timeout=20_000)
+    dock = open_chat_dock(page)
     dock.get_by_role("button", name="New chat").click()
     composer = page.get_by_role("textbox", name="Message")
     composer.wait_for(state="visible", timeout=20_000)
