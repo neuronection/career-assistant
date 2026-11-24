@@ -452,7 +452,7 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("scope_key", "seed_key", name="uq_provider_endpoints_scope_seed"),
         sa.CheckConstraint("method IN ('GET', 'POST')", name="method_allowed"),
-        sa.CheckConstraint("auth IN ('none', 'api_key', 'oauth')", name="auth_allowed"),
+        sa.CheckConstraint("auth IN ('none', 'api_key', 'bearer', 'oauth')", name="auth_allowed"),
         sa.CheckConstraint(
             "state IN ('active', 'retired', 'overridden')",
             name="state_allowed",

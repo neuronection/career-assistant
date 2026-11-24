@@ -12,10 +12,11 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Internal
 
-- **Data-provider foundation.** The schema for admin-managed seed providers
-  (immutable pack versions, exact-digest approval, applied presets/endpoints
-  and user-scoped visibility overlays) landed; no user-facing surface or
-  behavior changes yet.
+- **Data-provider foundation.** The schema, parser, content-addressed pack
+  store, pack-only archive extractor and authoring CLI for admin-managed
+  seed providers landed (immutable pack versions, exact-digest approval,
+  applied presets/endpoints and user-scoped visibility overlays); no
+  user-facing surface or behavior changes yet.
 
 
 ## [v0.20.0] - 2026-11-24

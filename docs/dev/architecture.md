@@ -359,6 +359,33 @@ There is no side door around it.
   registers the email/webhook dispatchers without a schema change.
   SMS is a stated non-goal; nothing reserves a slot for it.
 
+## Seed providers and the pack lane
+
+- **A provider publishes data packs, never code.** `seed_sources` describes
+  where a pack comes from (`bundled`, `file`, `registry` index, public `git`),
+  and `seed_source_versions` holds each fetched pack as an immutable,
+  content-addressed version. Sync stores and registers `pending`; an admin
+  approves the exact digest; only then does the planner apply it. No pack
+  content is imported or executed.
+- **The parser is pure and authoritative.** `app/core/seed_pack/` validates
+  the manifest, item envelopes, identity grammar (`<type>:<body>`),
+  connector keys/configs, endpoint domains, caps and digests. The pack
+  digest is `sha256(canonical manifest, then \0path\0bytes per item file)`;
+  it reproduces the published `seed-repo.json` digests exactly. The repo's
+  `scripts/validate.mjs` catches contract shape; the app parser remains the
+  authority.
+- **Archives are read into memory, never extracted.** The pack-only zip
+  extractor allows exactly `manifest.json` + `items/**.json`, refuses
+  traversal/symlinks/encryption/duplicates and caps entries, bytes and
+  compression ratio. Uploaded packs never reach `extractall` or the
+  extension importer.
+- **Bytes live in the object store.** `SeedPackStore` writes
+  `seed-packs/<source_id>/<sha256>.zip` through the family storage seam and
+  re-hashes on every read/write (`DIGEST_DRIFT`).
+- **Authoring is deterministic.** `backend/scripts/seed_pack.py
+  check|pack|export` runs the same parser; export sorts item keys and
+  refreshes manifest digests, and its round-trip is byte-identical.
+
 ## Deep extraction pipeline (extraction v6)
 
 - **Two speeds, one queue.** The sync path's fast alias/keyword mapping

@@ -49,7 +49,7 @@ PRESET_CATEGORIES = ("ats", "remote")
 PRESET_STATES = ("active", "retired", "overridden")
 ENDPOINT_STATES = ("active", "retired", "overridden")
 ENDPOINT_METHODS = ("GET", "POST")
-ENDPOINT_AUTH = ("none", "api_key", "oauth")
+ENDPOINT_AUTH = ("none", "api_key", "bearer", "oauth")
 SUBSCRIPTION_MODES = ("all", "selected")
 SOURCE_SUPPORT_STATUSES = ("supported", "retired")
 
@@ -328,7 +328,7 @@ class ProviderEndpoint(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("scope_key", "seed_key", name="uq_provider_endpoints_scope_seed"),
         CheckConstraint("method IN ('GET', 'POST')", name="method_allowed"),
-        CheckConstraint("auth IN ('none', 'api_key', 'oauth')", name="auth_allowed"),
+        CheckConstraint("auth IN ('none', 'api_key', 'bearer', 'oauth')", name="auth_allowed"),
         CheckConstraint(
             "state IN ('active', 'retired', 'overridden')",
             name="state_allowed",

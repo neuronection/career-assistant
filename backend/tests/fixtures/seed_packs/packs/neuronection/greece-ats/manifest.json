@@ -1,0 +1,20 @@
+{
+  "id": "neuronection-greece-ats",
+  "schema_version": "1.0",
+  "version": "1.2.0",
+  "license": "CC-BY-4.0",
+  "scope": "system",
+  "priority": 100,
+  "min_app_version": "0.21.0",
+  "description": "Neuronection verified — Greece: 17 employer tenants on public ATS feeds.",
+  "item_files": [
+    {
+      "path": "items/ats_presets/greece.json",
+      "sha256": "5a69f28a165d86b72e1fd4cde5da7a0bc35971a2b49a2fd2c02acd8c810c7fe3"
+    },
+    {
+      "path": "items/endpoint_descriptors/providers.json",
+      "sha256": "3517af08e670e532951db6870434d4f0af49edd6a10a317d13c0c72069620d64"
+    }
+  ]
+}

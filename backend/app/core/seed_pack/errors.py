@@ -1,0 +1,49 @@
+"""Typed refusals for the seed-pack lane (plan 218).
+
+Every refusal is a stable code plus a bounded detail string; callers persist
+the code (sync runs, import runs) and never parse the message.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+MANIFEST_MISSING: Final = "MANIFEST_MISSING"
+MANIFEST_INVALID: Final = "MANIFEST_INVALID"
+ITEM_FILE_MISSING: Final = "ITEM_FILE_MISSING"
+ITEM_FILE_INVALID: Final = "ITEM_FILE_INVALID"
+DIGEST_MISMATCH: Final = "DIGEST_MISMATCH"
+DIGEST_DRIFT: Final = "DIGEST_DRIFT"
+IDENTITY_INVALID: Final = "IDENTITY_INVALID"
+SEED_KEY_DUPLICATE: Final = "SEED_KEY_DUPLICATE"
+REPLACES_AMBIGUOUS: Final = "REPLACES_AMBIGUOUS"
+CONNECTOR_UNKNOWN: Final = "CONNECTOR_UNKNOWN"
+CONFIG_INVALID: Final = "CONFIG_INVALID"
+ENDPOINT_DOMAIN_DENIED: Final = "ENDPOINT_DOMAIN_DENIED"
+LICENSE_NOT_ALLOWED: Final = "LICENSE_NOT_ALLOWED"
+CAP_EXCEEDED: Final = "CAP_EXCEEDED"
+FORMAT_UNSUPPORTED: Final = "FORMAT_UNSUPPORTED"
+FORMAT_VERSION_UNSUPPORTED: Final = "FORMAT_VERSION_UNSUPPORTED"
+ITEM_TYPE_MISMATCH: Final = "ITEM_TYPE_MISMATCH"
+SCOPE_UNSUPPORTED: Final = "SCOPE_UNSUPPORTED"
+PRIORITY_MISMATCH: Final = "PRIORITY_MISMATCH"
+PATH_DENIED: Final = "PATH_DENIED"
+ARCHIVE_INVALID: Final = "ARCHIVE_INVALID"
+ARCHIVE_PATH_TRAVERSAL: Final = "ARCHIVE_PATH_TRAVERSAL"
+ARCHIVE_UNSUPPORTED_ENTRY: Final = "ARCHIVE_UNSUPPORTED_ENTRY"
+ARCHIVE_DUPLICATE_ENTRY: Final = "ARCHIVE_DUPLICATE_ENTRY"
+ARCHIVE_ENCRYPTED: Final = "ARCHIVE_ENCRYPTED"
+ARCHIVE_TOO_LARGE: Final = "ARCHIVE_TOO_LARGE"
+PACK_NOT_FOUND: Final = "PACK_NOT_FOUND"
+
+
+class SeedPackError(ValueError):
+    """One typed refusal; ``code`` is the persisted vocabulary."""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = code
+        self.detail = detail[:500]
+        super().__init__(f"{code}: {self.detail}" if self.detail else code)
+
+    def as_dict(self) -> dict[str, str]:
+        return {"code": self.code, "detail": self.detail}
