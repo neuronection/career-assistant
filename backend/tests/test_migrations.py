@@ -1355,7 +1355,6 @@ async def _assert_0019_restored_pg(url: str, expected: dict) -> None:
 
 def test_0019_folds_legacy_catalogs_on_postgres(tmp_path, monkeypatch):
     import asyncio
-    import uuid
 
     import pytest
     from sqlalchemy.engine import make_url
