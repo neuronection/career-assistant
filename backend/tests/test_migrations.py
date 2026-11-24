@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0017"
+BASELINE = "0018"
 
 
 def _configured() -> Config:
@@ -996,5 +996,112 @@ def test_0017_adds_mount_columns_without_backfill_on_sqlite(tmp_path, monkeypatc
         ).fetchone() == (None, None)
         indexes = {row[1] for row in con.execute("PRAGMA index_list(extension_sources)")}
         assert "ix_extension_sources_mount_key" in indexes
+    finally:
+        con.close()
+
+
+def test_0018_adds_seed_provider_tables_without_backfill_on_sqlite(tmp_path, monkeypatch):
+    """Plan 218: the seed-provider lane is additive — new tables, nullable
+    pointers, a defaulted ``support_status`` and a widened schedule vocabulary;
+    existing schedule rows survive the CHECK rebuild."""
+    import sqlite3
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'seed-providers.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0017")
+
+    path = tmp_path / "seed-providers.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO schedules (id, kind, task, trigger, payload, payload_hash, enabled, "
+        "consecutive_failures, misfire_policy, error, created_at, updated_at) VALUES "
+        "(?, 'user_autopilot', 'autopilot_run', '{}', '{}', 'h', 1, 0, 'asap', '', "
+        "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+        ("1" * 32,),
+    )
+    con.execute(
+        "INSERT INTO job_sources (id, key, connector_key, kind, last_status, config, secrets, "
+        "enabled, sync_state, query_mode, query_batch_size, error, created_at, updated_at) "
+        "VALUES (?, 'legacy', 'rss', 'posting', 'ok', '{}', '{}', 1, '{}', 'static', 2, '', "
+        "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+        ("2" * 32,),
+    )
+    con.commit()
+    con.close()
+
+    command.upgrade(config, "head")
+
+    con = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert {
+            "seed_sources",
+            "seed_source_versions",
+            "seed_sync_runs",
+            "seed_import_runs",
+            "seed_import_run_items",
+            "seed_item_provenance",
+            "seed_deferred_refs",
+            "job_source_presets",
+            "provider_endpoints",
+            "provider_subscriptions",
+            "source_prefs",
+            "migration_archive",
+        } <= tables
+        assert con.execute("SELECT kind FROM schedules WHERE id = ?", ("1" * 32,)).fetchone() == (
+            "user_autopilot",
+        )
+        assert con.execute(
+            "SELECT support_status FROM job_sources WHERE key = 'legacy'"
+        ).fetchone() == ("supported",)
+        assert con.execute(
+            "SELECT seed_source_id, seed_item_key, applied_version_id "
+            "FROM job_sources WHERE key = 'legacy'"
+        ).fetchone() == (None, None, None)
+        con.execute(
+            "INSERT INTO schedules (id, kind, task, trigger, payload, payload_hash, enabled, "
+            "consecutive_failures, misfire_policy, error, created_at, updated_at) VALUES "
+            "(?, 'system_provider_sync', 'provider_sync', '{}', '{}', 'h', 1, 0, 'asap', '', "
+            "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+            ("3" * 32,),
+        )
+        con.commit()
+        con.execute("DELETE FROM schedules WHERE id = ?", ("3" * 32,))
+        con.commit()
+    finally:
+        con.close()
+
+    command.downgrade(config, "0017")
+
+    con = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert (
+            not {
+                "seed_sources",
+                "seed_source_versions",
+                "job_source_presets",
+                "provider_endpoints",
+                "provider_subscriptions",
+                "source_prefs",
+                "migration_archive",
+            }
+            & tables
+        )
+        cols = {row[1] for row in con.execute("PRAGMA table_info(job_sources)")}
+        assert (
+            not {"seed_source_id", "seed_item_key", "applied_version_id", "support_status"} & cols
+        )
+        assert con.execute("SELECT kind FROM schedules WHERE id = ?", ("1" * 32,)).fetchone() == (
+            "user_autopilot",
+        )
     finally:
         con.close()

@@ -3,6 +3,15 @@
 from app.models import Base
 from tests.conftest import TABLES
 
+# The applied pointer (seed_sources.current_version_id) and the version's
+# owner (seed_source_versions.source_id) form the one deliberate circular FK
+# in the schema (use_alter / ON DELETE SET NULL). No linear delete order can
+# satisfy both directions; SQLite's cascade handles either start.
+DEFERRED_CYCLE_EDGES = {
+    ("seed_sources", "seed_source_versions"),
+    ("seed_source_versions", "seed_sources"),
+}
+
 
 def test_tables_covers_all_models():
     model_tables = set(Base.metadata.tables)
@@ -20,6 +29,8 @@ def test_tables_order_is_fk_safe():
         for fk in table.foreign_keys:
             parent = fk.constraint.referred_table.name
             if parent == table.name:
+                continue
+            if (table.name, parent) in DEFERRED_CYCLE_EDGES:
                 continue
             assert position[table.name] < position[parent], (
                 f"'{table.name}' must be truncated/deleted before '{parent}' "

@@ -10,6 +10,14 @@ All notable changes to **Career Assistant** are documented here.
   All / ATS / remote filters: the pack grid now scrolls inside a stable
   area instead of resizing the popup on every tab change.
 
+### Internal
+
+- **Data-provider foundation.** The schema for admin-managed seed providers
+  (immutable pack versions, exact-digest approval, applied presets/endpoints
+  and user-scoped visibility overlays) landed; no user-facing surface or
+  behavior changes yet.
+
+
 ## [v0.20.0] - 2026-11-24
 
 ### Added

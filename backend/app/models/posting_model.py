@@ -71,6 +71,10 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "query_batch_size BETWEEN 1 AND 6",
             name="query_batch_size_allowed",
         ),
+        CheckConstraint(
+            "support_status IN ('supported', 'retired')",
+            name="support_status_allowed",
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
@@ -123,6 +127,19 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
         default=2,
         server_default="2",
+    )
+    seed_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("seed_sources.id", ondelete="SET NULL"), nullable=True
+    )
+    seed_item_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    applied_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("seed_source_versions.id", ondelete="SET NULL"), nullable=True
+    )
+    support_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="supported",
+        server_default="supported",
     )
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 

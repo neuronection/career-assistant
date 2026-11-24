@@ -193,6 +193,23 @@ importlib'd (D2). The GitOps desired-state document lives in
 against the vendored `desiredStateDocument` schema, which cannot express
 deletion).
 
+## Seed providers and the source catalog
+
+| Table(s) | Model | Holds |
+|---|---|---|
+| `seed_sources`, `seed_source_versions` | `seed_model.py` | Providers (bundled/file/registry/public git) and their immutable, content-addressed pack versions. `scope` is `system` only; `current_version_id` is the *applied* pointer (circular FK with the version's `source_id`, `use_alter`, `SET NULL`). Approval is exact-digest; sync never applies. |
+| `seed_sync_runs`, `seed_import_runs`, `seed_import_run_items` | `seed_model.py` | The fetch ledger (trigger/status/etag/commit/bytes), the planner/applier run ledger, and one row per `seed_key` decision (create/update/noop/conflict/skip/override/retire) |
+| `seed_item_provenance`, `seed_deferred_refs` | `seed_model.py` | Read-only per-entity origin projection and unresolved references retried on the next approval |
+| `job_source_presets`, `provider_endpoints` | `seed_model.py` | The applied catalog — ATS/remote presets and endpoint descriptors, unique `(scope_key, seed_key)` with the uuid5 identity. `state` (active/retired/overridden) is the liveness authority; `job_sources.key` stays the slug. |
+| `provider_subscriptions`, `source_prefs` | `seed_model.py` | User-scoped follow/hide overlays (`hidden` is the hard deny applied before every other filter); a subscription never creates a `job_sources` row |
+| `migration_archive` | `seed_model.py` | Exact pre-fold value kept by a self-contained data migration |
+
+Pack content is data, never code. `job_sources` gains the nullable
+`seed_source_id` / `seed_item_key` / `applied_version_id` provenance pointers
+and `support_status` (`supported|retired`); retiring a preset never deletes
+the source row. `schedules.kind`/`task` carry `system_provider_sync` /
+`provider_sync` as of `0018`.
+
 ### Migration notes
 
 The chain is a **single no-BC baseline** (`0001_baseline_schema.py`) since

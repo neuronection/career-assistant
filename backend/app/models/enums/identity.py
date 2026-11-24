@@ -64,6 +64,7 @@ class BackgroundJobType(StrEnum):
     # mapping-alert sweep (the retrieval-alert pattern).
     MAPPING_COVERAGE_CAPTURE = "mapping_coverage_capture"
     MAPPING_ALERT_SWEEP = "mapping_alert_sweep"
+    PROVIDER_SYNC = "provider_sync"
 
 
 class ScheduleKind(StrEnum):
@@ -83,6 +84,7 @@ class ScheduleKind(StrEnum):
     # Plan 205 S9: the mapping console's daily snapshot + alert schedules.
     SYSTEM_MAPPING_COVERAGE = "system_mapping_coverage"
     SYSTEM_MAPPING_ALERTS = "system_mapping_alerts"
+    SYSTEM_PROVIDER_SYNC = "system_provider_sync"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_RADAR_DIGEST = "user_radar_digest"
     USER_SMART_DIGEST = "user_smart_digest"
