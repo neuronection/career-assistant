@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Data providers — versioned seed packs, with review before apply.** Tools →
+  Sources → Data providers now manages where job-source presets and endpoint
+  hints come from: the 20 bundled presets, the official Neuronection
+  repository, any public Git repository, a static `seed-repo.json` index, or
+  an uploaded pack. Each fetched pack is an immutable, content-addressed
+  version; you preview its plan, approve the exact digest, then apply it.
+  Equal-priority providers that disagree are refused as a whole, retirement
+  keeps sources you already created, and per-item switches decide what the
+  preset gallery offers. A migrated legacy catalog lands as an approved
+  provider at priority 90, and the old `/admin/postings/sources/catalogs`
+  import surface is retired.
+
 ### Fixed
 
 - **The Add source dialog keeps its size** while you switch the

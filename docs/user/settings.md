@@ -156,7 +156,10 @@ index is off** (no active space); clearing the cached statuses forgets what
 this browser has already fetched. It is a diagnostic only — no card, badge
 or ranking changes for a normal user.
 
-**Sources** hosts the job-source instances: grouped by what they feed —
+**Sources** opens with **Data providers** (the applied seed packs: bundled
+presets, the official repository and any public Git, index or uploaded pack
+an admin synced, reviewed and applied — see
+[Data providers](data-providers.md)), then the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and
 **Inbound webhooks** — with a health strip (active count, failing /
 degraded badges, last sync) over the rows. Each row shows a health badge

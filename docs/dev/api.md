@@ -79,9 +79,8 @@ presets are filtered to `state=active AND enabled`. Follow/hide overlays are
 a later increment; nothing here creates a `job_sources` row.
 
 Sync never approves or applies; apply requires an approved version and holds
-the global `provider_apply` lock. The old
-`/admin/postings/sources/catalogs` CRUD stays temporarily for the pre-cutover
-gallery and is removed with the UI cutover.
+the global `provider_apply` lock. The old `/admin/postings/sources/catalogs` CRUD is removed; plan-187 imports
+fold into approved providers at priority 90 (`0019`).
 
 ## Errors
 

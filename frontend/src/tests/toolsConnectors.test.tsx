@@ -39,6 +39,12 @@ vi.mock("@/api/profileProposals", () => ({
   rejectProfileProposal: vi.fn(),
 }));
 
+vi.mock("@/api/providers", () => ({
+  listAdminProviders: vi.fn().mockResolvedValue([]),
+  listUserProviders: vi.fn().mockResolvedValue([]),
+  fetchUserProvider: vi.fn(),
+}));
+
 vi.mock("@/api/sources", () => ({
   fetchAdminSources: vi.fn(),
   fetchConnectorCatalog: vi.fn(),

@@ -2180,55 +2180,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/postings/sources/catalogs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Sources Catalogs
-         * @description The stored ATS catalogs (instance-wide, admin-managed).
-         */
-        get: operations["list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/postings/sources/catalogs/{catalog_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Upsert Sources Catalog
-         * @description Upsert one validated catalog document (envelope + import metadata).
-         *
-         *     A known id replaces in place (any tier); a new id counts against the
-         *     max-catalogs cap. Documents over the byte cap are rejected before
-         *     parsing (413).
-         */
-        put: operations["upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put"];
-        post?: never;
-        /**
-         * Delete Sources Catalog
-         * @description Remove a stored catalog (imported presets leave the gallery;
-         *     sources already added are kept).
-         */
-        delete: operations["delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/postings/sources/{source_id}": {
         parameters: {
             query?: never;
@@ -12824,53 +12775,6 @@ export interface components {
             /** Semantic Rescue */
             semantic_rescue?: boolean | null;
         };
-        /**
-         * CatalogPresetIn
-         * @description One tenant preset — the existing JobSourcePreset shape (no logo).
-         */
-        CatalogPresetIn: {
-            /**
-             * Category
-             * @enum {string}
-             */
-            category: "ats" | "remote";
-            /** Config */
-            config?: {
-                [key: string]: string;
-            };
-            /** Connectorkey */
-            connectorKey: string;
-            /** Country */
-            country?: string | null;
-            /** Name */
-            name: string;
-            /** Openings */
-            openings?: number | null;
-            /** Provider */
-            provider: string;
-            /** Slug */
-            slug: string;
-            /** Verifiedat */
-            verifiedAt?: string | null;
-        };
-        /**
-         * CatalogProviderIn
-         * @description One provider connection hint (connector + URL template + countries).
-         */
-        CatalogProviderIn: {
-            /** Connectorkey */
-            connectorKey: string;
-            /** Countries */
-            countries?: string[];
-            /** Docsurl */
-            docsUrl?: string | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /** Urltemplate */
-            urlTemplate?: string | null;
-        };
         /** CatalogTravel */
         CatalogTravel: {
             /** Days Per Month */
@@ -12880,57 +12784,6 @@ export interface components {
              * @enum {string}
              */
             level: "none" | "occasional" | "frequent";
-        };
-        /**
-         * CatalogUpsertIn
-         * @description PUT body: the catalog envelope + the import metadata.
-         */
-        CatalogUpsertIn: {
-            /** Contenthash */
-            contentHash: string;
-            /** Etag */
-            etag?: string | null;
-            /**
-             * Fetchedat
-             * Format: date-time
-             */
-            fetchedAt: string;
-            /**
-             * Kind
-             * @constant
-             */
-            kind: "career-ats-catalog";
-            /** Lastmodified */
-            lastModified?: string | null;
-            /** License */
-            license?: string | null;
-            /** Name */
-            name: string;
-            /** Presets */
-            presets?: components["schemas"]["CatalogPresetIn"][];
-            /** Providers */
-            providers?: components["schemas"]["CatalogProviderIn"][];
-            /** Revision */
-            revision: number;
-            /**
-             * Schemaversion
-             * @constant
-             */
-            schemaVersion: 1;
-            /** Signature */
-            signature?: null;
-            /**
-             * Tier
-             * @enum {string}
-             */
-            tier: "operator" | "community" | "user";
-            /**
-             * Updatedat
-             * Format: date-time
-             */
-            updatedAt: string;
-            /** Url */
-            url?: string | null;
         };
         /** CatalogWorkHours */
         CatalogWorkHours: {
@@ -27920,98 +27773,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                catalog_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CatalogUpsertIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                catalog_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };

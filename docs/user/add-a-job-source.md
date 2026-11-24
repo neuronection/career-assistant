@@ -155,40 +155,20 @@ achievement highlight when it has stars or forks) that you review and
 activate in your profile — nothing is ever written as active, and a
 repository already on your profile is skipped.
 
-## Import a preset catalog
+## Where presets come from
 
-The preset gallery grows beyond the bundled presets by layering
-**catalogs** — JSON documents of curated sources (and provider
-connection hints) that anyone can publish:
+The gallery offers the applied **provider catalog** — the bundled presets
+(20 zero-config tenants and remote boards) plus anything an admin applied from
+a data provider. The official Neuronection provider, public Git repositories,
+static `seed-repo.json` indexes and uploaded packs are managed in
+[Tools → Sources → Data providers](/settings/tools?section=sources); every
+pack is digest-pinned and approved before it reaches this gallery.
 
-- **The verified catalog tile** — **Neuronection verified — Greece**
-  (17 Greek employer tenants on direct Recruitee, Teamtailor and
-  Workable feeds) sits above the manual form. One click imports it as an
-  `operator` catalog from
-  `https://neuronection.com/api/v1/career/ats-catalogs/greece.json`.
-  Nothing is fetched until you click, and the tile then shows the stored
-  **revision** and truncated **content hash** beside **Refresh**.
-- **From a URL** — any other operator or community catalog (for example
-  a `catalog.json` in a GitHub repository). Fetching happens in your
-  browser, so the catalog host must send CORS headers.
-- **From a file** — upload your own catalog JSON; nothing leaves your
-  machine.
-
-Every catalog is schema-validated and size-capped before it lands, and
-each entry carries a **provenance tier** shown on every preset card:
-`bundled` (ships with the app — always the floor), `operator`
-(published by neuronection), `community` (imported from a shared URL),
-`user` (your own file). If a catalog entry and a bundled preset share a
-slug, the imported one wins.
-
-**Refresh** re-checks a catalog — where the host supports HTTP
-validators a 304 means you already have the latest; otherwise the
-report tells you exactly what changed (`revision 5 → 7, 12 presets
-changed`). Every
-import and refresh also reports the document's revision and content
-hash, and catalog rows keep both visible. Refreshing only updates the
-gallery; it never creates or removes sources. Provider entries open the
-custom-source wizard with the connector prefilled.
+A preset card prefills the source wizard (connector, tenant config, display
+name). Adding a source from a preset never happens until you click; the
+provider layer never creates or removes sources. If a preset is switched off
+or retired by the admin it disappears from the gallery, while sources you
+already created keep running.
 
 ## Related
 
