@@ -416,7 +416,7 @@ There is no side door around it.
   pinned (`v2026.11.25.2`, `packs/neuronection/greece-ats`, priority 100);
   checking/enabling it stays an explicit admin act. Both are idempotent in
   `app/seeds/run.py` (`ensure_seed_providers`).
-- **The plan-187 imports fold into the lane.** `0019` synthesizes one
+- **The legacy catalog imports fold into the lane.** `0019` synthesizes one
   approved `file` provider per stored catalog at priority 90, writes the
   preset/endpoint rows and provenance directly, and archives the exact v1
   blob plus the pack files (`migration_archive`). Invalid catalogs are

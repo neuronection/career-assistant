@@ -79,7 +79,7 @@ presets are filtered to `state=active AND enabled`. Follow/hide overlays are
 a later increment; nothing here creates a `job_sources` row.
 
 Sync never approves or applies; apply requires an approved version and holds
-the global `provider_apply` lock. The old `/admin/postings/sources/catalogs` CRUD is removed; plan-187 imports
+the global `provider_apply` lock. The old `/admin/postings/sources/catalogs` CRUD is removed; legacy catalog imports
 fold into approved providers at priority 90 (`0019`).
 
 ## Errors
