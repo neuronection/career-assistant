@@ -14,9 +14,10 @@ All notable changes to **Career Assistant** are documented here.
 
 - **Data-provider foundation.** The schema, parser, content-addressed pack
   store, pack-only archive extractor and authoring CLI for admin-managed
-  seed providers landed (immutable pack versions, exact-digest approval,
-  applied presets/endpoints and user-scoped visibility overlays); no
-  user-facing surface or behavior changes yet.
+  seed providers landed, plus the sync lane (public HTTPS git and static
+  `seed-repo.json` index transports, per-source locks, immutable pending
+  versions with a run ledger and admin notifications). No user-facing
+  surface or behavior changes yet.
 
 
 ## [v0.20.0] - 2026-11-24

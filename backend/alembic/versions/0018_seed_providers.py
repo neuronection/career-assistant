@@ -149,7 +149,7 @@ def upgrade() -> None:
         sa.Column("source_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("commit_sha", sa.String(length=64), nullable=False),
         sa.Column("etag", sa.String(length=200), nullable=False),
-        sa.Column("digest", sa.String(length=64), nullable=False),
+        sa.Column("digest", sa.String(length=80), nullable=False),
         sa.Column("manifest", _JSON, nullable=False),
         sa.Column("pack_version", sa.String(length=40), nullable=False),
         sa.Column("schema_version", sa.String(length=20), nullable=False),
@@ -225,7 +225,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("trigger IN ('manual', 'scheduled')", name="trigger_allowed"),
         sa.CheckConstraint(
-            "status IN ('ok', 'noop', 'failed', 'partial')",
+            "status IN ('running', 'ok', 'noop', 'failed', 'partial')",
             name="status_allowed",
         ),
         _pk(),

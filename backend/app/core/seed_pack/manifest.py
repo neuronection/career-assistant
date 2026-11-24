@@ -102,6 +102,23 @@ def compute_pack_digest(
     return f"sha256:{digest.hexdigest()}"
 
 
+def compute_files_digest(files: Mapping[str, bytes]) -> str:
+    """Compute a pack digest from a manifest + item-file mapping."""
+    manifest = _loads(files.get("manifest.json", b""), code=MANIFEST_INVALID, label="manifest.json")
+    if not isinstance(manifest, dict):
+        raise SeedPackError(MANIFEST_INVALID, "manifest.json must be an object")
+    refs = manifest.get("item_files") or []
+    pairs: list[tuple[str, bytes]] = []
+    for entry in refs:
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            raise SeedPackError(MANIFEST_INVALID, "manifest.item_files is invalid")
+        data = files.get(entry["path"])
+        if data is None:
+            raise SeedPackError(ITEM_FILE_MISSING, entry["path"])
+        pairs.append((entry["path"], data))
+    return compute_pack_digest(manifest, pairs)
+
+
 def _loads(data: bytes, *, code: str, label: str) -> Any:
     try:
         return json.loads(data)

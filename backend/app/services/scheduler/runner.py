@@ -211,6 +211,16 @@ class SchedulerService:
                 {},
                 MisfirePolicy.SKIP.value,
             ),
+            (
+                ScheduleKind.SYSTEM_PROVIDER_SYNC,
+                BackgroundJobType.PROVIDER_SYNC.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60, "jitter_minutes": 10},
+                },
+                {},
+                MisfirePolicy.ASAP.value,
+            ),
         ]
         for kind, task, trigger, payload, misfire in defaults:
             await self.ensure_schedule(

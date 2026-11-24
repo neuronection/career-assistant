@@ -380,8 +380,19 @@ There is no side door around it.
   compression ratio. Uploaded packs never reach `extractall` or the
   extension importer.
 - **Bytes live in the object store.** `SeedPackStore` writes
-  `seed-packs/<source_id>/<sha256>.zip` through the family storage seam and
-  re-hashes on every read/write (`DIGEST_DRIFT`).
+  `seed-packs/<source_id>/<pack-digest>.zip` through the family storage seam
+  and re-extracts/re-hashes on every read/write (`DIGEST_DRIFT`).
+- **Fetch is out-of-band and never applies.** `ProviderSyncService`
+  dispatches by source kind: public `git` (anonymous HTTPS, pinned ref,
+  shallow checkout in a temp dir, discarded), `registry` (guarded
+  `seed-repo.json` fetch with ETag/304 and per-file sha256), `file`
+  (admin upload through the pack-only extractor) and `bundled` (local,
+  auto-approved). Each source sync holds `provider_sync:<id>` on its
+  `background_jobs` row, records a `seed_sync_runs` row, and registers a
+  `pending` version idempotently on `(source_id, digest)`. The 60-minute
+  scheduler tick sweeps only providers whose refresh is due. Audit rows ride
+  `provider.*`; admins get `provider_update_available` /
+  `provider_sync_failed` notifications through the one funnel.
 - **Authoring is deterministic.** `backend/scripts/seed_pack.py
   check|pack|export` runs the same parser; export sorts item keys and
   refreshes manifest digests, and its round-trip is byte-identical.

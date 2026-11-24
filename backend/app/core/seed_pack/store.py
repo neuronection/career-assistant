@@ -1,8 +1,10 @@
 """Content-addressed pack store (plan 218 §3.7).
 
-Pack bytes live under ``seed-packs/<source_id>/<sha256>.zip`` through the
-family object-storage seam. Every write and read re-hashes the bytes against
-the claimed digest: a mismatch is ``DIGEST_DRIFT``, never a silent cache hit.
+Pack bytes live under ``seed-packs/<source_id>/<pack-digest>.zip`` through the
+family object-storage seam. The key digest is the **pack digest** (canonical
+manifest + item bytes), not the archive's own hash; every write and read
+extracts the archive and recomputes that digest. A mismatch is
+``DIGEST_DRIFT``, never a silent cache hit.
 """
 
 from __future__ import annotations
@@ -11,8 +13,9 @@ import re
 import uuid
 from typing import TYPE_CHECKING
 
+from app.core.seed_pack.archive import extract_pack_archive
 from app.core.seed_pack.errors import DIGEST_DRIFT, SeedPackError
-from app.core.seed_pack.manifest import sha256_hex
+from app.core.seed_pack.manifest import compute_files_digest
 
 if TYPE_CHECKING:
     from app.storage.object_storage import ObjectStore
@@ -28,8 +31,13 @@ def normalize_digest(value: str) -> str:
     return digest
 
 
+def _archive_digest(data: bytes) -> str:
+    files = extract_pack_archive(data)
+    return compute_files_digest(files).split(":", 1)[1]
+
+
 class SeedPackStore:
-    """Store and retrieve pack archives by content digest."""
+    """Store and retrieve pack archives by pack digest."""
 
     def __init__(self, store: ObjectStore | None = None) -> None:
         self._store = store
@@ -47,9 +55,9 @@ class SeedPackStore:
 
     def put(self, source_id: uuid.UUID | str, digest: str, data: bytes) -> str:
         expected = normalize_digest(digest)
-        actual = sha256_hex(data)
+        actual = _archive_digest(data)
         if actual != expected:
-            raise SeedPackError(DIGEST_DRIFT, f"bytes hash to {actual}, expected {expected}")
+            raise SeedPackError(DIGEST_DRIFT, f"archive hashes to {actual}, expected {expected}")
         key = self.object_key(source_id, expected)
         self.store.put(key, data, content_type="application/zip")
         return key
@@ -59,9 +67,11 @@ class SeedPackStore:
         data = self.store.get(self.object_key(source_id, expected))
         if data is None:
             return None
-        actual = sha256_hex(data)
+        actual = _archive_digest(data)
         if actual != expected:
-            raise SeedPackError(DIGEST_DRIFT, f"stored bytes hash to {actual}, expected {expected}")
+            raise SeedPackError(
+                DIGEST_DRIFT, f"stored archive hashes to {actual}, expected {expected}"
+            )
         return data
 
     def has(self, source_id: uuid.UUID | str, digest: str) -> bool:

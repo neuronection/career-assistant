@@ -187,6 +187,16 @@ unconfigured (503s) until an admin sets a provider.
   and aborts non-public targets.
 - **Uploads**: size-capped (`CAREER_MAX_UPLOAD_MB`), type-checked; nginx enforces a
   matching body cap. Uploaded documents are stored under the data/uploads dir.
+- **Seed providers**: a `git` provider is anonymous HTTPS only — no
+  credentials, userinfo, query or fragment, public hosts only, pinned
+  tag/commit, `--` separators, shallow fetch, `core.hooksPath=/dev/null`,
+  no submodules, no inherited `GIT_*`/askpass/SSH helper, a temp checkout
+  discarded after reading `manifest.json` + `items/**.json`. A `registry`
+  provider rides the SSRF-guarded fetch (pinned resolution, redirect
+  re-validation, byte caps), and an uploaded pack goes through the
+  pack-only zip extractor (allowlist, traversal/symlink/encryption/ratio
+  refusals). A missing `git` binary is typed `GIT_UNAVAILABLE` and points
+  at the official registry mirror — never a silent fallback.
 
 ## Frontend
 

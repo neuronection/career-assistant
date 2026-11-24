@@ -45,6 +45,7 @@ INGEST_JOB_TYPES = frozenset(
         BackgroundJobType.POSTING_EXTRACT.value,
         BackgroundJobType.COMPANY_TRIAGE.value,
         BackgroundJobType.POSTING_REMAP.value,
+        BackgroundJobType.PROVIDER_SYNC.value,
     }
 )
 
@@ -683,6 +684,26 @@ async def _run_extension_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) 
 
     report = await reconcile(db)
     return {"report": {key: len(items) for key, items in report.items()}}
+
+
+async def _run_provider_sync(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Sync one provider, or sweep every due provider (plan 218 §3.4).
+
+    A payload with ``source_id`` is the per-source job (the per-source lock
+    is on the job row); an empty payload is the scheduler's sweep, which
+    only enqueues due per-source jobs.
+    """
+    from app.services.seeds.service import ProviderSyncService, enqueue_due_provider_syncs
+
+    payload = job.payload or {}
+    source_id = payload.get("source_id")
+    if source_id:
+        return await ProviderSyncService(db).sync_by_id(
+            source_id,
+            trigger=str(payload.get("trigger") or "scheduled"),
+            actor=str(payload.get("actor") or "system"),
+        )
+    return {"queued": await enqueue_due_provider_syncs(db)}
 
 
 async def _run_demand_import(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
@@ -1397,6 +1418,7 @@ HANDLERS: dict[str, Handler] = {
     "proposal_sweep": _run_proposal_sweep,
     "checkpoint_prune": _run_checkpoint_prune,
     "extension_reconcile": _run_extension_reconcile,
+    "provider_sync": _run_provider_sync,
     "saved_search_run": _run_saved_search,
     "radar_digest": _run_radar_digest,
     "smart_digest": _run_smart_digest,
