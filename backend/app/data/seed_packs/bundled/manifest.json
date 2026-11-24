@@ -1,0 +1,15 @@
+{
+  "description": "Bundled zero-config presets: Greek employer tenants and the three remote boards.",
+  "id": "neuronection-bundled",
+  "item_files": [
+    {
+      "path": "items/ats_presets/bundled.json",
+      "sha256": "03ebb652a44410874bfdd97675a60783edd234fff701e0c4a7a0eb81e7059f59"
+    }
+  ],
+  "license": "CC-BY-4.0",
+  "priority": 0,
+  "schema_version": "1.0",
+  "scope": "system",
+  "version": "1.0.0"
+}

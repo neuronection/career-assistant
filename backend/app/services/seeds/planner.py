@@ -23,6 +23,7 @@ from app.core.seed_pack.manifest import ParsedItem, ParsedPack, parse_pack
 from app.core.seed_pack.store import SeedPackStore
 from app.models.seed_model import (
     JobSourcePreset,
+    MigrationArchive,
     ProviderEndpoint,
     SeedItemProvenance,
     SeedSource,
@@ -145,6 +146,15 @@ async def _files_for_version(
 
         await ProviderSyncService(db, packs=packs).sync(source, trigger="manual")
         data = packs.get(source.id, version.digest)
+    if data is None and source.uri.startswith("migrated://"):
+        archived = await db.scalar(
+            select(MigrationArchive).where(
+                MigrationArchive.key == f"seed-pack:{source.id}:{version.digest}"
+            )
+        )
+        files = (archived.old_value or {}).get("files") if archived is not None else None
+        if isinstance(files, dict):
+            return {path: str(text).encode("utf-8") for path, text in files.items()}
     if data is None:
         raise SeedPackError(
             PACK_ARCHIVE_MISSING,

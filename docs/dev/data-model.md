@@ -210,6 +210,13 @@ and `support_status` (`supported|retired`); retiring a preset never deletes
 the source row. `schedules.kind`/`task` carry `system_provider_sync` /
 `provider_sync` as of `0018`.
 
+`0019` is a self-contained data fold: it reads the legacy
+`app_settings['posting.sources.catalogs']` blob, synthesizes an approved
+`file` provider per catalog at priority 90, writes the preset/endpoint rows
+and provenance, and archives the exact v1 blob plus the synthesized pack
+files in `migration_archive`. Invalid catalogs are stored as `rejected`
+(the upgrade never aborts); the downgrade restores the original setting.
+
 ### Migration notes
 
 The chain is a **single no-BC baseline** (`0001_baseline_schema.py`) since

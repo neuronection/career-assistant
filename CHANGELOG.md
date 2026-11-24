@@ -20,8 +20,10 @@ All notable changes to **Career Assistant** are documented here.
   approval/apply lane (approve/reject/revoke, a priority-aware planner with
   typed conflicts, one-transaction applies, retirement and provenance).
   The admin provider API (CRUD, discovery, sync/upload, versions,
-  plan/apply, items) and the signed-in read view are available; no
-  user-facing screen uses them yet.
+  plan/apply, items) and the signed-in read view are available; the
+  plan-187 admin imports fold into approved providers at priority 90, and
+  boot provisions the bundled pack (20 presets) plus the disabled official
+  git tile. No user-facing screen uses them yet.
 
 
 ## [v0.20.0] - 2026-11-24

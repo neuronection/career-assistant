@@ -509,9 +509,10 @@ class SeedApplyService:
             self.db.add(run)
             await self.db.flush()
             await self._record_items(run, plan)
+            default_enabled = source.kind == "bundled"
             for item in plan.items:
                 if item.action in (ACTION_CREATE, ACTION_UPDATE):
-                    await self._apply_item(item)
+                    await self._apply_item(item, default_enabled=default_enabled)
             for item in plan.by_action(ACTION_RETIRE):
                 await self._retire_row(item)
             if advance and version is not None:
@@ -624,7 +625,7 @@ class SeedApplyService:
             await self.db.rollback()
             return None
 
-    async def _apply_item(self, item: PlannedItem) -> None:
+    async def _apply_item(self, item: PlannedItem, *, default_enabled: bool = False) -> None:
         now = _utcnow()
         if item.entity_type == ENTITY_PRESET:
             fields = _preset_fields(item.payload)
@@ -635,7 +636,7 @@ class SeedApplyService:
                 preset = JobSourcePreset(
                     scope_key="system",
                     seed_key=item.seed_key,
-                    enabled=False,
+                    enabled=default_enabled,
                     state="active",
                     seed_source_version_id=item.version_id,
                     **fields,

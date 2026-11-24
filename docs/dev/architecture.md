@@ -409,6 +409,19 @@ There is no side door around it.
   version and content hash per entity; the preset/endpoint `state` remains
   the one liveness authority. Retirement flips `state` and a referencing
   `job_sources.support_status` — rows are never deleted.
+- **Boot provisions two providers.** The bundled pack
+  (`backend/app/data/seed_packs/bundled/`, 20 presets at priority 0) is
+  auto-approved and applied only when its digest changes; its presets are
+  enabled by default. The official git tile is registered disabled and
+  pinned (`v2026.11.25.2`, `packs/neuronection/greece-ats`, priority 100);
+  checking/enabling it stays an explicit admin act. Both are idempotent in
+  `app/seeds/run.py` (`ensure_seed_providers`).
+- **The plan-187 imports fold into the lane.** `0019` synthesizes one
+  approved `file` provider per stored catalog at priority 90, writes the
+  preset/endpoint rows and provenance directly, and archives the exact v1
+  blob plus the pack files (`migration_archive`). Invalid catalogs are
+  quarantined as `rejected`; the upgrade never aborts. Downgrade restores
+  the original setting.
 - **Authoring is deterministic.** `backend/scripts/seed_pack.py
   check|pack|export` runs the same parser; export sorts item keys and
   refreshes manifest digests, and its round-trip is byte-identical.

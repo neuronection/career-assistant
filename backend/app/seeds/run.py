@@ -589,6 +589,14 @@ async def run() -> None:
         logger.info("cv: +%d bank templates", t)
         k = await seed_notification_kinds(db)
         logger.info("notifications: +%d kinds", k)
+        from app.services.seeds.boot import ensure_seed_providers
+
+        providers = await ensure_seed_providers(db)
+        logger.info(
+            "providers: bundled=%s official=%s",
+            providers["bundled"].get("status"),
+            providers["official"].get("ref"),
+        )
         from app.seeds.metrics import (
             seed_metric_dimensions,
             seed_metric_templates,
