@@ -29,6 +29,10 @@ PROVIDER_AUDIT_EVENTS = (
     "provider.apply.conflicted",
     "provider.apply.failed",
     "provider.item.retired",
+    "provider.source.created",
+    "provider.source.updated",
+    "provider.source.retired",
+    "provider.endpoint.probe",
 )
 RESOURCE_LIMIT = 500
 

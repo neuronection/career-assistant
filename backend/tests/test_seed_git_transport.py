@@ -128,3 +128,32 @@ async def test_fetch_without_local_opt_in_rejects_a_path(tmp_path):
     with pytest.raises(SeedPackError) as exc:
         await GitTransport().fetch(str(repo), "v1", "pack")
     assert exc.value.code == "GIT_URI_DENIED"
+
+
+async def test_discover_reads_the_root_index(tmp_path):
+    repo = _repo(tmp_path)
+    index = {
+        "schemaVersion": 1,
+        "kind": "career-seed-repo",
+        "publisher": {"id": "test", "name": "Test"},
+        "packs": [
+            {
+                "id": "test-pack",
+                "path": "pack",
+                "manifest": "pack/manifest.json",
+                "itemTypes": ["ats_presets"],
+                "license": "CC-BY-4.0",
+                "version": "1.0.0",
+                "digest": f"sha256:{'a' * 64}",
+                "signature": None,
+            }
+        ],
+    }
+    (repo / "seed-repo.json").write_text(json.dumps(index), encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "index")
+    _git(repo, "tag", "v2")
+
+    raw, commit = await GitTransport(allow_local=True).discover(str(repo), "v2")
+    assert json.loads(raw)["packs"][0]["id"] == "test-pack"
+    assert commit

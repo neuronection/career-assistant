@@ -48,8 +48,40 @@ answers `401`. See [security.md](security.md).
 | `ai` | `ai.py` | Contextual "Ask AI" assists |
 | `ai-settings` | `ai_admin.py` | Providers, models, task assignments (admin) |
 | `admin` | `admin.py` | Admin operations |
+| `providers` | `providers.py` | Signed-in read view of published seed providers + endpoints |
+| `admin/providers` | `providers_admin.py` | Provider CRUD, sync/upload, versions, plan/apply, items, sync runs, probe |
 
 The authoritative endpoint list is `contracts/openapi.json` (or `/docs`).
+
+## Provider API (seed packs)
+
+The product vocabulary is **provider** (a seed-data publisher); the storage
+tables stay `seed_*`. AI providers keep `/api/v1/ai/providers`.
+
+Admin (`require_admin`, `/api/v1/admin/providers`):
+
+- CRUD: `GET/POST /`, `PATCH/DELETE /{id}` (delete retires: disabled, pointer
+  cleared, catalog replanned), `POST /discover` (read a `seed-repo.json` over
+  a public git ref or the guarded registry transport; no writes).
+- Content: `POST /{id}/sync`, `POST /{id}/upload` (file providers, pack-only
+  zip), `GET /{id}/sync-runs`.
+- Versions: `GET /{id}/versions`, `GET /{id}/versions/{vid}/plan`, and
+  `POST …/approve|reject|revoke|apply`; `POST /{id}/adopt` takes
+  `{version_id, seed_keys?}`.
+- Items: `POST /{id}/items/{seed_key}/enable|disable|retire` (preset overlay,
+  content stays pack-owned) and `POST /{id}/endpoints/{seed_key}/probe`
+  (guarded fetch, status/elapsed/content-type only).
+
+User (`/api/v1/providers`, signed in): `GET /`, `GET /{id}`,
+`GET /{id}/endpoints` — enabled providers with a current approved version
+only; messages exclude the URI, sync error, policy and version ledger, and
+presets are filtered to `state=active AND enabled`. Follow/hide overlays are
+a later increment; nothing here creates a `job_sources` row.
+
+Sync never approves or applies; apply requires an approved version and holds
+the global `provider_apply` lock. The old
+`/admin/postings/sources/catalogs` CRUD stays temporarily for the pre-cutover
+gallery and is removed with the UI cutover.
 
 ## Errors
 

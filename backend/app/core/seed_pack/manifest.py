@@ -535,10 +535,15 @@ def _host_matches(host: str, domain: str) -> bool:
     return host == domain
 
 
-def _check_endpoint_domain(connector: Any, server: str, *, label: str) -> None:
+def endpoint_in_connector_domains(connector: Any, server: str) -> bool:
+    """True when ``server``'s host sits inside the connector's declared domains."""
     host = urlsplit(server).hostname or ""
     domains = connector.manifest().get("domains") or []
-    if not host or not any(_host_matches(host, str(domain)) for domain in domains):
+    return bool(host) and any(_host_matches(host, str(domain)) for domain in domains)
+
+
+def _check_endpoint_domain(connector: Any, server: str, *, label: str) -> None:
+    if not endpoint_in_connector_domains(connector, server):
         raise SeedPackError(
             ENDPOINT_DOMAIN_DENIED,
             f"{label}.server is outside the connector's declared domains",
@@ -755,6 +760,7 @@ __all__ = [
     "canonical_json",
     "compute_pack_digest",
     "default_connectors",
+    "endpoint_in_connector_domains",
     "parse_pack",
     "parse_repo_index",
     "parse_repo_pack",

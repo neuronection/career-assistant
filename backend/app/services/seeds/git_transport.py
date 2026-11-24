@@ -13,6 +13,8 @@ import ipaddress
 import os
 import shutil
 import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -23,6 +25,7 @@ from app.core.seed_pack.errors import (
     GIT_TOO_LARGE,
     GIT_UNAVAILABLE,
     GIT_URI_DENIED,
+    INDEX_INVALID,
     MANIFEST_MISSING,
     PATH_DENIED,
     SeedPackError,
@@ -158,7 +161,7 @@ def read_pack_tree(root: Path, subpath: str) -> dict[str, bytes]:
 
 
 class GitTransport:
-    """Fetch one pack from a pinned public git ref."""
+    """Fetch one pack, or the repository index, from a pinned public git ref."""
 
     def __init__(
         self,
@@ -171,7 +174,8 @@ class GitTransport:
         self.timeout = timeout
         self.max_bytes = max_bytes
 
-    async def fetch(self, uri: str, ref: str, subpath: str = "") -> GitPack:
+    @asynccontextmanager
+    async def _checkout(self, uri: str, ref: str) -> AsyncIterator[tuple[Path, str]]:
         if not git_available():
             raise SeedPackError(
                 GIT_UNAVAILABLE, "git is not installed; use the official registry mirror"
@@ -180,8 +184,6 @@ class GitTransport:
         if not self.allow_local or "://" in target:
             target = validate_public_git_uri(target)
         pinned = _validate_ref(ref)
-        pack_subpath = validate_subpath(subpath)
-
         work = Path(tempfile.mkdtemp(prefix="career-seedpack-"))
         repo = work / "repo"
         try:
@@ -219,13 +221,25 @@ class GitTransport:
             commit_sha = await _run_git(
                 ["rev-parse", "HEAD"], cwd=repo, env=env, timeout=self.timeout
             )
+            yield repo, commit_sha
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    async def fetch(self, uri: str, ref: str, subpath: str = "") -> GitPack:
+        pack_subpath = validate_subpath(subpath)
+        async with self._checkout(uri, ref) as (repo, commit_sha):
             files = read_pack_tree(repo, pack_subpath)
             total = sum(len(data) for data in files.values())
             if total > self.max_bytes:
                 raise SeedPackError(GIT_TOO_LARGE, "pack exceeds 64 MB")
             return GitPack(files=files, commit_sha=commit_sha)
-        finally:
-            shutil.rmtree(work, ignore_errors=True)
+
+    async def discover(self, uri: str, ref: str) -> tuple[bytes, str]:
+        async with self._checkout(uri, ref) as (repo, commit_sha):
+            index = repo / "seed-repo.json"
+            if not index.is_file():
+                raise SeedPackError(INDEX_INVALID, "seed-repo.json is missing at the pinned ref")
+            return index.read_bytes(), commit_sha
 
 
 __all__ = [

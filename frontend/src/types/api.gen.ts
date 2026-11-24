@@ -2457,6 +2457,298 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["list_providers_api_v1_admin_providers_get"];
+        put?: never;
+        /** Create Provider */
+        post: operations["create_provider_api_v1_admin_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover Provider */
+        post: operations["discover_provider_api_v1_admin_providers_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Provider */
+        get: operations["get_provider_api_v1_admin_providers__source_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Provider */
+        delete: operations["delete_provider_api_v1_admin_providers__source_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Provider */
+        patch: operations["update_provider_api_v1_admin_providers__source_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adopt Provider Version */
+        post: operations["adopt_provider_version_api_v1_admin_providers__source_id__adopt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/endpoints/{seed_key}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Probe Provider Endpoint */
+        post: operations["probe_provider_endpoint_api_v1_admin_providers__source_id__endpoints__seed_key__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable Provider Item */
+        post: operations["disable_provider_item_api_v1_admin_providers__source_id__items__seed_key__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Provider Item */
+        post: operations["enable_provider_item_api_v1_admin_providers__source_id__items__seed_key__enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retire Provider Item */
+        post: operations["retire_provider_item_api_v1_admin_providers__source_id__items__seed_key__retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Provider */
+        post: operations["sync_provider_api_v1_admin_providers__source_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider Sync Runs */
+        get: operations["provider_sync_runs_api_v1_admin_providers__source_id__sync_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Provider Pack */
+        post: operations["upload_provider_pack_api_v1_admin_providers__source_id__upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Provider Versions */
+        get: operations["list_provider_versions_api_v1_admin_providers__source_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Provider Version */
+        post: operations["apply_provider_version_api_v1_admin_providers__source_id__versions__version_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Provider Version */
+        post: operations["approve_provider_version_api_v1_admin_providers__source_id__versions__version_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Plan Provider Version */
+        get: operations["plan_provider_version_api_v1_admin_providers__source_id__versions__version_id__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Provider Version */
+        post: operations["reject_provider_version_api_v1_admin_providers__source_id__versions__version_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Provider Version */
+        post: operations["revoke_provider_version_api_v1_admin_providers__source_id__versions__version_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/coverage": {
         parameters: {
             query?: never;
@@ -10728,6 +11020,57 @@ export interface paths {
         patch: operations["patch_profile_api_v1_profiles__profile_id__patch"];
         trace?: never;
     };
+    "/api/v1/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List User Providers */
+        get: operations["list_user_providers_api_v1_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User Provider */
+        get: operations["get_user_provider_api_v1_providers__source_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/{source_id}/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User Provider Endpoints */
+        get: operations["get_user_provider_endpoints_api_v1_providers__source_id__endpoints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rankings": {
         parameters: {
             query?: never;
@@ -11289,6 +11632,16 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** AdoptIn */
+        AdoptIn: {
+            /** Seed Keys */
+            seed_keys?: string[] | null;
+            /**
+             * Version Id
+             * Format: uuid
+             */
+            version_id: string;
+        };
         /**
          * AiSetupPrefsIn
          * @description First-run AI setup step skip state (typed `profiles.preferences` key).
@@ -11732,6 +12085,23 @@ export interface components {
             posting_id: string;
             stage?: components["schemas"]["ApplicationStage"] | null;
         };
+        /** ApplyOut */
+        ApplyOut: {
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            plan?: components["schemas"]["PlanOut"] | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Status */
+            status: string;
+        };
         /**
          * ApplyThemeOp
          * @description Apply a curated theme (key from the themes registry).
@@ -12035,6 +12405,11 @@ export interface components {
         };
         /** Body_upload_photo_api_v1_me_photo_put */
         Body_upload_photo_api_v1_me_photo_put: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post */
+        Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post: {
             /** File */
             file: string;
         };
@@ -14961,6 +15336,47 @@ export interface components {
             /** Supporting Items */
             supporting_items: string[];
         };
+        /** DiscoverIn */
+        DiscoverIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "git" | "registry";
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Uri */
+            uri: string;
+        };
+        /** DiscoverOut */
+        DiscoverOut: {
+            /** Kind */
+            kind: string;
+            /** Packs */
+            packs?: components["schemas"]["DiscoverPackOut"][];
+            /** Publisher */
+            publisher?: {
+                [key: string]: unknown;
+            };
+        };
+        /** DiscoverPackOut */
+        DiscoverPackOut: {
+            /** Digest */
+            digest: string;
+            /** Id */
+            id: string;
+            /** Itemtypes */
+            itemTypes?: string[];
+            /** License */
+            license: string;
+            /** Path */
+            path: string;
+            /** Version */
+            version: string;
+        };
         /**
          * DocumentKind
          * @enum {string}
@@ -15304,6 +15720,54 @@ export interface components {
         EmailVerifyIn: {
             /** Token */
             token: string;
+        };
+        /** EndpointAdminOut */
+        EndpointAdminOut: {
+            /** Auth */
+            auth: string;
+            /** Connector Key */
+            connector_key: string;
+            /** Countries */
+            countries?: string[];
+            /** Docs Url */
+            docs_url?: string | null;
+            /** Label */
+            label: string;
+            /** Languages */
+            languages?: string[];
+            /** Method */
+            method: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            }[];
+            /** Path */
+            path: string;
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /** Regions */
+            regions?: string[];
+            /** Seed Key */
+            seed_key: string;
+            /** Seed Source Version Id */
+            seed_source_version_id?: string | null;
+            /** Server */
+            server: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "active" | "retired" | "overridden";
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Worldwide
+             * @default false
+             */
+            worldwide: boolean;
         };
         /** EnqueueResponse */
         EnqueueResponse: {
@@ -18585,6 +19049,55 @@ export interface components {
              */
             target_job_id: string;
         };
+        /** PlanItemOut */
+        PlanItemOut: {
+            /** Action */
+            action: string;
+            /**
+             * Content Hash
+             * @default
+             */
+            content_hash: string;
+            /** Current Id */
+            current_id?: string | null;
+            /** Entity Type */
+            entity_type: string;
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Seed Key */
+            seed_key: string;
+            /** Source Id */
+            source_id?: string | null;
+            /** Version Id */
+            version_id?: string | null;
+        };
+        /** PlanOut */
+        PlanOut: {
+            /** Candidate Source Id */
+            candidate_source_id?: string | null;
+            /** Candidate Version Id */
+            candidate_version_id?: string | null;
+            /** Conflicts */
+            conflicts?: {
+                [key: string]: unknown;
+            }[];
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /** Items */
+            items?: components["schemas"]["PlanItemOut"][];
+            /** Status */
+            status: string;
+        };
         /**
          * PostingChangeOut
          * @description One journal row (plan 142): actor kind + links (ids and knobs
@@ -19643,6 +20156,60 @@ export interface components {
          * @enum {string}
          */
         PrerequisiteStatus: "met" | "unmet" | "unknown";
+        /** PresetAdminOut */
+        PresetAdminOut: {
+            /** Category */
+            category: string;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Connector Key */
+            connector_key: string;
+            /** Countries */
+            countries?: string[];
+            /** Country */
+            country?: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Homepage */
+            homepage?: string | null;
+            /** Languages */
+            languages?: string[];
+            /** Name */
+            name: string;
+            /** Openings */
+            openings?: number | null;
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /** Regions */
+            regions?: string[];
+            /** Seed Key */
+            seed_key: string;
+            /** Seed Source Version Id */
+            seed_source_version_id?: string | null;
+            /** Slug */
+            slug: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "active" | "retired" | "overridden";
+            /** Updated At */
+            updated_at?: string | null;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Work Modes */
+            work_modes?: string[];
+            /**
+             * Worldwide
+             * @default false
+             */
+            worldwide: boolean;
+        };
         /**
          * PreviewDraftRequest
          * @description Render an UNSAVED content package for the live editor preview.
@@ -19713,6 +20280,18 @@ export interface components {
             effective: components["schemas"]["EffectivePriceOut"][];
             /** Overrides */
             overrides: components["schemas"]["PriceOverrideOut"][];
+        };
+        /** ProbeOut */
+        ProbeOut: {
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** Status */
+            status: number;
         };
         /** ProfileAchievementIn */
         ProfileAchievementIn: {
@@ -20049,6 +20628,130 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** ProviderAdminDetailOut */
+        ProviderAdminDetailOut: {
+            current_version?: components["schemas"]["VersionSummaryOut"] | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Endpoints */
+            endpoints?: components["schemas"]["EndpointAdminOut"][];
+            /** Id */
+            id: string;
+            /** Item Counts */
+            item_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bundled" | "file" | "registry" | "git";
+            /** Last Check At */
+            last_check_at?: string | null;
+            /**
+             * Last Error
+             * @default
+             */
+            last_error: string;
+            latest_version?: components["schemas"]["VersionSummaryOut"] | null;
+            /** Name */
+            name: string;
+            /**
+             * Pending Count
+             * @default 0
+             */
+            pending_count: number;
+            /** Policy */
+            policy?: {
+                [key: string]: unknown;
+            };
+            /** Presets */
+            presets?: components["schemas"]["PresetAdminOut"][];
+            /** Priority */
+            priority: number;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Refresh Minutes */
+            refresh_minutes: number;
+            /** Scope */
+            scope: string;
+            /**
+             * Subpath
+             * @default
+             */
+            subpath: string;
+            /**
+             * Trust Tier
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
+            /** Uri */
+            uri: string;
+            /** Versions */
+            versions?: components["schemas"]["VersionSummaryOut"][];
+        };
+        /** ProviderAdminOut */
+        ProviderAdminOut: {
+            current_version?: components["schemas"]["VersionSummaryOut"] | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Item Counts */
+            item_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bundled" | "file" | "registry" | "git";
+            /** Last Check At */
+            last_check_at?: string | null;
+            /**
+             * Last Error
+             * @default
+             */
+            last_error: string;
+            latest_version?: components["schemas"]["VersionSummaryOut"] | null;
+            /** Name */
+            name: string;
+            /**
+             * Pending Count
+             * @default 0
+             */
+            pending_count: number;
+            /** Policy */
+            policy?: {
+                [key: string]: unknown;
+            };
+            /** Priority */
+            priority: number;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /** Refresh Minutes */
+            refresh_minutes: number;
+            /** Scope */
+            scope: string;
+            /**
+             * Subpath
+             * @default
+             */
+            subpath: string;
+            /**
+             * Trust Tier
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
+            /** Uri */
+            uri: string;
+        };
         /** ProviderCreate */
         ProviderCreate: {
             /**
@@ -20074,6 +20777,52 @@ export interface components {
              * @default user
              */
             scope: string;
+        };
+        /** ProviderCreateIn */
+        ProviderCreateIn: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "git" | "registry" | "file";
+            /** Name */
+            name: string;
+            /**
+             * Priority
+             * @default 100
+             */
+            priority: number;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /**
+             * Refresh Minutes
+             * @default 360
+             */
+            refresh_minutes: number;
+            /**
+             * Subpath
+             * @default
+             */
+            subpath: string;
+            /**
+             * Trust Tier
+             * @default community
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
+            /**
+             * Uri
+             * @default
+             */
+            uri: string;
         };
         /** ProviderOut */
         ProviderOut: {
@@ -20139,6 +20888,23 @@ export interface components {
             name?: string | null;
             /** Provider Type */
             provider_type?: string | null;
+        };
+        /** ProviderUpdateIn */
+        ProviderUpdateIn: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Priority */
+            priority?: number | null;
+            /** Ref */
+            ref?: string | null;
+            /** Refresh Minutes */
+            refresh_minutes?: number | null;
+            /** Subpath */
+            subpath?: string | null;
+            /** Trust Tier */
+            trust_tier?: ("official" | "operator" | "community" | "local") | null;
         };
         /**
          * QualityCompareRequest
@@ -20493,6 +21259,14 @@ export interface components {
              * @default 128
              */
             window_documents: number;
+        };
+        /** RejectIn */
+        RejectIn: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
         };
         /** RelationOut */
         RelationOut: {
@@ -22253,6 +23027,70 @@ export interface components {
             /** Target Posting Id */
             target_posting_id?: string | null;
         };
+        /** SyncReportOut */
+        SyncReportOut: {
+            /** Bytes */
+            bytes?: number | null;
+            /** Code */
+            code?: string | null;
+            /**
+             * Commit Sha
+             * @default
+             */
+            commit_sha: string;
+            /** Digest */
+            digest?: string | null;
+            /**
+             * Etag
+             * @default
+             */
+            etag: string;
+            /** Http Status */
+            http_status?: number | null;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Status */
+            status: string;
+            /** Version Id */
+            version_id?: string | null;
+        };
+        /** SyncRunOut */
+        SyncRunOut: {
+            /** Bytes */
+            bytes?: number | null;
+            /**
+             * Commit Sha
+             * @default
+             */
+            commit_sha: string;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /**
+             * Etag
+             * @default
+             */
+            etag: string;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Http Status */
+            http_status?: number | null;
+            /** Id */
+            id: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Trigger */
+            trigger: string;
+            /** Version Id */
+            version_id?: string | null;
+        };
         /** TagCreateIn */
         TagCreateIn: {
             /** Category */
@@ -22828,6 +23666,45 @@ export interface components {
             /** Tokens Out */
             tokens_out: number;
         };
+        /** UserEndpointOut */
+        UserEndpointOut: {
+            /** Auth */
+            auth: string;
+            /** Connector Key */
+            connector_key: string;
+            /** Countries */
+            countries?: string[];
+            /** Docs Url */
+            docs_url?: string | null;
+            /** Label */
+            label: string;
+            /** Languages */
+            languages?: string[];
+            /** Method */
+            method: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            }[];
+            /** Path */
+            path: string;
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /** Regions */
+            regions?: string[];
+            /** Seed Key */
+            seed_key: string;
+            /** Server */
+            server: string;
+            /**
+             * Worldwide
+             * @default false
+             */
+            worldwide: boolean;
+        };
         /** UserMetricOut */
         UserMetricOut: {
             /** Confidence */
@@ -22847,6 +23724,115 @@ export interface components {
         UserMetricsOut: {
             /** Metrics */
             metrics: components["schemas"]["UserMetricOut"][];
+        };
+        /** UserPresetOut */
+        UserPresetOut: {
+            /** Category */
+            category: string;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Connector Key */
+            connector_key: string;
+            /** Countries */
+            countries?: string[];
+            /** Country */
+            country?: string | null;
+            /** Homepage */
+            homepage?: string | null;
+            /** Languages */
+            languages?: string[];
+            /** Name */
+            name: string;
+            /** Openings */
+            openings?: number | null;
+            /**
+             * Platform
+             * @default
+             */
+            platform: string;
+            /** Regions */
+            regions?: string[];
+            /** Seed Key */
+            seed_key: string;
+            /** Slug */
+            slug: string;
+            /** Verified At */
+            verified_at?: string | null;
+            /** Work Modes */
+            work_modes?: string[];
+            /**
+             * Worldwide
+             * @default false
+             */
+            worldwide: boolean;
+        };
+        /** UserProviderDetailOut */
+        UserProviderDetailOut: {
+            /** Endpoints */
+            endpoints?: components["schemas"]["UserEndpointOut"][];
+            /** Id */
+            id: string;
+            /**
+             * Item Count
+             * @default 0
+             */
+            item_count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bundled" | "file" | "registry" | "git";
+            /** Last Check At */
+            last_check_at?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Pack Version
+             * @default
+             */
+            pack_version: string;
+            /** Presets */
+            presets?: components["schemas"]["UserPresetOut"][];
+            /** Priority */
+            priority: number;
+            /**
+             * Trust Tier
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
+        };
+        /** UserProviderOut */
+        UserProviderOut: {
+            /** Id */
+            id: string;
+            /**
+             * Item Count
+             * @default 0
+             */
+            item_count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bundled" | "file" | "registry" | "git";
+            /** Last Check At */
+            last_check_at?: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Pack Version
+             * @default
+             */
+            pack_version: string;
+            /** Priority */
+            priority: number;
+            /**
+             * Trust Tier
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
         };
         /** UserSkillIn */
         UserSkillIn: {
@@ -22948,6 +23934,74 @@ export interface components {
             proposal: components["schemas"]["CvProposal"];
             /** Verified */
             verified: boolean;
+        };
+        /** VersionOut */
+        VersionOut: {
+            /** Approved At */
+            approved_at?: string | null;
+            /**
+             * Commit Sha
+             * @default
+             */
+            commit_sha: string;
+            /**
+             * Contract Version
+             * @default 1.0
+             */
+            contract_version: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Digest */
+            digest: string;
+            /**
+             * Etag
+             * @default
+             */
+            etag: string;
+            /** Id */
+            id: string;
+            /** Pack Version */
+            pack_version: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Schema Version
+             * @default
+             */
+            schema_version: string;
+            /** Source Id */
+            source_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected" | "revoked";
+        };
+        /** VersionSummaryOut */
+        VersionSummaryOut: {
+            /** Approved At */
+            approved_at?: string | null;
+            /**
+             * Commit Sha
+             * @default
+             */
+            commit_sha: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Digest */
+            digest: string;
+            /** Id */
+            id: string;
+            /** Pack Version */
+            pack_version: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected" | "revoked";
         };
         /**
          * WebSettingsOut
@@ -27368,6 +28422,654 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_providers_api_v1_admin_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAdminOut"][];
+                };
+            };
+        };
+    };
+    create_provider_api_v1_admin_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_provider_api_v1_admin_providers_discover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoverIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_provider_api_v1_admin_providers__source_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAdminDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_api_v1_admin_providers__source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_provider_api_v1_admin_providers__source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAdminDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adopt_provider_version_api_v1_admin_providers__source_id__adopt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdoptIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    probe_provider_endpoint_api_v1_admin_providers__source_id__endpoints__seed_key__probe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                seed_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_provider_item_api_v1_admin_providers__source_id__items__seed_key__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                seed_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_provider_item_api_v1_admin_providers__source_id__items__seed_key__enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                seed_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retire_provider_item_api_v1_admin_providers__source_id__items__seed_key__retire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                seed_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_provider_api_v1_admin_providers__source_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_sync_runs_api_v1_admin_providers__source_id__sync_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_provider_pack_api_v1_admin_providers__source_id__upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_provider_versions_api_v1_admin_providers__source_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_provider_version_api_v1_admin_providers__source_id__versions__version_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_provider_version_api_v1_admin_providers__source_id__versions__version_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_provider_version_api_v1_admin_providers__source_id__versions__version_id__plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_provider_version_api_v1_admin_providers__source_id__versions__version_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_provider_version_api_v1_admin_providers__source_id__versions__version_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
                 };
             };
             /** @description Validation Error */
@@ -42148,6 +43850,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_providers_api_v1_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProviderOut"][];
+                };
+            };
+        };
+    };
+    get_user_provider_api_v1_providers__source_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProviderDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_provider_endpoints_api_v1_providers__source_id__endpoints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserEndpointOut"][];
                 };
             };
             /** @description Validation Error */
