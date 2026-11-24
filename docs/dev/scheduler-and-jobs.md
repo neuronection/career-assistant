@@ -27,6 +27,7 @@ in the `HANDLERS` map:
 | `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass; the single-posting form also writes the job-type proposal. The admin Runs action sets `redecide_scope: stale|all` to re-decide `skill_overlap` rows too; the no-scope path stays semantic-only |
 | `mapping_coverage_capture` / `mapping_alert_sweep` | The mapping console's daily snapshot capture (90-day retention, pruned on capture) and the admin alert evaluation through the notification funnel; schedule kinds `system_mapping_coverage` / `system_mapping_alerts` |
 | `provider_sync` | Fetch one seed provider (`payload.source_id`) or sweep every due provider; stores an immutable pending version, records the run ledger and notifies admins. It never approves, applies or enables; the per-source lock is `provider_sync:<id>` |
+| `provider_apply` | Apply one approved seed version through the planner/applier under the global `provider_apply` lock; a crash-recovered apply re-runs idempotently |
 | `data_export` | Exports |
 
 The skill-relation learn job is the one handler that lives in the catalog —

@@ -23,6 +23,12 @@ PROVIDER_AUDIT_EVENTS = (
     "provider.sync.partial",
     "provider.version.pending",
     "provider.version.rejected",
+    "provider.version.approved",
+    "provider.version.revoked",
+    "provider.apply.ok",
+    "provider.apply.conflicted",
+    "provider.apply.failed",
+    "provider.item.retired",
 )
 RESOURCE_LIMIT = 500
 

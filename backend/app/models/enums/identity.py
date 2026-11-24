@@ -65,6 +65,7 @@ class BackgroundJobType(StrEnum):
     MAPPING_COVERAGE_CAPTURE = "mapping_coverage_capture"
     MAPPING_ALERT_SWEEP = "mapping_alert_sweep"
     PROVIDER_SYNC = "provider_sync"
+    PROVIDER_APPLY = "provider_apply"
 
 
 class ScheduleKind(StrEnum):

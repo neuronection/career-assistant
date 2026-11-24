@@ -16,8 +16,10 @@ All notable changes to **Career Assistant** are documented here.
   store, pack-only archive extractor and authoring CLI for admin-managed
   seed providers landed, plus the sync lane (public HTTPS git and static
   `seed-repo.json` index transports, per-source locks, immutable pending
-  versions with a run ledger and admin notifications). No user-facing
-  surface or behavior changes yet.
+  versions with a run ledger and admin notifications) and the
+  approval/apply lane (approve/reject/revoke, a priority-aware planner with
+  typed conflicts, one-transaction applies, retirement and provenance). No
+  user-facing surface or behavior changes yet.
 
 
 ## [v0.20.0] - 2026-11-24

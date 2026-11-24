@@ -393,6 +393,22 @@ There is no side door around it.
   scheduler tick sweeps only providers whose refresh is due. Audit rows ride
   `provider.*`; admins get `provider_update_available` /
   `provider_sync_failed` notifications through the one funnel.
+- **Approval and apply are separate.** `SeedApplyService` moves a version
+  `pending → approved/rejected` and `approved → revoked`; only an approved
+  version applies. Approve/reject act on the exact digest; revoking the
+  applied version restores the previous approved version (or drops the
+  pointer) and replans the source set.
+- **The planner diffs the whole source set.** Winners are recomputed from
+  enabled approved versions by priority (higher wins); equal priority with
+  different content is a typed conflict that refuses the whole apply and
+  writes nothing. The diff is `create/update/noop/override/retire` per
+  `seed_key`; `user_modified` rows surface as `override` until explicit
+  adoption. Applies are serialized by the global `provider_apply` lock, run
+  in one transaction, and keep `current_version_id` unchanged on failure.
+- **Provenance is a projection.** `seed_item_provenance` records the winning
+  version and content hash per entity; the preset/endpoint `state` remains
+  the one liveness authority. Retirement flips `state` and a referencing
+  `job_sources.support_status` — rows are never deleted.
 - **Authoring is deterministic.** `backend/scripts/seed_pack.py
   check|pack|export` runs the same parser; export sorts item keys and
   refreshes manifest digests, and its round-trip is byte-identical.

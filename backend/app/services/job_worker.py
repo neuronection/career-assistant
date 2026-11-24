@@ -706,6 +706,31 @@ async def _run_provider_sync(db: AsyncSession, job: BackgroundJob, **_kw) -> dic
     return {"queued": await enqueue_due_provider_syncs(db)}
 
 
+async def _run_provider_apply(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Apply one approved seed version (the global `provider_apply` lock is
+    already held by this job)."""
+    from app.models.seed_model import SeedSource, SeedSourceVersion
+    from app.services.seeds.applier import SeedApplyService
+
+    payload = job.payload or {}
+    try:
+        source_id = uuid.UUID(str(payload.get("source_id")))
+        version_id = uuid.UUID(str(payload.get("version_id")))
+    except (TypeError, ValueError):
+        return {"status": "failed", "error": "source_id/version_id missing"}
+    source = await db.get(SeedSource, source_id)
+    version = await db.get(SeedSourceVersion, version_id)
+    if source is None or version is None:
+        return {"status": "failed", "error": "source or version no longer exists"}
+    result = await SeedApplyService(db).apply(
+        source,
+        version,
+        actor=str(payload.get("actor") or "system"),
+        lock=False,
+    )
+    return result.as_dict()
+
+
 async def _run_demand_import(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Daily external demand import (plan 122): market sources feed salary
     and outlook data into `market_snapshots` and `jobs.demand`."""
@@ -1419,6 +1444,7 @@ HANDLERS: dict[str, Handler] = {
     "checkpoint_prune": _run_checkpoint_prune,
     "extension_reconcile": _run_extension_reconcile,
     "provider_sync": _run_provider_sync,
+    "provider_apply": _run_provider_apply,
     "saved_search_run": _run_saved_search,
     "radar_digest": _run_radar_digest,
     "smart_digest": _run_smart_digest,
