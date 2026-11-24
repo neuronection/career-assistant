@@ -87,7 +87,7 @@ from typing import Any
 
 logger = logging.getLogger("translations")
 
-TEMPLATE_VERSION = "1.5.5"
+TEMPLATE_VERSION = "1.5.6"
 
 LOCALE_CODE_RE = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$")
 
@@ -573,13 +573,13 @@ class LLM:
                 "# create/append the .env template, then fill in the values"
             )
         # Reasoning models (gpt-5.x, o-series) reject `temperature`.
-        self.send_temperature = not re.match(r"^(gpt-5|o\d)", self.model, re.I)
+        self.send_temperature = not re.match(r"^(gpt-[5-9]|o\d)", self.model, re.I)
         # Modern OpenAI reasoning models require `max_completion_tokens`; retain
         # `max_tokens` for other OpenAI-compatible APIs unless explicitly configured.
         if self.max_tokens_param is None:
             self.max_tokens_param = (
                 "max_completion_tokens"
-                if re.match(r"^(gpt-5|o\d)", self.model, re.I)
+                if re.match(r"^(gpt-[5-9]|o\d)", self.model, re.I)
                 else "max_tokens"
             )
 
