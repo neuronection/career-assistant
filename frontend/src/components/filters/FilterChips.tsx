@@ -1,5 +1,7 @@
-/** Simple pill filter chips (multi-select), aria-pressed based — the same
- * recipe as the SegmentedRow chips but standalone. */
+/** Simple pill filter chips (multi-select) — the family `FacetChip` inline
+ * variant. Hosts keep their own selected-value state and receive intents. */
+import { FacetChip, type FilterFacet } from "@neuronection/assistant-ui/filters";
+
 export function FilterChips({
   options,
   selected,
@@ -11,24 +13,20 @@ export function FilterChips({
   onToggle: (value: string) => void;
   testidPrefix: string;
 }) {
+  const facet: FilterFacet = {
+    id: `${testidPrefix}-kinds`,
+    label: testidPrefix,
+    kind: "multi",
+    options,
+  };
   return (
-    <div className="flex flex-wrap gap-1.5" data-testid={`${testidPrefix}-kinds`}>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={selected.includes(option.value)}
-          onClick={() => onToggle(option.value)}
-          className={`cursor-pointer rounded-full border px-2 py-0.5 text-xs transition-colors ${
-            selected.includes(option.value)
-              ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
-              : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
-          }`}
-          data-testid={`${testidPrefix}-kind-${option.value}`}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <FacetChip
+      facet={facet}
+      variant="inline"
+      value={{ kind: "multi", values: selected }}
+      onToggleOption={(value) => onToggle(value)}
+      testId={`${testidPrefix}-kinds`}
+      optionTestId={(value) => `${testidPrefix}-kind-${value}`}
+    />
   );
 }
