@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **The chip filter row uses the shared filter module.** The include/exclude
+  chip row and the applied-filter pills now render through
+  `@neuronection/assistant-ui` (`FacetChip`'s inline variant and
+  `FilterPills`), so keyboard handling, screen-reader semantics and styling
+  match the other Neuronection apps. The tri-state include/exclude logic stays
+  app-side and no call site changed; `@neuronection/assistant-ui` moves to
+  `^0.91.1`.
+
 ### Added
 
 - **Data providers — versioned seed packs, with review before apply.** Tools →
