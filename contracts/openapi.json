@@ -23760,6 +23760,84 @@
         "title": "ProviderSetupIn",
         "type": "object"
       },
+      "ProviderSubscriptionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Collections",
+            "type": "array"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "mode": {
+            "default": "all",
+            "enum": [
+              "all",
+              "selected"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "ProviderSubscriptionIn",
+        "type": "object"
+      },
+      "ProviderSubscriptionOut": {
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "all",
+              "selected"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "enabled",
+          "mode"
+        ],
+        "title": "ProviderSubscriptionOut",
+        "type": "object"
+      },
       "ProviderUpdate": {
         "properties": {
           "api_base": {
@@ -28620,6 +28698,63 @@
           "filters"
         ],
         "title": "SmartSearchOut",
+        "type": "object"
+      },
+      "SourcePrefIn": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "hidden": {
+            "default": true,
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          }
+        },
+        "title": "SourcePrefIn",
+        "type": "object"
+      },
+      "SourcePrefOut": {
+        "properties": {
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "hidden",
+          "priority"
+        ],
+        "title": "SourcePrefOut",
         "type": "object"
       },
       "SparkPointOut": {
@@ -57337,6 +57472,127 @@
         ]
       }
     },
+    "/api/v1/me/provider-subscriptions": {
+      "get": {
+        "operationId": "list_provider_subscriptions_api_v1_me_provider_subscriptions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderSubscriptionOut"
+                  },
+                  "title": "Response List Provider Subscriptions Api V1 Me Provider Subscriptions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Provider Subscriptions",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/provider-subscriptions/{provider_id}": {
+      "delete": {
+        "operationId": "delete_provider_subscription_api_v1_me_provider_subscriptions__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Provider Subscription Api V1 Me Provider Subscriptions  Provider Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Provider Subscription",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "put_provider_subscription_api_v1_me_provider_subscriptions__provider_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSubscriptionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSubscriptionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Provider Subscription",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/v1/me/schedules": {
       "get": {
         "description": "The caller's schedules (check-in, digest, saved searches).",
@@ -58110,6 +58366,127 @@
         "summary": "Skill Evidence",
         "tags": [
           "experience"
+        ]
+      }
+    },
+    "/api/v1/me/source-prefs": {
+      "get": {
+        "operationId": "list_source_prefs_api_v1_me_source_prefs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourcePrefOut"
+                  },
+                  "title": "Response List Source Prefs Api V1 Me Source Prefs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Source Prefs",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/source-prefs/{source_id}": {
+      "delete": {
+        "operationId": "delete_source_pref_api_v1_me_source_prefs__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Source Pref Api V1 Me Source Prefs  Source Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Source Pref",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "put_source_pref_api_v1_me_source_prefs__source_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePrefIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePrefOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Source Pref",
+        "tags": [
+          "me"
         ]
       }
     },

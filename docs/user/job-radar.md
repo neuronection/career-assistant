@@ -71,6 +71,24 @@ The radar is per profile: switch profiles and each one keeps its own
 radar. Sources without *Follow my radar* follow their own admin
 configuration ([Add a job source](add-a-job-source.md)).
 
+## Data providers and hidden sources
+
+The radar page also carries the user-level **Data providers** panel:
+
+- **Follow** the publishers whose packs should reach your feeds. A
+  provider you unfollow stops contributing its catalog sources to your
+  visible set (sources you already created keep running).
+- **Provider scope** — `All followed providers`, or `Only selected
+  providers` to narrow the visible set to the providers you followed.
+  Manual and extension sources stay visible either way.
+- **Hidden sources** — a hard deny. A hidden source never appears in
+  Explore, the radar, digests, saved-search runs, RSS or the chat
+  search, no matter what the other filters say.
+
+Precedence, strongest first: **hidden sources** → selected-provider
+mode → the radar's own source picker → Explore include/exclude. The
+selection never creates a job source; it only narrows what you see.
+
 ## Related
 
 - [Postings and search](postings-and-search.md) — the feed and filters

@@ -126,10 +126,10 @@ export type SourceRun = {
 };
 
 export async function fetchUserSources(): Promise<
-  { key: string; connector_key: string; open_postings: number }[]
+  { id: string; key: string; connector_key: string; open_postings: number }[]
 > {
   const response = await api.get<
-    { key: string; connector_key: string; open_postings: number }[]
+    { id: string; key: string; connector_key: string; open_postings: number }[]
   >("/postings/sources");
   return response.data;
 }

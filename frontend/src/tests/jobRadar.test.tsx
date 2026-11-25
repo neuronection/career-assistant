@@ -7,6 +7,7 @@ import { JobRadarSettings } from "@/pages/settings/JobRadar";
 import * as radarApi from "@/api/radar";
 import * as schedulerApi from "@/api/scheduler";
 import * as sourcesApi from "@/api/sources";
+import * as providersApi from "@/api/providers";
 
 vi.mock("@/api/radar", () => ({
   fetchRadar: vi.fn(),
@@ -22,6 +23,15 @@ vi.mock("@/api/scheduler", () => ({
 
 vi.mock("@/api/sources", () => ({
   fetchUserSources: vi.fn(),
+}));
+
+vi.mock("@/api/providers", () => ({
+  listUserProviders: vi.fn(),
+  listProviderSubscriptions: vi.fn(),
+  listSourcePrefs: vi.fn(),
+  putProviderSubscription: vi.fn(),
+  deleteProviderSubscription: vi.fn(),
+  putSourcePref: vi.fn(),
 }));
 
 const radar = {
@@ -48,8 +58,21 @@ const schedule = {
 };
 
 const userSources = [
-  { key: "board-postings", connector_key: "mcp", open_postings: 12 },
-  { key: "market-demand", connector_key: "mcp", open_postings: 0 },
+  { id: "src-board", key: "board-postings", connector_key: "mcp", open_postings: 12 },
+  { id: "src-market", key: "market-demand", connector_key: "mcp", open_postings: 0 },
+];
+
+const userProviders = [
+  {
+    id: "provider-1",
+    name: "Neuronection official",
+    kind: "git",
+    trust_tier: "official",
+    priority: 100,
+    pack_version: "1.2.0",
+    item_count: 25,
+    last_check_at: "2026-11-24T20:00:00Z",
+  },
 ];
 
 beforeEach(() => {
@@ -82,6 +105,25 @@ beforeEach(() => {
     enabled: false,
   } as never);
   vi.mocked(sourcesApi.fetchUserSources).mockResolvedValue(userSources);
+  vi.mocked(providersApi.listUserProviders).mockResolvedValue(userProviders as never);
+  vi.mocked(providersApi.listProviderSubscriptions).mockResolvedValue([]);
+  vi.mocked(providersApi.listSourcePrefs).mockResolvedValue([]);
+  vi.mocked(providersApi.putProviderSubscription).mockResolvedValue({
+    id: "sub-1",
+    provider_id: "provider-1",
+    enabled: true,
+    mode: "all",
+    collections: [],
+    filters: {},
+  });
+  vi.mocked(providersApi.putSourcePref).mockResolvedValue({
+    id: "pref-1",
+    source_id: "src-board",
+    hidden: true,
+    priority: 100,
+    filters: {},
+  });
+  vi.mocked(providersApi.deleteProviderSubscription).mockResolvedValue();
 });
 
 function renderPage() {
@@ -188,5 +230,27 @@ describe("job radar settings (plan 148 phase 3)", () => {
     await screen.findByTestId("radar-schedule");
     await user.click(screen.getByTestId("radar-save"));
     expect(radarApi.updateRadar).not.toHaveBeenCalled();
+  });
+
+
+  it("follows providers and hides a source from the data-provider panel", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const panel = await screen.findByTestId("radar-providers");
+    const follow = await within(panel).findByTestId("radar-follow-provider-1");
+    await user.click(follow);
+    await waitFor(() =>
+      expect(providersApi.deleteProviderSubscription).toHaveBeenCalledWith("provider-1"),
+    );
+
+    const hide = await screen.findByTestId("radar-hide-src-board");
+    await user.click(hide);
+    await waitFor(() =>
+      expect(providersApi.putSourcePref).toHaveBeenCalledWith("src-board", {
+        hidden: true,
+        priority: 100,
+        filters: {},
+      }),
+    );
   });
 });

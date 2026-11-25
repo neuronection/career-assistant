@@ -5644,7 +5644,19 @@
       "degraded": "degraded",
       "claimed": "running"
     },
-    "addKeyword": "Add keyword"
+    "addKeyword": "Add keyword",
+    "providersTitle": "Data providers",
+    "providersHint": "Follow the publishers whose packs should reach your feeds. Hidden sources always win.",
+    "providersEmpty": "No providers are applied yet; you can still hide specific sources below.",
+    "providerMeta": "{{trust}} · v{{version}} · {{count}} items",
+    "follow": "Follow",
+    "providerMode": "Provider scope",
+    "modeAll": "All followed providers",
+    "modeSelected": "Only selected providers",
+    "hiddenSources": "Hidden sources",
+    "hiddenSourcesHint": "Hidden sources never appear in Explore, the radar, digests, saved-search runs, RSS or chat.",
+    "hiddenSource": "Hide",
+    "precedenceHint": "Hidden sources win over every filter. Selected-provider mode narrows the visible set; the radar source picker above narrows within it."
   },
   "sourceDetail": {
     "back": "Job source connectors",

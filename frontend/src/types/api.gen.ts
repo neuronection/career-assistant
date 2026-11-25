@@ -9187,6 +9187,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/provider-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Provider Subscriptions */
+        get: operations["list_provider_subscriptions_api_v1_me_provider_subscriptions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/provider-subscriptions/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Provider Subscription */
+        put: operations["put_provider_subscription_api_v1_me_provider_subscriptions__provider_id__put"];
+        post?: never;
+        /** Delete Provider Subscription */
+        delete: operations["delete_provider_subscription_api_v1_me_provider_subscriptions__provider_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/schedules": {
         parameters: {
             query?: never;
@@ -9459,6 +9494,41 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/source-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Source Prefs */
+        get: operations["list_source_prefs_api_v1_me_source_prefs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/source-prefs/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Source Pref */
+        put: operations["put_source_pref_api_v1_me_source_prefs__source_id__put"];
+        post?: never;
+        /** Delete Source Pref */
+        delete: operations["delete_source_pref_api_v1_me_source_prefs__source_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -20725,6 +20795,46 @@ export interface components {
              */
             scope: string;
         };
+        /** ProviderSubscriptionIn */
+        ProviderSubscriptionIn: {
+            /** Collections */
+            collections?: string[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Mode
+             * @default all
+             * @enum {string}
+             */
+            mode: "all" | "selected";
+        };
+        /** ProviderSubscriptionOut */
+        ProviderSubscriptionOut: {
+            /** Collections */
+            collections?: string[];
+            /** Enabled */
+            enabled: boolean;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "all" | "selected";
+            /** Provider Id */
+            provider_id: string;
+        };
         /** ProviderUpdate */
         ProviderUpdate: {
             /** Api Base */
@@ -22747,6 +22857,38 @@ export interface components {
             spec: {
                 [key: string]: unknown;
             };
+        };
+        /** SourcePrefIn */
+        SourcePrefIn: {
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Hidden
+             * @default true
+             */
+            hidden: boolean;
+            /**
+             * Priority
+             * @default 100
+             */
+            priority: number;
+        };
+        /** SourcePrefOut */
+        SourcePrefOut: {
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            };
+            /** Hidden */
+            hidden: boolean;
+            /** Id */
+            id: string;
+            /** Priority */
+            priority: number;
+            /** Source Id */
+            source_id: string;
         };
         /** SparkPointOut */
         SparkPointOut: {
@@ -40561,6 +40703,94 @@ export interface operations {
             };
         };
     };
+    list_provider_subscriptions_api_v1_me_provider_subscriptions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSubscriptionOut"][];
+                };
+            };
+        };
+    };
+    put_provider_subscription_api_v1_me_provider_subscriptions__provider_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderSubscriptionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderSubscriptionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_subscription_api_v1_me_provider_subscriptions__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     my_schedules_api_v1_me_schedules_get: {
         parameters: {
             query?: never;
@@ -41100,6 +41330,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvidenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_source_prefs_api_v1_me_source_prefs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePrefOut"][];
+                };
+            };
+        };
+    };
+    put_source_pref_api_v1_me_source_prefs__source_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourcePrefIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcePrefOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_source_pref_api_v1_me_source_prefs__source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

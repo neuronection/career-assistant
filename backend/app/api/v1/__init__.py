@@ -21,6 +21,7 @@ from app.api.v1 import (
     metrics,
     posting_hygiene_admin,
     profiles,
+    provider_prefs,
     providers,
     providers_admin,
     retrieval_admin,
@@ -61,6 +62,7 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)
 api_router.include_router(autopilot.router)
 api_router.include_router(me.router)
+api_router.include_router(provider_prefs.router)
 api_router.include_router(providers.router)
 api_router.include_router(stats.router)
 api_router.include_router(applications.router)

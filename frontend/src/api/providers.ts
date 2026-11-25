@@ -21,6 +21,10 @@ export type ProviderProbe = Schemas["ProbeOut"];
 export type UserProvider = Schemas["UserProviderOut"];
 export type UserProviderDetail = Schemas["UserProviderDetailOut"];
 export type UserProviderEndpoint = Schemas["UserEndpointOut"];
+export type ProviderSubscription = Schemas["ProviderSubscriptionOut"];
+export type ProviderSubscriptionInput = Schemas["ProviderSubscriptionIn"];
+export type SourcePref = Schemas["SourcePrefOut"];
+export type SourcePrefInput = Schemas["SourcePrefIn"];
 
 const ADMIN = "/admin/providers";
 
@@ -181,5 +185,39 @@ export async function listUserProviderEndpoints(
   id: string,
 ): Promise<UserProviderEndpoint[]> {
   const { data } = await api.get<UserProviderEndpoint[]>(`/providers/${id}/endpoints`);
+  return data;
+}
+
+
+export async function listProviderSubscriptions(): Promise<ProviderSubscription[]> {
+  const { data } = await api.get<ProviderSubscription[]>("/me/provider-subscriptions");
+  return data;
+}
+
+export async function putProviderSubscription(
+  providerId: string,
+  payload: ProviderSubscriptionInput,
+): Promise<ProviderSubscription> {
+  const { data } = await api.put<ProviderSubscription>(
+    `/me/provider-subscriptions/${providerId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteProviderSubscription(providerId: string): Promise<void> {
+  await api.delete(`/me/provider-subscriptions/${providerId}`);
+}
+
+export async function listSourcePrefs(): Promise<SourcePref[]> {
+  const { data } = await api.get<SourcePref[]>("/me/source-prefs");
+  return data;
+}
+
+export async function putSourcePref(
+  sourceId: string,
+  payload: SourcePrefInput,
+): Promise<SourcePref> {
+  const { data } = await api.put<SourcePref>(`/me/source-prefs/${sourceId}`, payload);
   return data;
 }

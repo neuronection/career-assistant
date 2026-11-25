@@ -14,7 +14,9 @@ All notable changes to **Career Assistant** are documented here.
   version; you preview its plan, approve the exact digest, then apply it.
   Equal-priority providers that disagree are refused as a whole, retirement
   keeps sources you already created, and per-item switches decide what the
-  preset gallery offers. A migrated legacy catalog lands as an approved
+  preset gallery offers. On `/radar`, follow or unfollow providers, narrow
+  to selected providers and hide individual sources — a hidden source stays
+  out of Explore, radar, digests, saved-search runs, RSS and chat. A migrated legacy catalog lands as an approved
   provider at priority 90, and the old `/admin/postings/sources/catalogs`
   import surface is retired.
 

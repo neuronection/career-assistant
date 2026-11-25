@@ -59,6 +59,22 @@ you already created keep working; the provider only owns the catalog rows.
 A provider's trust tier (`official`, `operator`, `community`, `local`) is shown
 on every card; trust never bypasses approval.
 
+## Follow and hide (every user)
+
+The radar page carries the user-level view of the same catalog:
+
+- **Follow** a provider to keep its sources in your visible set; unfollow
+  to narrow it out. Sources you already created keep running.
+- **Only selected providers** narrows the set to the followed providers
+  (manual and extension sources stay visible).
+- **Hidden sources** is a hard deny — the source never appears in
+  Explore, radar, digests, saved-search runs, RSS or chat, whatever the
+  other filters say.
+
+Precedence is strongest-first: hidden sources, then selected-provider
+mode, then the radar source picker, then per-search include/exclude.
+User preferences never create or delete a job source.
+
 ## Related
 
 - [Add a job source](add-a-job-source.md) — create a source from the preset

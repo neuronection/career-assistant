@@ -159,6 +159,9 @@ async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
     for rule in rules:
         families.update(rule.params.get("family_keys") or [])
 
+    from app.services.seeds.visibility import load_visibility
+
+    visibility = await load_visibility(db, user_id)
     rows = (
         await db.execute(
             select(JobPosting, PostingInteraction)
@@ -170,6 +173,7 @@ async def _unseen_target_postings(db: AsyncSession, user_id: UUID) -> int:
             .where(
                 JobPosting.status == "mapped",
                 JobPosting.catalog_job_id.is_not(None),
+                *visibility.posting_conditions(),
             )
         )
     ).all()
@@ -199,7 +203,10 @@ async def _closing_soon_saved(
     deadline into a ping. Expired deadlines and closed rows are excluded;
     the ordering makes the nearest deadline the headline.
     """
+    from app.services.seeds.visibility import load_visibility
+
     today = _utcnow().date()
+    visibility = await load_visibility(db, user_id)
     rows = await db.execute(
         select(JobPosting)
         .join(
@@ -208,6 +215,7 @@ async def _closing_soon_saved(
             & (PostingInteraction.user_id == user_id),
         )
         .where(
+            *visibility.posting_conditions(),
             PostingInteraction.saved_at.is_not(None),
             PostingInteraction.hidden_at.is_(None),
             JobPosting.status.in_(OPEN_STATUSES),
@@ -323,6 +331,9 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
         if dimension == "state":
             continue  # the run itself defines seen-state below
         conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, user_id))
+    from app.services.seeds.visibility import load_visibility
+
+    conditions.extend((await load_visibility(db, user_id)).posting_conditions())
     query = (
         select(JobPosting, PostingInteraction)
         .outerjoin(

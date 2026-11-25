@@ -879,7 +879,8 @@
         "Exact-digest approval; sync never applies and a remote pack never auto-enables",
         "Priority-aware plan preview with typed equal-priority conflicts; one transaction per apply",
         "Bundled baseline pack (20 presets) plus the official pinned repository tile",
-        "Provenance per catalog row; retirement marks sources unsupported, never deletes them"
+        "Provenance per catalog row; retirement marks sources unsupported, never deletes them",
+            "User follow/hide: a hidden source is denied across Explore, radar, digests, RSS and chat"
       ],
       "links": [
         {
