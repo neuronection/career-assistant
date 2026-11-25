@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "contract": "settings-map",
-  "updated": "2026-11-21",
+  "updated": "2026-11-24",
   "purpose": "One family taxonomy for settings surfaces: what a setting IS decides where it LIVES. Canonical per ADR-0033 / ADR-0031 (sync-and-gate): this file is the master; product repos vendor it byte-identical under contracts/ and scripts/verify-wiring.sh flags drift. A setting may not ship (or move) in any product without a domain entry (or adopter line) here.",
   "groups": {
     "ai": {
@@ -10,7 +10,7 @@
     },
     "tools": {
       "title": "Tools — non-model capabilities",
-      "membership": "If the assistant invokes it at run time as a capability/tool and it is not a model, it is tools.*: web search providers, discovery sources, scanned sources, translation, indexing, memories, the tool catalog, connectors, skills. Decision and agent BEHAVIOR (thresholds, scope, rules, iterations) lives here too — their SETUP (provider, model, assignment) stays in ai.* (ADR-0032)."
+      "membership": "If the assistant invokes it at run time as a capability/tool and it is not a model, it is tools.*: web search providers, discovery sources, scanned sources, translation, generated-content language policy, indexing, memories, the tool catalog, connectors, skills. Decision and agent BEHAVIOR (thresholds, scope, rules, iterations) lives here too — their SETUP (provider, model, assignment) stays in ai.* (ADR-0032)."
     },
     "automations": {
       "title": "Automations — scheduled autonomous runs",
@@ -18,7 +18,7 @@
     },
     "app": {
       "title": "App-level — the product itself",
-      "membership": "Settings about the product rather than the assistant's capabilities: general/appearance/language, account & security, data (backup/export/trash), users (admin), developer/diagnostics, voice I/O, hotkeys, commands, mini-apps, notifications. Family-constrained only by the naming and i18n rules; product-specific tabs are declared per product below."
+      "membership": "Settings about the product rather than the assistant's capabilities: general/appearance/interface language (device/user; instance default where offered), account & security, data (backup/export/trash), users (admin), developer/diagnostics, voice I/O, hotkeys, commands, mini-apps, notifications. Family-constrained only by the naming and i18n rules; product-specific tabs are declared per product below."
     }
   },
   "domains": [
@@ -159,6 +159,21 @@
       }
     },
     {
+      "id": "tools.language",
+      "group": "tools",
+      "title": "Generated content language",
+      "definition": "Profile-scoped language policy for AI-produced study content: auto (mirror the material and request) or an explicit BCP-47 tag, with transient per-generation overrides in the generation dialogs. Interface copy is app.language; translation-provider configuration is tools.translation.",
+      "home": {
+        "tab": "tools",
+        "section": "language"
+      },
+      "secrets": "none",
+      "scope": "profile",
+      "adopters": {
+        "study-assistant": "aligned (plan 114)"
+      }
+    },
+    {
       "id": "tools.decisions",
       "group": "tools",
       "title": "Decision behavior",
@@ -278,6 +293,21 @@
       "scope": "device-local (desktop)",
       "adopters": {
         "desktop-assistant": "aligned"
+      }
+    },
+    {
+      "id": "app.language",
+      "group": "app",
+      "title": "Interface language",
+      "definition": "Interface locale: per-device/per-user UI copy and locale-aware date/number formatting, plus an instance default where a product offers one. Generated-content language is deliberately a separate domain (tools.language); the interface locale never decides what language the assistant writes study content in.",
+      "home": {
+        "tab": "general"
+      },
+      "secrets": "none",
+      "scope": "device/user + instance default (where offered)",
+      "adopters": {
+        "study-assistant": "aligned (plan 114)",
+        "career-assistant": "planned (existing instance-default UI locale; map entry to be completed)"
       }
     },
     {
@@ -554,7 +584,10 @@
       "tabs": [
         {
           "id": "general",
-          "group": "app"
+          "group": "app",
+          "domains": [
+            "app.language"
+          ]
         },
         {
           "id": "ai",
@@ -616,6 +649,12 @@
                 "tools.retrieval"
               ],
               "note": "study hosts the admin retrieval controls inside Indexing (plan 51 Q3b); the tools.retrieval domain's canonical home section is not a separate tab here"
+            },
+            {
+              "id": "language",
+              "domains": [
+                "tools.language"
+              ]
             },
             {
               "id": "skills",
