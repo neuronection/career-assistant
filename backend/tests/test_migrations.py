@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0017"
+BASELINE = "0019"
 
 
 def _configured() -> Config:
@@ -998,3 +998,386 @@ def test_0017_adds_mount_columns_without_backfill_on_sqlite(tmp_path, monkeypatc
         assert "ix_extension_sources_mount_key" in indexes
     finally:
         con.close()
+
+
+def test_0018_adds_seed_provider_tables_without_backfill_on_sqlite(tmp_path, monkeypatch):
+    """Plan 218: the seed-provider lane is additive — new tables, nullable
+    pointers, a defaulted ``support_status`` and a widened schedule vocabulary;
+    existing schedule rows survive the CHECK rebuild."""
+    import sqlite3
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'seed-providers.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0017")
+
+    path = tmp_path / "seed-providers.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO schedules (id, kind, task, trigger, payload, payload_hash, enabled, "
+        "consecutive_failures, misfire_policy, error, created_at, updated_at) VALUES "
+        "(?, 'user_autopilot', 'autopilot_run', '{}', '{}', 'h', 1, 0, 'asap', '', "
+        "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+        ("1" * 32,),
+    )
+    con.execute(
+        "INSERT INTO job_sources (id, key, connector_key, kind, last_status, config, secrets, "
+        "enabled, sync_state, query_mode, query_batch_size, error, created_at, updated_at) "
+        "VALUES (?, 'legacy', 'rss', 'posting', 'ok', '{}', '{}', 1, '{}', 'static', 2, '', "
+        "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+        ("2" * 32,),
+    )
+    con.commit()
+    con.close()
+
+    command.upgrade(config, "head")
+
+    con = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert {
+            "seed_sources",
+            "seed_source_versions",
+            "seed_sync_runs",
+            "seed_import_runs",
+            "seed_import_run_items",
+            "seed_item_provenance",
+            "seed_deferred_refs",
+            "job_source_presets",
+            "provider_endpoints",
+            "provider_subscriptions",
+            "source_prefs",
+            "migration_archive",
+        } <= tables
+        assert con.execute("SELECT kind FROM schedules WHERE id = ?", ("1" * 32,)).fetchone() == (
+            "user_autopilot",
+        )
+        assert con.execute(
+            "SELECT support_status FROM job_sources WHERE key = 'legacy'"
+        ).fetchone() == ("supported",)
+        assert con.execute(
+            "SELECT seed_source_id, seed_item_key, applied_version_id "
+            "FROM job_sources WHERE key = 'legacy'"
+        ).fetchone() == (None, None, None)
+        con.execute(
+            "INSERT INTO schedules (id, kind, task, trigger, payload, payload_hash, enabled, "
+            "consecutive_failures, misfire_policy, error, created_at, updated_at) VALUES "
+            "(?, 'system_provider_sync', 'provider_sync', '{}', '{}', 'h', 1, 0, 'asap', '', "
+            "'2026-11-24 00:00:00', '2026-11-24 00:00:00')",
+            ("3" * 32,),
+        )
+        con.commit()
+        con.execute("DELETE FROM schedules WHERE id = ?", ("3" * 32,))
+        con.commit()
+    finally:
+        con.close()
+
+    command.downgrade(config, "0017")
+
+    con = sqlite3.connect(path)
+    try:
+        tables = {
+            row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert (
+            not {
+                "seed_sources",
+                "seed_source_versions",
+                "job_source_presets",
+                "provider_endpoints",
+                "provider_subscriptions",
+                "source_prefs",
+                "migration_archive",
+            }
+            & tables
+        )
+        cols = {row[1] for row in con.execute("PRAGMA table_info(job_sources)")}
+        assert (
+            not {"seed_source_id", "seed_item_key", "applied_version_id", "support_status"} & cols
+        )
+        assert con.execute("SELECT kind FROM schedules WHERE id = ?", ("1" * 32,)).fetchone() == (
+            "user_autopilot",
+        )
+    finally:
+        con.close()
+
+
+def _legacy_catalog_value() -> dict:
+    return {
+        "catalogs": [
+            {
+                "id": "legacy-one",
+                "name": "Legacy One",
+                "license": "CC-BY-4.0",
+                "updatedAt": "2026-11-20T00:00:00Z",
+                "revision": 1,
+                "presets": [
+                    {
+                        "slug": "acme",
+                        "name": "Acme",
+                        "connectorKey": "recruitee",
+                        "provider": "Recruitee",
+                        "category": "ats",
+                        "config": {"company": "acme"},
+                        "country": "GR",
+                        "openings": 3,
+                        "verifiedAt": "2026-11-20",
+                    }
+                ],
+                "providers": [
+                    {
+                        "id": "recruitee-offers",
+                        "connectorKey": "recruitee",
+                        "label": "Recruitee offers",
+                        "urlTemplate": "https://acme.recruitee.com/api/offers/",
+                        "countries": ["GR"],
+                        "docsUrl": "https://docs.recruitee.com/",
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def test_0019_folds_legacy_catalogs_on_sqlite(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+    import uuid
+
+    from app.core.config import settings
+
+    path = tmp_path / "legacy-catalogs.db"
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0018")
+    value = _legacy_catalog_value()
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO app_settings (id, key, value, description, created_at, updated_at) "
+        "VALUES (?, 'posting.sources.catalogs', ?, 'legacy', "
+        "'2026-11-20 00:00:00', '2026-11-20 00:00:00')",
+        (uuid.uuid4().hex, json.dumps(value)),
+    )
+    con.commit()
+    con.close()
+
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        source = con.execute(
+            "SELECT kind, priority, enabled, current_version_id FROM seed_sources "
+            "WHERE uri = 'migrated://legacy-one'"
+        ).fetchone()
+        assert source is not None
+        assert source[0] == "file" and source[1] == 90 and source[2] == 1
+        assert source[3] is not None
+        version = con.execute(
+            "SELECT status, pack_version, manifest FROM seed_source_versions"
+        ).fetchone()
+        assert version[0] == "approved" and version[1] == "0.0.1"
+        manifest = json.loads(version[2])
+        assert manifest["id"] == "legacy-legacy-one"
+        assert len(manifest["item_files"]) == 2
+        preset = con.execute(
+            "SELECT seed_key, enabled, state, country FROM job_source_presets"
+        ).fetchone()
+        assert preset == ("ats-preset:acme", 1, "active", "GR")
+        endpoint = con.execute("SELECT seed_key, server, path FROM provider_endpoints").fetchone()
+        assert endpoint == (
+            "endpoint:recruitee-offers",
+            "https://acme.recruitee.com",
+            "/api/offers/",
+        )
+        assert con.execute("SELECT count(*) FROM seed_item_provenance").fetchone()[0] == 2
+        keys = {row[0] for row in con.execute("SELECT key FROM migration_archive").fetchall()}
+        assert "posting.sources.catalogs" in keys
+        assert "legacy-catalog:legacy-one" in keys
+        assert any(key.startswith("seed-pack:") for key in keys)
+        assert (
+            con.execute(
+                "SELECT count(*) FROM app_settings WHERE key = 'posting.sources.catalogs'"
+            ).fetchone()[0]
+            == 0
+        )
+    finally:
+        con.close()
+
+    command.downgrade(config, "0018")
+    con = sqlite3.connect(path)
+    try:
+        raw = con.execute(
+            "SELECT value, description FROM app_settings WHERE key = 'posting.sources.catalogs'"
+        ).fetchone()
+        assert raw is not None and raw[1] == "legacy"
+        assert json.loads(raw[0]) == value
+        assert con.execute("SELECT count(*) FROM seed_sources").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM job_source_presets").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM provider_endpoints").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM migration_archive").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+def test_0019_quarantines_an_invalid_catalog_on_sqlite(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+    import uuid
+
+    from app.core.config import settings
+
+    path = tmp_path / "legacy-invalid.db"
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0018")
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO app_settings (id, key, value, description, created_at, updated_at) "
+        "VALUES (?, 'posting.sources.catalogs', ?, NULL, "
+        "'2026-11-20 00:00:00', '2026-11-20 00:00:00')",
+        (
+            uuid.uuid4().hex,
+            json.dumps({"catalogs": [{"id": "broken", "presets": [{"slug": "Bad Slug"}]}]}),
+        ),
+    )
+    con.commit()
+    con.close()
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        source = con.execute(
+            "SELECT enabled FROM seed_sources WHERE uri = 'migrated://broken'"
+        ).fetchone()
+        assert source == (0,)
+        status = con.execute("SELECT status, reason FROM seed_source_versions").fetchone()
+        assert status[0] == "rejected" and "InvalidCatalog" in status[1]
+        assert con.execute("SELECT count(*) FROM job_source_presets").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+async def _seed_legacy_setting_pg(url: str, value: dict) -> None:
+    import uuid
+
+    import sqlalchemy as sa
+    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    table = sa.table(
+        "app_settings",
+        sa.column("id", sa.Uuid()),
+        sa.column("key", sa.String()),
+        sa.column("value", JSONB),
+        sa.column("description", sa.String()),
+    )
+    engine = create_async_engine(url)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                table.insert().values(
+                    id=uuid.uuid4(),
+                    key="posting.sources.catalogs",
+                    value=value,
+                    description="legacy",
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _assert_0019_pg(url: str) -> None:
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as conn:
+            source = (
+                await conn.execute(
+                    sa.text(
+                        "SELECT kind, priority, enabled, current_version_id FROM seed_sources "
+                        "WHERE uri = 'migrated://legacy-one'"
+                    )
+                )
+            ).first()
+            assert source is not None
+            assert (source[0], source[1], source[2]) == ("file", 90, True)
+            assert source[3] is not None
+            version = (
+                await conn.execute(sa.text("SELECT status, pack_version FROM seed_source_versions"))
+            ).first()
+            assert version == ("approved", "0.0.1")
+            preset = (
+                await conn.execute(
+                    sa.text("SELECT seed_key, enabled, state, country FROM job_source_presets")
+                )
+            ).first()
+            assert preset == ("ats-preset:acme", True, "active", "GR")
+            endpoint = (
+                await conn.execute(sa.text("SELECT seed_key, server, path FROM provider_endpoints"))
+            ).first()
+            assert endpoint[0] == "endpoint:recruitee-offers"
+            assert endpoint[1] == "https://acme.recruitee.com"
+    finally:
+        await engine.dispose()
+
+
+async def _assert_0019_restored_pg(url: str, expected: dict) -> None:
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as conn:
+            row = (
+                await conn.execute(
+                    sa.text(
+                        "SELECT value, description FROM app_settings "
+                        "WHERE key = 'posting.sources.catalogs'"
+                    )
+                )
+            ).first()
+            assert row is not None and row[1] == "legacy"
+            assert row[0] == expected
+            count = (await conn.execute(sa.text("SELECT count(*) FROM seed_sources"))).scalar_one()
+            assert count == 0
+    finally:
+        await engine.dispose()
+
+
+def test_0019_folds_legacy_catalogs_on_postgres(tmp_path, monkeypatch):
+    import asyncio
+
+    import pytest
+    from sqlalchemy.engine import make_url
+
+    from app.core.config import settings
+
+    base = make_url(settings.database_url)
+    if base.get_backend_name() != "postgresql":
+        pytest.skip("postgres lane only")
+    name = f"career_mig0019_{uuid_seed()}"
+    admin = base.set(database="postgres").render_as_string(hide_password=False)
+    temp = base.set(database=name).render_as_string(hide_password=False)
+    value = _legacy_catalog_value()
+    asyncio.run(_pg_admin(admin, f'CREATE DATABASE "{name}"'))
+    try:
+        monkeypatch.setenv("CAREER_DATABASE_URL", temp)
+        monkeypatch.setattr(settings, "database_url", temp, raising=False)
+        config = _configured()
+        command.upgrade(config, "0018")
+        asyncio.run(_seed_legacy_setting_pg(temp, value))
+        command.upgrade(config, "head")
+        asyncio.run(_assert_0019_pg(temp))
+        command.downgrade(config, "0018")
+        asyncio.run(_assert_0019_restored_pg(temp, value))
+    finally:
+        asyncio.run(_pg_drop(admin, name))

@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "item_type": "endpoint_descriptors",
+    "format": "endpoint_descriptors",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-24",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection — public remote board APIs"
+  },
+  "items": [
+    {
+      "seed_key": "endpoint:arbeitnow-job-board",
+      "label": "Arbeitnow job board API",
+      "connector_key": "arbeitnow",
+      "platform": "Remote board",
+      "server": "https://www.arbeitnow.com",
+      "method": "GET",
+      "path": "/api/job-board-api",
+      "auth": "none",
+      "params": [],
+      "docs_url": "https://www.arbeitnow.com/api/job-board-api",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "seed_key": "endpoint:jobicy-remote-jobs",
+      "label": "Jobicy remote jobs API",
+      "connector_key": "jobicy",
+      "platform": "Remote board",
+      "server": "https://jobicy.com",
+      "method": "GET",
+      "path": "/api/v2/remote-jobs",
+      "auth": "none",
+      "params": [
+        {
+          "name": "count",
+          "required": false,
+          "type": "number"
+        },
+        {
+          "name": "tag",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "docs_url": "https://jobicy.com/api/v2/remote-jobs",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "seed_key": "endpoint:remotive-feed",
+      "label": "Remotive RSS feed",
+      "connector_key": "remotive",
+      "platform": "Remote board",
+      "server": "https://remotive.com",
+      "method": "GET",
+      "path": "/remote-jobs/feed",
+      "auth": "none",
+      "params": [],
+      "docs_url": "https://remotive.com/remote-jobs/feed",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ]
+    }
+  ]
+}

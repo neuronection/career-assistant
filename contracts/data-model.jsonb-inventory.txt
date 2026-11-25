@@ -43,3 +43,22 @@ interview_stories.competency_keys :: typed-out list[str] competency tags
 interview_stories.evidence_refs :: typed-out list[{source,item_id,label}] evidence refs
 job_postings.trust_flags :: typed-out dict {duplicate_candidate: list[{posting_id,ref,title,org,score,reason}], duplicate_suppressed: list[canonical_id]}
 contacts.tags :: typed-out list[str] free tags
+seed_sources.policy :: keep-open provider policy overrides (fetch cadence, allowlists) — plan 218
+seed_source_versions.manifest :: keep-open verbatim pack manifest (digests, item files) for approval/apply
+seed_import_runs.plan :: keep-open planner diff document (create/update/noop/conflict/retire)
+seed_import_runs.stats :: keep-open per-run counters (items by action, duration)
+seed_import_run_items.detail :: keep-open per-item decision/conflict payload
+seed_deferred_refs.payload :: keep-open unresolved reference payload (retried)
+job_source_presets.countries :: typed-out list[ISO alpha-2] country lens set (defaults to [country])
+job_source_presets.regions :: typed-out list[str] uppercase market codes
+job_source_presets.languages :: typed-out list[ISO 639-1] language tags
+job_source_presets.work_modes :: typed-out list[remote|hybrid|onsite]
+job_source_presets.config :: keep-open connector config validated against the connector config_model
+provider_endpoints.params :: keep-open ordered endpoint parameter descriptors (name/required/location)
+provider_endpoints.countries :: typed-out list[ISO alpha-2] endpoint country lens
+provider_endpoints.regions :: typed-out list[str] endpoint market codes
+provider_endpoints.languages :: typed-out list[ISO 639-1] endpoint language tags
+provider_subscriptions.collections :: typed-out list[str] followed pack collection keys
+provider_subscriptions.filters :: keep-open user visibility filter document
+source_prefs.filters :: keep-open user overlay filter document (visibility narrows, no source creation)
+migration_archive.old_value :: keep-open exact pre-fold value blob (data-migration rollback evidence)

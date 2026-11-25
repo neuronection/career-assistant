@@ -669,6 +669,7 @@ sqlite = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "jsonschema" },
     { name = "mypy" },
     { name = "pyinstaller" },
     { name = "pytest" },
@@ -734,6 +735,7 @@ provides-extras = ["desktop", "object-storage-azure", "object-storage-s3", "otel
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pyinstaller", specifier = ">=6.0" },
     { name = "pytest", specifier = ">=9.0" },

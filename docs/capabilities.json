@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-23",
+  "updated": "2026-11-25",
   "capabilities": [
     {
       "id": "update-checks",
@@ -868,6 +868,32 @@
         "desktop"
       ],
       "order": 70
+    },
+    {
+      "id": "source-providers",
+      "verb": "Keep job sources fresh from versioned data packs",
+      "summary": "Admins add public seed repositories, index URLs or uploaded packs. Every version is digest-pinned and reviewed before it touches the catalog; retirement keeps existing sources.",
+      "category": "integrate",
+      "status": "shipped",
+      "proofs": [
+        "Exact-digest approval; sync never applies and a remote pack never auto-enables",
+        "Priority-aware plan preview with typed equal-priority conflicts; one transaction per apply",
+        "Bundled baseline pack (20 presets) plus the official pinned repository tile",
+        "Provenance per catalog row; retirement marks sources unsupported, never deletes them",
+            "User follow/hide: a hidden source is denied across Explore, radar, digests, RSS and chat"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/data-providers"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 74
     }
   ],
   "useCases": [

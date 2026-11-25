@@ -50,6 +50,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_RETRIEVAL_ALERTS.value: (BackgroundJobType.RETRIEVAL_ALERT_SWEEP.value),
     ScheduleKind.SYSTEM_MAPPING_COVERAGE.value: (BackgroundJobType.MAPPING_COVERAGE_CAPTURE.value),
     ScheduleKind.SYSTEM_MAPPING_ALERTS.value: (BackgroundJobType.MAPPING_ALERT_SWEEP.value),
+    ScheduleKind.SYSTEM_PROVIDER_SYNC.value: BackgroundJobType.PROVIDER_SYNC.value,
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
     ScheduleKind.USER_SMART_DIGEST.value: BackgroundJobType.SMART_DIGEST.value,
@@ -209,6 +210,16 @@ class SchedulerService:
                 },
                 {},
                 MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_PROVIDER_SYNC,
+                BackgroundJobType.PROVIDER_SYNC.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60, "jitter_minutes": 10},
+                },
+                {},
+                MisfirePolicy.ASAP.value,
             ),
         ]
         for kind, task, trigger, payload, misfire in defaults:

@@ -7,6 +7,12 @@ import type { PostingSource } from "@/api/sources";
 import * as sourcesApi from "@/api/sources";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 
+vi.mock("@/api/providers", () => ({
+  listAdminProviders: vi.fn().mockResolvedValue([]),
+  listUserProviders: vi.fn().mockResolvedValue([]),
+  fetchUserProvider: vi.fn(),
+}));
+
 // plan 33 Phase B: the sources surface renders through the family kit
 // (IntegrationSourcesList + AddIntegrationSourceDialog + ConsentDialog) —
 // these tests pin the app glue: api mapping, the VERBATIM consent payload

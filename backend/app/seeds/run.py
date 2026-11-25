@@ -522,6 +522,28 @@ NOTIFICATION_KINDS = [
         "mutable": False,
         "manage_url": "/settings/notifications",
     },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8021",
+        "key": "provider_update_available",
+        "label": "A data provider published a new version",
+        "group": "system",
+        "severity": "info",
+        "default_enabled": True,
+        "default_channels": ["in_app"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=sources",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8022",
+        "key": "provider_sync_failed",
+        "label": "A data provider sync failed",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app"],
+        "mutable": False,
+        "manage_url": "/settings/tools?section=sources",
+    },
 ]
 
 
@@ -567,6 +589,16 @@ async def run() -> None:
         logger.info("cv: +%d bank templates", t)
         k = await seed_notification_kinds(db)
         logger.info("notifications: +%d kinds", k)
+        from app.services.seeds.boot import ensure_seed_providers
+
+        providers = await ensure_seed_providers(db)
+        official = providers["official"]
+        logger.info(
+            "providers: bundled=%s official=%d (%s)",
+            providers["bundled"].get("status"),
+            len(official),
+            ", ".join(entry["subpath"] for entry in official),
+        )
         from app.seeds.metrics import (
             seed_metric_dimensions,
             seed_metric_templates,

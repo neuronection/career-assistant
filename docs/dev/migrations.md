@@ -108,7 +108,15 @@ result is now folded into the baseline; the lesson stays.
 Both revisions are covered by fresh SQLite and temp-Postgres round-trip/data
 tests; the head literals live in `test_migrations.py` and `test_autopilot.py`.
 
-## Later revisions (`0004`–`0012`, head `0012`)
+The current head is **`0019`**. Recent additions: `0018` is the seed-provider
+schema (sources, versions, runs, presets/endpoints, subscriptions/prefs,
+provenance, deferred refs, migration archive; `job_sources` provenance columns;
+widened schedule vocabulary), and `0019` folds the legacy stored
+catalogs into approved `file` providers at priority 90 (the exact v1 blob and
+the synthesized pack files are archived; invalid catalogs are quarantined and
+the upgrade never aborts). The historical list below starts at `0004`.
+
+## Later revisions (`0004`–`0012`, historical; head `0019`)
 
 - `0004_ai_cost_provenance` — call-time cost columns on `ai_generations`
   (cost, usage/price provenance, estimate method) and the new

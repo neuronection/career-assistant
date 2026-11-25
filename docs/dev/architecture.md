@@ -359,6 +359,81 @@ There is no side door around it.
   registers the email/webhook dispatchers without a schema change.
   SMS is a stated non-goal; nothing reserves a slot for it.
 
+## Seed providers and the pack lane
+
+- **A provider publishes data packs, never code.** `seed_sources` describes
+  where a pack comes from (`bundled`, `file`, `registry` index, public `git`),
+  and `seed_source_versions` holds each fetched pack as an immutable,
+  content-addressed version. Sync stores and registers `pending`; an admin
+  approves the exact digest; only then does the planner apply it. No pack
+  content is imported or executed.
+- **The parser is pure and authoritative.** `app/core/seed_pack/` validates
+  the manifest, item envelopes, identity grammar (`<type>:<body>`),
+  connector keys/configs, endpoint domains, caps and digests. The pack
+  digest is `sha256(canonical manifest, then \0path\0bytes per item file)`;
+  it reproduces the published `seed-repo.json` digests exactly. The repo's
+  `scripts/validate.mjs` catches contract shape; the app parser remains the
+  authority.
+- **Archives are read into memory, never extracted.** The pack-only zip
+  extractor allows exactly `manifest.json` + `items/**.json`, refuses
+  traversal/symlinks/encryption/duplicates and caps entries, bytes and
+  compression ratio. Uploaded packs never reach `extractall` or the
+  extension importer.
+- **Bytes live in the object store.** `SeedPackStore` writes
+  `seed-packs/<source_id>/<pack-digest>.zip` through the family storage seam
+  and re-extracts/re-hashes on every read/write (`DIGEST_DRIFT`).
+- **Fetch is out-of-band and never applies.** `ProviderSyncService`
+  dispatches by source kind: public `git` (anonymous HTTPS, pinned ref,
+  shallow checkout in a temp dir, discarded), `registry` (guarded
+  `seed-repo.json` fetch with ETag/304 and per-file sha256), `file`
+  (admin upload through the pack-only extractor) and `bundled` (local,
+  auto-approved). Each source sync holds `provider_sync:<id>` on its
+  `background_jobs` row, records a `seed_sync_runs` row, and registers a
+  `pending` version idempotently on `(source_id, digest)`. The 60-minute
+  scheduler tick sweeps only providers whose refresh is due. Audit rows ride
+  `provider.*`; admins get `provider_update_available` /
+  `provider_sync_failed` notifications through the one funnel.
+- **Approval and apply are separate.** `SeedApplyService` moves a version
+  `pending → approved/rejected` and `approved → revoked`; only an approved
+  version applies. Approve/reject act on the exact digest; revoking the
+  applied version restores the previous approved version (or drops the
+  pointer) and replans the source set.
+- **The planner diffs the whole source set.** Winners are recomputed from
+  enabled approved versions by priority (higher wins); equal priority with
+  different content is a typed conflict that refuses the whole apply and
+  writes nothing. The diff is `create/update/noop/override/retire` per
+  `seed_key`; `user_modified` rows surface as `override` until explicit
+  adoption. Applies are serialized by the global `provider_apply` lock, run
+  in one transaction, and keep `current_version_id` unchanged on failure.
+- **Provenance is a projection.** `seed_item_provenance` records the winning
+  version and content hash per entity; the preset/endpoint `state` remains
+  the one liveness authority. Retirement flips `state` and a referencing
+  `job_sources.support_status` — rows are never deleted.
+- **Boot provisions three providers.** The bundled pack
+  (`backend/app/data/seed_packs/bundled/`, 20 presets at priority 0) is
+  auto-approved and applied only when its digest changes; its presets are
+  enabled by default. The official repository is registered as one disabled
+  tile per pack, read from the shipped snapshot
+  `backend/app/data/seed_packs/official/index.json` (pinned ref and publisher
+  in the same file): today `packs/neuronection/greece-ats` and
+  `packs/neuronection/remote-boards`, both priority 100. Startup never
+  fetches, so `backend/scripts/sync_official_index.py` regenerates that
+  snapshot when the pin moves or a pack is added — a data change, not a code
+  change. One provider owns exactly one pack (a version is one pack digest);
+  `POST /admin/providers/import` adds every pack of any repository at
+  runtime. Checking/enabling a tile stays an explicit admin act, and all
+  provisioning is idempotent in `app/seeds/run.py`
+  (`ensure_seed_providers`).
+- **The legacy catalog imports fold into the lane.** `0019` synthesizes one
+  approved `file` provider per stored catalog at priority 90, writes the
+  preset/endpoint rows and provenance directly, and archives the exact v1
+  blob plus the pack files (`migration_archive`). Invalid catalogs are
+  quarantined as `rejected`; the upgrade never aborts. Downgrade restores
+  the original setting.
+- **Authoring is deterministic.** `backend/scripts/seed_pack.py
+  check|pack|export` runs the same parser; export sorts item keys and
+  refreshes manifest digests, and its round-trip is byte-identical.
+
 ## Deep extraction pipeline (extraction v6)
 
 - **Two speeds, one queue.** The sync path's fast alias/keyword mapping

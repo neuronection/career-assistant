@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "kind": "career-seed-repo",
+  "publisher": {
+    "id": "neuronection",
+    "name": "Neuronection",
+    "homepage": "https://neuronection.com",
+    "contact": "seeds@neuronection.com"
+  },
+  "packs": [
+    {
+      "id": "neuronection-greece-ats",
+      "path": "packs/neuronection/greece-ats",
+      "manifest": "packs/neuronection/greece-ats/manifest.json",
+      "itemTypes": [
+        "ats_presets",
+        "endpoint_descriptors"
+      ],
+      "license": "CC-BY-4.0",
+      "version": "1.2.0",
+      "digest": "sha256:a54b18393ede024edf63391edf3725a80d9fbc09546b7a6d03c8947988156638",
+      "signature": null
+    },
+    {
+      "id": "neuronection-remote-boards",
+      "path": "packs/neuronection/remote-boards",
+      "manifest": "packs/neuronection/remote-boards/manifest.json",
+      "itemTypes": [
+        "ats_presets",
+        "endpoint_descriptors"
+      ],
+      "license": "CC-BY-4.0",
+      "version": "1.0.1",
+      "digest": "sha256:aba6d74e59b6b4f74cc1a3aad2fe446fcb9c04bc35837d52ea7b66e58430ed8e",
+      "signature": null
+    }
+  ]
+}

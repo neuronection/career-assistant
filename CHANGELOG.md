@@ -4,11 +4,51 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Data providers — versioned seed packs, with review before apply.** Tools →
+  Sources → Data providers now manages where job-source presets and endpoint
+  hints come from: the 20 bundled presets, the official Neuronection
+  repository (Greece ATS and worldwide remote boards, each as its own
+  provider), any public Git repository or index — one provider per pack, with
+  a one-step repository import that discovers every pack — or
+  an uploaded pack. Each fetched pack is an immutable, content-addressed
+  version; you preview its plan, approve the exact digest, then apply it.
+  Equal-priority providers that disagree are refused as a whole, retirement
+  keeps sources you already created, and per-item switches decide what the
+  preset gallery offers. On `/radar`, follow or unfollow providers, narrow
+  to selected providers and hide individual sources — a hidden source stays
+  out of Explore, radar, digests, saved-search runs, RSS and chat. A migrated legacy catalog lands as an approved
+  provider at priority 90, and the old `/admin/postings/sources/catalogs`
+  import surface is retired.
+
 ### Fixed
 
+- **A lost pack archive no longer breaks a provider preview.** If a stored
+  pack archive is missing (a restored database, a moved profile or a
+  restored backup), syncing the provider again re-stores the archive for the
+  same digest instead of reporting a no-op, and the plan preview returns the
+  typed reason instead of a server error. In desktop dev the seed bootstrap
+  and the API server now share the profile's object store, so archives are
+  no longer written into two different roots.
 - **The Add source dialog keeps its size** while you switch the
   All / ATS / remote filters: the pack grid now scrolls inside a stable
   area instead of resizing the popup on every tab change.
+
+### Internal
+
+- **Data-provider foundation.** The schema, parser, content-addressed pack
+  store, pack-only archive extractor and authoring CLI for admin-managed
+  seed providers landed, plus the sync lane (public HTTPS git and static
+  `seed-repo.json` index transports, per-source locks, immutable pending
+  versions with a run ledger and admin notifications) and the
+  approval/apply lane (approve/reject/revoke, a priority-aware planner with
+  typed conflicts, one-transaction applies, retirement and provenance).
+  The admin provider API (CRUD, discovery, sync/upload, versions,
+  plan/apply, items) and the signed-in read view are available; the
+  legacy admin imports fold into approved providers at priority 90, and
+  boot provisions the bundled pack (20 presets) plus the disabled official
+  git tile. No user-facing screen uses them yet.
 
 ## [v0.20.0] - 2026-11-24
 

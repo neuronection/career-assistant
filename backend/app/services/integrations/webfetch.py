@@ -354,6 +354,28 @@ async def search_web(url: str | None, query: str, n: int) -> dict:
     return {"available": True, "results": hits}
 
 
+async def fetch_bytes(
+    url: str, *, headers: dict | None = None, max_bytes: int = 2_000_000
+) -> tuple[int, dict[str, str], bytes, str]:
+    """Guarded GET returning status, headers, capped body and the final URL.
+
+    The SSRF guard and pinned resolution are the same as every other web
+    fetch; a body over ``max_bytes`` is refused rather than truncated, so a
+    caller that needs fidelity (a seed index or pack file) never sees a
+    partial document.
+    """
+    resp, final_url = await _guarded_get(url, headers=headers, stream=True)
+    try:
+        raw = bytearray()
+        async for chunk in resp.aiter_bytes():
+            raw += chunk
+            if len(raw) > max_bytes:
+                raise WebFetchBlocked(f"response exceeds {max_bytes} bytes")
+        return resp.status_code, dict(resp.headers), bytes(raw), final_url
+    finally:
+        await resp.aclose()
+
+
 async def fetch_html(url: str, *, max_bytes: int = 2_000_000) -> tuple[str, str]:
     """Fetch a page through the same SSRF-guarded path and return HTML.
 

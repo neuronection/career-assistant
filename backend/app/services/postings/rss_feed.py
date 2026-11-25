@@ -117,10 +117,14 @@ async def page(
     now: datetime | None = None,
 ) -> list[JobPosting]:
     """One keyset page of new postings for the token's scope."""
+    from app.services.seeds.visibility import load_visibility
+
     filters, _title = await _scope_filters(db, user_id, scope)
+    visibility = await load_visibility(db, user_id)
     stmt = select(JobPosting).where(
         JobPosting.status == "mapped",
         JobPosting.catalog_job_id.is_not(None),
+        *visibility.posting_conditions(),
     )
     clauses = matching_filters(filters, now=now)
     if clauses:

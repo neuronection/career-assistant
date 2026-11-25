@@ -26,6 +26,8 @@ in the `HANDLERS` map:
 | `retrieval_alert_sweep` | Evaluate the ten retrieval-operations alert thresholds through the notification funnel |
 | `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass; the single-posting form also writes the job-type proposal. The admin Runs action sets `redecide_scope: stale|all` to re-decide `skill_overlap` rows too; the no-scope path stays semantic-only |
 | `mapping_coverage_capture` / `mapping_alert_sweep` | The mapping console's daily snapshot capture (90-day retention, pruned on capture) and the admin alert evaluation through the notification funnel; schedule kinds `system_mapping_coverage` / `system_mapping_alerts` |
+| `provider_sync` | Fetch one seed provider (`payload.source_id`) or sweep every due provider; stores an immutable pending version, records the run ledger and notifies admins. It never approves, applies or enables; the per-source lock is `provider_sync:<id>` |
+| `provider_apply` | Apply one approved seed version through the planner/applier under the global `provider_apply` lock; a crash-recovered apply re-runs idempotently |
 | `data_export` | Exports |
 
 The skill-relation learn job is the one handler that lives in the catalog —
@@ -236,8 +238,12 @@ params)` — always timezone-aware and UTC-normalized.
 `retrieval_alert_sweep`), `system_mapping_coverage` /
 `system_mapping_alerts` (the mapping console's daily coverage
 capture at 02:45 UTC and alert sweep at 02:50 UTC; both boot-provisioned
-by `ensure_system_schedules`, the CHECKs widened in `0100_mapping_ops`), `user_saved_search`, `user_radar_digest`,
-`user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
+by `ensure_system_schedules`, the CHECKs widened in `0100_mapping_ops`),
+`system_provider_sync` (every 60 minutes ±10 jitter; enqueues the
+`provider_sync` sweep, which only queues providers whose
+`last_check_at + refresh_minutes` is due), `user_saved_search`,
+`user_radar_digest`, `user_checkin`, `user_autopilot`. `runner.py` maps each
+kind to a job type;
 `system_demand_import` enqueues `demand_import`, which walks enabled
 `job_sources` rows of kind `market` and writes salary/outlook observations
 into `market_snapshots` and `jobs.demand` (field-level provenance).

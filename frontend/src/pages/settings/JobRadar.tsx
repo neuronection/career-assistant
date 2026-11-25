@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Globe, Play, Plus, Radar, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Database, Globe, Play, Plus, Radar, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Badge, ChipInput, Combobox, EmptyState, Input, SwitchRow } from "@neuronection/assistant-ui";
 import { COUNTRIES } from "@neuronection/assistant-ui/countries";
 import {
@@ -12,6 +12,17 @@ import {
   type RadarLocationInput,
 } from "@/api/radar";
 import { fetchUserSources } from "@/api/sources";
+import {
+  deleteProviderSubscription,
+  listProviderSubscriptions,
+  listSourcePrefs,
+  listUserProviders,
+  putProviderSubscription,
+  putSourcePref,
+  type ProviderSubscription,
+  type SourcePref,
+  type UserProvider,
+} from "@/api/providers";
 import {
   fetchMySchedules,
   runMyScheduleNow,
@@ -45,6 +56,7 @@ interface RadarDraft {
 }
 
 interface UserSourceRow {
+  id: string;
   key: string;
   connector_key: string;
   open_postings: number;
@@ -126,6 +138,10 @@ export function JobRadarSettings() {
   const [schedule, setSchedule] = useState<RadarScheduleFacts | null>(null);
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [sources, setSources] = useState<UserSourceRow[]>([]);
+  const [providers, setProviders] = useState<UserProvider[]>([]);
+  const [subscriptions, setSubscriptions] = useState<ProviderSubscription[]>([]);
+  const [sourcePrefs, setSourcePrefs] = useState<SourcePref[]>([]);
+  const [prefsBusy, setPrefsBusy] = useState<string | null>(null);
   const [updated_at, setUpdatedAt] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<RadarDraft | null>(null);
 
@@ -172,6 +188,17 @@ export function JobRadarSettings() {
     void fetchUserSources()
       .then(setSources)
       .catch(() => setSources([]));
+    void Promise.all([
+      listUserProviders(),
+      listProviderSubscriptions(),
+      listSourcePrefs(),
+    ])
+      .then(([nextProviders, nextSubscriptions, nextPrefs]) => {
+        setProviders(nextProviders);
+        setSubscriptions(nextSubscriptions);
+        setSourcePrefs(nextPrefs);
+      })
+      .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -228,6 +255,78 @@ export function JobRadarSettings() {
     }
   };
 
+  const subscriptionFor = (providerId: string) =>
+    subscriptions.find((row) => row.provider_id === providerId);
+  const hiddenFor = (sourceId: string) =>
+    sourcePrefs.find((row) => row.source_id === sourceId)?.hidden ?? false;
+
+  const followProvider = async (providerId: string, enabled: boolean) => {
+    setPrefsBusy(providerId);
+    try {
+      if (!enabled) {
+        await deleteProviderSubscription(providerId);
+        setSubscriptions((current) =>
+          current.filter((row) => row.provider_id !== providerId),
+        );
+      } else {
+        const previous = subscriptionFor(providerId);
+        const row = await putProviderSubscription(providerId, {
+          enabled: true,
+          mode: previous?.mode ?? "all",
+          collections: previous?.collections ?? [],
+          filters: previous?.filters ?? {},
+        });
+        setSubscriptions((current) => [
+          ...current.filter((entry) => entry.provider_id !== providerId),
+          row,
+        ]);
+      }
+    } catch (err) {
+      setLoadError(apiDetail(err));
+    } finally {
+      setPrefsBusy(null);
+    }
+  };
+
+  const setProviderMode = async (providerId: string, mode: "all" | "selected") => {
+    setPrefsBusy(providerId);
+    try {
+      const row = await putProviderSubscription(providerId, {
+        enabled: true,
+        mode,
+        collections: [],
+        filters: {},
+      });
+      setSubscriptions((current) => [
+        ...current.filter((entry) => entry.provider_id !== providerId),
+        row,
+      ]);
+    } catch (err) {
+      setLoadError(apiDetail(err));
+    } finally {
+      setPrefsBusy(null);
+    }
+  };
+
+  const setSourceHidden = async (sourceId: string, hidden: boolean) => {
+    setPrefsBusy(sourceId);
+    try {
+      const row = await putSourcePref(sourceId, {
+        hidden,
+        priority: 100,
+        filters: {},
+      });
+      setSourcePrefs((current) => [
+        ...current.filter((entry) => entry.source_id !== sourceId),
+        row,
+      ]);
+    } catch (err) {
+      setLoadError(apiDetail(err));
+    } finally {
+      setPrefsBusy(null);
+    }
+  };
+
   const cadenceActive = draft.draft.enabled && draft.draft.cadence !== "off";
   const radarOn = draft.draft.enabled;
 
@@ -255,6 +354,9 @@ export function JobRadarSettings() {
       { id: "s-filters", label: t("jobRadar.filtersHeading") },
       ...(sources.length > 0
         ? [{ id: "s-sources", label: t("jobRadar.sourcesTitle") }]
+        : []),
+      ...(providers.length > 0 || sources.length > 0
+        ? [{ id: "s-providers", label: t("jobRadar.providersTitle") }]
         : []),
       { id: "s-preview", label: t("jobRadar.previewTitle", { count: preview?.total ?? 0 }) },
     ],
@@ -598,6 +700,112 @@ export function JobRadarSettings() {
             />
             <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
               {t("jobRadar.sourcesHintAll")}
+            </p>
+          </SettingsSectionCard>
+        </section>
+      ) : null}
+
+      {providers.length > 0 || sources.length > 0 ? (
+        <section id="s-providers" className="mt-4 scroll-mt-4">
+          <SettingsSectionCard
+            name="providers"
+            title={t("jobRadar.providersTitle")}
+            description={t("jobRadar.providersHint")}
+            icon={Database}
+          >
+            {providers.length > 0 ? (
+              <div className="space-y-2" data-testid="radar-providers">
+                {providers.map((provider) => {
+                  const subscription = subscriptionFor(provider.id);
+                  const followed = subscription?.enabled ?? true;
+                  return (
+                    <div
+                      key={provider.id}
+                      className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+                      data-testid={`radar-provider-${provider.id}`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-[var(--as-fg)]">
+                            {provider.name}
+                          </p>
+                          <p className="text-[11px] text-[var(--as-muted-fg)]">
+                            {t("jobRadar.providerMeta", {
+                              trust: provider.trust_tier,
+                              version: provider.pack_version || "—",
+                              count: provider.item_count,
+                            })}
+                          </p>
+                        </div>
+                        <SwitchRow
+                          label={`${t("jobRadar.follow")} ${provider.name}`}
+                          hideLabel
+                          checked={followed}
+                          disabled={prefsBusy === provider.id}
+                          onCheckedChange={(checked) =>
+                            void followProvider(provider.id, checked)
+                          }
+                          data-testid={`radar-follow-${provider.id}`}
+                        />
+                      </div>
+                      {followed ? (
+                        <label className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--as-muted-fg)]">
+                          {t("jobRadar.providerMode")}
+                          <select
+                            className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-xs text-[var(--as-fg)]"
+                            value={subscription?.mode ?? "all"}
+                            disabled={prefsBusy === provider.id}
+                            onChange={(event) =>
+                              void setProviderMode(
+                                provider.id,
+                                event.target.value as "all" | "selected",
+                              )
+                            }
+                            data-testid={`radar-provider-mode-${provider.id}`}
+                          >
+                            <option value="all">{t("jobRadar.modeAll")}</option>
+                            <option value="selected">{t("jobRadar.modeSelected")}</option>
+                          </select>
+                        </label>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("jobRadar.providersEmpty")}
+              </p>
+            )}
+
+            {sources.length > 0 ? (
+              <div className="mt-4" data-testid="radar-hidden-sources">
+                <p className="text-xs font-medium text-[var(--as-fg)]">
+                  {t("jobRadar.hiddenSources")}
+                </p>
+                <p className="mb-2 text-[11px] text-[var(--as-muted-fg)]">
+                  {t("jobRadar.hiddenSourcesHint")}
+                </p>
+                <div className="space-y-1">
+                  {sources.map((source) => (
+                    <SwitchRow
+                      key={source.id}
+                      label={`${t("jobRadar.hiddenSource")} ${source.key}`}
+                      currentValue={source.connector_key}
+                      checked={hiddenFor(source.id)}
+                      disabled={prefsBusy === source.id}
+                      onCheckedChange={(checked) =>
+                        void setSourceHidden(source.id, checked)
+                      }
+                      data-testid={`radar-hide-${source.id}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <p className="mt-3 text-[11px] text-[var(--as-muted-fg)]">
+              {t("jobRadar.precedenceHint")}
             </p>
           </SettingsSectionCard>
         </section>

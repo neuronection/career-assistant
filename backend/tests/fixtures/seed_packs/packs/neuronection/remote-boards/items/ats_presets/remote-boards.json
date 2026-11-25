@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "item_type": "ats_presets",
+    "format": "ats_presets",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-24",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection — public remote job boards"
+  },
+  "items": [
+    {
+      "seed_key": "ats-preset:arbeitnow",
+      "slug": "arbeitnow",
+      "name": "Arbeitnow",
+      "connector_key": "arbeitnow",
+      "platform": "Remote board",
+      "category": "remote",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ],
+      "work_modes": [
+        "remote"
+      ],
+      "homepage": "https://www.arbeitnow.com",
+      "verified_at": "2026-11-02",
+      "config": {}
+    },
+    {
+      "seed_key": "ats-preset:jobicy",
+      "slug": "jobicy",
+      "name": "Jobicy",
+      "connector_key": "jobicy",
+      "platform": "Remote board",
+      "category": "remote",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ],
+      "work_modes": [
+        "remote"
+      ],
+      "homepage": "https://jobicy.com",
+      "verified_at": "2026-11-02",
+      "config": {}
+    },
+    {
+      "seed_key": "ats-preset:remotive",
+      "slug": "remotive",
+      "name": "Remotive",
+      "connector_key": "remotive",
+      "platform": "Remote board",
+      "category": "remote",
+      "worldwide": true,
+      "languages": [
+        "en"
+      ],
+      "work_modes": [
+        "remote"
+      ],
+      "homepage": "https://remotive.com",
+      "verified_at": "2026-11-02",
+      "config": {}
+    }
+  ]
+}

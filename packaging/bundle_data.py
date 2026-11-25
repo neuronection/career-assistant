@@ -13,7 +13,18 @@ from pathlib import Path
 
 BUILTIN_REL = Path("backend") / "app" / "extensions" / "builtin"
 BUILTIN_DEST = "app/extensions/builtin"
+SEED_PACK_REL = Path("backend") / "app" / "data" / "seed_packs"
 DATA_SUFFIXES = (".json", ".md")
+
+
+def seed_pack_root(repo_root: Path) -> Path:
+    """The bundled seed-pack root.
+
+    The spec copies the whole ``backend/app/data`` tree to ``app/data``, so
+    the pack needs no separate entry; this accessor keeps the packaged path a
+    named projection the tests can pin.
+    """
+    return repo_root / SEED_PACK_REL
 
 
 def builtin_data_entries(repo_root: Path) -> list[tuple[str, str]]:

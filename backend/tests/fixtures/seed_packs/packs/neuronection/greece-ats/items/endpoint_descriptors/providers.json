@@ -1,0 +1,186 @@
+{
+  "metadata": {
+    "item_type": "endpoint_descriptors",
+    "format": "endpoint_descriptors",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-23",
+    "license": "CC-BY-4.0",
+    "source": {
+      "url": "https://github.com/neuronection/career-assistant/tree/main/backend/app/extensions/builtin",
+      "retrieved_at": "2026-11-23"
+    },
+    "attribution": "Neuronection — public ATS endpoint documentation"
+  },
+  "items": [
+    {
+      "seed_key": "endpoint:ats-api-ashby",
+      "label": "Ashby job board",
+      "connector_key": "ats_api",
+      "platform": "ashby",
+      "server": "https://api.ashbyhq.com",
+      "method": "GET",
+      "path": "/posting-api/job-board/{org}",
+      "auth": "none",
+      "params": [
+        {
+          "name": "org",
+          "required": true
+        }
+      ],
+      "docs_url": "https://developers.ashbyhq.com/",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:ats-api-greenhouse",
+      "label": "Greenhouse board jobs",
+      "connector_key": "ats_api",
+      "platform": "greenhouse",
+      "server": "https://boards-api.greenhouse.io",
+      "method": "GET",
+      "path": "/v1/boards/{org}/jobs",
+      "auth": "none",
+      "params": [
+        {
+          "name": "org",
+          "required": true
+        }
+      ],
+      "docs_url": "https://developers.greenhouse.io/job-board.html",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:ats-api-lever",
+      "label": "Lever postings",
+      "connector_key": "ats_api",
+      "platform": "lever",
+      "server": "https://api.lever.co",
+      "method": "GET",
+      "path": "/v0/postings/{org}",
+      "auth": "none",
+      "params": [
+        {
+          "name": "org",
+          "required": true
+        },
+        {
+          "name": "mode",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "docs_url": "https://github.com/lever/postings-api",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:join-company-jobs",
+      "label": "JOIN company jobs",
+      "connector_key": "join_com",
+      "platform": "join",
+      "server": "https://join.com",
+      "method": "GET",
+      "path": "/api/public/companies/{company_id}/jobs",
+      "auth": "none",
+      "params": [
+        {
+          "name": "company_id",
+          "required": true
+        }
+      ],
+      "docs_url": "https://join.com/",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:personio-xml",
+      "label": "Personio XML feed",
+      "connector_key": "personio",
+      "platform": "personio",
+      "server": "https://{tenant}.jobs.personio.de",
+      "method": "GET",
+      "path": "/xml",
+      "auth": "none",
+      "params": [
+        {
+          "name": "tenant",
+          "required": true
+        }
+      ],
+      "docs_url": "https://developer.personio.de/",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:recruitee-offers",
+      "label": "Recruitee offers",
+      "connector_key": "recruitee",
+      "platform": "recruitee",
+      "server": "https://{company}.recruitee.com",
+      "method": "GET",
+      "path": "/api/offers/",
+      "auth": "none",
+      "params": [
+        {
+          "name": "company",
+          "required": true
+        }
+      ],
+      "docs_url": "https://docs.recruitee.com/",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:teamtailor-jobs",
+      "label": "Teamtailor jobs JSON Feed",
+      "connector_key": "teamtailor",
+      "platform": "teamtailor",
+      "server": "https://{company}.teamtailor.com",
+      "method": "GET",
+      "path": "/jobs.json",
+      "auth": "none",
+      "params": [
+        {
+          "name": "company",
+          "required": true
+        }
+      ],
+      "docs_url": "https://docs.teamtailor.com/",
+      "countries": [
+        "GR"
+      ]
+    },
+    {
+      "seed_key": "endpoint:workable-account-jobs",
+      "label": "Workable careers widget",
+      "connector_key": "workable",
+      "platform": "workable",
+      "server": "https://apply.workable.com",
+      "method": "GET",
+      "path": "/api/v1/widget/accounts/{account}",
+      "auth": "none",
+      "params": [
+        {
+          "name": "account",
+          "required": true
+        },
+        {
+          "name": "details",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "docs_url": "https://docs.workable.com/",
+      "countries": [
+        "GR"
+      ]
+    }
+  ]
+}

@@ -1358,6 +1358,9 @@ async def explore(
         raise ValidationError("sort=relevance requires the q filter")
 
     filters, conditions = await _compile_parsed_filters(db, filters, user_id)
+    from app.services.seeds.visibility import load_visibility
+
+    conditions.extend((await load_visibility(db, user_id)).posting_conditions())
     saved = bool(filters.get("saved"))
     total = await _count_matches(db, user_id, conditions, saved=saved, basis=basis)
 
@@ -1666,6 +1669,7 @@ async def sources_with_counts(db: AsyncSession) -> list[dict]:
     )
     return [
         {
+            "id": str(source.id),
             "key": source.key,
             "connector_key": source.connector_key,
             "open_postings": counts.get(source.id, 0),

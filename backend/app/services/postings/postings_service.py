@@ -1263,6 +1263,9 @@ async def list_postings(
             (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
     )
+    from app.services.seeds.visibility import load_visibility
+
+    query = query.where(*(await load_visibility(db, user_id)).posting_conditions())
     # Saved keeps postings that closed after they were saved (plan 140);
     # the open feed only lists live rows.
     if saved:

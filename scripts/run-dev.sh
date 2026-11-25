@@ -141,9 +141,13 @@ else
   # honcho re-applies the repo .env OVER our exports in the child env
   # (`e.update(p.env)`) — its CAREER_DATABASE_URL/POSTGRES_*/CAREER_REDIS_URL are the
   # WEB dev values and would silently point the desktop server at
-  # Postgres. Filter them out into a dedicated env file for honcho (-e).
+  # Postgres. Its relative CAREER_UPLOAD_DIR=uploads would likewise split
+  # the object store (`backend/uploads`) from the desktop profile's
+  # `$CAREER_DATA_DIR/uploads` that the seed bootstrap writes, so the
+  # server would lose every stored pack archive. Filter them out into a
+  # dedicated env file for honcho (-e).
   DEV_ENV_FILE=".env.dev-desktop.local"
-  grep -vE '^(CAREER_DATABASE_URL|POSTGRES_[A-Z_]+|CAREER_REDIS_URL)=' .env \
+  grep -vE '^(CAREER_DATABASE_URL|CAREER_UPLOAD_DIR|POSTGRES_[A-Z_]+|CAREER_REDIS_URL)=' .env \
     > "$DEV_ENV_FILE" || true
   dc_info "env file    → $DEV_ENV_FILE (web-only keys filtered out)"
 fi

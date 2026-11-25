@@ -1,0 +1,22 @@
+{
+  "contract": "career-official-seed-index",
+  "schema": 1,
+  "repository": "https://github.com/neuronection/career-assistant-seeds.git",
+  "ref": "v2026.11.25.2",
+  "publisher": {
+    "id": "neuronection",
+    "name": "Neuronection"
+  },
+  "packs": [
+    {
+      "id": "neuronection-greece-ats",
+      "name": "Neuronection official — Greece",
+      "path": "packs/neuronection/greece-ats"
+    },
+    {
+      "id": "neuronection-remote-boards",
+      "name": "Neuronection official — Remote boards",
+      "path": "packs/neuronection/remote-boards"
+    }
+  ]
+}

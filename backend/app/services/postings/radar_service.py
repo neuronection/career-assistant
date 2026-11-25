@@ -320,6 +320,9 @@ async def run_radar_digest(db: AsyncSession, payload: dict) -> dict:
         if dimension == "state":
             continue  # the run itself defines seen-state below
         conditions.extend(_conditions_for(dimension, filters, skill_ids, source_ids, owner_id))
+    from app.services.seeds.visibility import load_visibility
+
+    conditions.extend((await load_visibility(db, owner_id)).posting_conditions())
     query = (
         select(JobPosting, PostingInteraction)
         .outerjoin(

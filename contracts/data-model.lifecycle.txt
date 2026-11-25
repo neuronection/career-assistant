@@ -55,3 +55,17 @@ job_postings :: record
 contacts :: record
 contact_interactions :: record
 ai_price_overrides :: record
+# plan 218: provider definitions, immutable versions and the applied catalog are records;
+# fetches/plans/deferred refs are operational ledgers; user prefs are records.
+seed_sources :: record
+seed_source_versions :: record
+seed_sync_runs :: operational
+seed_import_runs :: operational
+seed_import_run_items :: operational
+seed_item_provenance :: operational
+seed_deferred_refs :: operational
+job_source_presets :: record
+provider_endpoints :: record
+provider_subscriptions :: record
+source_prefs :: record
+migration_archive :: record

@@ -21,6 +21,9 @@ from app.api.v1 import (
     metrics,
     posting_hygiene_admin,
     profiles,
+    provider_prefs,
+    providers,
+    providers_admin,
     retrieval_admin,
     scheduler,
     skill_relation_admin,
@@ -59,6 +62,8 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)
 api_router.include_router(autopilot.router)
 api_router.include_router(me.router)
+api_router.include_router(provider_prefs.router)
+api_router.include_router(providers.router)
 api_router.include_router(stats.router)
 api_router.include_router(applications.router)
 api_router.include_router(me_cv_data.router)
@@ -102,6 +107,7 @@ api_router.include_router(ai_pricing.router)
 api_router.include_router(mcp_admin.router)
 api_router.include_router(posting_hygiene_admin.router)
 api_router.include_router(admin.router)
+api_router.include_router(providers_admin.router)
 api_router.include_router(audit.router)
 api_router.include_router(skill_relation_admin.router)
 api_router.include_router(retrieval_admin.router)

@@ -390,6 +390,35 @@
         "title": "AdmissionOut",
         "type": "object"
       },
+      "AdoptIn": {
+        "additionalProperties": false,
+        "properties": {
+          "seed_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Keys"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id"
+        ],
+        "title": "AdoptIn",
+        "type": "object"
+      },
       "AiSetupPrefsIn": {
         "description": "First-run AI setup step skip state (typed `profiles.preferences` key).",
         "properties": {
@@ -1362,6 +1391,52 @@
         "title": "AppliedIn",
         "type": "object"
       },
+      "ApplyOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ApplyOut",
+        "type": "object"
+      },
       "ApplyThemeOp": {
         "description": "Apply a curated theme (key from the themes registry).",
         "properties": {
@@ -2138,6 +2213,20 @@
           "file"
         ],
         "title": "Body_upload_photo_api_v1_me_photo_put",
+        "type": "object"
+      },
+      "Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post",
         "type": "object"
       },
       "Body_visual_review_api_v1_cv_templates__template_id__visual_review_post": {
@@ -3196,160 +3285,6 @@
         "title": "CatalogMappingSettingsIn",
         "type": "object"
       },
-      "CatalogPresetIn": {
-        "additionalProperties": false,
-        "description": "One tenant preset \u2014 the existing JobSourcePreset shape (no logo).",
-        "properties": {
-          "category": {
-            "enum": [
-              "ats",
-              "remote"
-            ],
-            "title": "Category",
-            "type": "string"
-          },
-          "config": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Config",
-            "type": "object"
-          },
-          "connectorKey": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Connectorkey",
-            "type": "string"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "maxLength": 2,
-                "minLength": 2,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "openings": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Openings"
-          },
-          "provider": {
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Provider",
-            "type": "string"
-          },
-          "slug": {
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Slug",
-            "type": "string"
-          },
-          "verifiedAt": {
-            "anyOf": [
-              {
-                "maxLength": 40,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Verifiedat"
-          }
-        },
-        "required": [
-          "slug",
-          "name",
-          "connectorKey",
-          "provider",
-          "category"
-        ],
-        "title": "CatalogPresetIn",
-        "type": "object"
-      },
-      "CatalogProviderIn": {
-        "additionalProperties": false,
-        "description": "One provider connection hint (connector + URL template + countries).",
-        "properties": {
-          "connectorKey": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Connectorkey",
-            "type": "string"
-          },
-          "countries": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 100,
-            "title": "Countries",
-            "type": "array"
-          },
-          "docsUrl": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Docsurl"
-          },
-          "id": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Label",
-            "type": "string"
-          },
-          "urlTemplate": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Urltemplate"
-          }
-        },
-        "required": [
-          "id",
-          "connectorKey",
-          "label"
-        ],
-        "title": "CatalogProviderIn",
-        "type": "object"
-      },
       "CatalogTravel": {
         "properties": {
           "days_per_month": {
@@ -3379,139 +3314,6 @@
           "level"
         ],
         "title": "CatalogTravel",
-        "type": "object"
-      },
-      "CatalogUpsertIn": {
-        "additionalProperties": false,
-        "description": "PUT body: the catalog envelope + the import metadata.",
-        "properties": {
-          "contentHash": {
-            "maxLength": 80,
-            "minLength": 8,
-            "title": "Contenthash",
-            "type": "string"
-          },
-          "etag": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Etag"
-          },
-          "fetchedAt": {
-            "format": "date-time",
-            "title": "Fetchedat",
-            "type": "string"
-          },
-          "kind": {
-            "const": "career-ats-catalog",
-            "title": "Kind",
-            "type": "string"
-          },
-          "lastModified": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lastmodified"
-          },
-          "license": {
-            "anyOf": [
-              {
-                "maxLength": 120,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "License"
-          },
-          "name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "presets": {
-            "items": {
-              "$ref": "#/components/schemas/CatalogPresetIn"
-            },
-            "maxItems": 300,
-            "title": "Presets",
-            "type": "array"
-          },
-          "providers": {
-            "items": {
-              "$ref": "#/components/schemas/CatalogProviderIn"
-            },
-            "maxItems": 50,
-            "title": "Providers",
-            "type": "array"
-          },
-          "revision": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
-            "title": "Revision",
-            "type": "integer"
-          },
-          "schemaVersion": {
-            "const": 1,
-            "title": "Schemaversion",
-            "type": "integer"
-          },
-          "signature": {
-            "title": "Signature",
-            "type": "null"
-          },
-          "tier": {
-            "enum": [
-              "operator",
-              "community",
-              "user"
-            ],
-            "title": "Tier",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "title": "Updatedat",
-            "type": "string"
-          },
-          "url": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Url"
-          }
-        },
-        "required": [
-          "tier",
-          "fetchedAt",
-          "schemaVersion",
-          "kind",
-          "name",
-          "updatedAt",
-          "revision",
-          "contentHash"
-        ],
-        "title": "CatalogUpsertIn",
         "type": "object"
       },
       "CatalogWorkHours": {
@@ -9411,6 +9213,102 @@
         "title": "DerivedSkillOut",
         "type": "object"
       },
+      "DiscoverIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "git",
+              "registry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Ref",
+            "type": "string"
+          },
+          "uri": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "uri"
+        ],
+        "title": "DiscoverIn",
+        "type": "object"
+      },
+      "DiscoverOut": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "packs": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPackOut"
+            },
+            "title": "Packs",
+            "type": "array"
+          },
+          "publisher": {
+            "additionalProperties": true,
+            "title": "Publisher",
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "DiscoverOut",
+        "type": "object"
+      },
+      "DiscoverPackOut": {
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "itemTypes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Itemtypes",
+            "type": "array"
+          },
+          "license": {
+            "title": "License",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "version",
+          "digest",
+          "license"
+        ],
+        "title": "DiscoverPackOut",
+        "type": "object"
+      },
       "DocumentKind": {
         "enum": [
           "university_catalog",
@@ -10471,6 +10369,132 @@
           "token"
         ],
         "title": "EmailVerifyIn",
+        "type": "object"
+      },
+      "EndpointAdminOut": {
+        "properties": {
+          "auth": {
+            "title": "Auth",
+            "type": "string"
+          },
+          "connector_key": {
+            "title": "Connector Key",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "docs_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docs Url"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "platform": {
+            "default": "",
+            "title": "Platform",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "seed_source_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Source Version Id"
+          },
+          "server": {
+            "title": "Server",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "retired",
+              "overridden"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "worldwide": {
+            "default": false,
+            "title": "Worldwide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seed_key",
+          "label",
+          "connector_key",
+          "server",
+          "method",
+          "path",
+          "auth",
+          "state"
+        ],
+        "title": "EndpointAdminOut",
         "type": "object"
       },
       "EnqueueResponse": {
@@ -12732,6 +12756,34 @@
           "ics"
         ],
         "title": "IcsImportIn",
+        "type": "object"
+      },
+      "ImportedPackOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "subpath": {
+            "title": "Subpath",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "subpath",
+          "created"
+        ],
+        "title": "ImportedPackOut",
         "type": "object"
       },
       "IndexRequest": {
@@ -18883,6 +18935,134 @@
         "title": "PlanCreateIn",
         "type": "object"
       },
+      "PlanItemOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "content_hash": {
+            "default": "",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "current_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Id"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "priority": {
+            "default": 0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "entity_type",
+          "seed_key",
+          "action"
+        ],
+        "title": "PlanItemOut",
+        "type": "object"
+      },
+      "PlanOut": {
+        "properties": {
+          "candidate_source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Source Id"
+          },
+          "candidate_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Version Id"
+          },
+          "conflicts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "PlanOut",
+        "type": "object"
+      },
       "PostingChangeOut": {
         "description": "One journal row (plan 142): actor kind + links (ids and knobs\nonly), the operation's parameters, duration and the capped diff.",
         "properties": {
@@ -21829,6 +22009,165 @@
         "title": "PrerequisiteStatus",
         "type": "string"
       },
+      "PresetAdminOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "connector_key": {
+            "title": "Connector Key",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "homepage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homepage"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "openings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openings"
+          },
+          "platform": {
+            "default": "",
+            "title": "Platform",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "seed_source_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed Source Version Id"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "retired",
+              "overridden"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "work_modes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Work Modes",
+            "type": "array"
+          },
+          "worldwide": {
+            "default": false,
+            "title": "Worldwide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seed_key",
+          "slug",
+          "name",
+          "connector_key",
+          "category",
+          "enabled",
+          "state"
+        ],
+        "title": "PresetAdminOut",
+        "type": "object"
+      },
       "PreviewDraftRequest": {
         "description": "Render an UNSAVED content package for the live editor preview.",
         "properties": {
@@ -22016,6 +22355,29 @@
           "effective"
         ],
         "title": "PricesOut",
+        "type": "object"
+      },
+      "ProbeOut": {
+        "properties": {
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "title": "Elapsed Ms",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "elapsed_ms"
+        ],
+        "title": "ProbeOut",
         "type": "object"
       },
       "ProfileAchievementIn": {
@@ -22850,6 +23212,285 @@
         "title": "ProposalDiffRow",
         "type": "object"
       },
+      "ProviderAdminDetailOut": {
+        "properties": {
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/EndpointAdminOut"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Item Counts",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "bundled",
+              "file",
+              "registry",
+              "git"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_check_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Check At"
+          },
+          "last_error": {
+            "default": "",
+            "title": "Last Error",
+            "type": "string"
+          },
+          "latest_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pending_count": {
+            "default": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "policy": {
+            "additionalProperties": true,
+            "title": "Policy",
+            "type": "object"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/PresetAdminOut"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "ref": {
+            "default": "",
+            "title": "Ref",
+            "type": "string"
+          },
+          "refresh_minutes": {
+            "title": "Refresh Minutes",
+            "type": "integer"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "subpath": {
+            "default": "",
+            "title": "Subpath",
+            "type": "string"
+          },
+          "trust_tier": {
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/VersionSummaryOut"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "uri",
+          "priority",
+          "scope",
+          "trust_tier",
+          "refresh_minutes",
+          "enabled"
+        ],
+        "title": "ProviderAdminDetailOut",
+        "type": "object"
+      },
+      "ProviderAdminOut": {
+        "properties": {
+          "current_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Item Counts",
+            "type": "object"
+          },
+          "kind": {
+            "enum": [
+              "bundled",
+              "file",
+              "registry",
+              "git"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_check_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Check At"
+          },
+          "last_error": {
+            "default": "",
+            "title": "Last Error",
+            "type": "string"
+          },
+          "latest_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionSummaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pending_count": {
+            "default": 0,
+            "title": "Pending Count",
+            "type": "integer"
+          },
+          "policy": {
+            "additionalProperties": true,
+            "title": "Policy",
+            "type": "object"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "ref": {
+            "default": "",
+            "title": "Ref",
+            "type": "string"
+          },
+          "refresh_minutes": {
+            "title": "Refresh Minutes",
+            "type": "integer"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "subpath": {
+            "default": "",
+            "title": "Subpath",
+            "type": "string"
+          },
+          "trust_tier": {
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "uri",
+          "priority",
+          "scope",
+          "trust_tier",
+          "refresh_minutes",
+          "enabled"
+        ],
+        "title": "ProviderAdminOut",
+        "type": "object"
+      },
       "ProviderCreate": {
         "properties": {
           "api_base": {
@@ -22914,6 +23555,80 @@
           "name"
         ],
         "title": "ProviderCreate",
+        "type": "object"
+      },
+      "ProviderCreateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "git",
+              "registry",
+              "file"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "ref": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Ref",
+            "type": "string"
+          },
+          "refresh_minutes": {
+            "default": 360,
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Refresh Minutes",
+            "type": "integer"
+          },
+          "subpath": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Subpath",
+            "type": "string"
+          },
+          "trust_tier": {
+            "default": "community",
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "uri": {
+            "default": "",
+            "maxLength": 600,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "ProviderCreateIn",
         "type": "object"
       },
       "ProviderOut": {
@@ -23073,6 +23788,84 @@
         "title": "ProviderSetupIn",
         "type": "object"
       },
+      "ProviderSubscriptionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Collections",
+            "type": "array"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "mode": {
+            "default": "all",
+            "enum": [
+              "all",
+              "selected"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "ProviderSubscriptionIn",
+        "type": "object"
+      },
+      "ProviderSubscriptionOut": {
+        "properties": {
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "all",
+              "selected"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "enabled",
+          "mode"
+        ],
+        "title": "ProviderSubscriptionOut",
+        "type": "object"
+      },
       "ProviderUpdate": {
         "properties": {
           "api_base": {
@@ -23159,6 +23952,104 @@
           }
         },
         "title": "ProviderUpdate",
+        "type": "object"
+      },
+      "ProviderUpdateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "refresh_minutes": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Minutes"
+          },
+          "subpath": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subpath"
+          },
+          "trust_tier": {
+            "anyOf": [
+              {
+                "enum": [
+                  "official",
+                  "operator",
+                  "community",
+                  "local"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Tier"
+          }
+        },
+        "title": "ProviderUpdateIn",
         "type": "object"
       },
       "QualityCompareRequest": {
@@ -24044,6 +24935,19 @@
         "title": "ReindexRequest",
         "type": "object"
       },
+      "RejectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "RejectIn",
+        "type": "object"
+      },
       "RelationOut": {
         "properties": {
           "from_code": {
@@ -24128,6 +25032,86 @@
           "block_index"
         ],
         "title": "RemoveBlockOp",
+        "type": "object"
+      },
+      "RepositoryImportIn": {
+        "additionalProperties": false,
+        "description": "Add every pack of a repository as its own provider (one pack per row).",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "git",
+            "enum": [
+              "git",
+              "registry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "ref": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Ref",
+            "type": "string"
+          },
+          "refresh_minutes": {
+            "default": 0,
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Refresh Minutes",
+            "type": "integer"
+          },
+          "trust_tier": {
+            "default": "community",
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "uri": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri"
+        ],
+        "title": "RepositoryImportIn",
+        "type": "object"
+      },
+      "RepositoryImportOut": {
+        "properties": {
+          "packs": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedPackOut"
+            },
+            "title": "Packs",
+            "type": "array"
+          },
+          "publisher": {
+            "additionalProperties": true,
+            "title": "Publisher",
+            "type": "object"
+          }
+        },
+        "title": "RepositoryImportOut",
         "type": "object"
       },
       "ResolutionLastRunOut": {
@@ -27824,6 +28808,63 @@
         "title": "SmartSearchOut",
         "type": "object"
       },
+      "SourcePrefIn": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "hidden": {
+            "default": true,
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          }
+        },
+        "title": "SourcePrefIn",
+        "type": "object"
+      },
+      "SourcePrefOut": {
+        "properties": {
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "hidden",
+          "priority"
+        ],
+        "title": "SourcePrefOut",
+        "type": "object"
+      },
       "SparkPointOut": {
         "properties": {
           "bucket": {
@@ -28189,6 +29230,184 @@
           }
         },
         "title": "SuggestRequest",
+        "type": "object"
+      },
+      "SyncReportOut": {
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "commit_sha": {
+            "default": "",
+            "title": "Commit Sha",
+            "type": "string"
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest"
+          },
+          "etag": {
+            "default": "",
+            "title": "Etag",
+            "type": "string"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "message": {
+            "default": "",
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SyncReportOut",
+        "type": "object"
+      },
+      "SyncRunOut": {
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "commit_sha": {
+            "default": "",
+            "title": "Commit Sha",
+            "type": "string"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "etag": {
+            "default": "",
+            "title": "Etag",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "status"
+        ],
+        "title": "SyncRunOut",
         "type": "object"
       },
       "TagCreateIn": {
@@ -29523,6 +30742,99 @@
         "title": "UsageRollup",
         "type": "object"
       },
+      "UserEndpointOut": {
+        "properties": {
+          "auth": {
+            "title": "Auth",
+            "type": "string"
+          },
+          "connector_key": {
+            "title": "Connector Key",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "docs_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docs Url"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "platform": {
+            "default": "",
+            "title": "Platform",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "server": {
+            "title": "Server",
+            "type": "string"
+          },
+          "worldwide": {
+            "default": false,
+            "title": "Worldwide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seed_key",
+          "label",
+          "connector_key",
+          "server",
+          "method",
+          "path",
+          "auth"
+        ],
+        "title": "UserEndpointOut",
+        "type": "object"
+      },
       "UserMetricOut": {
         "properties": {
           "confidence": {
@@ -29571,6 +30883,275 @@
           "metrics"
         ],
         "title": "UserMetricsOut",
+        "type": "object"
+      },
+      "UserPresetOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "connector_key": {
+            "title": "Connector Key",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "homepage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homepage"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "openings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openings"
+          },
+          "platform": {
+            "default": "",
+            "title": "Platform",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "work_modes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Work Modes",
+            "type": "array"
+          },
+          "worldwide": {
+            "default": false,
+            "title": "Worldwide",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seed_key",
+          "slug",
+          "name",
+          "connector_key",
+          "category"
+        ],
+        "title": "UserPresetOut",
+        "type": "object"
+      },
+      "UserProviderDetailOut": {
+        "properties": {
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/UserEndpointOut"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "default": 0,
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "bundled",
+              "file",
+              "registry",
+              "git"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_check_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Check At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pack_version": {
+            "default": "",
+            "title": "Pack Version",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/UserPresetOut"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "trust_tier": {
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "trust_tier",
+          "priority"
+        ],
+        "title": "UserProviderDetailOut",
+        "type": "object"
+      },
+      "UserProviderOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "item_count": {
+            "default": 0,
+            "title": "Item Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "bundled",
+              "file",
+              "registry",
+              "git"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_check_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Check At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pack_version": {
+            "default": "",
+            "title": "Pack Version",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "trust_tier": {
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "trust_tier",
+          "priority"
+        ],
+        "title": "UserProviderOut",
         "type": "object"
       },
       "UserSkillIn": {
@@ -29802,6 +31383,157 @@
           "verified"
         ],
         "title": "VerifiedProposal",
+        "type": "object"
+      },
+      "VersionOut": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "commit_sha": {
+            "default": "",
+            "title": "Commit Sha",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "etag": {
+            "default": "",
+            "title": "Etag",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pack_version": {
+            "title": "Pack Version",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": "",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pack_version",
+          "status",
+          "digest",
+          "source_id"
+        ],
+        "title": "VersionOut",
+        "type": "object"
+      },
+      "VersionSummaryOut": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "commit_sha": {
+            "default": "",
+            "title": "Commit Sha",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pack_version": {
+            "title": "Pack Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "pack_version",
+          "status",
+          "digest"
+        ],
+        "title": "VersionSummaryOut",
         "type": "object"
       },
       "WebSettingsOut": {
@@ -36533,131 +38265,6 @@
         ]
       }
     },
-    "/api/v1/admin/postings/sources/catalogs": {
-      "get": {
-        "description": "The stored ATS catalogs (instance-wide, admin-managed).",
-        "operationId": "list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response List Sources Catalogs Api V1 Admin Postings Sources Catalogs Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Sources Catalogs",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/v1/admin/postings/sources/catalogs/{catalog_id}": {
-      "delete": {
-        "description": "Remove a stored catalog (imported presets leave the gallery;\nsources already added are kept).",
-        "operationId": "delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "catalog_id",
-            "required": true,
-            "schema": {
-              "title": "Catalog Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Delete Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Delete",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Sources Catalog",
-        "tags": [
-          "admin"
-        ]
-      },
-      "put": {
-        "description": "Upsert one validated catalog document (envelope + import metadata).\n\nA known id replaces in place (any tier); a new id counts against the\nmax-catalogs cap. Documents over the byte cap are rejected before\nparsing (413).",
-        "operationId": "upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "catalog_id",
-            "required": true,
-            "schema": {
-              "title": "Catalog Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CatalogUpsertIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Upsert Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Put",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Upsert Sources Catalog",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
     "/api/v1/admin/postings/sources/{source_id}": {
       "delete": {
         "description": "Remove a job source and its ingested data (plan 133): the schema's\ncascade is deliberate \u2014 postings, applications and autopilot rows go\nwith their source \u2014 so this is a DESTRUCTIVE act the UI confirms\nexplicitly with counts before calling.",
@@ -37242,6 +38849,1034 @@
           }
         },
         "summary": "Remap Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers": {
+      "get": {
+        "operationId": "list_providers_api_v1_admin_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderAdminOut"
+                  },
+                  "title": "Response List Providers Api V1 Admin Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "create_provider_api_v1_admin_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/discover": {
+      "post": {
+        "operationId": "discover_provider_api_v1_admin_providers_discover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoverOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/import": {
+      "post": {
+        "description": "Add one provider per pack of a repository index (idempotent).",
+        "operationId": "import_provider_repository_api_v1_admin_providers_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Provider Repository",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}": {
+      "delete": {
+        "operationId": "delete_provider_api_v1_admin_providers__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Provider Api V1 Admin Providers  Source Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "get_provider_api_v1_admin_providers__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAdminDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "update_provider_api_v1_admin_providers__source_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAdminDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/adopt": {
+      "post": {
+        "operationId": "adopt_provider_version_api_v1_admin_providers__source_id__adopt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Adopt Provider Version",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/endpoints/{seed_key}/probe": {
+      "post": {
+        "operationId": "probe_provider_endpoint_api_v1_admin_providers__source_id__endpoints__seed_key__probe_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seed_key",
+            "required": true,
+            "schema": {
+              "title": "Seed Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Probe Provider Endpoint",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/disable": {
+      "post": {
+        "operationId": "disable_provider_item_api_v1_admin_providers__source_id__items__seed_key__disable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seed_key",
+            "required": true,
+            "schema": {
+              "title": "Seed Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Disable Provider Item Api V1 Admin Providers  Source Id  Items  Seed Key  Disable Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Disable Provider Item",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/enable": {
+      "post": {
+        "operationId": "enable_provider_item_api_v1_admin_providers__source_id__items__seed_key__enable_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seed_key",
+            "required": true,
+            "schema": {
+              "title": "Seed Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Enable Provider Item Api V1 Admin Providers  Source Id  Items  Seed Key  Enable Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enable Provider Item",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/items/{seed_key}/retire": {
+      "post": {
+        "operationId": "retire_provider_item_api_v1_admin_providers__source_id__items__seed_key__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "seed_key",
+            "required": true,
+            "schema": {
+              "title": "Seed Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retire Provider Item Api V1 Admin Providers  Source Id  Items  Seed Key  Retire Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retire Provider Item",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/sync": {
+      "post": {
+        "operationId": "sync_provider_api_v1_admin_providers__source_id__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/sync-runs": {
+      "get": {
+        "operationId": "provider_sync_runs_api_v1_admin_providers__source_id__sync_runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SyncRunOut"
+                  },
+                  "title": "Response Provider Sync Runs Api V1 Admin Providers  Source Id  Sync Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Provider Sync Runs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/upload": {
+      "post": {
+        "operationId": "upload_provider_pack_api_v1_admin_providers__source_id__upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_provider_pack_api_v1_admin_providers__source_id__upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Provider Pack",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions": {
+      "get": {
+        "operationId": "list_provider_versions_api_v1_admin_providers__source_id__versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VersionOut"
+                  },
+                  "title": "Response List Provider Versions Api V1 Admin Providers  Source Id  Versions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Provider Versions",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/apply": {
+      "post": {
+        "operationId": "apply_provider_version_api_v1_admin_providers__source_id__versions__version_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Provider Version",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/approve": {
+      "post": {
+        "operationId": "approve_provider_version_api_v1_admin_providers__source_id__versions__version_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Provider Version",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/plan": {
+      "get": {
+        "operationId": "plan_provider_version_api_v1_admin_providers__source_id__versions__version_id__plan_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Provider Version",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/reject": {
+      "post": {
+        "operationId": "reject_provider_version_api_v1_admin_providers__source_id__versions__version_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Provider Version",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/versions/{version_id}/revoke": {
+      "post": {
+        "operationId": "revoke_provider_version_api_v1_admin_providers__source_id__versions__version_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Provider Version",
         "tags": [
           "admin"
         ]
@@ -54987,6 +57622,127 @@
         ]
       }
     },
+    "/api/v1/me/provider-subscriptions": {
+      "get": {
+        "operationId": "list_provider_subscriptions_api_v1_me_provider_subscriptions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderSubscriptionOut"
+                  },
+                  "title": "Response List Provider Subscriptions Api V1 Me Provider Subscriptions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Provider Subscriptions",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/provider-subscriptions/{provider_id}": {
+      "delete": {
+        "operationId": "delete_provider_subscription_api_v1_me_provider_subscriptions__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Provider Subscription Api V1 Me Provider Subscriptions  Provider Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Provider Subscription",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "put_provider_subscription_api_v1_me_provider_subscriptions__provider_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSubscriptionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSubscriptionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Provider Subscription",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/v1/me/schedules": {
       "get": {
         "description": "The caller's schedules (check-in, digest, saved searches).",
@@ -55760,6 +58516,127 @@
         "summary": "Skill Evidence",
         "tags": [
           "experience"
+        ]
+      }
+    },
+    "/api/v1/me/source-prefs": {
+      "get": {
+        "operationId": "list_source_prefs_api_v1_me_source_prefs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourcePrefOut"
+                  },
+                  "title": "Response List Source Prefs Api V1 Me Source Prefs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Source Prefs",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/v1/me/source-prefs/{source_id}": {
+      "delete": {
+        "operationId": "delete_source_pref_api_v1_me_source_prefs__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Source Pref Api V1 Me Source Prefs  Source Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Source Pref",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "put_source_pref_api_v1_me_source_prefs__source_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePrefIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePrefOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Source Pref",
+        "tags": [
+          "me"
         ]
       }
     },
@@ -60098,6 +62975,121 @@
         "summary": "Patch Profile",
         "tags": [
           "profiles"
+        ]
+      }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "operationId": "list_user_providers_api_v1_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserProviderOut"
+                  },
+                  "title": "Response List User Providers Api V1 Providers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List User Providers",
+        "tags": [
+          "providers"
+        ]
+      }
+    },
+    "/api/v1/providers/{source_id}": {
+      "get": {
+        "operationId": "get_user_provider_api_v1_providers__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProviderDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Provider",
+        "tags": [
+          "providers"
+        ]
+      }
+    },
+    "/api/v1/providers/{source_id}/endpoints": {
+      "get": {
+        "operationId": "get_user_provider_endpoints_api_v1_providers__source_id__endpoints_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserEndpointOut"
+                  },
+                  "title": "Response Get User Provider Endpoints Api V1 Providers  Source Id  Endpoints Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Provider Endpoints",
+        "tags": [
+          "providers"
         ]
       }
     },

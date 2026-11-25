@@ -80,6 +80,7 @@ careerassistant = "app.shell:run"
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.26.0",
     "mypy>=1.11",
     "pyinstaller>=6.0",
     "pytest>=9.0",

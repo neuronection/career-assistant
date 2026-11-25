@@ -160,6 +160,12 @@
       "why": "the migration-seeding round-trip runs against a live throwaway Postgres database; the Postgres lane asserts it"
     },
     {
+      "id": "tests/test_migrations.py::test_0019_folds_legacy_catalogs_on_postgres",
+      "reason_contains": "postgres lane only",
+      "when": "always",
+      "why": "the 0019 catalog-fold round-trip needs a live throwaway Postgres database; the Postgres lane asserts it"
+    },
+    {
       "id": "tests/test_ai_provider_setup_contract.py::test_case_6_invalid_key_persists_nothing",
       "reason_contains": "AUTOCOMMIT test sessions cannot prove rollback isolation",
       "when": "always",

@@ -22,6 +22,8 @@ export interface JobSourcePreset {
   category: JobSourcePresetCategory;
   config: Record<string, string>;
   country?: string;
+  countries?: string[];
+  worldwide?: boolean;
   logo: string;
   /** Live-verified opening count (a dated snapshot, not live data). */
   openings?: number;
