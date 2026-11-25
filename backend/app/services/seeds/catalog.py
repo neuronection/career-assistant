@@ -128,15 +128,22 @@ async def natural_match(db: AsyncSession, entity: str, payload: dict[str, Any]) 
         job = await _job_by_code(db, str(payload["job"]))
         if job is None:
             return None
-        return (
-            await db.execute(
-                select(CareerPath).where(
-                    CareerPath.job_id == job.id,
-                    CareerPath.title == str(payload["title"]),
-                    CareerPath.source == PathSource.SEED.value,
+        matches = (
+            (
+                await db.execute(
+                    select(CareerPath).where(
+                        CareerPath.job_id == job.id,
+                        CareerPath.source == PathSource.SEED.value,
+                        CareerPath.seed_key.is_(None),
+                    )
                 )
             )
-        ).scalar_one_or_none()
+            .scalars()
+            .all()
+        )
+        # Adoption is unambiguous only when this job has one unkeyed seed path;
+        # titles are display-only and never used for identity.
+        return matches[0] if len(matches) == 1 else None
     return None
 
 
