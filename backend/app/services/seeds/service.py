@@ -13,7 +13,6 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -47,13 +46,12 @@ from app.models.user_model import User
 from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
 from app.services.notification_service import NotificationService
-from app.services.seeds.git_transport import GitTransport, read_pack_tree, validate_subpath
+from app.services.seeds.git_transport import GitTransport
 from app.services.seeds.registry_transport import RegistryTransport, normalize_index_url
 
 logger = logging.getLogger(__name__)
 
 PROVIDER_SYNC_JOB = BackgroundJobType.PROVIDER_SYNC.value
-BUNDLED_PACK_ROOT = Path(__file__).resolve().parents[2] / "data" / "seed_packs" / "bundled"
 ACTIVE_JOB_STATUSES = ("queued", "running")
 UPDATE_KIND = "provider_update_available"
 FAILED_KIND = "provider_sync_failed"
@@ -106,14 +104,12 @@ class ProviderSyncService:
         git: GitTransport | None = None,
         registry: RegistryTransport | None = None,
         connectors: Mapping[str, Any] | None = None,
-        bundled_root: Path | None = None,
     ) -> None:
         self.db = db
         self.packs = packs or SeedPackStore()
         self.git = git or GitTransport()
         self.registry = registry or RegistryTransport()
         self.connectors = connectors
-        self.bundled_root = bundled_root or BUNDLED_PACK_ROOT
 
     async def sync_by_id(
         self, source_id: uuid.UUID | str, *, trigger: str = "manual", actor: str = "system"
@@ -154,8 +150,6 @@ class ProviderSyncService:
                 report = await self._sync_git(source)
             elif source.kind == "registry":
                 report = await self._sync_registry(source)
-            elif source.kind == "bundled":
-                report = await self._sync_bundled(source)
             elif source.kind == "file":
                 report = SyncReport(
                     status="failed",
@@ -219,14 +213,6 @@ class ProviderSyncService:
         flag_modified(source, "policy")
         registration = await self._register(source, parsed, status="pending", etag=fetched.etag)
         return self._report(registration, parsed, etag=fetched.etag, http_status=fetched.status)
-
-    async def _sync_bundled(self, source: SeedSource) -> SyncReport:
-        root = Path(self.bundled_root)
-        subpath = validate_subpath(source.subpath)
-        files = read_pack_tree(root, subpath)
-        parsed = self._parse(files, source)
-        registration = await self._register(source, parsed, status="approved")
-        return self._report(registration, parsed)
 
     async def upload_file(
         self, source: SeedSource, data: bytes, *, actor: str = "system"
@@ -573,7 +559,6 @@ async def enqueue_due_provider_syncs(db: AsyncSession, *, now: datetime | None =
 
 
 __all__ = [
-    "BUNDLED_PACK_ROOT",
     "ProviderSyncService",
     "Registration",
     "SyncReport",

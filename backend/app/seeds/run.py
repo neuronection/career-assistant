@@ -594,8 +594,7 @@ async def run() -> None:
         providers = await ensure_seed_providers(db)
         official = providers["official"]
         logger.info(
-            "providers: bundled=%s official=%d (%s)",
-            providers["bundled"].get("status"),
+            "providers: official=%d (%s)",
             len(official),
             ", ".join(entry["subpath"] for entry in official),
         )

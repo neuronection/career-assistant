@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0019"
+BASELINE = "0020"
 
 
 def _configured() -> Config:
@@ -1260,6 +1260,84 @@ def test_0019_quarantines_an_invalid_catalog_on_sqlite(tmp_path, monkeypatch):
         status = con.execute("SELECT status, reason FROM seed_source_versions").fetchone()
         assert status[0] == "rejected" and "InvalidCatalog" in status[1]
         assert con.execute("SELECT count(*) FROM job_source_presets").fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+def test_0020_drops_the_bundled_provider_on_sqlite(tmp_path, monkeypatch):
+    import sqlite3
+    import uuid
+
+    from app.core.config import settings
+
+    path = tmp_path / "drop-bundled.db"
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0019")
+
+    source_id = uuid.uuid4().hex
+    version_id = uuid.uuid4().hex
+
+    def add_bundled_source(con: sqlite3.Connection) -> None:
+        con.execute(
+            "INSERT INTO seed_sources (id, name, kind, uri, ref_spec, subpath, priority, "
+            "scope, trust_tier, refresh_minutes, enabled, last_error, policy, "
+            "created_at, updated_at) VALUES (?, 'Bundled presets', 'bundled', '', '', '', "
+            "0, 'system', 'local', 0, 1, '', '{}', "
+            "'2026-11-25 00:00:00', '2026-11-25 00:00:00')",
+            (source_id,),
+        )
+
+    con = sqlite3.connect(path)
+    add_bundled_source(con)
+    con.execute(
+        "INSERT INTO seed_source_versions (id, source_id, commit_sha, etag, digest, manifest, "
+        "pack_version, schema_version, status, reason, contract_version, created_at, updated_at) "
+        "VALUES (?, ?, '', '', ?, '{}', '1.0.0', '1.0', 'approved', '', '1.0', "
+        "'2026-11-25 00:00:00', '2026-11-25 00:00:00')",
+        (version_id, source_id, f"sha256:{'a' * 64}"),
+    )
+    con.execute(
+        "INSERT INTO job_source_presets (id, scope_key, seed_key, slug, name, connector_key, "
+        "platform, category, countries, regions, worldwide, languages, work_modes, config, "
+        "enabled, state, seed_source_version_id, created_at, updated_at) VALUES (?, 'system', "
+        "'ats-preset:acme', 'acme', 'Acme', 'recruitee', 'Recruitee', 'ats', '[]', '[]', 0, "
+        "'[]', '[]', '{}', 1, 'active', ?, '2026-11-25 00:00:00', '2026-11-25 00:00:00')",
+        (uuid.uuid4().hex, version_id),
+    )
+    con.execute(
+        "INSERT INTO seed_item_provenance (id, entity_type, entity_id, source_version_id, "
+        "seed_key, content_hash, state, user_modified, created_at, updated_at) VALUES (?, "
+        "'job_source_preset', ?, ?, 'ats-preset:acme', ?, 'active', 0, "
+        "'2026-11-25 00:00:00', '2026-11-25 00:00:00')",
+        (uuid.uuid4().hex, uuid.uuid4().hex, version_id, "b" * 64),
+    )
+    con.commit()
+    con.close()
+
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        assert con.execute("SELECT count(*) FROM seed_sources").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM seed_source_versions").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM job_source_presets").fetchone()[0] == 0
+        assert con.execute("SELECT count(*) FROM seed_item_provenance").fetchone()[0] == 0
+        try:
+            add_bundled_source(con)
+        except sqlite3.IntegrityError:
+            pass
+        else:  # pragma: no cover - the narrowed check must refuse the kind
+            raise AssertionError("the kind check still accepts bundled")
+    finally:
+        con.close()
+
+    command.downgrade(config, "0019")
+    con = sqlite3.connect(path)
+    try:
+        add_bundled_source(con)
+        con.commit()
     finally:
         con.close()
 

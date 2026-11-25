@@ -56,12 +56,11 @@ def test_the_spec_uses_the_shared_projection():
     assert "builtin_data_entries(Path(ROOT))" in text
 
 
-SEED_PACK = _bundle_data().seed_pack_root(REPO_ROOT) / "bundled"
+SEED_DATA = _bundle_data().seed_pack_root(REPO_ROOT)
 
 
-def test_bundled_seed_pack_ships_under_the_packaged_data_dir():
-    assert (SEED_PACK / "manifest.json").is_file()
-    items = [path for path in SEED_PACK.rglob("*.json") if "__pycache__" not in path.parts]
-    assert len(items) >= 2
+def test_official_index_snapshot_ships_under_the_packaged_data_dir():
+    assert (SEED_DATA / "official" / "index.json").is_file()
+    assert not (SEED_DATA / "bundled").exists()
     text = SPEC.read_text(encoding="utf-8")
     assert 'os.path.join(ROOT, "backend", "app", "data"), "app/data"' in text

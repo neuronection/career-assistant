@@ -187,7 +187,6 @@ def _service(db, tmp_path: Path, **kw) -> ProviderSyncService:
         db,
         packs=_store(tmp_path),
         connectors=CONNECTORS,
-        bundled_root=tmp_path / "bundled",
         **kw,
     )
 
@@ -228,29 +227,10 @@ async def test_a_reused_pack_version_is_quarantined(db, tmp_path):
     assert len(rejected) == 1 and rejected[0].reason == "VERSION_REUSED"
 
 
-async def test_bundled_pack_is_auto_approved(db, tmp_path):
-    pack_dir = tmp_path / "bundled" / "pack"
-    (pack_dir / "items/ats_presets").mkdir(parents=True)
-    for relative, data in _files().items():
-        target = pack_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-    source = await _source(db, kind="bundled", subpath="pack", refresh_minutes=0)
-
-    report = await _service(db, tmp_path).sync(source)
-    assert report["status"] == "ok"
-    version = await db.scalar(select(SeedSourceVersion))
-    assert version is not None
-    assert version.status == "approved"
-    assert version.approved_at is not None
-
-
 async def test_a_resync_restores_a_missing_archive(db, tmp_path):
     source = await _source(db, kind="file")
     store = _store(tmp_path)
-    service = ProviderSyncService(
-        db, packs=store, connectors=CONNECTORS, bundled_root=tmp_path / "bundled"
-    )
+    service = ProviderSyncService(db, packs=store, connectors=CONNECTORS)
     archive = build_pack_archive(_files())
     assert (await service.upload_file(source, archive))["status"] == "ok"
     version = await db.scalar(select(SeedSourceVersion))
@@ -262,29 +242,6 @@ async def test_a_resync_restores_a_missing_archive(db, tmp_path):
 
     repaired = await service.upload_file(source, archive)
     assert repaired["status"] == "noop"
-    assert store.has(source.id, version.digest)
-
-
-async def test_bundled_resync_restores_a_missing_archive(db, tmp_path):
-    pack_dir = tmp_path / "bundled" / "pack"
-    (pack_dir / "items/ats_presets").mkdir(parents=True)
-    for relative, data in _files().items():
-        target = pack_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-    source = await _source(db, kind="bundled", subpath="pack", refresh_minutes=0)
-    store = _store(tmp_path)
-    service = ProviderSyncService(
-        db, packs=store, connectors=CONNECTORS, bundled_root=tmp_path / "bundled"
-    )
-    assert (await service.sync(source))["status"] == "ok"
-    version = await db.scalar(select(SeedSourceVersion))
-    assert version is not None
-
-    store.delete(source.id, version.digest)
-    assert not store.has(source.id, version.digest)
-
-    assert (await service.sync(source))["status"] == "noop"
     assert store.has(source.id, version.digest)
 
 

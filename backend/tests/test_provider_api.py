@@ -204,7 +204,17 @@ async def test_admin_upload_approve_apply_and_user_view(
     assert listed.status_code == 200
     assert [entry["id"] for entry in listed.json()] == [provider_id]
     assert listed.json()[0]["pack_version"] == "1.0.0"
-    assert listed.json()[0]["item_count"] == 0
+    # An applied pack is the admin's choice: its presets start enabled.
+    assert listed.json()[0]["item_count"] == 1
+
+    disabled_item = await client.post(
+        f"{ADMIN}/{provider_id}/items/ats-preset:acme/disable", headers=auth_headers
+    )
+    assert disabled_item.status_code == 200
+    detail = await client.get(f"{USER}/{provider_id}", headers=auth_headers)
+    assert detail.status_code == 200
+    assert detail.json()["presets"] == []
+    assert detail.json()["item_count"] == 0
 
     enabled = await client.post(
         f"{ADMIN}/{provider_id}/items/ats-preset:acme/enable", headers=auth_headers

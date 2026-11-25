@@ -1,29 +1,11 @@
-"""Plan 218: bundled/official provider boot provisioning."""
+"""Plan 218: official provider boot provisioning (no shipped seed content)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy import func, select
 
-from app.core.seed_pack.store import SeedPackStore
-from app.models.seed_model import JobSourcePreset, SeedSource, SeedSourceVersion
-from app.services.seeds.applier import SeedApplyService
+from app.models.seed_model import JobSourcePreset, SeedSource
 from app.services.seeds.boot import OFFICIAL_REF, ensure_seed_providers, load_official_index
-from app.storage.object_storage import LocalObjectStore, StorageConfig
-
-
-def _store(tmp_path: Path) -> SeedPackStore:
-    return SeedPackStore(
-        LocalObjectStore(
-            StorageConfig(
-                backend="local",
-                entrypoint="server",
-                local_root=tmp_path / "uploads",
-                max_object_mb=10,
-            ).validate()
-        )
-    )
 
 
 def test_the_official_index_snapshot_is_well_formed():
@@ -40,26 +22,14 @@ def test_the_official_index_snapshot_is_well_formed():
         assert pack["name"].strip()
 
 
-async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):
-    store = _store(tmp_path)
-    first = await ensure_seed_providers(db, packs=store)
-    assert first["bundled"]["status"] == "applied"
+async def test_boot_provisions_only_the_official_tiles(db):
+    first = await ensure_seed_providers(db)
     assert [entry["subpath"] for entry in first["official"]] == [
         "packs/neuronection/greece-ats",
         "packs/neuronection/remote-boards",
     ]
     assert all(entry["ref"] == OFFICIAL_REF for entry in first["official"])
     assert all(entry["enabled"] is False for entry in first["official"])
-
-    bundled = await db.scalar(select(SeedSource).where(SeedSource.kind == "bundled"))
-    assert bundled is not None
-    assert bundled.current_version_id is not None
-    version = await db.get(SeedSourceVersion, bundled.current_version_id)
-    assert version is not None and version.status == "approved"
-    presets = (await db.execute(select(JobSourcePreset))).scalars().all()
-    assert len(presets) == 20
-    assert all(preset.enabled for preset in presets)
-    assert all(preset.state == "active" for preset in presets)
 
     official = (
         (await db.execute(select(SeedSource).where(SeedSource.trust_tier == "official")))
@@ -74,13 +44,20 @@ async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):
         "Neuronection official — Remote boards",
     }
 
-    second = await ensure_seed_providers(db, packs=store)
-    assert second["bundled"]["status"] == "noop"
-    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 3
-    assert await db.scalar(select(func.count()).select_from(JobSourcePreset)) == 20
+    # Nothing ships as catalog content: presets only appear after an admin
+    # syncs, approves and applies a pack.
+    assert await db.scalar(select(func.count()).select_from(JobSourcePreset)) == 0
+    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 2
+
+    second = await ensure_seed_providers(db)
+    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 2
+    assert [entry["subpath"] for entry in second["official"]] == [
+        "packs/neuronection/greece-ats",
+        "packs/neuronection/remote-boards",
+    ]
 
 
-async def test_boot_upgrades_the_legacy_single_official_tile(db, tmp_path):
+async def test_boot_upgrades_the_legacy_single_official_tile(db):
     legacy = SeedSource(
         name="Neuronection official",
         kind="git",
@@ -96,25 +73,9 @@ async def test_boot_upgrades_the_legacy_single_official_tile(db, tmp_path):
     db.add(legacy)
     await db.commit()
 
-    await ensure_seed_providers(db, packs=_store(tmp_path))
+    await ensure_seed_providers(db)
 
     await db.refresh(legacy)
     assert legacy.name == "Neuronection official — Greece"
     assert legacy.ref_spec == OFFICIAL_REF
-    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 3
-
-
-async def test_plan_preview_heals_a_missing_bundled_archive(db, tmp_path):
-    store = _store(tmp_path)
-    await ensure_seed_providers(db, packs=store)
-    bundled = await db.scalar(select(SeedSource).where(SeedSource.kind == "bundled"))
-    assert bundled is not None and bundled.current_version_id is not None
-    version = await db.get(SeedSourceVersion, bundled.current_version_id)
-    assert version is not None
-
-    store.delete(bundled.id, version.digest)
-    assert not store.has(bundled.id, version.digest)
-
-    plan = await SeedApplyService(db, packs=store).build_plan(bundled, version, allow_pending=True)
-    assert plan.status == "ok"
-    assert store.has(bundled.id, version.digest)
+    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 2

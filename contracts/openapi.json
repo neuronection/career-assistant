@@ -23248,7 +23248,6 @@
           },
           "kind": {
             "enum": [
-              "bundled",
               "file",
               "registry",
               "git"
@@ -23391,7 +23390,6 @@
           },
           "kind": {
             "enum": [
-              "bundled",
               "file",
               "registry",
               "git"
@@ -31026,7 +31024,6 @@
           },
           "kind": {
             "enum": [
-              "bundled",
               "file",
               "registry",
               "git"
@@ -31100,7 +31097,6 @@
           },
           "kind": {
             "enum": [
-              "bundled",
               "file",
               "registry",
               "git"

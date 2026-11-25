@@ -1,31 +1,23 @@
 """Boot provisioning for the seed-provider lane (plan 218).
 
-Two providers exist without an admin click: the local bundled pack (the 20
-baseline presets, auto-approved and applied when its digest changes) and the
-official git provider tile (registered, disabled, pinned — enabling/checking
-is an explicit admin act). Idempotent; safe to run on every seed pass.
+Nothing ships as seed *content*: the only rows boot creates are the official
+repository's disabled tiles (registered, pinned — enabling, syncing and
+approving is an explicit admin act). A pack reaches an instance when an admin
+adds a Git/index provider or uploads a pack zip. Startup never fetches, so the
+official tiles come from a shipped index snapshot. Idempotent; safe to run on
+every seed pass.
 """
 
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.seed_pack.store import SeedPackStore
-from app.models.seed_model import SeedSource, SeedSourceVersion
-from app.services.seeds.applier import SeedApplyService
-from app.services.seeds.service import ProviderSyncService
-
-logger = logging.getLogger(__name__)
-
-BUNDLED_SOURCE_NAME = "Bundled presets"
-BUNDLED_SUBPATH = ""
-BUNDLED_PRIORITY = 0
+from app.models.seed_model import SeedSource
 
 OFFICIAL_SOURCE_NAME = "Neuronection official"
 OFFICIAL_INDEX_PATH = (
@@ -50,70 +42,12 @@ OFFICIAL_REF = str(_OFFICIAL["ref"])
 OFFICIAL_PRIORITY = 100
 # One provider owns one pack (a version is one pack digest), so a repository
 # that publishes several packs gets one disabled official tile per pack. Any
-# other pack is added at runtime with POST /admin/providers/import.
+# other pack is added at runtime with POST /admin/providers/import or a zip
+# upload.
 OFFICIAL_PACKS: tuple[tuple[str, str], ...] = tuple(
     (str(pack["name"]), str(pack["path"])) for pack in _OFFICIAL["packs"]
 )
 OFFICIAL_SUBPATH = OFFICIAL_PACKS[0][1]
-
-
-async def _ensure_bundled(db: AsyncSession, packs: SeedPackStore) -> dict[str, Any]:
-    source = (
-        await db.execute(
-            select(SeedSource).where(
-                SeedSource.kind == "bundled",
-                SeedSource.name == BUNDLED_SOURCE_NAME,
-            )
-        )
-    ).scalar_one_or_none()
-    if source is None:
-        source = SeedSource(
-            name=BUNDLED_SOURCE_NAME,
-            kind="bundled",
-            uri="",
-            subpath=BUNDLED_SUBPATH,
-            priority=BUNDLED_PRIORITY,
-            scope="system",
-            trust_tier="local",
-            refresh_minutes=0,
-            enabled=True,
-        )
-        db.add(source)
-        await db.commit()
-        await db.refresh(source)
-
-    report = await ProviderSyncService(db, packs=packs).sync(
-        source, trigger="manual", actor="system"
-    )
-    await db.refresh(source)
-    version = (
-        await db.execute(
-            select(SeedSourceVersion)
-            .where(
-                SeedSourceVersion.source_id == source.id,
-                SeedSourceVersion.status == "approved",
-            )
-            .order_by(SeedSourceVersion.created_at.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if version is None:
-        logger.warning("bundled provider has no approved version: %s", report.get("message"))
-        return {"source_id": str(source.id), "status": "failed", "report": report}
-
-    if source.current_version_id != version.id:
-        result = await SeedApplyService(db, packs=packs).apply(source, version, actor="system")
-        return {
-            "source_id": str(source.id),
-            "version_id": str(version.id),
-            "status": result.status,
-            "counts": result.counts,
-        }
-    return {
-        "source_id": str(source.id),
-        "version_id": str(version.id),
-        "status": report.get("status", "noop"),
-    }
 
 
 async def _ensure_official(db: AsyncSession) -> list[SeedSource]:
@@ -156,15 +90,10 @@ async def _ensure_official(db: AsyncSession) -> list[SeedSource]:
     return sources
 
 
-async def ensure_seed_providers(
-    db: AsyncSession, *, packs: SeedPackStore | None = None
-) -> dict[str, Any]:
-    """Create/refresh the bundled and official providers (idempotent)."""
-    store = packs or SeedPackStore()
-    bundled = await _ensure_bundled(db, store)
+async def ensure_seed_providers(db: AsyncSession) -> dict[str, Any]:
+    """Register/refresh the official provider tiles (idempotent)."""
     official = await _ensure_official(db)
     return {
-        "bundled": bundled,
         "official": [
             {
                 "source_id": str(source.id),
@@ -178,8 +107,6 @@ async def ensure_seed_providers(
 
 
 __all__ = [
-    "BUNDLED_PRIORITY",
-    "BUNDLED_SOURCE_NAME",
     "OFFICIAL_INDEX_PATH",
     "OFFICIAL_PACKS",
     "OFFICIAL_PRIORITY",
