@@ -8,6 +8,15 @@ import {
 } from "@/components/settings/connectors/JobSourcePresetDialog";
 import { JOB_SOURCE_PRESETS, type JobSourcePreset } from "@/config/jobSourcePresets";
 
+// The application no longer ships the catalog: the dialog renders whatever the
+// applied packs provide. These fixtures add the content fields the API sends.
+const PRESETS: JobSourcePreset[] = JOB_SOURCE_PRESETS.map((preset) => ({
+  ...preset,
+  config: (preset.category === "ats" ? { company: preset.slug } : {}) as Record<string, string>,
+  openings: preset.slug === "skroutz" ? 9 : 20,
+  verifiedAt: "2026-11-02",
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
@@ -44,6 +53,7 @@ function renderDialog(
   render(
     <JobSourcePresetDialog
       open
+      presets={PRESETS}
       onOpenChange={onOpenChange}
       onAddPresets={onAddPresets}
       onCustom={onCustom}
@@ -67,6 +77,13 @@ describe("JobSourcePresetDialog", () => {
     expect(screen.getByTestId("preset-group-Recruitee")).toBeTruthy();
     expect(screen.getByTestId("preset-group-Workable")).toBeTruthy();
     expect(screen.getByTestId("preset-group-Remote boards")).toBeTruthy();
+  });
+
+  it("shows the empty state when no pack is applied", async () => {
+    renderDialog({ presets: undefined });
+    expect(
+      await screen.findByText("toolsSettings.connectors.presets.noMatches"),
+    ).toBeTruthy();
   });
 
   it("filters by company name", async () => {
@@ -115,7 +132,7 @@ describe("JobSourcePresetDialog", () => {
     await user.click(ballys);
     await user.click(skroutz);
     const presetOf = (slug: string) =>
-      JOB_SOURCE_PRESETS.find((p) => p.slug === slug) as JobSourcePreset;
+      PRESETS.find((p) => p.slug === slug) as JobSourcePreset;
     onAddPresets.mockResolvedValueOnce([
       { preset: presetOf("ballysintralotsa"), ok: true },
       {

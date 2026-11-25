@@ -1,13 +1,11 @@
 /**
- * Curated job-source presets (plan 176) — the DATA lives in
- * `jobSourcePresets.json` (editable without touching code, validated by
- * `jobSourcePresets.test.ts`); this module is the typed loader + the
- * grouping helper the UI consumes.
+ * Static job-source *display* index (plan 176, trimmed by plan 218).
  *
- * Public connectors only — never private bundle ids. Countries are ISO
- * 3166 alpha-2 (the library `countries` catalog renders flag + name). A
- * preset's logo follows the `public/presets/<slug>.svg` convention unless
- * the JSON sets `logo`; a missing file degrades to the monogram fallback.
+ * The catalog itself no longer ships with the app: presets come from applied
+ * seed packs (Git/index/upload). This file only supplies display metadata for
+ * a source whose preset is not loaded — its label, country lens, provider and
+ * logo slug — so existing sources keep grouping and labelling correctly.
+ * Content fields (config, openings, verification dates) live in the pack.
  */
 
 import raw from "@/config/jobSourcePresets.json";
@@ -49,16 +47,15 @@ type RawPreset = {
   connectorKey: string;
   provider: string;
   category: JobSourcePresetCategory;
-  config?: Record<string, string>;
   country?: string;
+  countries?: string[];
+  worldwide?: boolean;
   logo?: string;
-  openings?: number;
-  verifiedAt?: string;
 };
 
 export const JOB_SOURCE_PRESETS: JobSourcePreset[] = (raw.presets as RawPreset[]).map((preset) => ({
   ...preset,
-  config: preset.config ?? {},
+  config: {},
   logo: preset.logo ?? `/presets/${preset.slug}.svg`,
 }));
 

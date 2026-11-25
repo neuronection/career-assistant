@@ -2580,7 +2580,7 @@
         "countryFilterAria": "Φίλτρο χώρας",
         "countryAll": "Όλες οι πηγές",
         "tierAll": "Όλες οι πηγές",
-        "tierBundled": "Συμπεριλαμβανόμενες",
+        "tierLocal": "Τοπικές",
         "tierOperator": "Πάροχος",
         "tierCommunity": "Κοινότητα",
         "tierUser": "Χρήστης",
@@ -2766,7 +2766,6 @@
       "kindRegistry": "Index URL",
       "kindFile": "Uploaded pack",
       "kindRepository": "Αποθετήριο (όλα τα πακέτα)",
-      "kindBundled": "Bundled",
       "gitHint": "Public HTTPS repository with versioned packs.",
       "registryHint": "Static seed-repo.json index, e.g. the official mirror.",
       "fileHintKind": "A pack zip you upload yourself.",
@@ -2852,7 +2851,7 @@
         "override": "Override"
       },
       "emptyTitle": "No providers yet",
-      "emptyBody": "The bundled presets are provisioned at boot; add a public repository, an index URL, or upload a pack.",
+      "emptyBody": "Δεν έχει εφαρμοστεί κανένα πακέτο. Πρόσθεσε το επίσημο αποθετήριο, ένα δημόσιο αποθετήριο Git ή ένα URL ευρετηρίου, ή ανέβασε ένα zip πακέτου.",
       "worldwideShort": "WW",
       "httpStatus": "HTTP {{status}}",
       "subpathPlaceholder": "packs/publisher/pack"

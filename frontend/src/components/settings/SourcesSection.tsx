@@ -44,7 +44,6 @@ import {
   type JobSourcePresetCategory,
 } from "@/config/jobSourcePresets";
 import {
-  mergeCatalogs,
   type CatalogProvenance,
   type MergedGallery,
 } from "@/config/sourcesCatalogs";
@@ -54,7 +53,7 @@ import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/so
 import { apiDetail } from "@/api/client";
 
 const TIER_LABEL_KEY: Record<CatalogProvenance["tier"], string> = {
-  bundled: "toolsSettings.connectors.presets.tierBundled",
+  local: "toolsSettings.connectors.presets.tierLocal",
   operator: "toolsSettings.connectors.presets.tierOperator",
   community: "toolsSettings.connectors.presets.tierCommunity",
   user: "toolsSettings.connectors.presets.tierUser",
@@ -637,9 +636,11 @@ function JobSourceConnectors() {
   };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
-  const [gallery, setGallery] = useState<MergedGallery>(() =>
-    mergeCatalogs(JOB_SOURCE_PRESETS, []),
-  );
+  const [gallery, setGallery] = useState<MergedGallery>(() => ({
+    presets: [],
+    provenance: new Map(),
+    providers: [],
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -657,7 +658,7 @@ function JobSourceConnectors() {
               ? "operator"
               : detail.trust_tier === "community"
                 ? "community"
-                : "bundled";
+                : "local";
           for (const preset of detail.presets ?? []) {
             presets.push({
               slug: preset.slug,
@@ -689,7 +690,8 @@ function JobSourceConnectors() {
           setGallery({ presets, provenance, providers: [] });
         }
       } catch {
-        // The bundled presets remain the floor when providers are unreachable.
+        // Providers unreachable: the gallery stays empty rather than showing
+        // content the instance has not applied.
       }
     })();
     return () => {

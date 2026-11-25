@@ -54,14 +54,13 @@ const KIND_ICON = {
   git: GitBranch,
   registry: Globe2,
   file: FileArchive,
-  bundled: Layers,
+  repository: Layers,
 } as const;
 
 const KIND_LABEL_KEY = {
   git: "toolsSettings.providers.kindGit",
   registry: "toolsSettings.providers.kindRegistry",
   file: "toolsSettings.providers.kindFile",
-  bundled: "toolsSettings.providers.kindBundled",
   repository: "toolsSettings.providers.kindRepository",
 } as const;
 

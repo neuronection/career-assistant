@@ -7,17 +7,22 @@ import {
   presetGroups,
 } from "@/config/jobSourcePresets";
 
-describe("job-source preset catalog", () => {
-  it("carries the fields the gallery and the wizard need", () => {
+describe("job-source display index", () => {
+  it("carries the fields the source list and the logo need", () => {
     for (const preset of JOB_SOURCE_PRESETS) {
       expect(preset.slug).toMatch(/^[a-z0-9][a-z0-9-]*$/);
       expect(preset.name.trim()).not.toBe("");
       expect(preset.provider.trim()).not.toBe("");
       expect(["ats", "remote"]).toContain(preset.category);
       expect(preset.logo).toBe(`/presets/${preset.slug}.svg`);
-      for (const value of Object.values(preset.config)) {
-        expect(typeof value).toBe("string");
-      }
+    }
+  });
+
+  it("ships no listing payload of its own", () => {
+    for (const preset of JOB_SOURCE_PRESETS) {
+      expect(preset.config).toEqual({});
+      expect(preset.openings).toBeUndefined();
+      expect(preset.verifiedAt).toBeUndefined();
     }
   });
 
@@ -38,16 +43,6 @@ describe("job-source preset catalog", () => {
         expect(findCountry(preset.country)).toBeDefined();
       }
     }
-  });
-
-  it("keeps freshness signals honest: dated verification, int openings", () => {
-    for (const preset of JOB_SOURCE_PRESETS) {
-      expect(preset.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      if (preset.category === "ats") {
-        expect(typeof preset.openings).toBe("number");
-        expect(preset.openings as number).toBeGreaterThanOrEqual(0);
-      }
-    }
     const remote = JOB_SOURCE_PRESETS.filter((preset) => preset.category === "remote");
     expect(remote.length).toBeGreaterThan(0);
   });
@@ -62,18 +57,5 @@ describe("job-source preset catalog", () => {
     ]);
     const flat = groups.flatMap((group) => group.presets);
     expect(flat).toHaveLength(JOB_SOURCE_PRESETS.length);
-  });
-
-  it("carries the connector field each provider's API requires", () => {
-    const required: Record<string, string> = {
-      recruitee: "company",
-      teamtailor: "company",
-    };
-    for (const preset of JOB_SOURCE_PRESETS) {
-      const field = required[preset.connectorKey];
-      if (field) {
-        expect(preset.config[field]?.trim()).toBeTruthy();
-      }
-    }
   });
 });

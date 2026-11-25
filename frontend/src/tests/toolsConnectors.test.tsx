@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SourcesSection } from "@/components/settings/SourcesSection";
 import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 import * as aiApi from "@/api/ai";
 import * as sourcesApi from "@/api/sources";
+import * as providersApi from "@/api/providers";
 
 // plan 32 Phase 1: the connectors section broadened to job-source
 // connector instances — catalog-driven form, sealed-secret hints (never
@@ -115,6 +116,34 @@ const catalog = [
     },
   },
 ];
+
+// The gallery is API-only now: the preset dialog renders what the applied
+// packs provide. The mock provider returns the display index with content.
+const PROVIDER_PRESETS = JOB_SOURCE_PRESETS.map((preset) => ({
+  slug: preset.slug,
+  name: preset.name,
+  connector_key: preset.connectorKey,
+  platform: preset.provider,
+  category: preset.category,
+  config: (preset.category === "ats" ? { company: preset.slug } : {}) as Record<string, string>,
+  country: preset.country ?? null,
+  countries: [],
+  worldwide: !preset.country,
+  openings: 9,
+  verified_at: "2026-11-02",
+}));
+
+beforeEach(() => {
+  vi.mocked(providersApi.listUserProviders).mockResolvedValue([
+    { id: "prov-1", name: "Test provider", trust_tier: "official" } as never,
+  ]);
+  vi.mocked(providersApi.fetchUserProvider).mockResolvedValue({
+    id: "prov-1",
+    name: "Test provider",
+    trust_tier: "official",
+    presets: PROVIDER_PRESETS,
+  } as never);
+});
 
 const sources = [
   {

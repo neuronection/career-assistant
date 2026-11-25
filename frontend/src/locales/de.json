@@ -2580,7 +2580,7 @@
         "countryFilterAria": "Nach Land filtern",
         "countryAll": "Alle Quellen",
         "tierAll": "Alle Quellen",
-        "tierBundled": "Enthalten",
+        "tierLocal": "Lokal",
         "tierOperator": "Betreiber",
         "tierCommunity": "Community",
         "tierUser": "Nutzer",
@@ -2766,7 +2766,6 @@
       "kindRegistry": "Index URL",
       "kindFile": "Uploaded pack",
       "kindRepository": "Repository (alle Packs)",
-      "kindBundled": "Bundled",
       "gitHint": "Public HTTPS repository with versioned packs.",
       "registryHint": "Static seed-repo.json index, e.g. the official mirror.",
       "fileHintKind": "A pack zip you upload yourself.",
@@ -2852,7 +2851,7 @@
         "override": "Override"
       },
       "emptyTitle": "No providers yet",
-      "emptyBody": "The bundled presets are provisioned at boot; add a public repository, an index URL, or upload a pack.",
+      "emptyBody": "Es sind noch keine Packs angewendet. Füge das offizielle Repository, ein öffentliches Git-Repository oder eine Index-URL hinzu oder lade ein Pack-Zip hoch.",
       "worldwideShort": "WW",
       "httpStatus": "HTTP {{status}}",
       "subpathPlaceholder": "packs/publisher/pack"
