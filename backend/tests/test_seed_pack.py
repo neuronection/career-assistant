@@ -233,7 +233,11 @@ def test_endpoint_must_sit_inside_the_connector_domains():
 
 def test_unknown_formats_are_refused_or_stored():
     files = _pack(
-        {"items/job_types/types.json": _envelope("job_types", [{"seed_key": "job-type:x"}])}
+        {
+            "items/roadmap_graph/graph.json": _envelope(
+                "roadmap_graph", [{"seed_key": "roadmap-node:x"}]
+            )
+        }
     )
     with pytest.raises(SeedPackError) as exc:
         parse_pack(files, connectors=CONNECTORS)

@@ -44,6 +44,7 @@ from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
 from app.services.seeds.planner import (
     ACTION_CREATE,
+    ACTION_DELETE,
     ACTION_RETIRE,
     ACTION_UPDATE,
     ENTITY_ENDPOINT,
@@ -535,7 +536,8 @@ class SeedApplyService:
             )
             await self.db.commit()
             mutations = sum(
-                plan.counts[action] for action in (ACTION_CREATE, ACTION_UPDATE, ACTION_RETIRE)
+                plan.counts[action]
+                for action in (ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE, ACTION_RETIRE)
             )
             return ApplyResult(
                 status="applied" if mutations else "noop",

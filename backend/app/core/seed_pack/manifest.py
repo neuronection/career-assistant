@@ -47,7 +47,6 @@ from app.core.seed_pack.errors import (
     MANIFEST_MISSING,
     PACK_NOT_FOUND,
     PRIORITY_MISMATCH,
-    REPLACES_AMBIGUOUS,
     SCOPE_UNSUPPORTED,
     SEED_KEY_DUPLICATE,
     SeedPackError,
@@ -67,7 +66,6 @@ MAX_REPLACES: Final = 100
 _KEBAB = r"^[a-z][a-z0-9-]{1,63}$"
 _SEED_KEY = re.compile(r"^([a-z][a-z0-9-]{1,63}):([a-z0-9][a-z0-9._/-]{0,119})$")
 _SEED_BODY = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,119}$")
-_REPLACES = re.compile(r"^([a-z][a-z0-9-]{1,63})\.([a-z0-9][a-z0-9._/-]{0,119})$")
 _SLUG = r"^[a-z0-9][a-z0-9-]{0,79}$"
 _COUNTRY = r"^[A-Z]{2}$"
 _REGION = r"^[A-Z][A-Z0-9_-]{1,31}$"
@@ -406,12 +404,96 @@ class EndpointDescriptor(BaseModel):
         return value
 
 
+class JobFamilyItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_KEBAB)
+    label: str = Field(min_length=1, max_length=120)
+    parent_key: str | None = Field(default=None, pattern=_KEBAB)
+    description: str = Field(default="", max_length=2000)
+
+
+class JobSkillRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skill_key: str = Field(pattern=_KEBAB)
+    required_level: int = Field(default=5, ge=1, le=10)
+    importance: str = "important"
+
+    @field_validator("importance")
+    @classmethod
+    def _importance(cls, value: str) -> str:
+        if value not in {"core", "important", "bonus"}:
+            raise ValueError("importance must be core|important|bonus")
+        return value
+
+
+class JobTypeItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    code: str = Field(pattern=_KEBAB)
+    title: str = Field(min_length=1, max_length=160)
+    family_key: str = Field(pattern=_KEBAB)
+    summary: str = Field(default="", max_length=500)
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    skills: list[JobSkillRef] = Field(default_factory=list, max_length=40)
+    interests: list[str] = Field(default_factory=list, max_length=40)
+
+
+class JobRelationItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    seed_key: str
+    from_code: str = Field(alias="from", pattern=_KEBAB)
+    to_code: str = Field(alias="to", pattern=_KEBAB)
+    relation_type: str = Field(alias="type", min_length=1, max_length=40)
+    weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    rationale: str = Field(default="", max_length=1000)
+
+
+class CareerPathItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    seed_key: str
+    job_code: str = Field(alias="job", pattern=_KEBAB)
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=2000)
+    steps: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+
+
+class SkillItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_KEBAB)
+    label: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=500)
+    parent_key: str | None = Field(default=None, pattern=_KEBAB)
+    parent_source: str | None = Field(default=None, max_length=20)
+
+
+class InterestTagItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_KEBAB)
+    label: str = Field(min_length=1, max_length=120)
+    category: str = Field(min_length=1, max_length=60)
+    description: str = Field(default="", max_length=500)
+    kind: str = "topic"
+
+
 @dataclass(frozen=True)
 class FormatSpec:
     item_type: str
     seed_key_prefix: str
     model: type[BaseModel]
     max_items: int
+    catalog: bool = False
+    adapter: Any | None = None
 
 
 FORMATS: Final[dict[tuple[str, int], FormatSpec]] = {
@@ -419,11 +501,23 @@ FORMATS: Final[dict[tuple[str, int], FormatSpec]] = {
     ("endpoint_descriptors", 1): FormatSpec(
         "endpoint_descriptors", "endpoint", EndpointDescriptor, MAX_ENDPOINTS_PER_FILE
     ),
+    ("job_families", 1): FormatSpec("job_families", "job-family", JobFamilyItem, 200, catalog=True),
+    ("job_types", 2): FormatSpec("job_types", "job-type", JobTypeItem, 2_000, catalog=True),
+    ("job_relations", 1): FormatSpec(
+        "job_relations", "job-relation", JobRelationItem, 10_000, catalog=True
+    ),
+    ("career_paths", 1): FormatSpec(
+        "career_paths", "career-path", CareerPathItem, 500, catalog=True
+    ),
+    ("skills", 1): FormatSpec("skills", "skill", SkillItem, 2_000, catalog=True),
+    ("interest_tags", 1): FormatSpec(
+        "interest_tags", "interest", InterestTagItem, 1_000, catalog=True
+    ),
 }
-SEED_KEY_PREFIXES: Final[dict[str, str]] = {
-    "ats-preset": "ats_presets",
-    "endpoint": "endpoint_descriptors",
-}
+CATALOG_FORMATS: Final[frozenset[str]] = frozenset(
+    {"job_families", "job_types", "job_relations", "career_paths", "skills", "interest_tags"}
+)
+CATALOG_ITEM_TYPES: Final[frozenset[str]] = CATALOG_FORMATS
 
 
 class Publisher(BaseModel):
@@ -502,6 +596,7 @@ class ParsedPack:
     digest: str
     item_files: dict[str, bytes]
     items: tuple[ParsedItem, ...]
+    skipped_formats: tuple[tuple[str, int], ...] = ()
 
     @property
     def by_key(self) -> dict[str, ParsedItem]:
@@ -611,17 +706,21 @@ def _parse_supported(
             raise SeedPackError(IDENTITY_INVALID, f"{label}.seed_key is required")
         _check_seed_key(raw_key, prefix=fmt.seed_key_prefix, label=label)
         try:
-            item = cast(AtsPreset | EndpointDescriptor, fmt.model.model_validate(raw))
+            item = fmt.model.model_validate(raw)
         except PydanticValidationError as exc:
             raise SeedPackError(ITEM_FILE_INVALID, f"{label}: {_model_error(exc)}") from exc
-        _validate_item(item, connectors, label=label)
+        if fmt.catalog:
+            payload = item.model_dump(mode="json", by_alias=True)
+        else:
+            _validate_item(cast(AtsPreset | EndpointDescriptor, item), connectors, label=label)
+            payload = item.model_dump(mode="json")
         parsed.append(
             ParsedItem(
                 item_type=item_type,
                 format=fmt.item_type,
                 format_version=format_version,
                 seed_key=raw_key,
-                payload=item.model_dump(mode="json"),
+                payload=payload,
                 content_hash=sha256_hex(canonical_json(raw)),
                 source_file=source_file,
             )
@@ -667,6 +766,7 @@ def parse_pack(
     resolved = connectors if connectors is not None else default_connectors()
     digest_files: list[tuple[str, bytes]] = []
     items: list[ParsedItem] = []
+    skipped: list[tuple[str, int]] = []
     seen_keys: set[str] = set()
 
     for entry in manifest.item_files:
@@ -697,6 +797,7 @@ def parse_pack(
                 known_format = any(key[0] == meta.format for key in FORMATS)
                 code = FORMAT_VERSION_UNSUPPORTED if known_format else FORMAT_UNSUPPORTED
                 raise SeedPackError(code, f"{entry.path}: {meta.format} v{meta.format_version}")
+            skipped.append((meta.format, meta.format_version))
             continue
         if meta.item_type != spec.item_type:
             raise SeedPackError(
@@ -721,11 +822,8 @@ def parse_pack(
             items.append(item)
 
     for replaced in manifest.replaces:
-        match = _REPLACES.match(replaced)
-        if not match:
+        if not _SEED_BODY.match(replaced):
             raise SeedPackError(IDENTITY_INVALID, f"replaces: {replaced!r}")
-        if match.group(1) not in SEED_KEY_PREFIXES:
-            raise SeedPackError(REPLACES_AMBIGUOUS, f"replaces: {replaced!r} has no item type")
 
     return ParsedPack(
         manifest=manifest,
@@ -733,6 +831,7 @@ def parse_pack(
         digest=compute_pack_digest(manifest_raw, digest_files),
         item_files=dict(digest_files),
         items=tuple(items),
+        skipped_formats=tuple(skipped),
     )
 
 

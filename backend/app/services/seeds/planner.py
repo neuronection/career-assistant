@@ -12,14 +12,25 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.seed_pack.archive import extract_pack_archive
-from app.core.seed_pack.errors import PACK_ARCHIVE_MISSING, SeedPackError
-from app.core.seed_pack.manifest import ParsedItem, ParsedPack, parse_pack
+from app.core.seed_pack.errors import (
+    CATALOG_UNSUPPORTED,
+    PACK_ARCHIVE_MISSING,
+    PLAN_EMPTY,
+    SeedPackError,
+)
+from app.core.seed_pack.manifest import (
+    CATALOG_FORMATS,
+    FORMATS,
+    ParsedItem,
+    ParsedPack,
+    parse_pack,
+)
 from app.core.seed_pack.store import SeedPackStore
 from app.models.seed_model import (
     JobSourcePreset,
@@ -48,6 +59,7 @@ ACTION_CONFLICT = "conflict"
 ACTION_SKIP = "skip"
 ACTION_OVERRIDE = "override"
 ACTION_RETIRE = "retire"
+ACTION_DELETE = "delete"
 ACTIONS = (
     ACTION_CREATE,
     ACTION_UPDATE,
@@ -56,6 +68,7 @@ ACTIONS = (
     ACTION_SKIP,
     ACTION_OVERRIDE,
     ACTION_RETIRE,
+    ACTION_DELETE,
 )
 
 
@@ -181,6 +194,16 @@ async def load_version(
     )
 
 
+def _guard_catalog_candidate(parsed: ParsedPack) -> None:
+    """Refuse catalog packs until their adapters are registered (S2)."""
+    for item in parsed.items:
+        spec = FORMATS.get((item.format, item.format_version))
+        if spec is not None and spec.catalog:
+            raise SeedPackError(CATALOG_UNSUPPORTED, "catalog formats are not supported yet")
+    if not parsed.items and any(fmt in CATALOG_FORMATS for fmt, _version in parsed.skipped_formats):
+        raise SeedPackError(PLAN_EMPTY, "no catalog item could be read from this pack")
+
+
 def _entity_for(item: ParsedItem) -> str | None:
     return ITEM_ENTITY.get(item.item_type)
 
@@ -200,6 +223,13 @@ async def build_plan(
         candidate_source_id=candidate_source_id,
         candidate_version_id=candidate_version_id,
     )
+
+    candidate_parsed: ParsedPack | None = None
+    if candidate is not None:
+        candidate_parsed = await load_version(
+            db, packs, candidate[0], candidate[1], connectors=connectors
+        )
+        _guard_catalog_candidate(candidate_parsed)
 
     sources = (
         (await db.execute(select(SeedSource).where(SeedSource.enabled.is_(True)))).scalars().all()
@@ -224,7 +254,11 @@ async def build_plan(
             _Entry(
                 source=source,
                 version=version,
-                parsed=await load_version(db, packs, source, version, connectors=connectors),
+                parsed=(
+                    cast(ParsedPack, candidate_parsed)
+                    if candidate is not None and source.id == candidate[0].id
+                    else await load_version(db, packs, source, version, connectors=connectors)
+                ),
             )
         )
     if candidate is not None and candidate[0].id not in seen_sources:
@@ -232,9 +266,7 @@ async def build_plan(
             _Entry(
                 source=candidate[0],
                 version=candidate[1],
-                parsed=await load_version(
-                    db, packs, candidate[0], candidate[1], connectors=connectors
-                ),
+                parsed=cast(ParsedPack, candidate_parsed),
             )
         )
     entries.sort(key=lambda entry: _sort_key(entry.source))
