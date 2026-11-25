@@ -61,13 +61,13 @@ def _old_job_types_pack() -> dict[str, bytes]:
     return _assemble("job_types", envelope, "1.0.0")
 
 
-async def test_a_catalog_candidate_is_refused_until_adapters(db, tmp_path):
+async def test_a_catalog_candidate_requires_a_trusted_source(db, tmp_path):
     store = _store(tmp_path)
     source = await _source(db)
     version = await _version(db, store, source, _catalog_pack())
     with pytest.raises(SeedPackError) as exc:
         await _service(db, store).build_plan(source, version)
-    assert exc.value.code == "CATALOG_UNSUPPORTED"
+    assert exc.value.code == "CATALOG_TRUST_DENIED"
 
 
 async def test_a_catalog_pack_with_no_readable_item_is_plan_empty(db, tmp_path):

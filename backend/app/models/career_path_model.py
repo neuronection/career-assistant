@@ -19,10 +19,20 @@ class CareerPath(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Curated or AI-drafted route to a destination job (Phase 21)."""
 
     __tablename__ = "career_paths"
+    __table_args__ = (
+        Index(
+            "uq_career_paths_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="ai")

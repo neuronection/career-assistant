@@ -69,11 +69,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Internal
 
-- **Job-catalog pack formats (wiring).** The seed lane now parses the
+- **Job-catalog pack formats.** The seed lane parses and applies the
   job-catalog/taxonomy pack formats (families, job types v2, relations,
-  career paths, skills, interest tags) and refuses to apply them until the
-  catalog adapters land; manifest `replaces` accepts the family contract's
-  bare key bodies.
+  career paths, skills, interest tags). `0021` adds stored `seed_key`
+  identity with first-apply adoption, catalog packs require the
+  official/operator trust tier, removed rows retire (or delete pack-owned
+  edges), re-added rows restore, and manifest `replaces` takes the family
+  contract's bare key bodies.
 
 ## [v0.20.0] - 2026-11-24
 

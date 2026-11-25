@@ -425,6 +425,15 @@ There is no side door around it.
   runtime. Checking/enabling a tile stays an explicit admin act, and all
   provisioning is idempotent in `app/seeds/run.py`
   (`ensure_seed_providers`).
+- **Catalog packs reuse the same lane.** `0021` adds a stored `seed_key` to
+  the catalog tables (nullable, unique where present); the adapters upsert by
+  key, adopt pre-existing seeded rows on first apply, retire referenced rows
+  (jobs/families/skills/interests/paths), delete only pack-owned relation
+  edges, and restore rows that reappear. Catalog formats require the
+  `official`/`operator` trust tier; links are reconciled per pair so admin/AI
+  links survive, and the stage runs one vector-index enqueue per published
+  job and one transferability recompute.
+
 - **The legacy catalog imports fold into the lane.** `0019` synthesizes one
   approved `file` provider per stored catalog at priority 90, writes the
   preset/endpoint rows and provenance directly, and archives the exact v1

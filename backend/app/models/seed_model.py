@@ -43,7 +43,17 @@ SEED_SYNC_TRIGGERS = ("manual", "scheduled")
 SEED_SYNC_STATUSES = ("running", "ok", "noop", "failed", "partial")
 SEED_IMPORT_MODES = ("plan", "apply", "revoke", "reconcile")
 SEED_IMPORT_STATUSES = ("pending", "running", "applied", "conflicted", "failed", "partial")
-SEED_ITEM_ACTIONS = ("create", "update", "noop", "conflict", "skip", "override", "retire")
+SEED_ITEM_ACTIONS = (
+    "create",
+    "update",
+    "noop",
+    "conflict",
+    "skip",
+    "override",
+    "retire",
+    "delete",
+)
+_ACTION_CHECK = "action IN (" + ", ".join(f"'{value}'" for value in SEED_ITEM_ACTIONS) + ")"
 SEED_PROVENANCE_STATES = ("active", "retired", "overridden")
 SEED_DEFERRED_STATES = ("pending", "landed", "abandoned")
 PRESET_CATEGORIES = ("ats", "remote")
@@ -207,10 +217,7 @@ class SeedImportRunItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "seed_import_run_items"
     __table_args__ = (
-        CheckConstraint(
-            "action IN ('create', 'update', 'noop', 'conflict', 'skip', 'override', 'retire')",
-            name="action_allowed",
-        ),
+        CheckConstraint(_ACTION_CHECK, name="action_allowed"),
         Index("ix_seed_import_run_items_run", "run_id"),
     )
 

@@ -19,14 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.seed_pack.archive import extract_pack_archive
 from app.core.seed_pack.errors import (
-    CATALOG_UNSUPPORTED,
+    CATALOG_TRUST_DENIED,
     PACK_ARCHIVE_MISSING,
     PLAN_EMPTY,
     SeedPackError,
 )
 from app.core.seed_pack.manifest import (
     CATALOG_FORMATS,
-    FORMATS,
     ParsedItem,
     ParsedPack,
     parse_pack,
@@ -40,6 +39,20 @@ from app.models.seed_model import (
     SeedSource,
     SeedSourceVersion,
 )
+from app.services.seeds.catalog import (
+    ENTITY_INTEREST,
+    ENTITY_JOB_TYPE,
+    natural_match,
+)
+from app.services.seeds.catalog import (
+    ENTITY_MODELS as CATALOG_ENTITY_MODELS,
+)
+from app.services.seeds.catalog import (
+    ITEM_ENTITY as CATALOG_ITEM_ENTITY,
+)
+from app.services.seeds.catalog import (
+    load_current as load_catalog_current,
+)
 
 ENTITY_PRESET = "job_source_preset"
 ENTITY_ENDPOINT = "provider_endpoint"
@@ -50,6 +63,7 @@ ENTITY_MODELS: Mapping[str, Any] = {
 ITEM_ENTITY = {
     "ats_presets": ENTITY_PRESET,
     "endpoint_descriptors": ENTITY_ENDPOINT,
+    **CATALOG_ITEM_ENTITY,
 }
 
 ACTION_CREATE = "create"
@@ -194,14 +208,124 @@ async def load_version(
     )
 
 
-def _guard_catalog_candidate(parsed: ParsedPack) -> None:
-    """Refuse catalog packs until their adapters are registered (S2)."""
-    for item in parsed.items:
-        spec = FORMATS.get((item.format, item.format_version))
-        if spec is not None and spec.catalog:
-            raise SeedPackError(CATALOG_UNSUPPORTED, "catalog formats are not supported yet")
+def _guard_catalog_candidate(source: SeedSource, parsed: ParsedPack) -> None:
+    """Type-check a catalog candidate before any row is planned."""
+    catalog_items = [item for item in parsed.items if item.item_type in CATALOG_ITEM_ENTITY]
+    if catalog_items and source.trust_tier not in ("official", "operator"):
+        raise SeedPackError(
+            CATALOG_TRUST_DENIED,
+            f"catalog packs require the official or operator trust tier, not {source.trust_tier!r}",
+        )
     if not parsed.items and any(fmt in CATALOG_FORMATS for fmt, _version in parsed.skipped_formats):
         raise SeedPackError(PLAN_EMPTY, "no catalog item could be read from this pack")
+
+
+async def _catalog_claims(
+    db: AsyncSession,
+    packs: SeedPackStore,
+    connectors: Mapping[str, Any] | None,
+    candidate: tuple[SeedSource, SeedSourceVersion] | None,
+) -> set[tuple[str, str]]:
+    """Keys provided by any approved current version, enabled or not (ADR-0056)."""
+    claims: set[tuple[str, str]] = set()
+    sources = (
+        (await db.execute(select(SeedSource).where(SeedSource.current_version_id.is_not(None))))
+        .scalars()
+        .all()
+    )
+    for source in sources:
+        if candidate is not None and source.id == candidate[0].id:
+            continue
+        version = await db.get(SeedSourceVersion, source.current_version_id)
+        if version is None or version.status != "approved":
+            continue
+        parsed = await load_version(db, packs, source, version, connectors=connectors)
+        claims.update(
+            (ITEM_ENTITY[item.item_type], item.seed_key)
+            for item in parsed.items
+            if item.item_type in CATALOG_ITEM_ENTITY
+        )
+    if candidate is not None and candidate[1].status == "approved":
+        parsed = await load_version(db, packs, candidate[0], candidate[1], connectors=connectors)
+        claims.update(
+            (ITEM_ENTITY[item.item_type], item.seed_key)
+            for item in parsed.items
+            if item.item_type in CATALOG_ITEM_ENTITY
+        )
+    return claims
+
+
+async def _check_catalog_constraints(
+    db: AsyncSession,
+    winners: dict[tuple[str, str], tuple[_Entry, ParsedItem]],
+    plan: Plan,
+) -> None:
+    """Plan-time title uniqueness and the RIASEC category law."""
+    from app.core.job_titles import job_type_key
+    from app.models.job_model import Job
+    from app.seeds.metrics import CATEGORY_RIASEC
+
+    titles: dict[str, str] = {}
+    for (entity, seed_key), (_entry, item) in winners.items():
+        if entity == ENTITY_JOB_TYPE:
+            title_key = job_type_key(str(item.payload.get("title") or ""))[:200]
+            if title_key:
+                other = titles.get(title_key)
+                if other is not None:
+                    plan.conflicts.append(
+                        {
+                            "entity_type": entity,
+                            "seed_key": seed_key,
+                            "priority": 0,
+                            "reason": f"duplicate job title with {other}",
+                            "source_ids": [],
+                            "content_hashes": [],
+                        }
+                    )
+                else:
+                    titles[title_key] = seed_key
+                from sqlalchemy import and_, or_
+
+                existing = (
+                    (
+                        await db.execute(
+                            select(Job.id).where(
+                                Job.title_key == title_key,
+                                Job.status != "retired",
+                                or_(
+                                    and_(Job.seed_key.is_(None), Job.source != "seed"),
+                                    Job.seed_key != seed_key,
+                                ),
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if existing is not None:
+                    plan.conflicts.append(
+                        {
+                            "entity_type": entity,
+                            "seed_key": seed_key,
+                            "priority": 0,
+                            "reason": "job title collides with an existing job",
+                            "source_ids": [],
+                            "content_hashes": [],
+                        }
+                    )
+        if entity == ENTITY_INTEREST:
+            category = str(item.payload.get("category") or "")
+            if category not in CATEGORY_RIASEC:
+                plan.conflicts.append(
+                    {
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "priority": 0,
+                        "reason": f"interest category {category!r} has no RIASEC anchor",
+                        "source_ids": [],
+                        "content_hashes": [],
+                    }
+                )
 
 
 def _entity_for(item: ParsedItem) -> str | None:
@@ -229,7 +353,7 @@ async def build_plan(
         candidate_parsed = await load_version(
             db, packs, candidate[0], candidate[1], connectors=connectors
         )
-        _guard_catalog_candidate(candidate_parsed)
+        _guard_catalog_candidate(candidate[0], candidate_parsed)
 
     sources = (
         (await db.execute(select(SeedSource).where(SeedSource.enabled.is_(True)))).scalars().all()
@@ -329,12 +453,39 @@ async def build_plan(
         (row.entity_type, row.entity_id): row
         for row in (await db.execute(select(SeedItemProvenance))).scalars().all()
     }
+    catalog_current = await load_catalog_current(db)
+    current.update(catalog_current)
+    claimed_catalog = await _catalog_claims(db, packs, connectors, candidate)
+    claimed_catalog.update(key for key in winners if key[0] in CATALOG_ENTITY_MODELS)
+
+    await _check_catalog_constraints(db, winners, plan)
+
+    for (entity, seed_key), (_entry, item) in sorted(winners.items()):
+        if entity not in CATALOG_ENTITY_MODELS or (entity, seed_key) in current:
+            continue
+        adopted = await natural_match(db, entity, item.payload)
+        if adopted is not None:
+            current[(entity, seed_key)] = adopted
 
     for (entity, seed_key), (entry, item) in sorted(winners.items()):
         row = current.get((entity, seed_key))
         prov = provenance.get((entity, row.id)) if row is not None else None
         if row is None:
             action, reason = ACTION_CREATE, "new seed key"
+        elif entity in CATALOG_ENTITY_MODELS:
+            retired = getattr(row, "status", None) == "retired" or bool(
+                getattr(row, "deprecated", False)
+            )
+            if getattr(row, "seed_key", None) != seed_key:
+                action, reason = ACTION_UPDATE, "adopt existing seeded row"
+            elif retired:
+                action, reason = ACTION_UPDATE, "restore retired row"
+            elif prov is not None and prov.user_modified:
+                action, reason = ACTION_OVERRIDE, "user-modified; explicit adoption required"
+            elif prov is not None and prov.content_hash == item.content_hash:
+                action, reason = ACTION_NOOP, "unchanged"
+            else:
+                action, reason = ACTION_UPDATE, "content changed"
         elif row.state == "overridden" or (prov is not None and prov.user_modified):
             action, reason = ACTION_OVERRIDE, "user-modified; explicit adoption required"
         elif row.state == "active" and prov is not None and prov.content_hash == item.content_hash:
@@ -357,6 +508,26 @@ async def build_plan(
         )
 
     for (entity, seed_key), row in sorted(current.items()):
+        if entity in CATALOG_ENTITY_MODELS:
+            if (entity, seed_key) in winners or (entity, seed_key) in claimed_catalog:
+                continue
+            if getattr(row, "seed_key", None) is None:
+                continue
+            action = ACTION_DELETE if entity == "job_relation" else ACTION_RETIRE
+            plan.items.append(
+                PlannedItem(
+                    entity_type=entity,
+                    seed_key=seed_key,
+                    action=action,
+                    payload={},
+                    content_hash="",
+                    source_id=None,
+                    version_id=None,
+                    current_id=row.id,
+                    reason="no approved source provides this key",
+                )
+            )
+            continue
         if row.state != "active" or (entity, seed_key) in winners:
             continue
         prov = provenance.get((entity, row.id))

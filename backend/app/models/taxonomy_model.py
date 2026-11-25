@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,8 +57,18 @@ class InterestTag(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Controlled vocabulary of interest areas referenced by key."""
 
     __tablename__ = "interest_tags"
+    __table_args__ = (
+        Index(
+            "uq_interest_tags_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
@@ -87,9 +98,17 @@ class Skill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             f"parent_source IN ({SkillParentSource.allowed_sql()})",
             name="parent_source_allowed",
         ),
+        Index(
+            "uq_skills_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")

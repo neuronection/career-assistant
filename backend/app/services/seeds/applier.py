@@ -42,6 +42,24 @@ from app.models.seed_model import (
 )
 from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
+from app.services.seeds.catalog import (
+    ENTITY_MODELS as CATALOG_ENTITY_MODELS,
+)
+from app.services.seeds.catalog import (
+    apply_career_path,
+    apply_family,
+    apply_interest,
+    apply_job_type,
+    apply_relation,
+    apply_skill,
+    job_side_effects,
+)
+from app.services.seeds.catalog import (
+    retire as retire_catalog,
+)
+from app.services.seeds.catalog import (
+    stage as catalog_stage,
+)
 from app.services.seeds.planner import (
     ACTION_CREATE,
     ACTION_DELETE,
@@ -322,6 +340,27 @@ class SeedApplyService:
                 if provenance is not None:
                     provenance.user_modified = False
                     provenance.state = "active"
+        for entity_type, model in CATALOG_ENTITY_MODELS.items():
+            rows = cast(
+                list[Any],
+                (await self.db.execute(select(model).where(model.seed_key.is_not(None))))
+                .scalars()
+                .all(),
+            )
+            for row in rows:
+                if wanted is not None and row.seed_key not in wanted:
+                    continue
+                provenance = (
+                    await self.db.execute(
+                        select(SeedItemProvenance).where(
+                            SeedItemProvenance.entity_type == entity_type,
+                            SeedItemProvenance.entity_id == row.id,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if provenance is not None:
+                    provenance.user_modified = False
+                    provenance.state = "active"
         await self.db.commit()
         return await self.apply(source, version, actor=actor)
 
@@ -513,11 +552,22 @@ class SeedApplyService:
             # An applied pack is the admin's choice: its presets start on and
             # the per-item switches remain the override.
             default_enabled = True
-            for item in plan.items:
+            changed_jobs: list[uuid.UUID] = []
+            ordered = sorted(
+                plan.items, key=lambda item: catalog_stage(item.action, item.entity_type)
+            )
+            for item in ordered:
                 if item.action in (ACTION_CREATE, ACTION_UPDATE):
-                    await self._apply_item(item, default_enabled=default_enabled)
-            for item in plan.by_action(ACTION_RETIRE):
-                await self._retire_row(item)
+                    job_id = await self._apply_item(item, default_enabled=default_enabled)
+                    if job_id is not None:
+                        changed_jobs.append(job_id)
+            for item in ordered:
+                if item.action == ACTION_DELETE:
+                    await self._delete_row(item)
+            for item in ordered:
+                if item.action == ACTION_RETIRE:
+                    await self._retire_row(item)
+            await job_side_effects(self.db, changed_jobs)
             if advance and version is not None:
                 source.current_version_id = version.id
             await self.retry_deferred(
@@ -629,7 +679,9 @@ class SeedApplyService:
             await self.db.rollback()
             return None
 
-    async def _apply_item(self, item: PlannedItem, *, default_enabled: bool = False) -> None:
+    async def _apply_item(
+        self, item: PlannedItem, *, default_enabled: bool = False
+    ) -> uuid.UUID | None:
         now = _utcnow()
         if item.entity_type == ENTITY_PRESET:
             fields = _preset_fields(item.payload)
@@ -653,7 +705,7 @@ class SeedApplyService:
                 preset.seed_source_version_id = item.version_id
             await self.db.flush()
             await self._upsert_provenance(ENTITY_PRESET, preset.id, item, now)
-            return
+            return None
         if item.entity_type == ENTITY_ENDPOINT:
             fields = _endpoint_fields(item.payload)
             endpoint: ProviderEndpoint | None = (
@@ -675,15 +727,61 @@ class SeedApplyService:
                 endpoint.seed_source_version_id = item.version_id
             await self.db.flush()
             await self._upsert_provenance(ENTITY_ENDPOINT, endpoint.id, item, now)
+            return None
+        if item.entity_type in CATALOG_ENTITY_MODELS:
+            model = CATALOG_ENTITY_MODELS[item.entity_type]
+            row = await self.db.get(model, item.current_id) if item.current_id else None
+            seed_key = item.seed_key
+            if item.entity_type == "job_family":
+                row = await apply_family(self.db, item.payload, row, seed_key=seed_key)
+            elif item.entity_type == "skill":
+                row = await apply_skill(self.db, item.payload, row, seed_key=seed_key)
+            elif item.entity_type == "interest_tag":
+                row = await apply_interest(self.db, item.payload, row, seed_key=seed_key)
+            elif item.entity_type == "job_type":
+                row = await apply_job_type(
+                    self.db, item.payload, row, seed_key=seed_key, version_id=item.version_id
+                )
+            elif item.entity_type == "job_relation":
+                row = await apply_relation(self.db, item.payload, row, seed_key=seed_key)
+            elif item.entity_type == "career_path":
+                row = await apply_career_path(self.db, item.payload, row, seed_key=seed_key)
+            else:  # pragma: no cover - registry is closed
+                return None
+            await self._upsert_provenance(item.entity_type, row.id, item, now)
+            return row.id if item.entity_type == "job_type" else None
+        return None
+
+    async def _delete_row(self, item: PlannedItem) -> None:
+        model = CATALOG_ENTITY_MODELS.get(item.entity_type)
+        if model is None or item.current_id is None:
+            return
+        row = await self.db.get(model, item.current_id)
+        if row is not None:
+            await self.db.delete(row)
+        provenance = (
+            await self.db.execute(
+                select(SeedItemProvenance).where(
+                    SeedItemProvenance.entity_type == item.entity_type,
+                    SeedItemProvenance.entity_id == item.current_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if provenance is not None:
+            await self.db.delete(provenance)
+        await self.db.flush()
 
     async def _retire_row(self, item: PlannedItem) -> None:
-        model = ENTITY_MODELS.get(item.entity_type)
+        model = CATALOG_ENTITY_MODELS.get(item.entity_type) or ENTITY_MODELS.get(item.entity_type)
         if model is None or item.current_id is None:
             return
         row = await self.db.get(model, item.current_id)
         if row is None:
             return
-        row.state = "retired"
+        if item.entity_type in CATALOG_ENTITY_MODELS:
+            await retire_catalog(self.db, item.entity_type, row)
+        else:
+            row.state = "retired"
         if item.entity_type == ENTITY_PRESET:
             await self.db.execute(
                 update(JobSource)
