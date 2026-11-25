@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     event,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,8 +27,22 @@ class JobFamily(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Job family tree node (adjacency + materialised path)."""
 
     __tablename__ = "job_families"
+    __table_args__ = (
+        CheckConstraint("status IN ('published', 'retired')", name="status_allowed"),
+        Index(
+            "uq_job_families_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="published", server_default="published"
+    )
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_families.id", ondelete="CASCADE"), nullable=True
@@ -49,8 +64,18 @@ class Job(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A job in the catalog with fully structured attributes."""
 
     __tablename__ = "jobs"
+    __table_args__ = (
+        Index(
+            "uq_jobs_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
 
     code: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     title_key: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     family_id: Mapped[uuid.UUID] = mapped_column(
@@ -98,8 +123,16 @@ class JobRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("from_job_id", "to_job_id", "relation_type", name="uq_job_relation_edge"),
         Index("ix_job_relations_from", "from_job_id"),
         Index("ix_job_relations_to", "to_job_id"),
+        Index(
+            "uq_job_relations_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
 
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     from_job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
     )

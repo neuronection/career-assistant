@@ -108,19 +108,24 @@ result is now folded into the baseline; the lesson stays.
 Both revisions are covered by fresh SQLite and temp-Postgres round-trip/data
 tests; the head literals live in `test_migrations.py` and `test_autopilot.py`.
 
-The current head is **`0020`**. Recent additions: `0018` is the seed-provider
+The current head is **`0021`**. Recent additions: `0018` is the seed-provider
 schema (sources, versions, runs, presets/endpoints, subscriptions/prefs,
 provenance, deferred refs, migration archive; `job_sources` provenance columns;
 widened schedule vocabulary), `0019` folds the legacy stored
 catalogs into approved `file` providers at priority 90 (the exact v1 blob and
 the synthesized pack files are archived; invalid catalogs are quarantined and
-the upgrade never aborts), and `0020` removes the boot-created bundled provider
+the upgrade never aborts), `0020` removes the boot-created bundled provider
 with its versions/runs/catalog rows/provenance and narrows the source-kind
-check to `file`/`registry`/`git` — the app ships no catalog. The downgrade
-restores the old check but cannot restore the deleted rows (the content left
-the tree). The historical list below starts at `0004`.
+check to `file`/`registry`/`git` — the app ships no catalog, and `0021` adds
+nullable `seed_key` identity to the six catalog tables (unique where present,
+both dialect predicates), a `job_families.status`, `PathStatus.RETIRED`
+(enum only) and the `delete` action in the import-run ledger, backfilling only
+known seeded keys (families/skills/interests by embedded allowlist;
+jobs/relations/paths by `source='seed'`). Its downgrade maps retired paths
+back to published and restores the old action vocabulary. The historical list
+below starts at `0004`.
 
-## Later revisions (`0004`–`0012`, historical; head `0020`)
+## Later revisions (`0004`–`0012`, historical; head `0021`)
 
 - `0004_ai_cost_provenance` — call-time cost columns on `ai_generations`
   (cost, usage/price provenance, estimate method) and the new

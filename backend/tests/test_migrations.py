@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0020"
+BASELINE = "0021"
 
 
 def _configured() -> Config:
@@ -1338,6 +1338,111 @@ def test_0020_drops_the_bundled_provider_on_sqlite(tmp_path, monkeypatch):
     try:
         add_bundled_source(con)
         con.commit()
+    finally:
+        con.close()
+
+
+def test_0021_backfills_catalog_seed_keys_and_downgrades(tmp_path, monkeypatch):
+    import sqlite3
+    import uuid
+
+    from app.core.config import settings
+
+    path = tmp_path / "catalog-identity.db"
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0020")
+
+    family_id = uuid.uuid4().hex
+    job_id = uuid.uuid4().hex
+    con = sqlite3.connect(path)
+    con.execute(
+        "INSERT INTO job_families (id, key, label, path, level, description) "
+        "VALUES (?, 'technology', 'Technology', 'technology', 0, '')",
+        (family_id,),
+    )
+    con.execute(
+        "INSERT INTO jobs (id, code, title, family_id, short_description, status, source, "
+        "attributes, links) VALUES (?, 'data-analyst', 'Data Analyst', ?, '', 'published', "
+        "'seed', '{}', '[]')",
+        (job_id, family_id),
+    )
+    con.execute(
+        "INSERT INTO job_relations (id, from_job_id, to_job_id, relation_type, weight, "
+        "rationale, source, confidence) VALUES (?, ?, ?, 'similar_to', 0.5, '', 'seed', 1.0)",
+        (uuid.uuid4().hex, job_id, job_id),
+    )
+    con.execute(
+        "INSERT INTO skills (id, key, label, category, description, level_anchors, aliases, "
+        "status, origin) VALUES (?, 'programming', 'Programming', 'technical', '', '[]', "
+        "'[]', 'active', 'bank')",
+        (uuid.uuid4().hex,),
+    )
+    con.execute(
+        "INSERT INTO interest_tags (id, key, label, category, description, deprecated) "
+        "VALUES (?, 'science-physics', 'Physics', 'science', '', 0)",
+        (uuid.uuid4().hex,),
+    )
+    con.execute(
+        "INSERT INTO career_paths (id, job_id, title, description, source, status) "
+        "VALUES (?, ?, 'The quantitative route', '', 'seed', 'published')",
+        (uuid.uuid4().hex, job_id),
+    )
+    con.commit()
+    con.close()
+
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        assert con.execute("SELECT seed_key, status FROM job_families").fetchone() == (
+            "job-family:technology",
+            "published",
+        )
+        assert con.execute("SELECT seed_key FROM jobs").fetchone() == ("job-type:data-analyst",)
+        assert con.execute("SELECT seed_key FROM job_relations").fetchone() == (
+            "job-relation:data-analyst/data-analyst/similar-to",
+        )
+        assert con.execute("SELECT seed_key FROM skills").fetchone() == ("skill:programming",)
+        assert con.execute("SELECT seed_key FROM interest_tags").fetchone() == (
+            "interest:science-physics",
+        )
+        assert con.execute("SELECT seed_key FROM career_paths").fetchone() == (
+            "career-path:data-analyst/the-quantitative-route",
+        )
+        try:
+            con.execute(
+                "INSERT INTO job_families (id, key, label, path, level, description, seed_key) "
+                "VALUES (?, 'other', 'Other', 'other', 0, '', 'job-family:technology')",
+                (uuid.uuid4().hex,),
+            )
+        except sqlite3.IntegrityError:
+            pass
+        else:  # pragma: no cover - the unique partial index must refuse it
+            raise AssertionError("duplicate seed_key was accepted")
+        con.execute("UPDATE career_paths SET status = 'retired'")
+        con.commit()
+    finally:
+        con.close()
+
+    command.downgrade(config, "0020")
+    con = sqlite3.connect(path)
+    try:
+        columns = {row[1] for row in con.execute("PRAGMA table_info(job_families)")}
+        assert "seed_key" not in columns and "status" not in columns
+        assert "seed_key" not in {row[1] for row in con.execute("PRAGMA table_info(jobs)")}
+        assert con.execute("SELECT status FROM career_paths").fetchone() == ("published",)
+        try:
+            con.execute(
+                "INSERT INTO seed_import_run_items (id, run_id, entity_type, seed_key, action, "
+                "detail) VALUES (?, ?, 'job_type', 'job-type:x', 'delete', '{}')",
+                (uuid.uuid4().hex, uuid.uuid4().hex),
+            )
+        except sqlite3.IntegrityError:
+            pass
+        else:  # pragma: no cover - the restored CHECK must refuse `delete`
+            raise AssertionError("downgrade kept the delete action")
     finally:
         con.close()
 

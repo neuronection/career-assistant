@@ -697,6 +697,24 @@ class JobService:
         await self._refresh_transferability()
         return job
 
+    async def seed_write_side_effects(self, job_ids: list[UUID]) -> None:
+        """Seed-mode catalog write: one index enqueue + refit per job, one transferability pass.
+
+        Pack writes bypass the human ``create``/``update`` paths (which notify
+        and mark rows user-modified); this seam runs the effects those paths
+        would otherwise provide, once per stage.
+        """
+        from app.services.postings.fit.service import FitService
+
+        for job_id in sorted(set(job_ids)):
+            job = await self.db.get(Job, job_id)
+            if job is None or job.status != "published":
+                continue
+            await enqueue_job_index(self.db, job)
+            await FitService(self.db).refit_job(job_id)
+        if job_ids:
+            await self._refresh_transferability()
+
     async def notify_published(self, job: Job) -> None:
         """Family-follow rules fire on the draft → published transition."""
         from app.services.postings.engagement_service import EngagementService

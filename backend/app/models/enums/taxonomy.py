@@ -204,6 +204,7 @@ class PathStatus(StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
     ACTIVE = "active"
+    RETIRED = "retired"
 
 
 class PathFlag(StrEnum):
