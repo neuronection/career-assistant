@@ -1,7 +1,7 @@
 """The vendored family seed-pack manifest contract (ADR-0056).
 
-The generic manifest schema/fixtures are family-owned (dev/contracts) and
-vendored byte-identically; career's item parser is the app-side adapter for
+The generic manifest schema/fixtures are family-owned (the canonical contract)
+and vendored byte-identically; career's item parser is the app-side adapter for
 ats_presets/endpoint_descriptors. This test pins the schema's parity with the
 parser constants and proves career manifests validate against it.
 """
