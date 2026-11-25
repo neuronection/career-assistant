@@ -20599,7 +20599,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "bundled" | "file" | "registry" | "git";
+            kind: "file" | "registry" | "git";
             /** Last Check At */
             last_check_at?: string | null;
             /**
@@ -20662,7 +20662,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "bundled" | "file" | "registry" | "git";
+            kind: "file" | "registry" | "git";
             /** Last Check At */
             last_check_at?: string | null;
             /**
@@ -23858,7 +23858,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "bundled" | "file" | "registry" | "git";
+            kind: "file" | "registry" | "git";
             /** Last Check At */
             last_check_at?: string | null;
             /** Name */
@@ -23891,7 +23891,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "bundled" | "file" | "registry" | "git";
+            kind: "file" | "registry" | "git";
             /** Last Check At */
             last_check_at?: string | null;
             /** Name */

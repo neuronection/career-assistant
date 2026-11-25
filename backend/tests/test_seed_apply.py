@@ -224,7 +224,8 @@ async def test_apply_creates_rows_provenance_and_advances_pointer(db, tmp_path):
     preset = await db.scalar(select(JobSourcePreset))
     assert preset is not None
     assert preset.name == "Acme"
-    assert preset.enabled is False
+    # An applied pack is the admin's choice: its presets start enabled.
+    assert preset.enabled is True
     assert preset.state == "active"
     assert preset.seed_source_version_id == version.id
 

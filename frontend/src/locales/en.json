@@ -2580,7 +2580,7 @@
         "countryFilterAria": "Filter by country",
         "countryAll": "All sources",
         "tierAll": "All sources",
-        "tierBundled": "Bundled",
+        "tierLocal": "Local",
         "tierOperator": "Operator",
         "tierCommunity": "Community",
         "tierUser": "User",
@@ -2766,7 +2766,6 @@
       "kindRegistry": "Index URL",
       "kindFile": "Uploaded pack",
       "kindRepository": "Repository (all packs)",
-      "kindBundled": "Bundled",
       "gitHint": "Public HTTPS repository with versioned packs.",
       "registryHint": "Static seed-repo.json index, e.g. the official mirror.",
       "fileHintKind": "A pack zip you upload yourself.",
@@ -2852,7 +2851,7 @@
         "override": "Override"
       },
       "emptyTitle": "No providers yet",
-      "emptyBody": "The bundled presets are provisioned at boot; add a public repository, an index URL, or upload a pack.",
+      "emptyBody": "No packs are applied yet. Add the official repository, a public Git repository or an index URL, or upload a pack zip.",
       "worldwideShort": "WW",
       "httpStatus": "HTTP {{status}}",
       "subpathPlaceholder": "packs/publisher/pack"

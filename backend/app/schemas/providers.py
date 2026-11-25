@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-ProviderKind = Literal["bundled", "file", "registry", "git"]
+ProviderKind = Literal["file", "registry", "git"]
 SourceKindIn = Literal["git", "registry", "file"]
 TrustTier = Literal["official", "operator", "community", "local"]
 VersionStatus = Literal["pending", "approved", "rejected", "revoked"]

@@ -1,7 +1,8 @@
 """Seed providers, versions, runs and catalog presets (plan 218 / ADR-0056).
 
-A **provider** is a seed-data publisher: the bundled pack, an uploaded pack, a
-static ``seed-repo.json`` index, or a public git repository. Fetched packs land
+A **provider** is a seed-data publisher: an uploaded pack, a static
+``seed-repo.json`` index, or a public git repository. The app ships no pack of
+its own. Fetched packs land
 as immutable, content-addressed ``seed_source_versions`` rows whose status is
 ``pending`` until an admin approves the exact digest; only an approved version
 is ever applied. Pack content is data — no table here executes anything.
@@ -35,7 +36,7 @@ from app.models.base import (
     UUIDPrimaryKeyMixin,
 )
 
-SEED_SOURCE_KINDS = ("bundled", "file", "registry", "git")
+SEED_SOURCE_KINDS = ("file", "registry", "git")
 SEED_TRUST_TIERS = ("official", "operator", "community", "local")
 SEED_VERSION_STATUSES = ("pending", "approved", "rejected", "revoked")
 SEED_SYNC_TRIGGERS = ("manual", "scheduled")
@@ -58,7 +59,7 @@ class SeedSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """One provider the instance knows how to fetch seed packs from.
 
     ``uri`` is the repository/index URL (``git``/``registry``) or the stored
-    upload's content key (``file``); ``bundled`` has no URI. ``ref_spec`` pins
+    upload's content key (``file``). ``ref_spec`` pins
     the git tag/commit. ``current_version_id`` is the *applied* version — the
     pointer moves only on apply, never on sync.
     """
@@ -66,7 +67,7 @@ class SeedSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "seed_sources"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('bundled', 'file', 'registry', 'git')",
+            "kind IN ('file', 'registry', 'git')",
             name="kind_allowed",
         ),
         CheckConstraint(

@@ -141,7 +141,7 @@ async def _files_for_version(
     version: SeedSourceVersion,
 ) -> dict[str, bytes]:
     data = packs.get(source.id, version.digest)
-    if data is None and source.kind in ("git", "registry", "bundled"):
+    if data is None and source.kind in ("git", "registry"):
         from app.services.seeds.service import ProviderSyncService
 
         await ProviderSyncService(db, packs=packs).sync(source, trigger="manual")

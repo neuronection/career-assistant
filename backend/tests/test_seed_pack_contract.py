@@ -30,7 +30,6 @@ def _validate(manifest_path: Path) -> None:
 
 
 def test_career_manifests_validate_against_the_family_schema():
-    _validate(ROOT / "backend" / "app" / "data" / "seed_packs" / "bundled" / "manifest.json")
     for manifest in sorted(FIXTURES.glob("packs/*/*/manifest.json")):
         _validate(manifest)
 

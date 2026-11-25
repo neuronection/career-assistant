@@ -16,7 +16,6 @@ import {
 } from "@/components/ui";
 import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
 import {
-  JOB_SOURCE_PRESETS,
   WORLDWIDE_KEY,
   preselectCountries,
   presetCountryLenses,
@@ -27,28 +26,26 @@ import {
 import type { CatalogProvenance, CatalogProvider, ProvenanceTier } from "@/config/sourcesCatalogs";
 
 /**
- * Preset gallery for adding job sources (plan 176/178): curated connector
- * instances as selectable cards (logo, company, provider, country) — the
- * LLM-provider tile pattern. Selection is multi (aria-pressed toggles);
- * the footer bulk-adds everything selected; "Custom source" falls back to
- * the generic connector wizard (provider cards open it prefilled — plan
- * 187). Presets whose source key already exists render added and inert.
- * The gallery data is layered (plan 187): bundled presets plus imported
- * catalogs ride in through the `presets`/`provenance` props; every card
- * shows its provenance tier and the lens row filters by tier.
+ * Preset gallery for adding job sources (plan 176/178): connector instances
+ * as selectable cards (logo, company, provider, country) — the LLM-provider
+ * tile pattern. Selection is multi (aria-pressed toggles); the footer
+ * bulk-adds everything selected; "Custom source" falls back to the generic
+ * connector wizard. Cards come from the applied seed packs via the
+ * `presets`/`provenance` props: nothing is bundled with the app, so an
+ * instance with no applied pack shows the empty state here.
  */
 
 type Filter = "all" | JobSourcePresetCategory;
 type TierFilter = "all" | ProvenanceTier;
 
 const TIER_LABEL_KEY: Record<ProvenanceTier, string> = {
-  bundled: "toolsSettings.connectors.presets.tierBundled",
+  local: "toolsSettings.connectors.presets.tierLocal",
   operator: "toolsSettings.connectors.presets.tierOperator",
   community: "toolsSettings.connectors.presets.tierCommunity",
   user: "toolsSettings.connectors.presets.tierUser",
 };
 
-const TIER_FILTERS: TierFilter[] = ["all", "bundled", "operator", "community", "user"];
+const TIER_FILTERS: TierFilter[] = ["all", "local", "operator", "community", "user"];
 
 export interface PresetAddOutcome {
   preset: JobSourcePreset;
@@ -89,9 +86,9 @@ export function JobSourcePresetDialog({
   const [adding, setAdding] = useState(false);
   const [report, setReport] = useState<PresetAddOutcome[] | null>(null);
 
-  const gallery = presets ?? JOB_SOURCE_PRESETS;
+  const gallery = presets ?? [];
   const provenanceFor = (slug: string): CatalogProvenance =>
-    provenance?.get(slug) ?? { tier: "bundled", catalogId: "bundled", catalogName: "bundled" };
+    provenance?.get(slug) ?? { tier: "local", catalogId: "local", catalogName: "local" };
 
   useEffect(() => {
     if (open) {

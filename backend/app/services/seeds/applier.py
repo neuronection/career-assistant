@@ -509,7 +509,9 @@ class SeedApplyService:
             self.db.add(run)
             await self.db.flush()
             await self._record_items(run, plan)
-            default_enabled = source.kind == "bundled"
+            # An applied pack is the admin's choice: its presets start on and
+            # the per-item switches remain the override.
+            default_enabled = True
             for item in plan.items:
                 if item.action in (ACTION_CREATE, ACTION_UPDATE):
                     await self._apply_item(item, default_enabled=default_enabled)
