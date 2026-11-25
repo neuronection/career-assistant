@@ -7,13 +7,14 @@ short version; this page is the reference. Statuses live in
 
 ## Data providers
 
-- **Versioned seed packs** — the 20 bundled presets ship as a pack, and an
-  admin can add the official Neuronection repository, any public Git
-  repository, a static `seed-repo.json` index or an uploaded pack. A fetched
-  pack becomes an immutable version with a digest; preview its plan, approve
-  the exact digest, then apply it. Equal-priority providers that disagree are
-  refused as a whole, retirement keeps sources you already created, and every
-  catalog row keeps its provenance.
+- **Versioned seed packs** — no catalog ships with the app. An admin adds the
+  official Neuronection repository, any public Git repository, a static
+  `seed-repo.json` index or an uploaded pack zip. A fetched pack becomes an
+  immutable version with a digest; preview its plan, approve the exact digest,
+  then apply it. Applied presets appear enabled (switch items off as needed).
+  Equal-priority providers that disagree are refused as a whole, retirement
+  keeps sources you already created, and every catalog row keeps its
+  provenance.
 - **Follow and hide** — on `/radar`, follow providers, narrow to selected
   providers and hide individual sources. A hidden source never appears in
   Explore, the radar, digests, saved-search runs, RSS or chat, whatever the

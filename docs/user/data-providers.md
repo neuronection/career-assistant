@@ -9,14 +9,15 @@ approve that exact digest and apply it.
 
 ## What ships with the app
 
-- **Bundled presets** — 20 zero-config presets (17 Greek employer tenants and
-  the three remote boards) at priority 0. They are applied at boot, enabled by
-  default, and only change when the bundled pack changes.
-- **Official Neuronection provider** — a disabled Git tile pinned to a released
-  tag of the public
+**No catalog content.** The app bundles no presets — a fresh instance's
+preset gallery is empty until you add a pack, so there is one source of truth
+for listings and no app release is needed to refresh them.
+
+- **Official Neuronection provider** — two disabled Git tiles pinned to a
+  released tag of the public
   [career-assistant-seeds](https://github.com/neuronection/career-assistant-seeds)
-  repository. **Sync now** fetches its latest pack; approve and apply it when
-  you want the official coverage on top of the bundled floor.
+  repository (Greece ATS and worldwide remote boards). **Sync now**, approve
+  and apply a pack to populate the gallery.
 
 ## Add your own provider
 
@@ -31,6 +32,8 @@ approve that exact digest and apply it.
 3. Give it a name, priority and trust tier. Higher priority wins when two
    providers publish the same seed key.
 4. **Create**, then **Sync now** (uploaded packs already carry their content).
+   Once a version is approved and applied, its presets appear in the source
+   gallery enabled; switch individual items off in **Items** if you need to.
 
 One provider owns one pack. The official repository publishes two — Greece
 ATS and worldwide remote boards — so it arrives as two separate tiles, each
@@ -91,10 +94,9 @@ User preferences never create or delete a job source.
 A version's pack bytes are derived data: the version row records the digest,
 and the archive is cached beside it. If the archive is gone (a restored
 database, a copied profile or a backup restored without uploads), **Sync now**
-fetches and stores it again for the same digest — a bundled provider restores
-it from the bundled files without fetching anything. A plan preview in that
-state reports `PACK_ARCHIVE_MISSING` with the recovery step instead of failing
-silently; for an **uploaded pack**, upload the zip again.
+fetches and stores it again for the same digest (Git/index providers). A plan
+preview in that state reports `PACK_ARCHIVE_MISSING` with the recovery step
+instead of failing silently; for an **uploaded pack**, upload the zip again.
 
 ## Related
 

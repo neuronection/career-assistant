@@ -876,9 +876,9 @@
       "category": "integrate",
       "status": "shipped",
       "proofs": [
-        "Exact-digest approval; sync never applies and a remote pack never auto-enables",
+        "Exact-digest approval; sync never applies, and applying a pack is the admin\u2019s choice (its presets start enabled, per-item switches override)",
         "Priority-aware plan preview with typed equal-priority conflicts; one transaction per apply",
-        "Bundled baseline pack (20 presets) plus the official pinned repository tile",
+        "No catalog ships in the app: uploads, public Git/index providers, or the official pinned repository tiles",
         "Provenance per catalog row; retirement marks sources unsupported, never deletes them",
             "User follow/hide: a hidden source is denied across Explore, radar, digests, RSS and chat"
       ],

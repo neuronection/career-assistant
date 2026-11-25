@@ -257,7 +257,7 @@
               "id": "data-providers",
               "file": "user/data-providers.md",
               "title": "Data providers",
-              "description": "Add, sync, review and apply versioned seed packs: the bundled presets, the official Neuronection repository, public Git or index sources, uploaded packs, digest approval, planner conflicts, retirement and provenance."
+              "description": "Add, sync, review and apply versioned seed packs: the official Neuronection repository, public Git or index sources, uploaded packs, digest approval, planner conflicts, retirement and provenance."
             },
             {
               "id": "settings",

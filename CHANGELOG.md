@@ -8,11 +8,12 @@ All notable changes to **Career Assistant** are documented here.
 
 - **Data providers — versioned seed packs, with review before apply.** Tools →
   Sources → Data providers now manages where job-source presets and endpoint
-  hints come from: the 20 bundled presets, the official Neuronection
-  repository (Greece ATS and worldwide remote boards, each as its own
-  provider), any public Git repository or index — one provider per pack, with
-  a one-step repository import that discovers every pack — or
-  an uploaded pack. Each fetched pack is an immutable, content-addressed
+  hints come from: the official Neuronection repository (Greece ATS and
+  worldwide remote boards, each as its own provider), any public Git
+  repository or index — one provider per pack, with a one-step repository
+  import that discovers every pack — or an uploaded pack. **No catalog ships
+  with the app**: a fresh instance starts empty and every listing comes from a
+  pack you add. Each fetched pack is an immutable, content-addressed
   version; you preview its plan, approve the exact digest, then apply it.
   Equal-priority providers that disagree are refused as a whole, retirement
   keeps sources you already created, and per-item switches decide what the
@@ -34,6 +35,12 @@ All notable changes to **Career Assistant** are documented here.
 - **The Add source dialog keeps its size** while you switch the
   All / ATS / remote filters: the pack grid now scrolls inside a stable
   area instead of resizing the popup on every tab change.
+- **The app no longer ships a preset catalog.** The bundled pack, its boot
+  provider and the frontend's hardcoded 20-preset floor are gone; migration
+  `0020` removes the boot-created provider and its rows from existing
+  databases. Presets now come only from applied packs (uploaded zip, Git,
+  index or the official repository), and an applied pack's presets start
+  enabled with per-item overrides.
 
 ### Internal
 
@@ -46,9 +53,9 @@ All notable changes to **Career Assistant** are documented here.
   typed conflicts, one-transaction applies, retirement and provenance).
   The admin provider API (CRUD, discovery, sync/upload, versions,
   plan/apply, items) and the signed-in read view are available; the
-  legacy admin imports fold into approved providers at priority 90, and
-  boot provisions the bundled pack (20 presets) plus the disabled official
-  git tile. No user-facing screen uses them yet.
+  legacy admin imports fold into approved providers at priority 90, and boot
+  registers the disabled official tiles only (no catalog content). No
+  user-facing screen uses them yet.
 
 ## [v0.20.0] - 2026-11-24
 

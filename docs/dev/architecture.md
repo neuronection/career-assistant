@@ -362,7 +362,7 @@ There is no side door around it.
 ## Seed providers and the pack lane
 
 - **A provider publishes data packs, never code.** `seed_sources` describes
-  where a pack comes from (`bundled`, `file`, `registry` index, public `git`),
+  where a pack comes from (`file` upload, `registry` index, public `git`),
   and `seed_source_versions` holds each fetched pack as an immutable,
   content-addressed version. Sync stores and registers `pending`; an admin
   approves the exact digest; only then does the planner apply it. No pack
@@ -385,9 +385,9 @@ There is no side door around it.
 - **Fetch is out-of-band and never applies.** `ProviderSyncService`
   dispatches by source kind: public `git` (anonymous HTTPS, pinned ref,
   shallow checkout in a temp dir, discarded), `registry` (guarded
-  `seed-repo.json` fetch with ETag/304 and per-file sha256), `file`
-  (admin upload through the pack-only extractor) and `bundled` (local,
-  auto-approved). Each source sync holds `provider_sync:<id>` on its
+  `seed-repo.json` fetch with ETag/304 and per-file sha256) and `file`
+  (admin upload through the pack-only extractor). Each source sync holds
+  `provider_sync:<id>` on its
   `background_jobs` row, records a `seed_sync_runs` row, and registers a
   `pending` version idempotently on `(source_id, digest)`. The 60-minute
   scheduler tick sweeps only providers whose refresh is due. Audit rows ride
@@ -409,11 +409,12 @@ There is no side door around it.
   version and content hash per entity; the preset/endpoint `state` remains
   the one liveness authority. Retirement flips `state` and a referencing
   `job_sources.support_status` — rows are never deleted.
-- **Boot provisions three providers.** The bundled pack
-  (`backend/app/data/seed_packs/bundled/`, 20 presets at priority 0) is
-  auto-approved and applied only when its digest changes; its presets are
-  enabled by default. The official repository is registered as one disabled
-  tile per pack, read from the shipped snapshot
+- **Boot provisions no catalog content.** The app ships no presets; a fresh
+  instance's gallery is empty until an admin uploads a pack or applies one
+  from a Git/index provider. An applied pack's presets start enabled (the
+  approval is the gate; per-item switches remain the override). The official
+  repository is registered as one disabled tile per pack, read from the
+  shipped snapshot
   `backend/app/data/seed_packs/official/index.json` (pinned ref and publisher
   in the same file): today `packs/neuronection/greece-ats` and
   `packs/neuronection/remote-boards`, both priority 100. Startup never

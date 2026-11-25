@@ -197,7 +197,7 @@ deletion).
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `seed_sources`, `seed_source_versions` | `seed_model.py` | Providers (bundled/file/registry/public git) and their immutable, content-addressed pack versions. `scope` is `system` only; `current_version_id` is the *applied* pointer (circular FK with the version's `source_id`, `use_alter`, `SET NULL`). Approval is exact-digest; sync never applies. |
+| `seed_sources`, `seed_source_versions` | `seed_model.py` | Providers (file upload/registry index/public git) and their immutable, content-addressed pack versions. `scope` is `system` only; `current_version_id` is the *applied* pointer (circular FK with the version's `source_id`, `use_alter`, `SET NULL`). Approval is exact-digest; sync never applies. |
 | `seed_sync_runs`, `seed_import_runs`, `seed_import_run_items` | `seed_model.py` | The fetch ledger (trigger/status/etag/commit/bytes), the planner/applier run ledger, and one row per `seed_key` decision (create/update/noop/conflict/skip/override/retire) |
 | `seed_item_provenance`, `seed_deferred_refs` | `seed_model.py` | Read-only per-entity origin projection and unresolved references retried on the next approval |
 | `job_source_presets`, `provider_endpoints` | `seed_model.py` | The applied catalog — ATS/remote presets and endpoint descriptors, unique `(scope_key, seed_key)` with the uuid5 identity. `state` (active/retired/overridden) is the liveness authority; `job_sources.key` stays the slug. |

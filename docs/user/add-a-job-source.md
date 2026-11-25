@@ -157,10 +157,10 @@ repository already on your profile is skipped.
 
 ## Where presets come from
 
-The gallery offers the applied **provider catalog** — the bundled presets
-(20 zero-config tenants and remote boards) plus anything an admin applied from
-a data provider. The official Neuronection provider, public Git repositories,
-static `seed-repo.json` indexes and uploaded packs are managed in
+The gallery offers the applied **provider catalog** — nothing is bundled with
+the app, so it lists exactly what an admin applied. The official Neuronection
+provider, public Git repositories, static `seed-repo.json` indexes and
+uploaded packs are managed in
 [Tools → Sources → Data providers](/settings/tools?section=sources); every
 pack is digest-pinned and approved before it reaches this gallery.
 
