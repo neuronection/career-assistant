@@ -187,6 +187,14 @@ unconfigured (503s) until an admin sets a provider.
   and aborts non-public targets.
 - **Uploads**: size-capped (`CAREER_MAX_UPLOAD_MB`), type-checked; nginx enforces a
   matching body cap. Uploaded documents are stored under the data/uploads dir.
+- **Seed packs are family data.** A seed pack is parsed and validated, never
+  executed or imported as code. Every fetched version is stored by its content
+  digest and **approved before apply**; items reference the immutable
+  `seed_key`. A pack that drops an item is **retired, never deleted**, and only
+  when no other active approved source provides the key. The generic manifest
+  schema/fixtures are vendored byte-identically from
+  `dev/contracts/seed-pack.schema.json`; career's ATS/endpoint item parser is
+  app-owned.
 - **Seed providers**: a `git` provider is anonymous HTTPS only — no
   credentials, userinfo, query or fragment, public hosts only, pinned
   tag/commit, `--` separators, shallow fetch, `core.hooksPath=/dev/null`,
