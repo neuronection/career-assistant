@@ -37,6 +37,12 @@ ATS and worldwide remote boards — so it arrives as two separate tiles, each
 disabled until you enable it. Any other pack in the same repository is added
 as another Git provider with that pack's subpath.
 
+To add a repository's packs in one step, choose **Repository (all packs)**,
+enter its URL and pinned ref, and add: the app reads the repository's
+`seed-repo.json` and creates one provider per pack (packs already present are
+left alone). Nothing is fetched or applied — each provider still needs its own
+sync, plan preview and approval.
+
 ## Review, approve and apply
 
 The provider detail panel is a small workspace:

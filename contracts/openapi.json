@@ -12758,6 +12758,34 @@
         "title": "IcsImportIn",
         "type": "object"
       },
+      "ImportedPackOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "subpath": {
+            "title": "Subpath",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "subpath",
+          "created"
+        ],
+        "title": "ImportedPackOut",
+        "type": "object"
+      },
       "IndexRequest": {
         "description": "One document to (re)index; ``space`` defaults to the content space.",
         "properties": {
@@ -25004,6 +25032,86 @@
           "block_index"
         ],
         "title": "RemoveBlockOp",
+        "type": "object"
+      },
+      "RepositoryImportIn": {
+        "additionalProperties": false,
+        "description": "Add every pack of a repository as its own provider (one pack per row).",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "git",
+            "enum": [
+              "git",
+              "registry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "priority": {
+            "default": 100,
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "ref": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Ref",
+            "type": "string"
+          },
+          "refresh_minutes": {
+            "default": 0,
+            "maximum": 10080.0,
+            "minimum": 0.0,
+            "title": "Refresh Minutes",
+            "type": "integer"
+          },
+          "trust_tier": {
+            "default": "community",
+            "enum": [
+              "official",
+              "operator",
+              "community",
+              "local"
+            ],
+            "title": "Trust Tier",
+            "type": "string"
+          },
+          "uri": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri"
+        ],
+        "title": "RepositoryImportIn",
+        "type": "object"
+      },
+      "RepositoryImportOut": {
+        "properties": {
+          "packs": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedPackOut"
+            },
+            "title": "Packs",
+            "type": "array"
+          },
+          "publisher": {
+            "additionalProperties": true,
+            "title": "Publisher",
+            "type": "object"
+          }
+        },
+        "title": "RepositoryImportOut",
         "type": "object"
       },
       "ResolutionLastRunOut": {
@@ -38846,6 +38954,48 @@
           }
         },
         "summary": "Discover Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/import": {
+      "post": {
+        "description": "Add one provider per pack of a repository index (idempotent).",
+        "operationId": "import_provider_repository_api_v1_admin_providers_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Provider Repository",
         "tags": [
           "admin"
         ]

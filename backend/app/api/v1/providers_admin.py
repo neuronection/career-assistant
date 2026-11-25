@@ -25,6 +25,8 @@ from app.schemas.providers import (
     ProviderCreateIn,
     ProviderUpdateIn,
     RejectIn,
+    RepositoryImportIn,
+    RepositoryImportOut,
     SyncReportOut,
     SyncRunOut,
     VersionOut,
@@ -51,6 +53,16 @@ async def list_providers(db: AsyncSession = Depends(get_db)) -> list[dict]:
 @router.post("/discover", response_model=DiscoverOut)
 async def discover_provider(payload: DiscoverIn, db: AsyncSession = Depends(get_db)) -> dict:
     return await _service(db).discover(payload)
+
+
+@router.post("/import", response_model=RepositoryImportOut, status_code=201)
+async def import_provider_repository(
+    payload: RepositoryImportIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    """Add one provider per pack of a repository index (idempotent)."""
+    return await _service(db).import_repository(payload, actor=str(user.id))
 
 
 @router.post("", response_model=ProviderAdminOut, status_code=status.HTTP_201_CREATED)

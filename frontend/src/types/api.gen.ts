@@ -2443,6 +2443,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/providers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Provider Repository
+         * @description Add one provider per pack of a repository index (idempotent).
+         */
+        post: operations["import_provider_repository_api_v1_admin_providers_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/providers/{source_id}": {
         parameters: {
             query?: never;
@@ -16565,6 +16585,17 @@ export interface components {
             /** Ics */
             ics: string;
         };
+        /** ImportedPackOut */
+        ImportedPackOut: {
+            /** Created */
+            created: boolean;
+            /** Name */
+            name: string;
+            /** Source Id */
+            source_id: string;
+            /** Subpath */
+            subpath: string;
+        };
         /**
          * IndexRequest
          * @description One document to (re)index; ``space`` defaults to the content space.
@@ -21271,6 +21302,55 @@ export interface components {
              * @enum {string}
              */
             op: "remove_block";
+        };
+        /**
+         * RepositoryImportIn
+         * @description Add every pack of a repository as its own provider (one pack per row).
+         */
+        RepositoryImportIn: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Kind
+             * @default git
+             * @enum {string}
+             */
+            kind: "git" | "registry";
+            /**
+             * Priority
+             * @default 100
+             */
+            priority: number;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /**
+             * Refresh Minutes
+             * @default 0
+             */
+            refresh_minutes: number;
+            /**
+             * Trust Tier
+             * @default community
+             * @enum {string}
+             */
+            trust_tier: "official" | "operator" | "community" | "local";
+            /** Uri */
+            uri: string;
+        };
+        /** RepositoryImportOut */
+        RepositoryImportOut: {
+            /** Packs */
+            packs?: components["schemas"]["ImportedPackOut"][];
+            /** Publisher */
+            publisher?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * ResolutionLastRunOut
@@ -28411,6 +28491,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscoverOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_provider_repository_api_v1_admin_providers_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryImportOut"];
                 };
             };
             /** @description Validation Error */

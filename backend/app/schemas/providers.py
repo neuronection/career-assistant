@@ -286,6 +286,32 @@ class DiscoverOut(BaseModel):
     packs: list[DiscoverPackOut] = Field(default_factory=list)
 
 
+class RepositoryImportIn(BaseModel):
+    """Add every pack of a repository as its own provider (one pack per row)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    kind: Literal["git", "registry"] = "git"
+    uri: str = Field(min_length=1, max_length=600)
+    ref: str = Field(default="", max_length=200)
+    priority: int = Field(default=100, ge=0, le=999)
+    trust_tier: TrustTier = "community"
+    refresh_minutes: int = Field(default=0, ge=0, le=10080)
+    enabled: bool = False
+
+
+class ImportedPackOut(BaseModel):
+    source_id: str
+    name: str
+    subpath: str
+    created: bool
+
+
+class RepositoryImportOut(BaseModel):
+    publisher: dict[str, Any] = Field(default_factory=dict)
+    packs: list[ImportedPackOut] = Field(default_factory=list)
+
+
 class ProbeOut(BaseModel):
     status: int
     elapsed_ms: int

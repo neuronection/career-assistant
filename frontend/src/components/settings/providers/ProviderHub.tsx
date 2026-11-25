@@ -62,6 +62,7 @@ const KIND_LABEL_KEY = {
   registry: "toolsSettings.providers.kindRegistry",
   file: "toolsSettings.providers.kindFile",
   bundled: "toolsSettings.providers.kindBundled",
+  repository: "toolsSettings.providers.kindRepository",
 } as const;
 
 const TRUST_LABEL_KEY = {
@@ -1227,7 +1228,7 @@ function AddProviderDialog({
   onError: (message: string) => void;
 }) {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<"git" | "registry" | "file">("git");
+  const [kind, setKind] = useState<"git" | "registry" | "file" | "repository">("git");
   const [name, setName] = useState("");
   const [uri, setUri] = useState("");
   const [ref, setRef] = useState("");
@@ -1256,7 +1257,7 @@ function AddProviderDialog({
 
   const submit = async () => {
     setError("");
-    if (!name.trim()) {
+    if (kind !== "repository" && !name.trim()) {
       setError(t("toolsSettings.providers.nameRequired"));
       return;
     }
@@ -1264,7 +1265,7 @@ function AddProviderDialog({
       setError(t("toolsSettings.providers.uriRequired"));
       return;
     }
-    if (kind === "git" && !ref.trim()) {
+    if ((kind === "git" || kind === "repository") && !ref.trim()) {
       setError(t("toolsSettings.providers.refRequired"));
       return;
     }
@@ -1274,6 +1275,29 @@ function AddProviderDialog({
     }
     setBusy(true);
     try {
+      if (kind === "repository") {
+        const result = await providersApi.importProviderRepository({
+          kind: "git",
+          uri: uri.trim(),
+          ref: ref.trim(),
+          priority: Number(priority) || 0,
+          trust_tier: trust,
+          refresh_minutes: Number(refresh) || 0,
+          enabled,
+        });
+        const packs = result.packs ?? [];
+        const added = packs.filter((pack) => pack.created).length;
+        onCreated(
+          t("toolsSettings.providers.imported", {
+            added,
+            total: packs.length,
+            publisher: result.publisher?.name || uri.trim(),
+          }),
+        );
+        reset();
+        onOpenChange(false);
+        return;
+      }
       const payload: ProviderCreate = {
         kind,
         name: name.trim(),
@@ -1333,16 +1357,19 @@ function AddProviderDialog({
             {t("common.cancel")}
           </Button>
           <Button loading={busy} onClick={() => void submit()} data-testid="provider-create">
-            {t("toolsSettings.providers.create")}
+            {kind === "repository"
+              ? t("toolsSettings.providers.importAction")
+              : t("toolsSettings.providers.create")}
           </Button>
         </>
       }
     >
       <div className="space-y-4" data-testid="provider-add-dialog">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2">
           {(
             [
               ["git", GitBranch, "gitHint"],
+              ["repository", Layers, "repositoryHint"],
               ["registry", Globe2, "registryHint"],
               ["file", Upload, "fileHint"],
             ] as const
@@ -1371,15 +1398,17 @@ function AddProviderDialog({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={t("toolsSettings.providers.name")} className="sm:col-span-2">
-            <input
-              className={INPUT}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("toolsSettings.providers.namePlaceholder")}
-              data-testid="provider-name"
-            />
-          </Field>
+          {kind !== "repository" ? (
+            <Field label={t("toolsSettings.providers.name")} className="sm:col-span-2">
+              <input
+                className={INPUT}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("toolsSettings.providers.namePlaceholder")}
+                data-testid="provider-name"
+              />
+            </Field>
+          ) : null}
           {kind !== "file" ? (
             <Field label={t("toolsSettings.providers.uri")} className="sm:col-span-2">
               <input
@@ -1387,15 +1416,15 @@ function AddProviderDialog({
                 value={uri}
                 onChange={(event) => setUri(event.target.value)}
                 placeholder={
-                  kind === "git"
-                    ? "https://github.com/org/repo.git"
-                    : "https://example.com/api/v1/career/"
+                  kind === "registry"
+                    ? "https://example.com/api/v1/career/"
+                    : "https://github.com/org/repo.git"
                 }
                 data-testid="provider-uri"
               />
             </Field>
           ) : null}
-          {kind === "git" ? (
+          {kind === "git" || kind === "repository" ? (
             <Field label={t("toolsSettings.providers.ref")}>
               <input
                 className={INPUT}
@@ -1406,7 +1435,7 @@ function AddProviderDialog({
               />
             </Field>
           ) : null}
-          {kind !== "file" ? (
+          {kind !== "file" && kind !== "repository" ? (
             <Field label={t("toolsSettings.providers.subpath")}>
               <input
                 className={INPUT}

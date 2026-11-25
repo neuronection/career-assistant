@@ -62,7 +62,9 @@ Admin (`require_admin`, `/api/v1/admin/providers`):
 
 - CRUD: `GET/POST /`, `PATCH/DELETE /{id}` (delete retires: disabled, pointer
   cleared, catalog replanned), `POST /discover` (read a `seed-repo.json` over
-  a public git ref or the guarded registry transport; no writes).
+  a public git ref or the guarded registry transport; no writes) and
+  `POST /import` (the same read, then one provider per pack — idempotent by
+  kind/URI/subpath; nothing is fetched or applied afterwards).
 - Content: `POST /{id}/sync`, `POST /{id}/upload` (file providers, pack-only
   zip), `GET /{id}/sync-runs`.
 - Versions: `GET /{id}/versions`, `GET /{id}/versions/{vid}/plan`, and

@@ -17,6 +17,8 @@ export type ProviderApply = Schemas["ApplyOut"];
 export type ProviderSyncReport = Schemas["SyncReportOut"];
 export type ProviderSyncRun = Schemas["SyncRunOut"];
 export type ProviderDiscover = Schemas["DiscoverOut"];
+export type RepositoryImport = Schemas["RepositoryImportIn"];
+export type RepositoryImportResult = Schemas["RepositoryImportOut"];
 export type ProviderProbe = Schemas["ProbeOut"];
 export type UserProvider = Schemas["UserProviderOut"];
 export type UserProviderDetail = Schemas["UserProviderDetailOut"];
@@ -66,6 +68,14 @@ export async function discoverProvider(payload: {
   ref?: string;
 }): Promise<ProviderDiscover> {
   const { data } = await api.post<ProviderDiscover>(`${ADMIN}/discover`, payload);
+  return data;
+}
+
+/** Add one provider per pack published by a repository index (idempotent). */
+export async function importProviderRepository(
+  payload: RepositoryImport,
+): Promise<RepositoryImportResult> {
+  const { data } = await api.post<RepositoryImportResult>(`${ADMIN}/import`, payload);
   return data;
 }
 

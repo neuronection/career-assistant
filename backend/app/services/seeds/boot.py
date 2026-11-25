@@ -8,7 +8,9 @@ is an explicit admin act). Idempotent; safe to run on every seed pass.
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -26,16 +28,31 @@ BUNDLED_SUBPATH = ""
 BUNDLED_PRIORITY = 0
 
 OFFICIAL_SOURCE_NAME = "Neuronection official"
-OFFICIAL_REPO = "https://github.com/neuronection/career-assistant-seeds.git"
-OFFICIAL_REF = "v2026.11.25.2"
+OFFICIAL_INDEX_PATH = (
+    Path(__file__).resolve().parents[2] / "data" / "seed_packs" / "official" / "index.json"
+)
+
+
+def load_official_index() -> dict[str, Any]:
+    """The pinned snapshot of the official repository's index (shipped as data).
+
+    Startup never fetches, so boot cannot read ``seed-repo.json`` from the
+    remote repository. ``scripts/sync_official_index.py`` regenerates this
+    snapshot when the pin moves; adding an official pack is then a data
+    change, not a code change.
+    """
+    return json.loads(OFFICIAL_INDEX_PATH.read_text(encoding="utf-8"))
+
+
+_OFFICIAL = load_official_index()
+OFFICIAL_REPO = str(_OFFICIAL["repository"])
+OFFICIAL_REF = str(_OFFICIAL["ref"])
 OFFICIAL_PRIORITY = 100
 # One provider owns one pack (a version is one pack digest), so a repository
-# that publishes several packs gets one disabled official tile per pack. The
-# list is app-release knowledge: startup never fetches the index, and an admin
-# can still add any other pack of the same repository by hand.
-OFFICIAL_PACKS: tuple[tuple[str, str], ...] = (
-    ("Neuronection official — Greece", "packs/neuronection/greece-ats"),
-    ("Neuronection official — Remote boards", "packs/neuronection/remote-boards"),
+# that publishes several packs gets one disabled official tile per pack. Any
+# other pack is added at runtime with POST /admin/providers/import.
+OFFICIAL_PACKS: tuple[tuple[str, str], ...] = tuple(
+    (str(pack["name"]), str(pack["path"])) for pack in _OFFICIAL["packs"]
 )
 OFFICIAL_SUBPATH = OFFICIAL_PACKS[0][1]
 
@@ -163,6 +180,7 @@ async def ensure_seed_providers(
 __all__ = [
     "BUNDLED_PRIORITY",
     "BUNDLED_SOURCE_NAME",
+    "OFFICIAL_INDEX_PATH",
     "OFFICIAL_PACKS",
     "OFFICIAL_PRIORITY",
     "OFFICIAL_REF",
@@ -170,4 +188,5 @@ __all__ = [
     "OFFICIAL_SOURCE_NAME",
     "OFFICIAL_SUBPATH",
     "ensure_seed_providers",
+    "load_official_index",
 ]

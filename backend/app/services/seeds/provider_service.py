@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import NotFoundError, ValidationError
 from app.core.seed_pack.errors import SeedPackError
 from app.core.seed_pack.manifest import (
+    Publisher,
     endpoint_in_connector_domains,
     parse_repo_index,
 )
@@ -52,6 +53,15 @@ def _identifier(value: uuid.UUID | str, label: str) -> uuid.UUID:
         return uuid.UUID(str(value))
     except (TypeError, ValueError) as exc:
         raise NotFoundError(f"{label} not found") from exc
+
+
+def _repository_pack_name(publisher: Publisher, pack_id: str) -> str:
+    """Provider name for an auto-imported pack: publisher + the short pack slug."""
+    slug = pack_id
+    prefix = f"{publisher.id}-"
+    if slug.startswith(prefix):
+        slug = slug[len(prefix) :]
+    return f"{publisher.name} — {slug}"[:120]
 
 
 def _version_summary(version: SeedSourceVersion) -> dict[str, Any]:
@@ -538,22 +548,100 @@ class ProviderService:
 
     # ---------------------------------------------------------- discovery
 
+    async def _read_index(self, kind: str, uri: str, ref: str):
+        if kind == "git":
+            raw, _commit = await GitTransport().discover(uri, ref)
+            return parse_repo_index(raw)
+        fetched = await RegistryTransport().fetch_index(uri)
+        if fetched.index is None:
+            raise ValidationError("the index answered 304 (no ETag was sent)")
+        return fetched.index
+
     async def discover(self, data: Any) -> dict[str, Any]:
         try:
-            if data.kind == "git":
-                raw, _commit = await GitTransport().discover(data.uri, data.ref)
-                index = parse_repo_index(raw)
-            else:
-                fetched = await RegistryTransport().fetch_index(data.uri)
-                if fetched.index is None:
-                    raise ValidationError("the index answered 304 (no ETag was sent)")
-                index = fetched.index
+            index = await self._read_index(data.kind, data.uri, data.ref)
         except SeedPackError as exc:
             raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return {
             "kind": data.kind,
             "publisher": index.publisher.model_dump(mode="json"),
             "packs": [pack.model_dump(mode="json") for pack in index.packs],
+        }
+
+    async def import_repository(
+        self, data: Any, *, actor: str | uuid.UUID = "system"
+    ) -> dict[str, Any]:
+        """Add one provider per pack of a repository index (idempotent)."""
+        try:
+            if data.kind == "git":
+                validate_public_git_uri(data.uri)
+                if not (data.ref or "").strip():
+                    raise ValidationError(
+                        "a git repository import requires a pinned ref (tag or commit)"
+                    )
+            else:
+                normalize_index_url(data.uri)
+            index = await self._read_index(data.kind, data.uri, data.ref)
+            subpaths = [(pack, validate_subpath(pack.path)) for pack in index.packs]
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
+
+        imported: list[dict[str, Any]] = []
+        for pack, subpath in subpaths:
+            existing = (
+                await self.db.execute(
+                    select(SeedSource).where(
+                        SeedSource.kind == data.kind,
+                        SeedSource.uri == data.uri,
+                        SeedSource.subpath == subpath,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                imported.append(
+                    {
+                        "source_id": str(existing.id),
+                        "name": existing.name,
+                        "subpath": existing.subpath,
+                        "created": False,
+                    }
+                )
+                continue
+            name = _repository_pack_name(index.publisher, pack.id)
+            source = SeedSource(
+                name=name,
+                kind=data.kind,
+                uri=data.uri,
+                ref_spec=data.ref if data.kind == "git" else "",
+                subpath=subpath,
+                priority=data.priority,
+                scope="system",
+                trust_tier=data.trust_tier,
+                refresh_minutes=data.refresh_minutes,
+                enabled=data.enabled,
+            )
+            self.db.add(source)
+            await self.db.flush()
+            await audit_emit(
+                self.db,
+                actor=actor,
+                action="provider.source.created",
+                resource_ref=audit_resource(
+                    f"provider:{source.id}", f"repository:{data.uri}", f"pack:{pack.id}"
+                ),
+            )
+            imported.append(
+                {
+                    "source_id": str(source.id),
+                    "name": name,
+                    "subpath": subpath,
+                    "created": True,
+                }
+            )
+        await self.db.commit()
+        return {
+            "publisher": index.publisher.model_dump(mode="json"),
+            "packs": imported,
         }
 
     async def probe(

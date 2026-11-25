@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from app.core.seed_pack.store import SeedPackStore
 from app.models.seed_model import JobSourcePreset, SeedSource, SeedSourceVersion
 from app.services.seeds.applier import SeedApplyService
-from app.services.seeds.boot import OFFICIAL_REF, ensure_seed_providers
+from app.services.seeds.boot import OFFICIAL_REF, ensure_seed_providers, load_official_index
 from app.storage.object_storage import LocalObjectStore, StorageConfig
 
 
@@ -24,6 +24,20 @@ def _store(tmp_path: Path) -> SeedPackStore:
             ).validate()
         )
     )
+
+
+def test_the_official_index_snapshot_is_well_formed():
+    index = load_official_index()
+    assert index["schema"] == 1
+    assert index["repository"].startswith("https://")
+    assert index["ref"]
+    publisher = index["publisher"]
+    paths = [pack["path"] for pack in index["packs"]]
+    assert paths and len(paths) == len(set(paths))
+    for pack in index["packs"]:
+        slug = pack["path"].rsplit("/", 1)[-1]
+        assert pack["path"] == f"packs/{publisher['id']}/{slug}"
+        assert pack["name"].strip()
 
 
 async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):

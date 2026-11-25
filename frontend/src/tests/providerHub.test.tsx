@@ -152,6 +152,7 @@ vi.mock("@/api/providers", () => ({
   updateProvider: vi.fn(),
   deleteProvider: vi.fn(),
   discoverProvider: vi.fn(),
+  importProviderRepository: vi.fn(),
   syncProvider: vi.fn(),
   uploadProviderPack: vi.fn(),
   listProviderVersions: vi.fn(),
@@ -274,5 +275,36 @@ describe("ProviderHub", () => {
         }),
       ),
     );
+  });
+
+  it("imports every pack of a repository from the add dialog", async () => {
+    mocked.importProviderRepository.mockResolvedValue({
+      publisher: { id: "neuronection", name: "Neuronection" },
+      packs: [
+        { source_id: "p1", name: "Neuronection — greece-ats", subpath: "packs/neuronection/greece-ats", created: true },
+        { source_id: "p2", name: "Neuronection — remote-boards", subpath: "packs/neuronection/remote-boards", created: false },
+      ],
+    } as providersApi.RepositoryImportResult);
+    const user = userEvent.setup();
+    render(<ProviderHub />);
+    await user.click(await screen.findByTestId("provider-add"));
+    await user.click(screen.getByTestId("provider-kind-repository"));
+    await user.type(
+      screen.getByTestId("provider-uri"),
+      "https://github.com/neuronection/career-assistant-seeds.git",
+    );
+    await user.type(screen.getByTestId("provider-ref"), "v2026.11.25.2");
+    await user.click(screen.getByTestId("provider-create"));
+    await waitFor(() =>
+      expect(mocked.importProviderRepository).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "git",
+          uri: "https://github.com/neuronection/career-assistant-seeds.git",
+          ref: "v2026.11.25.2",
+        }),
+      ),
+    );
+    expect(await screen.findByText(/Added 1 of 2 providers from Neuronection/)).toBeInTheDocument();
+    expect(mocked.createProvider).not.toHaveBeenCalled();
   });
 });

@@ -77,6 +77,81 @@ async def test_plan_preview_reports_a_missing_archive_instead_of_500(
     assert "upload the pack again" in preview.json()["detail"]
 
 
+async def test_import_repository_adds_every_pack_once(client, auth_headers, db, monkeypatch):
+    import app.services.seeds.provider_service as provider_module
+
+    index = {
+        "schemaVersion": 1,
+        "kind": "career-seed-repo",
+        "publisher": {"id": "example", "name": "Example"},
+        "packs": [
+            {
+                "id": "example-one",
+                "path": "packs/example/one",
+                "manifest": "packs/example/one/manifest.json",
+                "itemTypes": ["ats_presets"],
+                "license": "CC-BY-4.0",
+                "version": "1.0.0",
+                "digest": f"sha256:{'a' * 64}",
+                "signature": None,
+            },
+            {
+                "id": "example-two",
+                "path": "packs/example/two",
+                "manifest": "packs/example/two/manifest.json",
+                "itemTypes": ["endpoint_descriptors"],
+                "license": "CC-BY-4.0",
+                "version": "1.0.0",
+                "digest": f"sha256:{'b' * 64}",
+                "signature": None,
+            },
+        ],
+    }
+
+    class _FakeGit:
+        async def discover(self, uri, ref):
+            return json.dumps(index).encode(), "c" * 40
+
+    monkeypatch.setattr(provider_module, "GitTransport", _FakeGit)
+    payload = {
+        "kind": "git",
+        "uri": "https://github.com/example/seeds.git",
+        "ref": "v1",
+        "priority": 40,
+        "trust_tier": "operator",
+    }
+
+    first = await client.post(f"{ADMIN}/import", headers=auth_headers, json=payload)
+    assert first.status_code == 201, first.text
+    assert first.json()["publisher"]["name"] == "Example"
+    assert [pack["created"] for pack in first.json()["packs"]] == [True, True]
+    assert [pack["name"] for pack in first.json()["packs"]] == [
+        "Example — one",
+        "Example — two",
+    ]
+
+    again = await client.post(f"{ADMIN}/import", headers=auth_headers, json=payload)
+    assert again.status_code == 201, again.text
+    assert [pack["created"] for pack in again.json()["packs"]] == [False, False]
+
+    listed = await client.get(ADMIN, headers=auth_headers)
+    assert {row["subpath"] for row in listed.json()} == {
+        "packs/example/one",
+        "packs/example/two",
+    }
+    assert {row["priority"] for row in listed.json()} == {40}
+
+
+async def test_import_repository_requires_a_pinned_ref(client, auth_headers):
+    response = await client.post(
+        f"{ADMIN}/import",
+        headers=auth_headers,
+        json={"kind": "git", "uri": "https://github.com/example/seeds.git"},
+    )
+    assert response.status_code == 400
+    assert "pinned ref" in response.json()["detail"]
+
+
 async def test_admin_upload_approve_apply_and_user_view(
     client, auth_headers, db, tmp_path, monkeypatch
 ):

@@ -412,13 +412,17 @@ There is no side door around it.
 - **Boot provisions three providers.** The bundled pack
   (`backend/app/data/seed_packs/bundled/`, 20 presets at priority 0) is
   auto-approved and applied only when its digest changes; its presets are
-  enabled by default. The official repository ships two packs, so it is
-  registered as two disabled tiles, both pinned at `v2026.11.25.2` and
-  priority 100 — `packs/neuronection/greece-ats` (Greece ATS) and
-  `packs/neuronection/remote-boards` (worldwide remote boards). One provider
-  owns exactly one pack (a version is one pack digest). Checking/enabling a
-  tile stays an explicit admin act, and an admin can add any other pack of
-  the same repository by hand. All are idempotent in `app/seeds/run.py`
+  enabled by default. The official repository is registered as one disabled
+  tile per pack, read from the shipped snapshot
+  `backend/app/data/seed_packs/official/index.json` (pinned ref and publisher
+  in the same file): today `packs/neuronection/greece-ats` and
+  `packs/neuronection/remote-boards`, both priority 100. Startup never
+  fetches, so `backend/scripts/sync_official_index.py` regenerates that
+  snapshot when the pin moves or a pack is added — a data change, not a code
+  change. One provider owns exactly one pack (a version is one pack digest);
+  `POST /admin/providers/import` adds every pack of any repository at
+  runtime. Checking/enabling a tile stays an explicit admin act, and all
+  provisioning is idempotent in `app/seeds/run.py`
   (`ensure_seed_providers`).
 - **The legacy catalog imports fold into the lane.** `0019` synthesizes one
   approved `file` provider per stored catalog at priority 90, writes the
