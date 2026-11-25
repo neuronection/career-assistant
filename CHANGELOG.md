@@ -22,6 +22,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Fixed
 
+- **A lost pack archive no longer breaks a provider preview.** If a stored
+  pack archive is missing (a restored database, a moved profile or a
+  restored backup), syncing the provider again re-stores the archive for the
+  same digest instead of reporting a no-op, and the plan preview returns the
+  typed reason instead of a server error. In desktop dev the seed bootstrap
+  and the API server now share the profile's object store, so archives are
+  no longer written into two different roots.
 - **The Add source dialog keeps its size** while you switch the
   All / ATS / remote filters: the pack grid now scrolls inside a stable
   area instead of resizing the popup on every tab change.

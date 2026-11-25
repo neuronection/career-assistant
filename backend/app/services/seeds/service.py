@@ -284,6 +284,33 @@ class ProviderSyncService:
             raise SeedPackError(PACK_AMBIGUOUS, f"{len(matches)} packs match {wanted!r}")
         return matches[0]
 
+    def _archive_bytes(self, parsed: ParsedPack, archive: bytes | None = None) -> bytes:
+        return archive or build_pack_archive(
+            {**parsed.item_files, "manifest.json": canonical_json(parsed.manifest_raw)}
+        )
+
+    def _ensure_archive(
+        self, source: SeedSource, parsed: ParsedPack, *, archive: bytes | None = None
+    ) -> int:
+        """Store the parsed pack when its archive is absent (self-healing sync).
+
+        A version row and its content-addressed archive can drift apart — a
+        profile swap, a restored database or an object store that moved leaves
+        the row without bytes. Syncing the provider again is the documented
+        recovery path, so an already-registered digest still re-stores the
+        archive instead of returning a silent no-op that cannot be recovered.
+        """
+        if self.packs.has(source.id, parsed.digest):
+            return 0
+        archived = self._archive_bytes(parsed, archive)
+        self.packs.put(source.id, parsed.digest, archived)
+        logger.warning(
+            "restored the missing archive for provider %s version %s",
+            source.id,
+            parsed.digest,
+        )
+        return len(archived)
+
     async def _register(
         self,
         source: SeedSource,
@@ -303,11 +330,10 @@ class ProviderSyncService:
             )
         ).scalar_one_or_none()
         if existing is not None:
-            return Registration(version=existing, created=False)
+            restored = self._ensure_archive(source, parsed, archive=archive)
+            return Registration(version=existing, created=False, bytes=restored or None)
 
-        archived = archive or build_pack_archive(
-            {**parsed.item_files, "manifest.json": canonical_json(parsed.manifest_raw)}
-        )
+        archived = self._archive_bytes(parsed, archive)
         self.packs.put(source.id, parsed.digest, archived)
         archived_size = len(archived)
 

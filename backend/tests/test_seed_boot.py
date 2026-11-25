@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from app.core.seed_pack.store import SeedPackStore
 from app.models.seed_model import JobSourcePreset, SeedSource, SeedSourceVersion
+from app.services.seeds.applier import SeedApplyService
 from app.services.seeds.boot import OFFICIAL_REF, ensure_seed_providers
 from app.storage.object_storage import LocalObjectStore, StorageConfig
 
@@ -53,3 +54,19 @@ async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):
     assert second["bundled"]["status"] == "noop"
     assert await db.scalar(select(func.count()).select_from(SeedSource)) == 2
     assert await db.scalar(select(func.count()).select_from(JobSourcePreset)) == 20
+
+
+async def test_plan_preview_heals_a_missing_bundled_archive(db, tmp_path):
+    store = _store(tmp_path)
+    await ensure_seed_providers(db, packs=store)
+    bundled = await db.scalar(select(SeedSource).where(SeedSource.kind == "bundled"))
+    assert bundled is not None and bundled.current_version_id is not None
+    version = await db.get(SeedSourceVersion, bundled.current_version_id)
+    assert version is not None
+
+    store.delete(bundled.id, version.digest)
+    assert not store.has(bundled.id, version.digest)
+
+    plan = await SeedApplyService(db, packs=store).build_plan(bundled, version, allow_pending=True)
+    assert plan.status == "ok"
+    assert store.has(bundled.id, version.digest)

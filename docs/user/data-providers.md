@@ -75,6 +75,16 @@ Precedence is strongest-first: hidden sources, then selected-provider
 mode, then the radar source picker, then per-search include/exclude.
 User preferences never create or delete a job source.
 
+## If a pack's content is missing
+
+A version's pack bytes are derived data: the version row records the digest,
+and the archive is cached beside it. If the archive is gone (a restored
+database, a copied profile or a backup restored without uploads), **Sync now**
+fetches and stores it again for the same digest — a bundled provider restores
+it from the bundled files without fetching anything. A plan preview in that
+state reports `PACK_ARCHIVE_MISSING` with the recovery step instead of failing
+silently; for an **uploaded pack**, upload the zip again.
+
 ## Related
 
 - [Add a job source](add-a-job-source.md) — create a source from the preset

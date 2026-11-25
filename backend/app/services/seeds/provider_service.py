@@ -419,7 +419,10 @@ class ProviderService:
     ) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        await SeedApplyService(self.db, packs=self.packs).approve(version, actor=actor)
+        try:
+            await SeedApplyService(self.db, packs=self.packs).approve(version, actor=actor)
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return _version_out(version)
 
     async def reject(
@@ -432,9 +435,12 @@ class ProviderService:
     ) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        await SeedApplyService(self.db, packs=self.packs).reject(
-            version, reason=reason, actor=actor
-        )
+        try:
+            await SeedApplyService(self.db, packs=self.packs).reject(
+                version, reason=reason, actor=actor
+            )
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return _version_out(version)
 
     async def revoke(
@@ -442,17 +448,23 @@ class ProviderService:
     ) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        result = await SeedApplyService(self.db, packs=self.packs).revoke(
-            source, version, actor=actor
-        )
+        try:
+            result = await SeedApplyService(self.db, packs=self.packs).revoke(
+                source, version, actor=actor
+            )
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return result.as_dict()
 
     async def plan(self, source_id: uuid.UUID | str, version_id: uuid.UUID | str) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        plan = await SeedApplyService(self.db, packs=self.packs).build_plan(
-            source, version, allow_pending=True
-        )
+        try:
+            plan = await SeedApplyService(self.db, packs=self.packs).build_plan(
+                source, version, allow_pending=True
+            )
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return plan.as_dict()
 
     async def apply(
@@ -460,9 +472,12 @@ class ProviderService:
     ) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        result = await SeedApplyService(self.db, packs=self.packs).apply(
-            source, version, actor=actor
-        )
+        try:
+            result = await SeedApplyService(self.db, packs=self.packs).apply(
+                source, version, actor=actor
+            )
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return result.as_dict()
 
     async def adopt(
@@ -475,9 +490,12 @@ class ProviderService:
     ) -> dict[str, Any]:
         source = await self._source(source_id)
         version = await self._version(source, version_id)
-        result = await SeedApplyService(self.db, packs=self.packs).adopt(
-            source, version, seed_keys=seed_keys, actor=actor
-        )
+        try:
+            result = await SeedApplyService(self.db, packs=self.packs).adopt(
+                source, version, seed_keys=seed_keys, actor=actor
+            )
+        except SeedPackError as exc:
+            raise ValidationError(f"{exc.code}: {exc.detail}") from exc
         return result.as_dict()
 
     async def set_item_enabled(

@@ -47,6 +47,36 @@ def _file_provider(**overrides) -> dict:
     return payload
 
 
+async def test_plan_preview_reports_a_missing_archive_instead_of_500(
+    client, auth_headers, db, tmp_path, monkeypatch
+):
+    import uuid as uuid_module
+
+    import app.services.seeds.provider_service as provider_module
+
+    store = _store(tmp_path)
+    monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
+
+    created = await client.post(ADMIN, headers=auth_headers, json=_file_provider())
+    provider_id = created.json()["id"]
+    uploaded = await client.post(
+        f"{ADMIN}/{provider_id}/upload",
+        headers=auth_headers,
+        files={"file": ("pack.zip", build_pack_archive(_files()), "application/zip")},
+    )
+    version_id = uploaded.json()["version_id"]
+    versions = await client.get(f"{ADMIN}/{provider_id}/versions", headers=auth_headers)
+    digest = versions.json()[0]["digest"]
+    store.delete(uuid_module.UUID(provider_id), digest)
+
+    preview = await client.get(
+        f"{ADMIN}/{provider_id}/versions/{version_id}/plan", headers=auth_headers
+    )
+    assert preview.status_code == 400, preview.text
+    assert "PACK_ARCHIVE_MISSING" in preview.json()["detail"]
+    assert "upload the pack again" in preview.json()["detail"]
+
+
 async def test_admin_upload_approve_apply_and_user_view(
     client, auth_headers, db, tmp_path, monkeypatch
 ):

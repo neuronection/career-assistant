@@ -141,7 +141,7 @@ async def _files_for_version(
     version: SeedSourceVersion,
 ) -> dict[str, bytes]:
     data = packs.get(source.id, version.digest)
-    if data is None and source.kind in ("git", "registry"):
+    if data is None and source.kind in ("git", "registry", "bundled"):
         from app.services.seeds.service import ProviderSyncService
 
         await ProviderSyncService(db, packs=packs).sync(source, trigger="manual")
@@ -156,9 +156,10 @@ async def _files_for_version(
         if isinstance(files, dict):
             return {path: str(text).encode("utf-8") for path, text in files.items()}
     if data is None:
+        recovery = "upload the pack again" if source.kind == "file" else "sync the provider again"
         raise SeedPackError(
             PACK_ARCHIVE_MISSING,
-            f"no stored archive for {source.name} {version.digest}; sync the provider again",
+            f"no stored archive for {source.name} {version.digest}; {recovery}",
         )
     return extract_pack_archive(data)
 
