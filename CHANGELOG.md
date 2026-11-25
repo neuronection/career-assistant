@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Add source dialog keeps its size** while you switch the
+  All / ATS / remote filters: the pack grid now scrolls inside a stable
+  area instead of resizing the popup on every tab change.
+
 ## [v0.20.0] - 2026-11-24
 
 ### Added

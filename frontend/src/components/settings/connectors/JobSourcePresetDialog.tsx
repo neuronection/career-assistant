@@ -274,7 +274,10 @@ export function JobSourcePresetDialog({
           })}
         </div>
 
-        <div className="mt-4 max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+        <div
+          className="mt-4 h-[50vh] min-h-[16rem] max-h-[34rem] space-y-5 overflow-y-auto pr-1"
+          data-testid="preset-results"
+        >
           {report ? (
             <div
               className="space-y-1 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
@@ -302,9 +305,11 @@ export function JobSourcePresetDialog({
             </div>
           ) : null}
           {groups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[var(--as-muted-fg)]">
-              {t("toolsSettings.connectors.presets.noMatches")}
-            </p>
+            <div className="flex h-full items-center justify-center">
+              <p className="text-center text-sm text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.presets.noMatches")}
+              </p>
+            </div>
           ) : (
             groups.map((group) => (
               <section
