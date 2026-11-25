@@ -50,7 +50,6 @@ All notable changes to **Career Assistant** are documented here.
   boot provisions the bundled pack (20 presets) plus the disabled official
   git tile. No user-facing screen uses them yet.
 
-
 ## [v0.20.0] - 2026-11-24
 
 ### Added
