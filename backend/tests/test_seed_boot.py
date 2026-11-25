@@ -30,8 +30,12 @@ async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):
     store = _store(tmp_path)
     first = await ensure_seed_providers(db, packs=store)
     assert first["bundled"]["status"] == "applied"
-    assert first["official"]["enabled"] is False
-    assert first["official"]["ref"] == OFFICIAL_REF
+    assert [entry["subpath"] for entry in first["official"]] == [
+        "packs/neuronection/greece-ats",
+        "packs/neuronection/remote-boards",
+    ]
+    assert all(entry["ref"] == OFFICIAL_REF for entry in first["official"])
+    assert all(entry["enabled"] is False for entry in first["official"])
 
     bundled = await db.scalar(select(SeedSource).where(SeedSource.kind == "bundled"))
     assert bundled is not None
@@ -43,17 +47,47 @@ async def test_boot_provisions_the_bundled_and_official_providers(db, tmp_path):
     assert all(preset.enabled for preset in presets)
     assert all(preset.state == "active" for preset in presets)
 
-    official = await db.scalar(select(SeedSource).where(SeedSource.trust_tier == "official"))
-    assert official is not None
-    assert official.kind == "git"
-    assert official.enabled is False
-    assert official.uri.endswith("career-assistant-seeds.git")
-    assert official.subpath == "packs/neuronection/greece-ats"
+    official = (
+        (await db.execute(select(SeedSource).where(SeedSource.trust_tier == "official")))
+        .scalars()
+        .all()
+    )
+    assert len(official) == 2
+    assert all(source.kind == "git" and not source.enabled for source in official)
+    assert all(source.uri.endswith("career-assistant-seeds.git") for source in official)
+    assert {source.name for source in official} == {
+        "Neuronection official — Greece",
+        "Neuronection official — Remote boards",
+    }
 
     second = await ensure_seed_providers(db, packs=store)
     assert second["bundled"]["status"] == "noop"
-    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 2
+    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 3
     assert await db.scalar(select(func.count()).select_from(JobSourcePreset)) == 20
+
+
+async def test_boot_upgrades_the_legacy_single_official_tile(db, tmp_path):
+    legacy = SeedSource(
+        name="Neuronection official",
+        kind="git",
+        uri="https://github.com/neuronection/career-assistant-seeds.git",
+        ref_spec="",
+        subpath="packs/neuronection/greece-ats",
+        priority=100,
+        scope="system",
+        trust_tier="official",
+        refresh_minutes=0,
+        enabled=False,
+    )
+    db.add(legacy)
+    await db.commit()
+
+    await ensure_seed_providers(db, packs=_store(tmp_path))
+
+    await db.refresh(legacy)
+    assert legacy.name == "Neuronection official — Greece"
+    assert legacy.ref_spec == OFFICIAL_REF
+    assert await db.scalar(select(func.count()).select_from(SeedSource)) == 3
 
 
 async def test_plan_preview_heals_a_missing_bundled_archive(db, tmp_path):

@@ -9,7 +9,8 @@ All notable changes to **Career Assistant** are documented here.
 - **Data providers — versioned seed packs, with review before apply.** Tools →
   Sources → Data providers now manages where job-source presets and endpoint
   hints come from: the 20 bundled presets, the official Neuronection
-  repository, any public Git repository, a static `seed-repo.json` index, or
+  repository (Greece ATS and worldwide remote boards, each as its own
+  provider), any public Git repository, a static `seed-repo.json` index, or
   an uploaded pack. Each fetched pack is an immutable, content-addressed
   version; you preview its plan, approve the exact digest, then apply it.
   Equal-priority providers that disagree are refused as a whole, retirement

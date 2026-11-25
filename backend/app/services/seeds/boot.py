@@ -28,8 +28,16 @@ BUNDLED_PRIORITY = 0
 OFFICIAL_SOURCE_NAME = "Neuronection official"
 OFFICIAL_REPO = "https://github.com/neuronection/career-assistant-seeds.git"
 OFFICIAL_REF = "v2026.11.25.2"
-OFFICIAL_SUBPATH = "packs/neuronection/greece-ats"
 OFFICIAL_PRIORITY = 100
+# One provider owns one pack (a version is one pack digest), so a repository
+# that publishes several packs gets one disabled official tile per pack. The
+# list is app-release knowledge: startup never fetches the index, and an admin
+# can still add any other pack of the same repository by hand.
+OFFICIAL_PACKS: tuple[tuple[str, str], ...] = (
+    ("Neuronection official — Greece", "packs/neuronection/greece-ats"),
+    ("Neuronection official — Remote boards", "packs/neuronection/remote-boards"),
+)
+OFFICIAL_SUBPATH = OFFICIAL_PACKS[0][1]
 
 
 async def _ensure_bundled(db: AsyncSession, packs: SeedPackStore) -> dict[str, Any]:
@@ -91,36 +99,44 @@ async def _ensure_bundled(db: AsyncSession, packs: SeedPackStore) -> dict[str, A
     }
 
 
-async def _ensure_official(db: AsyncSession) -> SeedSource:
-    source = (
-        await db.execute(
-            select(SeedSource).where(
-                SeedSource.kind == "git",
-                SeedSource.trust_tier == "official",
-                SeedSource.subpath == OFFICIAL_SUBPATH,
+async def _ensure_official(db: AsyncSession) -> list[SeedSource]:
+    """Register one disabled tile per official pack (idempotent)."""
+    sources: list[SeedSource] = []
+    for name, subpath in OFFICIAL_PACKS:
+        source = (
+            await db.execute(
+                select(SeedSource).where(
+                    SeedSource.kind == "git",
+                    SeedSource.trust_tier == "official",
+                    SeedSource.subpath == subpath,
+                )
             )
-        )
-    ).scalar_one_or_none()
-    if source is None:
-        source = SeedSource(
-            name=OFFICIAL_SOURCE_NAME,
-            kind="git",
-            uri=OFFICIAL_REPO,
-            ref_spec=OFFICIAL_REF,
-            subpath=OFFICIAL_SUBPATH,
-            priority=OFFICIAL_PRIORITY,
-            scope="system",
-            trust_tier="official",
-            refresh_minutes=0,
-            enabled=False,
-        )
-        db.add(source)
-        await db.commit()
-        await db.refresh(source)
-    elif not source.ref_spec:
-        source.ref_spec = OFFICIAL_REF
-        await db.commit()
-    return source
+        ).scalar_one_or_none()
+        if source is None:
+            source = SeedSource(
+                name=name,
+                kind="git",
+                uri=OFFICIAL_REPO,
+                ref_spec=OFFICIAL_REF,
+                subpath=subpath,
+                priority=OFFICIAL_PRIORITY,
+                scope="system",
+                trust_tier="official",
+                refresh_minutes=0,
+                enabled=False,
+            )
+            db.add(source)
+            await db.commit()
+            await db.refresh(source)
+        else:
+            if not source.ref_spec:
+                source.ref_spec = OFFICIAL_REF
+            if source.name == OFFICIAL_SOURCE_NAME:
+                # the pre-multi-pack tile carried the generic name
+                source.name = name
+            await db.commit()
+        sources.append(source)
+    return sources
 
 
 async def ensure_seed_providers(
@@ -132,17 +148,22 @@ async def ensure_seed_providers(
     official = await _ensure_official(db)
     return {
         "bundled": bundled,
-        "official": {
-            "source_id": str(official.id),
-            "ref": official.ref_spec,
-            "enabled": official.enabled,
-        },
+        "official": [
+            {
+                "source_id": str(source.id),
+                "ref": source.ref_spec,
+                "subpath": source.subpath,
+                "enabled": source.enabled,
+            }
+            for source in official
+        ],
     }
 
 
 __all__ = [
     "BUNDLED_PRIORITY",
     "BUNDLED_SOURCE_NAME",
+    "OFFICIAL_PACKS",
     "OFFICIAL_PRIORITY",
     "OFFICIAL_REF",
     "OFFICIAL_REPO",

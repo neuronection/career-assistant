@@ -409,13 +409,17 @@ There is no side door around it.
   version and content hash per entity; the preset/endpoint `state` remains
   the one liveness authority. Retirement flips `state` and a referencing
   `job_sources.support_status` — rows are never deleted.
-- **Boot provisions two providers.** The bundled pack
+- **Boot provisions three providers.** The bundled pack
   (`backend/app/data/seed_packs/bundled/`, 20 presets at priority 0) is
   auto-approved and applied only when its digest changes; its presets are
-  enabled by default. The official git tile is registered disabled and
-  pinned (`v2026.11.25.2`, `packs/neuronection/greece-ats`, priority 100);
-  checking/enabling it stays an explicit admin act. Both are idempotent in
-  `app/seeds/run.py` (`ensure_seed_providers`).
+  enabled by default. The official repository ships two packs, so it is
+  registered as two disabled tiles, both pinned at `v2026.11.25.2` and
+  priority 100 — `packs/neuronection/greece-ats` (Greece ATS) and
+  `packs/neuronection/remote-boards` (worldwide remote boards). One provider
+  owns exactly one pack (a version is one pack digest). Checking/enabling a
+  tile stays an explicit admin act, and an admin can add any other pack of
+  the same repository by hand. All are idempotent in `app/seeds/run.py`
+  (`ensure_seed_providers`).
 - **The legacy catalog imports fold into the lane.** `0019` synthesizes one
   approved `file` provider per stored catalog at priority 90, writes the
   preset/endpoint rows and provenance directly, and archives the exact v1

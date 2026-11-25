@@ -592,10 +592,12 @@ async def run() -> None:
         from app.services.seeds.boot import ensure_seed_providers
 
         providers = await ensure_seed_providers(db)
+        official = providers["official"]
         logger.info(
-            "providers: bundled=%s official=%s",
+            "providers: bundled=%s official=%d (%s)",
             providers["bundled"].get("status"),
-            providers["official"].get("ref"),
+            len(official),
+            ", ".join(entry["subpath"] for entry in official),
         )
         from app.seeds.metrics import (
             seed_metric_dimensions,

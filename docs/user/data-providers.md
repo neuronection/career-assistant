@@ -32,6 +32,11 @@ approve that exact digest and apply it.
    providers publish the same seed key.
 4. **Create**, then **Sync now** (uploaded packs already carry their content).
 
+One provider owns one pack. The official repository publishes two — Greece
+ATS and worldwide remote boards — so it arrives as two separate tiles, each
+disabled until you enable it. Any other pack in the same repository is added
+as another Git provider with that pack's subpath.
+
 ## Review, approve and apply
 
 The provider detail panel is a small workspace:
