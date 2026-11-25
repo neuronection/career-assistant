@@ -67,6 +67,14 @@ All notable changes to **Career Assistant** are documented here.
   registers the disabled official tiles only (no catalog content). No
   user-facing screen uses them yet.
 
+### Internal
+
+- **Job-catalog pack formats (wiring).** The seed lane now parses the
+  job-catalog/taxonomy pack formats (families, job types v2, relations,
+  career paths, skills, interest tags) and refuses to apply them until the
+  catalog adapters land; manifest `replaces` accepts the family contract's
+  bare key bodies.
+
 ## [v0.20.0] - 2026-11-24
 
 ### Added
