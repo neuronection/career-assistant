@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,6 +121,30 @@ const DETAIL = {
       seed_source_version_id: "version-1",
       updated_at: "2026-11-24T20:00:00Z",
     },
+  ],
+} as providersApi.AdminProviderDetail;
+
+const CATALOG_DETAIL = {
+  ...DETAIL,
+  item_counts: {
+    presets: 0,
+    endpoints: 0,
+    families: 19,
+    jobs: 45,
+    relations: 40,
+    paths: 8,
+    skills: 32,
+    interests: 46,
+  },
+  presets: [],
+  endpoints: [],
+  catalog: [
+    { entity_type: "job_family", active: 19, retired: 0, user_modified: 0 },
+    { entity_type: "job_type", active: 45, retired: 1, user_modified: 2 },
+    { entity_type: "job_relation", active: 40, retired: 0, user_modified: 0 },
+    { entity_type: "career_path", active: 8, retired: 0, user_modified: 0 },
+    { entity_type: "skill", active: 32, retired: 0, user_modified: 0 },
+    { entity_type: "interest_tag", active: 46, retired: 0, user_modified: 0 },
   ],
 } as providersApi.AdminProviderDetail;
 
@@ -251,6 +275,47 @@ describe("ProviderHub", () => {
         false,
       ),
     );
+  });
+
+  it("shows per-entity catalog counts and edit state on the catalog tab", async () => {
+    mocked.fetchAdminProvider.mockResolvedValue(CATALOG_DETAIL);
+    const user = userEvent.setup();
+    render(<ProviderHub />);
+    await user.click(await screen.findByTestId("provider-card-provider-1"));
+    await user.click(await screen.findByText("Catalog"));
+    const jobs = await screen.findByTestId("provider-catalog-job_type");
+    expect(within(jobs).getByText("45 active")).toBeInTheDocument();
+    expect(within(jobs).getByText("Retired 1")).toBeInTheDocument();
+    expect(within(jobs).getByText("2 edited")).toBeInTheDocument();
+    const interests = screen.getByTestId("provider-catalog-interest_tag");
+    expect(within(interests).getByText("46 active")).toBeInTheDocument();
+  });
+
+  it("labels a delete action in the plan preview", async () => {
+    mocked.planProviderVersion.mockResolvedValue({
+      ...PLAN,
+      counts: { ...PLAN.counts, delete: 2 },
+      items: [
+        ...(PLAN.items ?? []),
+        {
+          entity_type: "job_relation",
+          seed_key: "job-relation:a/b/similar-to",
+          action: "delete",
+          content_hash: "hash",
+          source_id: "provider-1",
+          version_id: "version-2",
+          priority: 100,
+          current_id: "entity-2",
+          reason: "removed from the pack",
+        },
+      ],
+    } as providersApi.ProviderPlan);
+    const user = userEvent.setup();
+    render(<ProviderHub />);
+    await user.click(await screen.findByTestId("provider-card-provider-1"));
+    await user.click(await screen.findByText("Versions"));
+    await user.click(await screen.findByTestId("provider-plan-version-2"));
+    expect(await screen.findByText("Delete 2")).toBeInTheDocument();
   });
 
   it("creates a git provider from the add dialog", async () => {

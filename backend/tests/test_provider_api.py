@@ -10,7 +10,8 @@ from sqlalchemy import select
 from app.core.seed_pack.archive import build_pack_archive
 from app.core.seed_pack.manifest import parse_repo_index
 from app.core.seed_pack.store import SeedPackStore
-from app.models.seed_model import JobSourcePreset
+from app.models.job_model import Job
+from app.models.seed_model import JobSourcePreset, SeedItemProvenance
 from app.schemas.providers import DiscoverIn
 from app.services.seeds.provider_service import ProviderService
 from app.storage.object_storage import LocalObjectStore, StorageConfig
@@ -285,3 +286,116 @@ async def test_discover_reads_a_registry_index(db, tmp_path, monkeypatch):
     )
     assert result["kind"] == "registry"
     assert result["packs"][0]["id"] == "test-pack"
+
+
+CATALOG_PACK = (
+    Path(__file__).parent / "fixtures" / "seed_packs" / "packs" / "neuronection" / "job-catalog"
+)
+CATALOG_ITEM_COUNTS = {
+    "families": 19,
+    "jobs": 45,
+    "relations": 40,
+    "paths": 8,
+    "skills": 32,
+    "interests": 46,
+}
+
+
+def _catalog_files() -> dict[str, bytes]:
+    return {
+        path.relative_to(CATALOG_PACK).as_posix(): path.read_bytes()
+        for path in sorted(CATALOG_PACK.rglob("*.json"))
+    }
+
+
+async def test_admin_detail_reports_catalog_counts_and_edit_state(
+    client, auth_headers, db, tmp_path, monkeypatch
+):
+    import app.services.seeds.provider_service as provider_module
+    from app.services.seeds.catalog import mark_user_modified
+
+    store = _store(tmp_path)
+    monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
+
+    created = await client.post(
+        ADMIN, headers=auth_headers, json=_file_provider(trust_tier="operator")
+    )
+    provider_id = created.json()["id"]
+    uploaded = await client.post(
+        f"{ADMIN}/{provider_id}/upload",
+        headers=auth_headers,
+        files={"file": ("catalog.zip", build_pack_archive(_catalog_files()), "application/zip")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    version_id = uploaded.json()["version_id"]
+    await client.post(f"{ADMIN}/{provider_id}/versions/{version_id}/approve", headers=auth_headers)
+    applied = await client.post(
+        f"{ADMIN}/{provider_id}/versions/{version_id}/apply", headers=auth_headers
+    )
+    assert applied.status_code == 200, applied.text
+
+    detail = await client.get(f"{ADMIN}/{provider_id}", headers=auth_headers)
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert {key: body["item_counts"][key] for key in CATALOG_ITEM_COUNTS} == CATALOG_ITEM_COUNTS
+    catalog = {entry["entity_type"]: entry for entry in body["catalog"]}
+    assert set(catalog) == {
+        "job_family",
+        "job_type",
+        "job_relation",
+        "career_path",
+        "skill",
+        "interest_tag",
+    }
+    assert catalog["job_type"] == {
+        "entity_type": "job_type",
+        "active": 45,
+        "retired": 0,
+        "user_modified": 0,
+    }
+    listed = (await client.get(ADMIN, headers=auth_headers)).json()
+    assert listed[0]["item_counts"]["jobs"] == 45
+
+    jobs = (await db.execute(select(Job).order_by(Job.code))).scalars().all()
+    retired = await db.scalar(
+        select(SeedItemProvenance).where(
+            SeedItemProvenance.entity_type == "job_type",
+            SeedItemProvenance.entity_id == jobs[0].id,
+        )
+    )
+    assert retired is not None
+    retired.state = "retired"
+    await mark_user_modified(db, "job_type", jobs[1].id)
+    await db.commit()
+
+    body = (await client.get(f"{ADMIN}/{provider_id}", headers=auth_headers)).json()
+    assert body["item_counts"]["jobs"] == 44
+    catalog = {entry["entity_type"]: entry for entry in body["catalog"]}
+    assert catalog["job_type"] == {
+        "entity_type": "job_type",
+        "active": 44,
+        "retired": 1,
+        "user_modified": 1,
+    }
+
+
+async def test_a_preset_only_provider_reports_no_catalog_groups(
+    client, auth_headers, db, tmp_path, monkeypatch
+):
+    import app.services.seeds.provider_service as provider_module
+
+    store = _store(tmp_path)
+    monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
+    created = await client.post(ADMIN, headers=auth_headers, json=_file_provider())
+    provider_id = created.json()["id"]
+    uploaded = await client.post(
+        f"{ADMIN}/{provider_id}/upload",
+        headers=auth_headers,
+        files={"file": ("pack.zip", build_pack_archive(_files()), "application/zip")},
+    )
+    version_id = uploaded.json()["version_id"]
+    await client.post(f"{ADMIN}/{provider_id}/versions/{version_id}/approve", headers=auth_headers)
+    await client.post(f"{ADMIN}/{provider_id}/versions/{version_id}/apply", headers=auth_headers)
+    body = (await client.get(f"{ADMIN}/{provider_id}", headers=auth_headers)).json()
+    assert body["catalog"] == []
+    assert body["item_counts"]["jobs"] == 0

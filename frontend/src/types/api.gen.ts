@@ -12856,6 +12856,26 @@ export interface components {
          * @enum {string}
          */
         CareerStage: "student" | "early_career" | "experienced" | "switching" | "returning";
+        /** CatalogCountOut */
+        CatalogCountOut: {
+            /**
+             * Active
+             * @default 0
+             */
+            active: number;
+            /** Entity Type */
+            entity_type: string;
+            /**
+             * Retired
+             * @default 0
+             */
+            retired: number;
+            /**
+             * User Modified
+             * @default 0
+             */
+            user_modified: number;
+        };
         /** CatalogMappingSettingsIn */
         CatalogMappingSettingsIn: {
             /** Job Proposals */
@@ -20588,6 +20608,8 @@ export interface components {
         };
         /** ProviderAdminDetailOut */
         ProviderAdminDetailOut: {
+            /** Catalog */
+            catalog?: components["schemas"]["CatalogCountOut"][];
             current_version?: components["schemas"]["VersionSummaryOut"] | null;
             /** Enabled */
             enabled: boolean;

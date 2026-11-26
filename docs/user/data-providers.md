@@ -36,6 +36,12 @@ for listings and no app release is needed to refresh them.
    Once a version is approved and applied, its presets appear in the source
    gallery enabled; switch individual items off in **Items** if you need to.
 
+Open a provider to see what its applied version owns: the **Items** tab
+lists posting presets, **Endpoints** lists endpoint hints, and **Catalog**
+counts the job families, jobs, relations, career paths, skills and interests
+it supplied. Catalog rows an admin edited directly are flagged as edited, and
+a row a newer version dropped is shown as retired, never deleted.
+
 One provider owns one pack. The official repository publishes three — Greece
 ATS, worldwide remote boards and the job catalog — so it arrives as three
 separate tiles, each disabled until you enable it. Any other pack in the same

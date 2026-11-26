@@ -9,6 +9,7 @@ import {
   GitBranch,
   Globe2,
   Layers,
+  Library,
   ListChecks,
   Plus,
   RefreshCw,
@@ -98,6 +99,10 @@ function shortDigest(digest: string): string {
   return digest.replace(/^sha256:/, "").slice(0, 12);
 }
 
+function totalItemCount(counts: Record<string, number> | undefined): number {
+  return Object.values(counts ?? {}).reduce((total, value) => total + (value ?? 0), 0);
+}
+
 function providerAccent(provider: AdminProvider): string {
   if (provider.last_error) return "var(--as-danger)";
   if ((provider.pending_count ?? 0) > 0) return "var(--as-warning)";
@@ -156,8 +161,7 @@ export function ProviderHub() {
 
   const pending = providers.reduce((total, provider) => total + provider.pending_count, 0);
   const items = providers.reduce(
-    (total, provider) =>
-      total + (provider.item_counts?.presets ?? 0) + (provider.item_counts?.endpoints ?? 0),
+    (total, provider) => total + totalItemCount(provider.item_counts),
     0,
   );
 
@@ -330,7 +334,7 @@ export function ProviderHub() {
                   </Badge>
                   <Badge variant="outline">
                     {t("toolsSettings.providers.itemCount", {
-                      count: (provider.item_counts?.presets ?? 0) + (provider.item_counts?.endpoints ?? 0),
+                      count: totalItemCount(provider.item_counts),
                     })}
                   </Badge>
                   <Badge variant={provider.enabled ? "success" : "secondary"}>
@@ -451,6 +455,7 @@ function ProviderDetail({
       { value: "overview", label: t("toolsSettings.providers.tabOverview"), icon: Activity },
       { value: "versions", label: t("toolsSettings.providers.tabVersions"), icon: ListChecks },
       { value: "items", label: t("toolsSettings.providers.tabItems"), icon: Database },
+      { value: "catalog", label: t("toolsSettings.providers.tabCatalog"), icon: Library },
       { value: "endpoints", label: t("toolsSettings.providers.tabEndpoints"), icon: Globe2 },
       { value: "runs", label: t("toolsSettings.providers.tabRuns"), icon: Clock3 },
     ],
@@ -606,6 +611,7 @@ function ProviderDetail({
                   }
                 />
               ) : null}
+              {tab === "catalog" ? <CatalogTab detail={detail} /> : null}
               {tab === "endpoints" ? (
                 <EndpointsTab
                   detail={detail}
@@ -810,8 +816,7 @@ function OverviewTab({
       </div>
       <p className="text-[11px] text-[var(--as-muted-fg)]">
         {t("toolsSettings.providers.policyNote", {
-          count:
-            (detail.item_counts?.presets ?? 0) + (detail.item_counts?.endpoints ?? 0),
+          count: totalItemCount(detail.item_counts),
         })}
       </p>
     </div>
@@ -961,6 +966,7 @@ function PlanPreview({ plan }: { plan: ProviderPlan }) {
     noop: "secondary",
     skip: "outline",
     override: "warning",
+    delete: "danger",
   };
   return (
     <div
@@ -1108,6 +1114,82 @@ function ItemsTab({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+const CATALOG_ENTITY_KEY: Record<string, string> = {
+  job_family: "families",
+  job_type: "jobs",
+  job_relation: "relations",
+  career_path: "paths",
+  skill: "skills",
+  interest_tag: "interests",
+};
+
+function CatalogTab({ detail }: { detail: AdminProviderDetail }) {
+  const { t } = useTranslation();
+  const groups = detail.catalog ?? [];
+  const total = groups.reduce(
+    (sum, group) => sum + (group.active ?? 0) + (group.retired ?? 0),
+    0,
+  );
+  if (groups.length === 0 || total === 0) {
+    return (
+      <EmptyState
+        icon={Library}
+        title={t("toolsSettings.providers.noCatalog")}
+        description={t("toolsSettings.providers.noCatalogBody")}
+      />
+    );
+  }
+  return (
+    <div className="space-y-3" data-testid="provider-catalog">
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+          {t("toolsSettings.providers.catalogTitle")}
+        </h4>
+        <p className="mt-1 text-[11px] text-[var(--as-muted-fg)]">
+          {t("toolsSettings.providers.catalogHint")}
+        </p>
+      </div>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {groups.map((group) => {
+          const key = CATALOG_ENTITY_KEY[group.entity_type] ?? group.entity_type;
+          return (
+            <div
+              key={group.entity_type}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2"
+              data-testid={`provider-catalog-${group.entity_type}`}
+            >
+              <p className="min-w-0 truncate text-xs font-medium text-[var(--as-fg)]">
+                {t(`toolsSettings.providers.catalogEntity.${key}`, {
+                  defaultValue: key,
+                })}
+              </p>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Badge variant="secondary">
+                  {t("toolsSettings.providers.catalogActive", {
+                    count: group.active ?? 0,
+                  })}
+                </Badge>
+                {(group.retired ?? 0) > 0 ? (
+                  <Badge variant="danger">
+                    {t("toolsSettings.providers.retired")} {group.retired}
+                  </Badge>
+                ) : null}
+                {(group.user_modified ?? 0) > 0 ? (
+                  <Badge variant="warning">
+                    {t("toolsSettings.providers.catalogEdited", {
+                      count: group.user_modified,
+                    })}
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
