@@ -172,10 +172,18 @@ class EndpointAdminOut(BaseModel):
     updated_at: datetime | None = None
 
 
+class CatalogCountOut(BaseModel):
+    entity_type: str
+    active: int = 0
+    retired: int = 0
+    user_modified: int = 0
+
+
 class ProviderAdminDetailOut(ProviderAdminOut):
     versions: list[VersionSummaryOut] = Field(default_factory=list)
     presets: list[PresetAdminOut] = Field(default_factory=list)
     endpoints: list[EndpointAdminOut] = Field(default_factory=list)
+    catalog: list[CatalogCountOut] = Field(default_factory=list)
 
 
 class UserProviderOut(BaseModel):

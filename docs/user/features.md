@@ -14,7 +14,10 @@ short version; this page is the reference. Statuses live in
   then apply it. Applied presets appear enabled (switch items off as needed).
   Equal-priority providers that disagree are refused as a whole, retirement
   keeps sources you already created, and every catalog row keeps its
-  provenance.
+  provenance. The provider detail reports what the applied version owns —
+  presets, endpoints and per-entity catalog counts (families, jobs,
+  relations, paths, skills, interests), with retired rows and direct admin
+  edits flagged.
 - **Follow and hide** — on `/radar`, follow providers, narrow to selected
   providers and hide individual sources. A hidden source never appears in
   Explore, the radar, digests, saved-search runs, RSS or chat, whatever the

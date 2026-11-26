@@ -23,6 +23,12 @@ All notable changes to **Career Assistant** are documented here.
   empty instance can load the curated catalog in one reviewed apply instead
   of it being bundled with the app.
 
+- **Provider detail shows what each pack owns — including the catalog.** The
+  admin provider view now reports per-entity catalog counts (job families,
+  jobs, relations, career paths, skills and interests) and flags retired rows
+  and rows an admin edited directly, through a new **Catalog** tab. Plan
+  previews also label the `delete` action used for pack-owned relation edges.
+
 - **Data providers — versioned seed packs, with review before apply.** Tools →
   Sources → Data providers now manages where job-source presets and endpoint
   hints come from: the official Neuronection repository (Greece ATS and

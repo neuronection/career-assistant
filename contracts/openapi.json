@@ -3246,6 +3246,34 @@
         "title": "CareerStage",
         "type": "string"
       },
+      "CatalogCountOut": {
+        "properties": {
+          "active": {
+            "default": 0,
+            "title": "Active",
+            "type": "integer"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "retired": {
+            "default": 0,
+            "title": "Retired",
+            "type": "integer"
+          },
+          "user_modified": {
+            "default": 0,
+            "title": "User Modified",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entity_type"
+        ],
+        "title": "CatalogCountOut",
+        "type": "object"
+      },
       "CatalogMappingSettingsIn": {
         "properties": {
           "job_proposals": {
@@ -23222,6 +23250,13 @@
       },
       "ProviderAdminDetailOut": {
         "properties": {
+          "catalog": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogCountOut"
+            },
+            "title": "Catalog",
+            "type": "array"
+          },
           "current_version": {
             "anyOf": [
               {

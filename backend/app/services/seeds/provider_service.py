@@ -28,6 +28,7 @@ from app.core.seed_pack.store import SeedPackStore
 from app.models.seed_model import (
     JobSourcePreset,
     ProviderEndpoint,
+    SeedItemProvenance,
     SeedSource,
     SeedSourceVersion,
     SeedSyncRun,
@@ -36,6 +37,14 @@ from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
 from app.services.integrations.webfetch import WebFetchBlocked, fetch_bytes
 from app.services.seeds.applier import SeedApplyService
+from app.services.seeds.catalog import (
+    ENTITY_CAREER_PATH,
+    ENTITY_FAMILY,
+    ENTITY_INTEREST,
+    ENTITY_JOB_TYPE,
+    ENTITY_RELATION,
+    ENTITY_SKILL,
+)
 from app.services.seeds.git_transport import (
     GitTransport,
     validate_public_git_uri,
@@ -46,6 +55,15 @@ from app.services.seeds.registry_transport import RegistryTransport, normalize_i
 from app.services.seeds.service import ProviderSyncService
 
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+
+CATALOG_COUNT_KEYS: tuple[tuple[str, str], ...] = (
+    (ENTITY_FAMILY, "families"),
+    (ENTITY_JOB_TYPE, "jobs"),
+    (ENTITY_RELATION, "relations"),
+    (ENTITY_CAREER_PATH, "paths"),
+    (ENTITY_SKILL, "skills"),
+    (ENTITY_INTEREST, "interests"),
+)
 
 
 def _identifier(value: uuid.UUID | str, label: str) -> uuid.UUID:
@@ -198,9 +216,64 @@ class ProviderService:
             .all()
         )
 
-    async def _item_counts(self, version_id: uuid.UUID | None) -> dict[str, int]:
+    async def _catalog_counts(
+        self, version_id: uuid.UUID | None, version_ids: list[uuid.UUID]
+    ) -> list[dict[str, Any]]:
+        """Per-entity catalog counts owned by this provider (plan 224 §3.10).
+
+        ``active`` counts rows the current version owns; ``retired`` counts
+        rows an earlier version of this provider retired (a later version
+        never deletes a catalog row); ``user_modified`` flags active rows an
+        admin edited directly, which the next apply plans as ``override``.
+        """
+        buckets: dict[str, dict[str, Any]] = {
+            entity: {"entity_type": entity, "active": 0, "retired": 0, "user_modified": 0}
+            for entity, _key in CATALOG_COUNT_KEYS
+        }
+        if version_id is None or not version_ids:
+            return list(buckets.values())
+        rows = (
+            await self.db.execute(
+                select(
+                    SeedItemProvenance.entity_type,
+                    SeedItemProvenance.source_version_id,
+                    SeedItemProvenance.state,
+                    SeedItemProvenance.user_modified,
+                    func.count(),
+                )
+                .where(
+                    SeedItemProvenance.entity_type.in_(
+                        [entity for entity, _ in CATALOG_COUNT_KEYS]
+                    ),
+                    SeedItemProvenance.source_version_id.in_(version_ids),
+                )
+                .group_by(
+                    SeedItemProvenance.entity_type,
+                    SeedItemProvenance.source_version_id,
+                    SeedItemProvenance.state,
+                    SeedItemProvenance.user_modified,
+                )
+            )
+        ).all()
+        for entity, source_version_id, state, user_modified, count in rows:
+            bucket = buckets.get(entity)
+            if bucket is None:
+                continue
+            if state == "retired":
+                bucket["retired"] += int(count or 0)
+            elif source_version_id == version_id:
+                bucket["active"] += int(count or 0)
+                if user_modified:
+                    bucket["user_modified"] += int(count or 0)
+        return list(buckets.values())
+
+    async def _item_counts(
+        self, version_id: uuid.UUID | None, version_ids: list[uuid.UUID]
+    ) -> dict[str, int]:
+        counts = {"presets": 0, "endpoints": 0}
         if version_id is None:
-            return {"presets": 0, "endpoints": 0}
+            counts.update(dict.fromkeys([key for _entity, key in CATALOG_COUNT_KEYS], 0))
+            return counts
         presets = await self.db.scalar(
             select(func.count())
             .select_from(JobSourcePreset)
@@ -211,7 +284,12 @@ class ProviderService:
             .select_from(ProviderEndpoint)
             .where(ProviderEndpoint.seed_source_version_id == version_id)
         )
-        return {"presets": int(presets or 0), "endpoints": int(endpoints or 0)}
+        counts["presets"] = int(presets or 0)
+        counts["endpoints"] = int(endpoints or 0)
+        catalog = await self._catalog_counts(version_id, version_ids)
+        for (_entity, key), bucket in zip(CATALOG_COUNT_KEYS, catalog, strict=True):
+            counts[key] = int(bucket["active"])
+        return counts
 
     async def _provider_admin(
         self, source: SeedSource, versions: list[SeedSourceVersion]
@@ -220,7 +298,9 @@ class ProviderService:
             (version for version in versions if version.id == source.current_version_id), None
         )
         latest = versions[0] if versions else None
-        counts = await self._item_counts(current.id if current is not None else None)
+        counts = await self._item_counts(
+            current.id if current is not None else None, [version.id for version in versions]
+        )
         return {
             "id": str(source.id),
             "name": source.name,
@@ -301,6 +381,13 @@ class ProviderService:
         detail["versions"] = [_version_summary(version) for version in versions]
         detail["presets"] = [_preset_admin(row) for row in presets]
         detail["endpoints"] = [_endpoint_admin(row) for row in endpoints]
+        detail["catalog"] = [
+            entry
+            for entry in await self._catalog_counts(
+                current_id, [version.id for version in versions]
+            )
+            if entry["active"] or entry["retired"] or entry["user_modified"]
+        ]
         return detail
 
     async def create(self, data: Any, *, actor: str | uuid.UUID = "system") -> SeedSource:
