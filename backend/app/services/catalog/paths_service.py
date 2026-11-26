@@ -270,6 +270,10 @@ class PathService:
             path.title = title
         if description is not None:
             path.description = description
+        if path.seed_key:
+            from app.services.seeds.catalog import mark_user_modified
+
+            await mark_user_modified(self.db, "career_path", path.id)
         await self.db.commit()
         return path
 

@@ -2803,6 +2803,7 @@
       "plan": "Preview plan",
       "planPreview": "Plan preview",
       "planConflictHint": "{{count}} equal-priority conflict(s): the apply will be refused.",
+      "planWarnings": "Προειδοποιήσεις ({{count}})",
       "approve": "Approve",
       "approved": "Version approved.",
       "reject": "Reject",

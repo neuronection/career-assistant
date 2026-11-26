@@ -441,6 +441,23 @@ async def retire(db: AsyncSession, entity: str, row: Any) -> None:
     await db.flush()
 
 
+async def mark_user_modified(db: AsyncSession, entity_type: str, entity_id: uuid.UUID) -> None:
+    """Protect a pack-owned row's direct admin edit from the next pack apply."""
+    from app.models.seed_model import SeedItemProvenance
+
+    provenance = (
+        await db.execute(
+            select(SeedItemProvenance).where(
+                SeedItemProvenance.entity_type == entity_type,
+                SeedItemProvenance.entity_id == entity_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if provenance is not None and not provenance.user_modified:
+        provenance.user_modified = True
+        await db.flush()
+
+
 async def job_side_effects(db: AsyncSession, job_ids: list[uuid.UUID]) -> None:
     from app.services.catalog.job_service import JobService
 
@@ -467,6 +484,7 @@ __all__ = [
     "apply_skill",
     "job_side_effects",
     "load_current",
+    "mark_user_modified",
     "natural_match",
     "retire",
     "stage",

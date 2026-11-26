@@ -252,6 +252,11 @@ class TaxonomyService:
         for field in ("label", "category", "description", "deprecated", "kind"):
             if field in data and data[field] is not None:
                 setattr(tag, field, data[field])
+        if getattr(tag, "seed_key", None):
+            from app.services.seeds.catalog import mark_user_modified
+
+            entity = "skill" if model is Skill else "interest_tag"
+            await mark_user_modified(self.db, entity, tag.id)
         await self.db.commit()
         await self.db.refresh(tag)
         return tag

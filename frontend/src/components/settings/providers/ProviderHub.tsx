@@ -991,6 +991,23 @@ function PlanPreview({ plan }: { plan: ProviderPlan }) {
           })}
         </p>
       ) : null}
+      {(plan.warnings ?? []).length > 0 ? (
+        <div className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="provider-plan-warnings">
+          <p className="font-medium">
+            {t("toolsSettings.providers.planWarnings", {
+              count: (plan.warnings ?? []).length,
+            })}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {(plan.warnings ?? []).slice(0, 8).map((warning, index) => (
+              <li key={`${String(warning.code)}-${index}`}>
+                {String(warning.code ?? "")}
+                {warning.detail ? `: ${String(warning.detail)}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[11px]">
         {(plan.items ?? []).slice(0, 40).map((item) => (
           <li
