@@ -1,0 +1,332 @@
+{
+  "metadata": {
+    "item_type": "job_relations",
+    "format": "job_relations",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-26",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "job-relation:software-developer/ml-engineer/specialises-into",
+      "from": "software-developer",
+      "to": "ml-engineer",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "Strong programming base leads into AI engineering."
+    },
+    {
+      "seed_key": "job-relation:data-scientist/ml-engineer/alternative-to",
+      "from": "data-scientist",
+      "to": "ml-engineer",
+      "type": "alternative_to",
+      "weight": 0.7,
+      "rationale": "Both model data; engineering vs analysis emphasis."
+    },
+    {
+      "seed_key": "job-relation:software-developer/data-scientist/similar-to",
+      "from": "software-developer",
+      "to": "data-scientist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Shared coding and statistics core."
+    },
+    {
+      "seed_key": "job-relation:software-developer/game-developer/alternative-to",
+      "from": "software-developer",
+      "to": "game-developer",
+      "type": "alternative_to",
+      "weight": 0.6,
+      "rationale": "Same coding skills, different product passion."
+    },
+    {
+      "seed_key": "job-relation:software-developer/devops-engineer/leads-to",
+      "from": "software-developer",
+      "to": "devops-engineer",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Devs who love infrastructure become DevOps."
+    },
+    {
+      "seed_key": "job-relation:devops-engineer/cybersecurity-analyst/similar-to",
+      "from": "devops-engineer",
+      "to": "cybersecurity-analyst",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Systems knowledge transfers to security."
+    },
+    {
+      "seed_key": "job-relation:nurse/physician/leads-to",
+      "from": "nurse",
+      "to": "physician",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Clinical experience can motivate medical school."
+    },
+    {
+      "seed_key": "job-relation:paramedic/nurse/leads-to",
+      "from": "paramedic",
+      "to": "nurse",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Common bridge from emergency care into nursing."
+    },
+    {
+      "seed_key": "job-relation:nurse/physiotherapist/similar-to",
+      "from": "nurse",
+      "to": "physiotherapist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Patient-centred care in adjacent modalities."
+    },
+    {
+      "seed_key": "job-relation:psychologist/physician/prerequisite-of",
+      "from": "psychologist",
+      "to": "physician",
+      "type": "prerequisite_of",
+      "weight": 0.2,
+      "rationale": "Different paths; psychology is not a medical prerequisite."
+    },
+    {
+      "seed_key": "job-relation:medical-lab-technician/pharmacist/leads-to",
+      "from": "medical-lab-technician",
+      "to": "pharmacist",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Lab foundation supports pharmacy studies."
+    },
+    {
+      "seed_key": "job-relation:teacher/special-education-teacher/specialises-into",
+      "from": "teacher",
+      "to": "special-education-teacher",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "General teaching specialises into SEN."
+    },
+    {
+      "seed_key": "job-relation:civil-engineer/architect/alternative-to",
+      "from": "civil-engineer",
+      "to": "architect",
+      "type": "alternative_to",
+      "weight": 0.5,
+      "rationale": "Built environment; engineering vs design lead."
+    },
+    {
+      "seed_key": "job-relation:electrician/electric-vehicle-technician/leads-to",
+      "from": "electrician",
+      "to": "electric-vehicle-technician",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Electrical mastery extends to EV systems."
+    },
+    {
+      "seed_key": "job-relation:mechanical-engineer/robotics-technician/prerequisite-of",
+      "from": "mechanical-engineer",
+      "to": "robotics-technician",
+      "type": "prerequisite_of",
+      "weight": 0.5,
+      "rationale": "Mechanical fundamentals underpin robotics."
+    },
+    {
+      "seed_key": "job-relation:electrician/renewable-energy-technician/leads-to",
+      "from": "electrician",
+      "to": "renewable-energy-technician",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Wiring skills transfer to wind/solar."
+    },
+    {
+      "seed_key": "job-relation:accountant/financial-analyst/leads-to",
+      "from": "accountant",
+      "to": "financial-analyst",
+      "type": "leads_to",
+      "weight": 0.6,
+      "rationale": "Accounting feeds into investment analysis."
+    },
+    {
+      "seed_key": "job-relation:marketing-specialist/graphic-designer/similar-to",
+      "from": "marketing-specialist",
+      "to": "graphic-designer",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Campaigns pair copy with visuals."
+    },
+    {
+      "seed_key": "job-relation:graphic-designer/ux-designer/leads-to",
+      "from": "graphic-designer",
+      "to": "ux-designer",
+      "type": "leads_to",
+      "weight": 0.7,
+      "rationale": "Visual craft evolves into product design."
+    },
+    {
+      "seed_key": "job-relation:journalist/marketing-specialist/alternative-to",
+      "from": "journalist",
+      "to": "marketing-specialist",
+      "type": "alternative_to",
+      "weight": 0.5,
+      "rationale": "Writing skills monetise in content marketing."
+    },
+    {
+      "seed_key": "job-relation:social-worker/psychologist/leads-to",
+      "from": "social-worker",
+      "to": "psychologist",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Case work inspires clinical training."
+    },
+    {
+      "seed_key": "job-relation:police-officer/lawyer/leads-to",
+      "from": "police-officer",
+      "to": "lawyer",
+      "type": "leads_to",
+      "weight": 0.3,
+      "rationale": "Field experience precedes law school for some."
+    },
+    {
+      "seed_key": "job-relation:biologist/wildlife-biologist/specialises-into",
+      "from": "biologist",
+      "to": "wildlife-biologist",
+      "type": "specialises_into",
+      "weight": 0.8,
+      "rationale": "Biology specialises into ecology/zoology."
+    },
+    {
+      "seed_key": "job-relation:chemist/pharmacist/similar-to",
+      "from": "chemist",
+      "to": "pharmacist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Chemistry core, applied vs clinical."
+    },
+    {
+      "seed_key": "job-relation:environmental-scientist/agronomist/similar-to",
+      "from": "environmental-scientist",
+      "to": "agronomist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Soil, sustainability and science overlap."
+    },
+    {
+      "seed_key": "job-relation:veterinary-technician/veterinarian/leads-to",
+      "from": "veterinary-technician",
+      "to": "veterinarian",
+      "type": "leads_to",
+      "weight": 0.6,
+      "rationale": "Tech experience strengthens vet applications."
+    },
+    {
+      "seed_key": "job-relation:farmer/agronomist/alternative-to",
+      "from": "farmer",
+      "to": "agronomist",
+      "type": "alternative_to",
+      "weight": 0.4,
+      "rationale": "Practical vs scientific crop expertise."
+    },
+    {
+      "seed_key": "job-relation:chef/hotel-manager/leads-to",
+      "from": "chef",
+      "to": "hotel-manager",
+      "type": "leads_to",
+      "weight": 0.4,
+      "rationale": "Kitchen leadership grows into broader hospitality."
+    },
+    {
+      "seed_key": "job-relation:logistics-coordinator/hotel-manager/alternative-to",
+      "from": "logistics-coordinator",
+      "to": "hotel-manager",
+      "type": "alternative_to",
+      "weight": 0.3,
+      "rationale": "Operations management in different sectors."
+    },
+    {
+      "seed_key": "job-relation:pilot/firefighter/alternative-to",
+      "from": "pilot",
+      "to": "firefighter",
+      "type": "alternative_to",
+      "weight": 0.2,
+      "rationale": "Shared fitness and duty culture, different fields."
+    },
+    {
+      "seed_key": "job-relation:mechanical-engineer/renewable-energy-technician/similar-to",
+      "from": "mechanical-engineer",
+      "to": "renewable-energy-technician",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Machines and energy systems."
+    },
+    {
+      "seed_key": "job-relation:teacher/psychologist/leads-to",
+      "from": "teacher",
+      "to": "psychologist",
+      "type": "leads_to",
+      "weight": 0.3,
+      "rationale": "Educators often retrain in child psychology."
+    },
+    {
+      "seed_key": "job-relation:data-scientist/accountant/alternative-to",
+      "from": "data-scientist",
+      "to": "accountant",
+      "type": "alternative_to",
+      "weight": 0.3,
+      "rationale": "Numeric roles with different cultures."
+    },
+    {
+      "seed_key": "job-relation:ux-designer/marketing-specialist/similar-to",
+      "from": "ux-designer",
+      "to": "marketing-specialist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "User empathy serves campaigns too."
+    },
+    {
+      "seed_key": "job-relation:paramedic/firefighter/similar-to",
+      "from": "paramedic",
+      "to": "firefighter",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Both are emergency-response roles with overlapping fitness and duty requirements."
+    },
+    {
+      "seed_key": "job-relation:financial-analyst/data-scientist/similar-to",
+      "from": "financial-analyst",
+      "to": "data-scientist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Both turn quantitative evidence into decisions, with different tools."
+    },
+    {
+      "seed_key": "job-relation:software-developer/cybersecurity-analyst/similar-to",
+      "from": "software-developer",
+      "to": "cybersecurity-analyst",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Secure coding overlaps directly with security analysis."
+    },
+    {
+      "seed_key": "job-relation:veterinarian/biologist/similar-to",
+      "from": "veterinarian",
+      "to": "biologist",
+      "type": "similar_to",
+      "weight": 0.6,
+      "rationale": "Life sciences, clinical practice versus research."
+    },
+    {
+      "seed_key": "job-relation:teacher/psychologist/similar-to",
+      "from": "teacher",
+      "to": "psychologist",
+      "type": "similar_to",
+      "weight": 0.4,
+      "rationale": "Learning and behaviour are shared foundations."
+    },
+    {
+      "seed_key": "job-relation:sales-representative/marketing-specialist/similar-to",
+      "from": "sales-representative",
+      "to": "marketing-specialist",
+      "type": "similar_to",
+      "weight": 0.5,
+      "rationale": "Both read the market and persuade it: sales owns the customer conversation, marketing the campaign around it."
+    }
+  ]
+}

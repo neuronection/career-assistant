@@ -33,6 +33,23 @@
       "version": "1.0.1",
       "digest": "sha256:aba6d74e59b6b4f74cc1a3aad2fe446fcb9c04bc35837d52ea7b66e58430ed8e",
       "signature": null
+    },
+    {
+      "id": "neuronection-job-catalog",
+      "path": "packs/neuronection/job-catalog",
+      "manifest": "packs/neuronection/job-catalog/manifest.json",
+      "itemTypes": [
+        "job_families",
+        "job_types",
+        "job_relations",
+        "career_paths",
+        "skills",
+        "interest_tags"
+      ],
+      "license": "CC-BY-4.0",
+      "version": "1.0.0",
+      "digest": "sha256:c5fd50ad28ba3e1980e8fc0d015d93bcca599e424f0edca3c0d6ddc971d23b80",
+      "signature": null
     }
   ]
 }

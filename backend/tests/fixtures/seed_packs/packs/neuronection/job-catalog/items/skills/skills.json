@@ -1,0 +1,236 @@
+{
+  "metadata": {
+    "item_type": "skills",
+    "format": "skills",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-26",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "skill:programming",
+      "key": "programming",
+      "label": "Programming",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:data-analysis",
+      "key": "data-analysis",
+      "label": "Data Analysis",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:mathematics",
+      "key": "mathematics",
+      "label": "Mathematics",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:lab-techniques",
+      "key": "lab-techniques",
+      "label": "Laboratory Techniques",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:electronics",
+      "key": "electronics",
+      "label": "Electronics",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:engineering-design",
+      "key": "engineering-design",
+      "label": "Engineering Design (CAD)",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:mechanical-repair",
+      "key": "mechanical-repair",
+      "label": "Mechanical Repair",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:network-admin",
+      "key": "network-admin",
+      "label": "Network Administration",
+      "category": "technical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:writing",
+      "key": "writing",
+      "label": "Writing",
+      "category": "communication",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:public-speaking",
+      "key": "public-speaking",
+      "label": "Public Speaking",
+      "category": "communication",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:foreign-languages",
+      "key": "foreign-languages",
+      "label": "Foreign Languages",
+      "category": "communication",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:negotiation",
+      "key": "negotiation",
+      "label": "Negotiation",
+      "category": "communication",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:teaching",
+      "key": "teaching",
+      "label": "Teaching & Explaining",
+      "category": "communication",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:empathy",
+      "key": "empathy",
+      "label": "Empathy & Listening",
+      "category": "interpersonal",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:teamwork",
+      "key": "teamwork",
+      "label": "Teamwork",
+      "category": "interpersonal",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:leadership",
+      "key": "leadership",
+      "label": "Leadership",
+      "category": "interpersonal",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:conflict-resolution",
+      "key": "conflict-resolution",
+      "label": "Conflict Resolution",
+      "category": "interpersonal",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:customer-service",
+      "key": "customer-service",
+      "label": "Customer Service",
+      "category": "interpersonal",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:visual-design",
+      "key": "visual-design",
+      "label": "Visual Design",
+      "category": "creative",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:storytelling",
+      "key": "storytelling",
+      "label": "Storytelling",
+      "category": "creative",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:music-performance",
+      "key": "music-performance",
+      "label": "Music Performance",
+      "category": "creative",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:video-editing",
+      "key": "video-editing",
+      "label": "Video Editing",
+      "category": "creative",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:cooking",
+      "key": "cooking",
+      "label": "Cooking",
+      "category": "creative",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:critical-thinking",
+      "key": "critical-thinking",
+      "label": "Critical Thinking",
+      "category": "cognitive",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:problem-solving",
+      "key": "problem-solving",
+      "label": "Problem Solving",
+      "category": "cognitive",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:attention-to-detail",
+      "key": "attention-to-detail",
+      "label": "Attention to Detail",
+      "category": "cognitive",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:memory-accuracy",
+      "key": "memory-accuracy",
+      "label": "Memory & Accuracy",
+      "category": "cognitive",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:organization",
+      "key": "organization",
+      "label": "Organization & Planning",
+      "category": "cognitive",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:physical-stamina",
+      "key": "physical-stamina",
+      "label": "Physical Stamina",
+      "category": "physical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:dexterity",
+      "key": "dexterity",
+      "label": "Manual Dexterity",
+      "category": "physical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:driving",
+      "key": "driving",
+      "label": "Driving",
+      "category": "physical",
+      "description": ""
+    },
+    {
+      "seed_key": "skill:first-aid",
+      "key": "first-aid",
+      "label": "First Aid",
+      "category": "physical",
+      "description": ""
+    }
+  ]
+}

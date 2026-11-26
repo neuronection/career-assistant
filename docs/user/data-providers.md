@@ -13,11 +13,12 @@ approve that exact digest and apply it.
 preset gallery is empty until you add a pack, so there is one source of truth
 for listings and no app release is needed to refresh them.
 
-- **Official Neuronection provider** — two disabled Git tiles pinned to a
+- **Official Neuronection provider** — three disabled Git tiles pinned to a
   released tag of the public
   [career-assistant-seeds](https://github.com/neuronection/career-assistant-seeds)
-  repository (Greece ATS and worldwide remote boards). **Sync now**, approve
-  and apply a pack to populate the gallery.
+  repository: Greece ATS, worldwide remote boards, and the curated job
+  catalog. **Sync now**, approve and apply a pack to populate the gallery or
+  the catalog.
 
 ## Add your own provider
 
@@ -35,10 +36,10 @@ for listings and no app release is needed to refresh them.
    Once a version is approved and applied, its presets appear in the source
    gallery enabled; switch individual items off in **Items** if you need to.
 
-One provider owns one pack. The official repository publishes two — Greece
-ATS and worldwide remote boards — so it arrives as two separate tiles, each
-disabled until you enable it. Any other pack in the same repository is added
-as another Git provider with that pack's subpath.
+One provider owns one pack. The official repository publishes three — Greece
+ATS, worldwide remote boards and the job catalog — so it arrives as three
+separate tiles, each disabled until you enable it. Any other pack in the same
+repository is added as another Git provider with that pack's subpath.
 
 To add a repository's packs in one step, choose **Repository (all packs)**,
 enter its URL and pinned ref, and add: the app reads the repository's

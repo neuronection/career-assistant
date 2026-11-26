@@ -1,0 +1,35 @@
+{
+  "id": "neuronection-job-catalog",
+  "schema_version": "1.0",
+  "version": "1.0.0",
+  "license": "CC-BY-4.0",
+  "scope": "system",
+  "priority": 100,
+  "description": "Neuronection curated job catalog and taxonomy: families, jobs, relations, starter paths, skills and interests.",
+  "item_files": [
+    {
+      "path": "items/job_families/families.json",
+      "sha256": "7e44c87eff940f1eb8d6d063f45f176c6e8b99916ec3d0df03b1931992f794e2"
+    },
+    {
+      "path": "items/job_types/jobs.json",
+      "sha256": "8afa5e39a95d601ea8e2739b5111816298a02f76e2317032030335912781c6ec"
+    },
+    {
+      "path": "items/job_relations/relations.json",
+      "sha256": "08489aa46ef037281ae2035b3ce2e03ac007134690ea3c56c87f25052bdcefe7"
+    },
+    {
+      "path": "items/career_paths/paths.json",
+      "sha256": "7e05d705688482cccd86b5973160dc13e00f6780954feaa7138f8c764644955d"
+    },
+    {
+      "path": "items/skills/skills.json",
+      "sha256": "aaf1b1a3ff8b2e521d5024aab2e232c29e8fac394d496b04e5ebd23a5157c26a"
+    },
+    {
+      "path": "items/interest_tags/interests.json",
+      "sha256": "85e4f1c2e2959fdaae417f654b3592d4060b0abc432945f6e7d697c3559c52bb"
+    }
+  ]
+}

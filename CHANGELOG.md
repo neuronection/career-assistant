@@ -16,6 +16,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Added
 
+- **The official repository now offers the job catalog as a pack.** The
+  `neuronection-job-catalog` pack (job families, occupations, typed relations,
+  starter paths, skills and interests, at `v2026.11.25.3`) appears as a
+  disabled official tile next to the Greece and remote-board packs, so an
+  empty instance can load the curated catalog in one reviewed apply instead
+  of it being bundled with the app.
+
 - **Data providers — versioned seed packs, with review before apply.** Tools →
   Sources → Data providers now manages where job-source presets and endpoint
   hints come from: the official Neuronection repository (Greece ATS and

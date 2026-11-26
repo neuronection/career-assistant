@@ -1,0 +1,334 @@
+{
+  "metadata": {
+    "item_type": "interest_tags",
+    "format": "interest_tags",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-26",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "interest:science-physics",
+      "key": "science-physics",
+      "label": "Physics",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:science-chemistry",
+      "key": "science-chemistry",
+      "label": "Chemistry",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:science-biology",
+      "key": "science-biology",
+      "label": "Biology",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:science-earth",
+      "key": "science-earth",
+      "label": "Earth & Environment",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:nature-animals",
+      "key": "nature-animals",
+      "label": "Animals & Wildlife",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:nature-plants",
+      "key": "nature-plants",
+      "label": "Plants & Agriculture",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:science-space",
+      "key": "science-space",
+      "label": "Space & Astronomy",
+      "category": "science",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-software",
+      "key": "technology-software",
+      "label": "Software & Apps",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-hardware",
+      "key": "technology-hardware",
+      "label": "Hardware & Electronics",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-robots",
+      "key": "technology-robots",
+      "label": "Robotics & Automation",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-ai",
+      "key": "technology-ai",
+      "label": "Artificial Intelligence",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-networks",
+      "key": "technology-networks",
+      "label": "Networks & Cybersecurity",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-games",
+      "key": "technology-games",
+      "label": "Video Games",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:technology-data",
+      "key": "technology-data",
+      "label": "Data & Statistics",
+      "category": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-teaching",
+      "key": "people-teaching",
+      "label": "Teaching & Mentoring",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-health",
+      "key": "people-health",
+      "label": "Health & Care",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-helping",
+      "key": "people-helping",
+      "label": "Helping & Social Work",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-law-justice",
+      "key": "people-law-justice",
+      "label": "Law & Justice",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-public-safety",
+      "key": "people-public-safety",
+      "label": "Public Safety",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:people-animals-care",
+      "key": "people-animals-care",
+      "label": "Animal Care",
+      "category": "people",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-entrepreneurship",
+      "key": "business-entrepreneurship",
+      "label": "Entrepreneurship",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-marketing",
+      "key": "business-marketing",
+      "label": "Marketing & Advertising",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-sales",
+      "key": "business-sales",
+      "label": "Sales & Negotiation",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-finance",
+      "key": "business-finance",
+      "label": "Finance & Investing",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-management",
+      "key": "business-management",
+      "label": "Management & Leadership",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:business-logistics",
+      "key": "business-logistics",
+      "label": "Logistics & Supply Chain",
+      "category": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-visual",
+      "key": "arts-visual",
+      "label": "Drawing & Visual Art",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-design",
+      "key": "arts-design",
+      "label": "Design & Aesthetics",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-music",
+      "key": "arts-music",
+      "label": "Music & Sound",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-writing",
+      "key": "arts-writing",
+      "label": "Writing & Storytelling",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-performing",
+      "key": "arts-performing",
+      "label": "Performing & Acting",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:arts-photo-video",
+      "key": "arts-photo-video",
+      "label": "Photography & Video",
+      "category": "arts",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-building",
+      "key": "hands-building",
+      "label": "Building & Construction",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-machines",
+      "key": "hands-machines",
+      "label": "Machines & Engines",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-electricity",
+      "key": "hands-electricity",
+      "label": "Electricity & Wiring",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-cooking",
+      "key": "hands-cooking",
+      "label": "Cooking & Food",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-crafts",
+      "key": "hands-crafts",
+      "label": "Crafts & Woodwork",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:hands-driving",
+      "key": "hands-driving",
+      "label": "Driving & Vehicles",
+      "category": "hands-on",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:society-history",
+      "key": "society-history",
+      "label": "History & Culture",
+      "category": "society",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:society-languages",
+      "key": "society-languages",
+      "label": "Languages & Translation",
+      "category": "society",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:society-politics",
+      "key": "society-politics",
+      "label": "Politics & Public Policy",
+      "category": "society",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:society-environment",
+      "key": "society-environment",
+      "label": "Environment & Sustainability",
+      "category": "society",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:society-media",
+      "key": "society-media",
+      "label": "News & Media",
+      "category": "society",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:sports-fitness",
+      "key": "sports-fitness",
+      "label": "Fitness & Training",
+      "category": "sports",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:sports-competition",
+      "key": "sports-competition",
+      "label": "Competitive Sports",
+      "category": "sports",
+      "description": ""
+    },
+    {
+      "seed_key": "interest:sports-outdoors",
+      "key": "sports-outdoors",
+      "label": "Outdoor Adventure",
+      "category": "sports",
+      "description": ""
+    }
+  ]
+}
