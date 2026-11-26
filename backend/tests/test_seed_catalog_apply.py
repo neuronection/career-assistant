@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models.career_path_model import CareerPath
 from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
 from app.models.taxonomy_model import InterestTag, Skill
+from app.services.seeds.catalog import mark_user_modified
 from tests.test_seed_apply import _service, _source, _store, _version
 from tests.test_seed_pack import _pack
 
@@ -212,3 +213,118 @@ async def test_first_apply_adopts_an_existing_seeded_job(db, tmp_path):
     assert job is not None and job.id == existing_id
     assert job.seed_key == "job-type:data-analyst"
     assert await db.scalar(select(JobFamily).where(JobFamily.key == "data")) is not None
+
+
+def _job_only_pack(
+    code: str,
+    seed_key: str,
+    version: str,
+    *,
+    replaces: list[str] | None = None,
+    title: str | None = None,
+) -> dict[str, bytes]:
+    job = dict(
+        JOB_TYPE, code=code, seed_key=seed_key, title=title or code.replace("-", " ").title()
+    )
+    files = {
+        "items/job_families/families.json": _envelope("job_families", [FAMILY]),
+        "items/skills/skills.json": _envelope("skills", [SKILL]),
+        "items/interest_tags/interests.json": _envelope("interest_tags", [INTEREST]),
+        "items/job_types/jobs.json": _envelope("job_types", [job], version=2),
+    }
+    return _pack(files, manifest={"version": version, "replaces": replaces or []})
+
+
+async def test_replaces_renames_the_row_and_keeps_its_uuid(db, tmp_path):
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(
+        db, store, source, _job_only_pack("old-role", "job-type:old-role", "1.0.0")
+    )
+    await _service(db, store).apply(source, first)
+    old = await db.scalar(select(Job))
+    assert old is not None
+    old_id = old.id
+
+    second = await _version(
+        db,
+        store,
+        source,
+        _job_only_pack("new-role", "job-type:new-role", "2.0.0", replaces=["old-role"]),
+    )
+    plan = await _service(db, store).build_plan(source, second)
+    assert plan.warnings == []
+    applied = await _service(db, store).apply(source, second)
+    assert applied.status == "applied", applied.error
+    db.expire_all()
+    jobs = (await db.execute(select(Job))).scalars().all()
+    assert len(jobs) == 1
+    assert jobs[0].id == old_id
+    assert jobs[0].code == "new-role"
+    assert jobs[0].seed_key == "job-type:new-role"
+
+
+async def test_an_unresolved_replace_is_a_warning_not_a_failure(db, tmp_path):
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(
+        db, store, source, _job_only_pack("old-role", "job-type:old-role", "1.0.0")
+    )
+    await _service(db, store).apply(source, first)
+    second = await _version(
+        db,
+        store,
+        source,
+        _job_only_pack("new-role", "job-type:new-role", "2.0.0", replaces=["missing-role"]),
+    )
+    plan = await _service(db, store).build_plan(source, second)
+    assert plan.status == "ok"
+    assert [warning["code"] for warning in plan.warnings] == ["REPLACES_UNRESOLVED"]
+
+
+async def test_an_occupied_admin_link_is_kept_with_a_warning(db, tmp_path):
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(
+        db, store, source, _job_only_pack("old-role", "job-type:old-role", "1.0.0")
+    )
+    await _service(db, store).apply(source, first)
+    await db.execute(update(JobSkill).values(source="admin"))
+    await db.execute(update(JobTag).values(source="admin"))
+    await db.commit()
+
+    second = await _version(
+        db,
+        store,
+        source,
+        _job_only_pack("old-role", "job-type:old-role", "2.0.0", title="Data Analyst II"),
+    )
+    plan = await _service(db, store).build_plan(source, second)
+    codes = [warning["code"] for warning in plan.warnings]
+    assert codes.count("EDGE_OCCUPIED") == 2
+    applied = await _service(db, store).apply(source, second)
+    assert applied.status == "applied", applied.error
+    db.expire_all()
+    skills = (await db.execute(select(JobSkill))).scalars().all()
+    tags = (await db.execute(select(JobTag))).scalars().all()
+    assert len(skills) == 1 and skills[0].source == "admin"
+    assert len(tags) == 1 and tags[0].source == "admin"
+
+
+async def test_a_user_modified_row_plans_an_override(db, tmp_path):
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(
+        db, store, source, _job_only_pack("old-role", "job-type:old-role", "1.0.0")
+    )
+    await _service(db, store).apply(source, first)
+    job = await db.scalar(select(Job))
+    assert job is not None
+    await mark_user_modified(db, "job_type", job.id)
+    await db.commit()
+
+    second = await _version(
+        db, store, source, _job_only_pack("old-role", "job-type:old-role", "2.0.0")
+    )
+    plan = await _service(db, store).build_plan(source, second)
+    assert [item.action for item in plan.items if item.entity_type == "job_type"] == ["override"]

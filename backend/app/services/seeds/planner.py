@@ -117,6 +117,7 @@ class PlannedItem:
 class Plan:
     items: list[PlannedItem] = field(default_factory=list)
     conflicts: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[dict[str, Any]] = field(default_factory=list)
     candidate_source_id: uuid.UUID | None = None
     candidate_version_id: uuid.UUID | None = None
 
@@ -145,6 +146,7 @@ class Plan:
             ),
             "counts": self.counts,
             "conflicts": self.conflicts,
+            "warnings": self.warnings,
             "items": [item.as_dict() for item in self.items],
         }
 
@@ -255,10 +257,51 @@ async def _catalog_claims(
     return claims
 
 
+def _apply_replaces(
+    parsed: ParsedPack,
+    winners: dict[tuple[str, str], tuple[_Entry, ParsedItem]],
+    current: dict[tuple[str, str], Any],
+    plan: Plan,
+    renamed_old: set[tuple[str, str]],
+) -> None:
+    """Bind manifest-level `replaces` bodies to their single replacement item (ADR-0056)."""
+    for body in parsed.manifest.replaces:
+        old_rows = [
+            (entity, key, row)
+            for (entity, key), row in current.items()
+            if entity in CATALOG_ENTITY_MODELS and key.split(":", 1)[1] == body
+        ]
+        if not old_rows:
+            plan.warnings.append(
+                {"code": "REPLACES_UNRESOLVED", "body": body, "detail": "no existing row"}
+            )
+            continue
+        for entity, old_key, row in old_rows:
+            prefix = old_key.split(":", 1)[0]
+            candidates = [
+                (key, item)
+                for (winner_entity, key), (_entry, item) in winners.items()
+                if winner_entity == entity and key.split(":", 1)[0] == prefix and key != old_key
+            ]
+            if len(candidates) != 1:
+                plan.warnings.append(
+                    {
+                        "code": "REPLACES_AMBIGUOUS",
+                        "body": body,
+                        "detail": f"{len(candidates)} replacement candidates for {old_key}",
+                    }
+                )
+                continue
+            new_key, _item = candidates[0]
+            current.setdefault((entity, new_key), row)
+            renamed_old.add((entity, old_key))
+
+
 async def _check_catalog_constraints(
     db: AsyncSession,
     winners: dict[tuple[str, str], tuple[_Entry, ParsedItem]],
     plan: Plan,
+    current: dict[tuple[str, str], Any],
 ) -> None:
     """Plan-time title uniqueness and the RIASEC category law."""
     from app.core.job_titles import job_type_key
@@ -326,6 +369,55 @@ async def _check_catalog_constraints(
                         "content_hashes": [],
                     }
                 )
+        if entity == ENTITY_JOB_TYPE:
+            row = current.get((ENTITY_JOB_TYPE, seed_key))
+            if row is not None:
+                await _link_warnings(db, seed_key, row.id, item.payload, plan)
+
+
+async def _link_warnings(
+    db: AsyncSession,
+    seed_key: str,
+    job_id,
+    payload: dict[str, Any],
+    plan: Plan,
+) -> None:
+    """Non-seed links that already occupy a desired pair are kept, never replaced."""
+    from app.models.job_model import JobSkill, JobTag
+    from app.models.taxonomy_model import InterestTag, Skill
+
+    for link in (
+        (await db.execute(select(JobSkill).where(JobSkill.job_id == job_id))).scalars().all()
+    ):
+        if link.source == "seed":
+            continue
+        skill = await db.get(Skill, link.skill_id)
+        if skill is not None and any(
+            str(ref["skill_key"]) == skill.key for ref in payload.get("skills") or []
+        ):
+            plan.warnings.append(
+                {
+                    "code": "EDGE_OCCUPIED",
+                    "entity_type": ENTITY_JOB_TYPE,
+                    "seed_key": seed_key,
+                    "detail": f"skill {skill.key} kept as {link.source}",
+                }
+            )
+    for tag_link in (
+        (await db.execute(select(JobTag).where(JobTag.job_id == job_id))).scalars().all()
+    ):
+        if tag_link.source == "seed":
+            continue
+        tag = await db.get(InterestTag, tag_link.interest_tag_id)
+        if tag is not None and tag.key in {str(key) for key in payload.get("interests") or []}:
+            plan.warnings.append(
+                {
+                    "code": "EDGE_OCCUPIED",
+                    "entity_type": ENTITY_JOB_TYPE,
+                    "seed_key": seed_key,
+                    "detail": f"interest {tag.key} kept as {tag_link.source}",
+                }
+            )
 
 
 def _entity_for(item: ParsedItem) -> str | None:
@@ -458,7 +550,11 @@ async def build_plan(
     claimed_catalog = await _catalog_claims(db, packs, connectors, candidate)
     claimed_catalog.update(key for key in winners if key[0] in CATALOG_ENTITY_MODELS)
 
-    await _check_catalog_constraints(db, winners, plan)
+    renamed_old: set[tuple[str, str]] = set()
+    if candidate is not None and candidate_parsed is not None:
+        _apply_replaces(candidate_parsed, winners, current, plan, renamed_old)
+
+    await _check_catalog_constraints(db, winners, plan, current)
 
     for (entity, seed_key), (_entry, item) in sorted(winners.items()):
         if entity not in CATALOG_ENTITY_MODELS or (entity, seed_key) in current:
@@ -509,7 +605,11 @@ async def build_plan(
 
     for (entity, seed_key), row in sorted(current.items()):
         if entity in CATALOG_ENTITY_MODELS:
-            if (entity, seed_key) in winners or (entity, seed_key) in claimed_catalog:
+            if (
+                (entity, seed_key) in winners
+                or (entity, seed_key) in claimed_catalog
+                or (entity, seed_key) in renamed_old
+            ):
                 continue
             if getattr(row, "seed_key", None) is None:
                 continue

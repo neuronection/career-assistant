@@ -19051,6 +19051,10 @@ export interface components {
             items?: components["schemas"]["PlanItemOut"][];
             /** Status */
             status: string;
+            /** Warnings */
+            warnings?: {
+                [key: string]: unknown;
+            }[];
         };
         /**
          * PostingChangeOut

@@ -75,7 +75,10 @@ All notable changes to **Career Assistant** are documented here.
   identity with first-apply adoption, catalog packs require the
   official/operator trust tier, removed rows retire (or delete pack-owned
   edges), re-added rows restore, and manifest `replaces` takes the family
-  contract's bare key bodies.
+  contract's bare key bodies. The plan now surfaces `replaces` renames,
+  unresolved/ambiguous replacements and occupied admin links as warnings, and
+  a direct admin edit of a pack-owned row is protected from the next apply
+  (`user_modified`).
 
 ## [v0.20.0] - 2026-11-24
 

@@ -248,6 +248,7 @@ class PlanOut(BaseModel):
     candidate_version_id: str | None = None
     counts: dict[str, int] = Field(default_factory=dict)
     conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
     items: list[PlanItemOut] = Field(default_factory=list)
 
 

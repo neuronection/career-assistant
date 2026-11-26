@@ -687,6 +687,10 @@ class JobService:
         for field, value in payload.items():
             setattr(job, field, value.value if hasattr(value, "value") else value)
         self.db.add(job)
+        if job.seed_key:
+            from app.services.seeds.catalog import mark_user_modified
+
+            await mark_user_modified(self.db, "job_type", job.id)
         await self.db.commit()
         job = await self._get_with_family(job.id)
         if job.status == "published":
