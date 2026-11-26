@@ -7,7 +7,7 @@
 # with transient `git`; the credentials dance and the named `auth-kit`
 # build context are gone — the repo is public, study's image is proof).
 
-FROM node:20-alpine AS frontend-build
+FROM node:26-alpine AS frontend-build
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci

@@ -6,7 +6,7 @@ this page is the working guide.
 
 ## Bootstrap
 
-Prerequisites: Docker, Python 3.12+, Node 18+.
+Prerequisites: Docker, Python 3.12+, Node 26+.
 
 ```bash
 cp .env.example .env                                       # localhost defaults

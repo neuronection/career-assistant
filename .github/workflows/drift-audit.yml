@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
       - name: Fetch the upstream canonical audit script
         run: |
           curl -fsSL https://raw.githubusercontent.com/neuronection/assistant-ui/main/scripts/audit-usage.mjs \

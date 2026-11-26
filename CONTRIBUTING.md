@@ -5,7 +5,7 @@ covers the minimum you need to build, test and submit changes.
 
 ## Development setup
 
-Prerequisites: Docker (for `--web` dev and pytest), Python 3.12+, Node 18+.
+Prerequisites: Docker (for `--web` dev and pytest), Python 3.12+, Node 26+.
 
 ```bash
 cp .env.example .env                                       # localhost defaults
