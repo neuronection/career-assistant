@@ -1016,7 +1016,6 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
                 })
               }
               band={band}
-              resultCount={feed?.items.length ?? 0}
             />
 
             <section className="min-w-0 space-y-3" data-testid="findings-feed">

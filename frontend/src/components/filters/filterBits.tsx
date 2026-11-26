@@ -10,6 +10,11 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, X } from "lucide-react";
 
+/**
+ * One collapsible filter section. `count` is the number of active values
+ * (one per selected value or bound), not a facet/candidate count: 0
+ * renders nothing because the active dot already carries the state.
+ */
 export function Section({
   title,
   active,
@@ -185,7 +190,7 @@ export function TriStateChips({
                 data-testid={testId ? `${testId}-clear` : undefined}
                 aria-label={t("filters.removeValue", { value: label })}
                 title={t("filters.clickToClear")}
-                className="py-1 pl-0.5 pr-1.5 opacity-70 transition-opacity hover:opacity-100"
+                className="py-1 pl-1.5 pr-1.5 opacity-70 transition-opacity hover:opacity-100"
               >
                 <X aria-hidden className="h-3 w-3" />
               </button>

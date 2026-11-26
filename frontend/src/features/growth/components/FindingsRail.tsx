@@ -26,7 +26,6 @@ interface FindingsRailProps {
   onChange: (next: FindingsFilters) => void;
   onClear: () => void;
   band?: ContainerBand;
-  resultCount?: number;
 }
 
 export function FindingsRail({
@@ -36,7 +35,6 @@ export function FindingsRail({
   onChange,
   onClear,
   band,
-  resultCount,
 }: FindingsRailProps) {
   const { t } = useTranslation();
   const active = countActiveFindingsFilters(filters);
@@ -51,7 +49,6 @@ export function FindingsRail({
       asideTestId="autopilot-filters"
       testId="findings-rail"
       band={band}
-      resultCount={resultCount}
       triggerTestId="findings-filters-open"
       sheetTestId="findings-filters-sheet"
     >
@@ -149,13 +146,12 @@ export function FindingsRail({
       <Section
         title={t("autopilot.workspace.sourceSection")}
         active={!!filters.source}
-        count={filters.source ? facets?.source?.[filters.source] : undefined}
       >
         <TriStateChips
           values={sources.map((source) => ({
             value: source.key,
             label: source.label,
-            count: facets?.source?.[source.key] ?? 0,
+            count: facets?.source?.[source.key],
             testId: `source-${source.key}`,
           }))}
           include={filters.source ? [filters.source] : []}
@@ -174,13 +170,12 @@ export function FindingsRail({
       <Section
         title={t("autopilot.workspace.senioritySection")}
         active={!!filters.seniority}
-        count={filters.seniority ? facets?.seniority?.[filters.seniority] : undefined}
       >
         <TriStateChips
           values={FINDINGS_SENIORITIES.map((value) => ({
             value,
             label: t(`autopilot.seniority.${value}`, { defaultValue: value }),
-            count: facets?.seniority?.[value] ?? 0,
+            count: facets?.seniority?.[value],
             testId: `seniority-${value}`,
           }))}
           include={filters.seniority ? [filters.seniority] : []}

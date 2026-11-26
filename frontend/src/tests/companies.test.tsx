@@ -319,10 +319,28 @@ describe("Companies browsing (plan 135)", () => {
     expect(screen.getByTestId("company-filter-location")).toHaveValue("Athens");
   });
 
+  it("does not invent a result count in the sheet footer", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY, PROPOSED], facets: null });
+    render(
+      <MemoryRouter>
+        <Companies band="compact" />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    fireEvent.click(screen.getByTestId("company-filters-open"));
+    expect(await screen.findByTestId("company-filters-sheet-done")).toHaveTextContent("Done");
+  });
+
   it("cycles an industry chip through include, exclude and clear", async () => {
     mocked.fetchCompanies.mockResolvedValue({
       items: [COMPANY],
-      facets: { work_mode: {}, seniority: {}, employment: {}, industries: { fintech: 2 } },
+      facets: {
+        work_mode: {},
+        seniority: {},
+        employment: {},
+        industries: { fintech: 2 },
+        truncated: false,
+      },
     });
     const user = userEvent.setup();
     render(

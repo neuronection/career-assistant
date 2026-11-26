@@ -62,13 +62,19 @@ class CompanyOut(BaseModel):
 class CompanyFacets(BaseModel):
     """Per-value COMPANY counts over the filtered set's active postings —
     the filter options literally describe the hiring those companies are
-    doing right now (plan 154)."""
+    doing right now (plan 154).
+
+    ``truncated`` is true when the industries or locations list was cut to
+    its cap. The counts cover the returned page's companies, not the whole
+    filtered set; the self-excluding version is C1.1.
+    """
 
     work_mode: dict[str, int] = Field(default_factory=dict)
     seniority: dict[str, int] = Field(default_factory=dict)
     employment: dict[str, int] = Field(default_factory=dict)
     industries: dict[str, int] = Field(default_factory=dict)
     locations: dict[str, int] = Field(default_factory=dict)
+    truncated: bool = False
 
 
 class CompaniesOut(BaseModel):

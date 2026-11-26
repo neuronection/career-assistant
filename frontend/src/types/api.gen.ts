@@ -13222,6 +13222,10 @@ export interface components {
          * @description Per-value COMPANY counts over the filtered set's active postings —
          *     the filter options literally describe the hiring those companies are
          *     doing right now (plan 154).
+         *
+         *     ``truncated`` is true when the industries or locations list was cut to
+         *     its cap. The counts cover the returned page's companies, not the whole
+         *     filtered set; the self-excluding version is C1.1.
          */
         CompanyFacets: {
             /** Employment */
@@ -13240,6 +13244,11 @@ export interface components {
             seniority?: {
                 [key: string]: number;
             };
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
             /** Work Mode */
             work_mode?: {
                 [key: string]: number;

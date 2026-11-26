@@ -380,6 +380,46 @@ describe("Autopilot workspace feed", () => {
     expect(screen.getByTestId("seniority-mid")).toHaveTextContent("· 1");
   });
 
+  it("keeps a facet count out of the section's active slot", async () => {
+    mockFeed.mockResolvedValue({
+      items: [feedItem()],
+      next_cursor: null,
+      facets: {
+        goal: {},
+        source: { "board-postings": 2 },
+        seniority: { junior: 2 },
+        state: { open: 2, dismissed: 0 },
+      },
+    });
+    renderPage("/autopilot?source=board-postings&seniority=junior");
+    await screen.findByTestId("finding-title-f1");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Source" }));
+    await user.click(screen.getByRole("button", { name: /Seniority/ }));
+    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("· 2");
+    expect(screen.getByTestId("seniority-junior")).toHaveTextContent("· 2");
+    expect(screen.queryAllByTestId("section-count")).toHaveLength(0);
+  });
+
+  it("shows no count at all for a seniority the facets do not include", async () => {
+    mockFeed.mockResolvedValue({
+      items: [feedItem()],
+      next_cursor: null,
+      facets: {
+        goal: {},
+        source: { "board-postings": 1 },
+        seniority: {},
+        state: { open: 1, dismissed: 0 },
+      },
+    });
+    renderPage();
+    await screen.findByTestId("finding-title-f1");
+    await userEvent.setup().click(screen.getByRole("button", { name: /Seniority/ }));
+    const chip = screen.getByTestId("seniority-mid");
+    expect(chip).toHaveTextContent("Mid");
+    expect(chip).not.toHaveTextContent("·");
+  });
+
   it("rides the filter set through the URL and refetches", async () => {
     renderPage(
       "/autopilot?state=all&latest=0&min_score=7&org=acme&seniority=junior&posted_within=7d&sort=score"
@@ -413,7 +453,7 @@ describe("Autopilot workspace feed", () => {
     const sheet = await screen.findByTestId("findings-filters-sheet");
     await user.click(within(sheet).getByRole("button", { name: /State/ }));
     expect(within(sheet).getByTestId("findings-latest-toggle")).toBeInTheDocument();
-    expect(screen.getByTestId("findings-filters-sheet-done")).toHaveTextContent("Show");
+    expect(screen.getByTestId("findings-filters-sheet-done")).toHaveTextContent("Done");
   });
 
   it("toggles dedupe, hide-applied and remote from the rail", async () => {

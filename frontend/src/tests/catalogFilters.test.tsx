@@ -164,6 +164,27 @@ describe("catalog filter rail", () => {
     expect(screen.getByTestId("catalog-demand-hot")).not.toBeDisabled();
   });
 
+  it("never invents a family count from the unfiltered job total", async () => {
+    vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue([
+      ...families,
+      {
+        id: "f3",
+        key: "health",
+        label: "Health",
+        parent_id: null,
+        path: "health",
+        level: 0,
+        description: "",
+        job_count: 7,
+        children: [],
+      },
+    ]);
+    renderCatalog();
+    const chip = await screen.findByTestId("catalog-family-health");
+    expect(chip).toHaveTextContent("Health");
+    expect(chip).not.toHaveTextContent("7");
+  });
+
   it("keeps the family chip and the URL in sync", async () => {
     const user = userEvent.setup();
     renderCatalog();
