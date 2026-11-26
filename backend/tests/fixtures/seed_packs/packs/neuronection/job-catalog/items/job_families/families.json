@@ -1,0 +1,145 @@
+{
+  "metadata": {
+    "item_type": "job_families",
+    "format": "job_families",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-26",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "job-family:technology",
+      "key": "technology",
+      "label": "Technology & IT",
+      "parent_key": null,
+      "description": "Software, data, hardware and digital infrastructure."
+    },
+    {
+      "seed_key": "job-family:technology-software",
+      "key": "technology-software",
+      "label": "Software Development",
+      "parent_key": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:technology-data",
+      "key": "technology-data",
+      "label": "Data & AI",
+      "parent_key": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:technology-ops",
+      "key": "technology-ops",
+      "label": "IT Operations & Security",
+      "parent_key": "technology",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:healthcare",
+      "key": "healthcare",
+      "label": "Healthcare",
+      "parent_key": null,
+      "description": "Diagnosing, treating and caring for people."
+    },
+    {
+      "seed_key": "job-family:healthcare-clinical",
+      "key": "healthcare-clinical",
+      "label": "Clinical Care",
+      "parent_key": "healthcare",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:healthcare-therapy",
+      "key": "healthcare-therapy",
+      "label": "Therapy & Rehabilitation",
+      "parent_key": "healthcare",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:healthcare-pharma",
+      "key": "healthcare-pharma",
+      "label": "Pharmacy & Lab",
+      "parent_key": "healthcare",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:education",
+      "key": "education",
+      "label": "Education & Training",
+      "parent_key": null,
+      "description": "Teaching, coaching and knowledge sharing."
+    },
+    {
+      "seed_key": "job-family:engineering",
+      "key": "engineering",
+      "label": "Engineering & Trades",
+      "parent_key": null,
+      "description": "Designing, building and maintaining the physical world."
+    },
+    {
+      "seed_key": "job-family:engineering-civil",
+      "key": "engineering-civil",
+      "label": "Civil & Construction",
+      "parent_key": "engineering",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:engineering-mechanical",
+      "key": "engineering-mechanical",
+      "label": "Mechanical & Electrical",
+      "parent_key": "engineering",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:business",
+      "key": "business",
+      "label": "Business & Finance",
+      "parent_key": null,
+      "description": "Markets, money, sales and organisations."
+    },
+    {
+      "seed_key": "job-family:business-creative",
+      "key": "business-creative",
+      "label": "Marketing & Media",
+      "parent_key": "business",
+      "description": ""
+    },
+    {
+      "seed_key": "job-family:creative",
+      "key": "creative",
+      "label": "Arts & Design",
+      "parent_key": null,
+      "description": "Visual, performing and media arts."
+    },
+    {
+      "seed_key": "job-family:public-safety",
+      "key": "public-safety",
+      "label": "Public Safety & Law",
+      "parent_key": null,
+      "description": "Protecting people and upholding the law."
+    },
+    {
+      "seed_key": "job-family:science",
+      "key": "science",
+      "label": "Science & Environment",
+      "parent_key": null,
+      "description": "Research and understanding of nature."
+    },
+    {
+      "seed_key": "job-family:agriculture",
+      "key": "agriculture",
+      "label": "Agriculture & Animals",
+      "parent_key": null,
+      "description": "Farming, food production and animal care."
+    },
+    {
+      "seed_key": "job-family:hospitality",
+      "key": "hospitality",
+      "label": "Hospitality & Tourism",
+      "parent_key": null,
+      "description": "Food, travel and guest experiences."
+    }
+  ]
+}

@@ -1,0 +1,293 @@
+{
+  "metadata": {
+    "item_type": "career_paths",
+    "format": "career_paths",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-26",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "career-path:software-developer/the-classic-study-route",
+      "job": "software-developer",
+      "title": "The classic study route",
+      "description": "Secondary school → CS degree → junior developer role.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Focus on mathematics and computer science",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "experience",
+          "label": "Build small projects and join a coding club",
+          "optional": false,
+          "skill_key": "programming"
+        },
+        {
+          "kind": "education",
+          "label": "BSc in computer science or software engineering",
+          "optional": false,
+          "education_level": "bachelor",
+          "family_key": "technology-software"
+        },
+        {
+          "kind": "certification",
+          "label": "Earn an entry-level programming certificate",
+          "optional": true,
+          "skill_key": "programming"
+        },
+        {
+          "kind": "job",
+          "label": "Junior developer / internship role",
+          "optional": false,
+          "family_key": "technology-software"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:software-developer/the-self-taught-route",
+      "job": "software-developer",
+      "title": "The self-taught route",
+      "description": "Skip the degree: portfolio-first entry via bootcamps and open source.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Finish secondary school",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "experience",
+          "label": "Learn through online courses and open-source contributions",
+          "optional": false,
+          "skill_key": "programming"
+        },
+        {
+          "kind": "certification",
+          "label": "Complete a recognised bootcamp or certification track",
+          "optional": false,
+          "skill_key": "problem-solving"
+        },
+        {
+          "kind": "job",
+          "label": "Apprentice / junior developer role",
+          "optional": false,
+          "family_key": "technology-software"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:data-scientist/the-quantitative-route",
+      "job": "data-scientist",
+      "title": "The quantitative route",
+      "description": "Strong maths foundation, then statistics or data science.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Excel at mathematics and statistics courses",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "education",
+          "label": "BSc in statistics, mathematics or data science",
+          "optional": false,
+          "education_level": "bachelor",
+          "family_key": "technology-data"
+        },
+        {
+          "kind": "experience",
+          "label": "Portfolio projects analysing real datasets",
+          "optional": false,
+          "skill_key": "data-analysis"
+        },
+        {
+          "kind": "job",
+          "label": "Junior data analyst position",
+          "optional": false,
+          "family_key": "technology-data"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:physician/the-medical-school-route",
+      "job": "physician",
+      "title": "The medical school route",
+      "description": "The long but direct path into clinical medicine.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Strong grades in biology and chemistry",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "education",
+          "label": "Medical degree (MD or equivalent)",
+          "optional": false,
+          "education_level": "master",
+          "family_key": "healthcare-clinical"
+        },
+        {
+          "kind": "experience",
+          "label": "Hospital volunteering and clinical rotations",
+          "optional": false,
+          "skill_key": "empathy"
+        },
+        {
+          "kind": "certification",
+          "label": "Medical licensing exams",
+          "optional": false,
+          "skill_key": "first-aid"
+        },
+        {
+          "kind": "job",
+          "label": "Residency placement",
+          "optional": false,
+          "family_key": "healthcare-clinical"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:nurse/the-caring-professional-route",
+      "job": "nurse",
+      "title": "The caring professional route",
+      "description": "Nursing degree with early patient exposure.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Biology and care-related electives",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "experience",
+          "label": "Care-home or first-aid volunteering",
+          "optional": false,
+          "skill_key": "empathy"
+        },
+        {
+          "kind": "education",
+          "label": "BSc in nursing",
+          "optional": false,
+          "education_level": "bachelor",
+          "family_key": "healthcare-clinical"
+        },
+        {
+          "kind": "certification",
+          "label": "Registered nurse licensing",
+          "optional": false,
+          "skill_key": "first-aid"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:civil-engineer/the-built-environment-route",
+      "job": "civil-engineer",
+      "title": "The built-environment route",
+      "description": "From physics class to construction sites.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Mathematics and physics focus",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "education",
+          "label": "BSc in civil engineering",
+          "optional": false,
+          "education_level": "bachelor",
+          "family_key": "engineering-civil"
+        },
+        {
+          "kind": "experience",
+          "label": "CAD practice and site internships",
+          "optional": false,
+          "skill_key": "engineering-design"
+        },
+        {
+          "kind": "certification",
+          "label": "Professional engineering licence",
+          "optional": true,
+          "skill_key": "engineering-design"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:ux-designer/the-design-thinker-route",
+      "job": "ux-designer",
+      "title": "The design-thinker route",
+      "description": "Human-centred design skills built through practice.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Art, psychology and technology mix",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "experience",
+          "label": "Redesign familiar apps; build a case-study portfolio",
+          "optional": false,
+          "skill_key": "visual-design"
+        },
+        {
+          "kind": "education",
+          "label": "Degree in design, HCI or related field",
+          "optional": true,
+          "education_level": "bachelor",
+          "family_key": "business-creative"
+        },
+        {
+          "kind": "certification",
+          "label": "UX certification or design-bootcamp certificate",
+          "optional": true,
+          "skill_key": "visual-design"
+        },
+        {
+          "kind": "job",
+          "label": "Junior product/UX designer role",
+          "optional": false,
+          "family_key": "business-creative"
+        }
+      ]
+    },
+    {
+      "seed_key": "career-path:veterinarian/the-animal-care-route",
+      "job": "veterinarian",
+      "title": "The animal-care route",
+      "description": "From shelter volunteering to veterinary medicine.",
+      "steps": [
+        {
+          "kind": "education",
+          "label": "Biology emphasis and animal-handling experience",
+          "optional": false,
+          "education_level": "high_school"
+        },
+        {
+          "kind": "experience",
+          "label": "Volunteer at shelters or vet clinics",
+          "optional": false,
+          "skill_key": "empathy"
+        },
+        {
+          "kind": "education",
+          "label": "Veterinary medicine degree",
+          "optional": false,
+          "education_level": "master",
+          "family_key": "agriculture"
+        },
+        {
+          "kind": "certification",
+          "label": "Veterinary licensing exam",
+          "optional": false,
+          "skill_key": "first-aid"
+        }
+      ]
+    }
+  ]
+}

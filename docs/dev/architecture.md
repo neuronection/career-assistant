@@ -416,8 +416,9 @@ There is no side door around it.
   repository is registered as one disabled tile per pack, read from the
   shipped snapshot
   `backend/app/data/seed_packs/official/index.json` (pinned ref and publisher
-  in the same file): today `packs/neuronection/greece-ats` and
-  `packs/neuronection/remote-boards`, both priority 100. Startup never
+  in the same file): today `packs/neuronection/greece-ats`,
+  `packs/neuronection/remote-boards` and `packs/neuronection/job-catalog`,
+  all priority 100. Startup never
   fetches, so `backend/scripts/sync_official_index.py` regenerates that
   snapshot when the pin moves or a pack is added — a data change, not a code
   change. One provider owns exactly one pack (a version is one pack digest);
