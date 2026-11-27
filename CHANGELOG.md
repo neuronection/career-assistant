@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A family chip's count now matches the results it yields.** The catalogue
+  family facet counted jobs by their exact `family_id` while the family filter
+  includes the whole subtree, so a parent chip could read 0 while its children
+  had jobs — and a 0 chip is disabled, so the drill-down disappeared. The count
+  now uses the same predicate as the filter (#54).
+
+
 ### Changed
 
 - **The chip filter row uses the shared filter module.** The include/exclude
