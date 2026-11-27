@@ -277,7 +277,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       })
       .catch(() => setError(t("explore.loadFailed")))
       .finally(() => setLoadingMore(false));
-  }, [cursor, filters, paramsFrom, radarActive, profileEpoch]);
+  }, [cursor, filters, paramsFrom, radarActive, profileEpoch, t]);
 
   const sentinelRef = useInfiniteScroll(loadMore, !!cursor && !radarActive);
 
