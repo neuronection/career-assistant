@@ -114,11 +114,26 @@ async def _apply_pack(db, root: Path, files: dict[str, bytes], *, name: str) -> 
     return FixtureCatalog(source=source, version=version, store=store)
 
 
+async def _seed_category_anchors(db) -> None:
+    """The pack carries interest tags, so the planner needs published anchors.
+
+    On a real install the reference-banks pack publishes them; the fixture
+    seeds the same anchors directly so a catalog-first test fixture is not a
+    manual-out-of-order install.
+    """
+    from app.seeds.bank_stamp import stamp_bank_identities
+
+    await stamp_bank_identities(db)
+    await db.commit()
+
+
 async def apply_catalog_pack(db, root: Path) -> FixtureCatalog:
     """Apply the whole job-catalog fixture pack as an operator file provider."""
+    await _seed_category_anchors(db)
     return await _apply_pack(db, root, catalog_pack_files(), name="Fixture job catalog")
 
 
 async def apply_taxonomy_pack(db, root: Path) -> FixtureCatalog:
     """Apply only the pack's skills and interest tags (profile fixtures)."""
+    await _seed_category_anchors(db)
     return await _apply_pack(db, root, taxonomy_pack_files(), name="Fixture job taxonomy")

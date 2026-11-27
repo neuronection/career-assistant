@@ -8,25 +8,53 @@ stale values behind.
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.errors import ValidationError
+from app.core.errors import ConflictError, ValidationError
 from app.models.enums import UserMetricSource
 from app.models.job_model import Job, JobSkill
 from app.models.metric_model import (
-    MetricDimension,
     SkillTransferability,
     UserMetricProfile,
 )
 from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import UserInterest
-from app.seeds.metrics import DIMENSIONS, riasec_of_category
+from app.services.catalog.metric_registry import (
+    MetricDimensionSpec,
+    metric_registry,
+)
+from app.services.seeds.banks import REFERENCE_BANK_PACK
 
 INTEREST_DIMENSION_PREFIX = "interest."
+METRIC_BANK_NOT_LOADED_CODE = "METRIC_BANK_NOT_LOADED"
+
+
+@dataclass(frozen=True)
+class MetricRecomputeResult:
+    """How many dimension rows a recompute wrote, and why it skipped."""
+
+    dimensions: int = 0
+    metrics_unavailable: bool = False
+
+
+class MetricBankNotLoadedError(ConflictError):
+    """A direct metric recompute needs an applied metric bank."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            f"{METRIC_BANK_NOT_LOADED_CODE}: metric bank not loaded; "
+            f"apply the {REFERENCE_BANK_PACK} pack before recomputing"
+        )
+
+    @property
+    def code(self) -> str:
+        """The typed refusal code."""
+        return METRIC_BANK_NOT_LOADED_CODE
 
 
 class MetricService:
@@ -35,45 +63,15 @@ class MetricService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def _ensure_dimensions(self, keys: list[str]) -> None:
-        """Self-heal the registry from the canonical code spec.
+    async def registry(self) -> list[MetricDimensionSpec]:
+        """Published dimensions, stable order (group, key)."""
+        return list((await metric_registry.snapshot(self.db)).dimensions)
 
-        The dimension vocabulary is code-referenced (like the block-kind
-        and context-source registries), so writes never fail just because
-        `seed.sh` has not been re-run after an upgrade. Non-canonical
-        keys create nothing — the caller's validation still rejects them.
-        """
-        if not keys:
-            return
-        rows = await self.db.execute(
-            select(MetricDimension.key).where(MetricDimension.key.in_(keys))
-        )
-        known = set(rows.scalars().all())
-        missing = [key for key in keys if key not in known]
-        spec_by_key = {spec["key"]: spec for spec in DIMENSIONS}
-        for key in missing:
-            spec = spec_by_key.get(key)
-            if spec is not None:
-                self.db.add(MetricDimension(**spec))
-        if missing:
-            await self.db.commit()
-
-    async def registry(self) -> list[MetricDimension]:
-        """All dimension rows, stable order (group, key)."""
-        rows = await self.db.execute(
-            select(MetricDimension).order_by(MetricDimension.group.asc(), MetricDimension.key.asc())
-        )
-        return list(rows.scalars().all())
-
-    async def require_dimension(self, key: str) -> MetricDimension:
-        row = (
-            (await self.db.execute(select(MetricDimension).where(MetricDimension.key == key)))
-            .scalars()
-            .first()
-        )
-        if row is None:
+    async def require_dimension(self, key: str) -> MetricDimensionSpec:
+        spec = (await metric_registry.snapshot(self.db)).dimension(key)
+        if spec is None:
             raise ValidationError(f"Unknown metric dimension: {key}")
-        return row
+        return spec
 
     async def user_metrics(self, user_id: uuid.UUID) -> list[UserMetricProfile]:
         rows = await self.db.execute(
@@ -94,7 +92,6 @@ class MetricService:
         evidence: dict | None = None,
     ) -> UserMetricProfile:
         """Upsert one dimension value (42.B unique user+dimension)."""
-        await self._ensure_dimensions([key])
         await self.require_dimension(key)
         if not 1 <= float(value) <= 10:
             raise ValidationError(f"Metric value out of bounds for {key}: {value}")
@@ -134,9 +131,10 @@ class MetricService:
             .options(selectinload(UserInterest.tag))
             .where(UserInterest.user_id == user_id)
         )
+        snapshot = await metric_registry.snapshot(self.db)
         sums: dict[str, float] = {}
         for row in rows.scalars().all():
-            letter = riasec_of_category(row.tag.category if row.tag else None)
+            letter = snapshot.letter_for(row.tag.category if row.tag else None)
             if letter is None:
                 continue
             sums[letter] = sums.get(letter, 0) + float(row.weight or 1)
@@ -148,11 +146,15 @@ class MetricService:
             for letter, total in sorted(sums.items())
         }
 
-    async def recompute_interest_affinity(self, user_id: uuid.UUID) -> int:
-        """Full-replace the user's interest.* metric rows; returns the count."""
-        from app.seeds.metrics import RIASEC_LETTERS
+    async def recompute_interest_affinity(self, user_id: uuid.UUID) -> MetricRecomputeResult:
+        """Full-replace the user's interest.* metric rows.
 
-        await self._ensure_dimensions([f"interest.{letter}" for letter in RIASEC_LETTERS])
+        With no published dimension the recompute is skipped — a profile save
+        must still succeed before the metric bank is installed.
+        """
+        snapshot = await metric_registry.snapshot(self.db)
+        if not snapshot.available:
+            return MetricRecomputeResult(metrics_unavailable=True)
         await self.db.execute(
             delete(UserMetricProfile).where(
                 UserMetricProfile.user_id == user_id,
@@ -160,7 +162,10 @@ class MetricService:
             )
         )
         vector = await self.interest_affinity(user_id)
+        written = 0
         for key, value in vector.items():
+            if key not in snapshot.dimension_keys:
+                continue
             self.db.add(
                 UserMetricProfile(
                     user_id=user_id,
@@ -171,14 +176,19 @@ class MetricService:
                     evidence={"basis": "profile.interests"},
                 )
             )
+            written += 1
         await self.db.commit()
-        return len(vector)
+        return MetricRecomputeResult(dimensions=written)
 
-    async def recompute_workstyle(self, user_id: uuid.UUID, work_preferences: dict) -> int:
+    async def recompute_workstyle(
+        self, user_id: uuid.UUID, work_preferences: dict
+    ) -> MetricRecomputeResult:
         """Write the 1-5 work-style sliders through as self_report evidence
         (: the sliders stay the capture UI, dimensions are the
         language). Full-replace within the workstyle family."""
-        await self._ensure_dimensions([f"workstyle.{key}" for key in work_preferences])
+        snapshot = await metric_registry.snapshot(self.db)
+        if not snapshot.available:
+            return MetricRecomputeResult(metrics_unavailable=True)
         await self.db.execute(
             delete(UserMetricProfile).where(
                 UserMetricProfile.user_id == user_id,
@@ -189,10 +199,13 @@ class MetricService:
         for key in ("teamwork", "environment", "structure", "pace", "leadership"):
             if key not in work_preferences:
                 continue
+            dimension_key = f"workstyle.{key}"
+            if dimension_key not in snapshot.dimension_keys:
+                continue
             self.db.add(
                 UserMetricProfile(
                     user_id=user_id,
-                    dimension_key=f"workstyle.{key}",
+                    dimension_key=dimension_key,
                     value=round(float(work_preferences[key]) * 2, 2),
                     source=UserMetricSource.SELF_REPORT.value,
                     confidence=0.8,
@@ -201,7 +214,7 @@ class MetricService:
             )
             count += 1
         await self.db.commit()
-        return count
+        return MetricRecomputeResult(dimensions=count)
 
     async def job_riasec_letters(self, job) -> set[str]:
         """Holland letters a job signals via its interest-tag links.
@@ -209,9 +222,10 @@ class MetricService:
         `job.tag_links` must carry the loaded `tag` relationship
         (JOB_LOAD_OPTIONS), same contract as the fit engine's job_context.
         """
+        snapshot = await metric_registry.snapshot(self.db)
         letters: set[str] = set()
         for link in job.tag_links:
-            letter = riasec_of_category(link.tag.category if link.tag else None)
+            letter = snapshot.letter_for(link.tag.category if link.tag else None)
             if letter is not None:
                 letters.add(letter)
         return letters
@@ -319,6 +333,9 @@ class MetricService:
         )
         if profile is None or not revealed_prefs(profile.preferences)["enabled"]:
             return {"applied": False, "reason": "disabled"}
+        snapshot = await metric_registry.snapshot(self.db)
+        if not snapshot.available:
+            return {"applied": False, "reason": "metrics_unavailable"}
 
         window_start = now - timedelta(days=REVEALED_WINDOW_DAYS)
         interactions = (
@@ -391,7 +408,7 @@ class MetricService:
                 .where(JobTag.job_id == job.id)
             )
             for (category,) in tag_rows.all():
-                letter = riasec_of_category(category)
+                letter = snapshot.letter_for(category)
                 if letter is not None:
                     letter_weights[letter] = letter_weights.get(letter, 0.0) + weight
         if not letter_weights:
@@ -401,7 +418,10 @@ class MetricService:
         target = {
             f"interest.{letter}": 1 + 9 * (weight / peak)
             for letter, weight in letter_weights.items()
+            if f"interest.{letter}" in snapshot.dimension_keys
         }
+        if not target:
+            return {"applied": False, "reason": "metrics_unavailable"}
         existing = {
             row.dimension_key: row
             for row in (
@@ -415,9 +435,6 @@ class MetricService:
             .scalars()
             .all()
         }
-        from app.seeds.metrics import RIASEC_LETTERS
-
-        await self._ensure_dimensions([f"interest.{letter}" for letter in RIASEC_LETTERS])
         moved: dict[str, float] = {}
         for key, target_value in target.items():
             row = existing.get(key)

@@ -37,6 +37,7 @@ from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
 from app.services.integrations.webfetch import WebFetchBlocked, fetch_bytes
 from app.services.seeds.applier import SeedApplyService
+from app.services.seeds.banks import REFERENCE_BANK_SUBPATH
 from app.services.seeds.catalog import (
     ENTITY_CAREER_PATH,
     ENTITY_FAMILY,
@@ -496,8 +497,10 @@ class ProviderService:
     ) -> dict[str, Any]:
         """One-click install of an official catalog tile (plan 224 S4).
 
-        Sync → approve → apply → enable. Only official tiles qualify: a
-        community/operator pack keeps the reviewed, one-version-at-a-time lane.
+        Sync → approve → install the reference-banks tile when the pack
+        carries interest tags → apply → enable. Only official tiles qualify:
+        a community/operator pack keeps the reviewed, one-version-at-a-time
+        lane.
         """
         source = await self._source(source_id)
         if source.trust_tier != "official":
@@ -514,11 +517,47 @@ class ProviderService:
         apply_service = SeedApplyService(self.db, packs=self.packs)
         if version.status == "pending":
             await apply_service.approve(version, actor=actor)
+        if self._carries_catalog_interests(version) and source.subpath != REFERENCE_BANK_SUBPATH:
+            await self._install_reference_banks(source, actor=actor)
         result = await apply_service.apply(source, version, actor=actor)
         if not source.enabled:
             source.enabled = True
             await self.db.commit()
         return result.as_dict()
+
+    @staticmethod
+    def _carries_catalog_interests(version: SeedSourceVersion) -> bool:
+        """True when the pack ships interest tags (and so needs anchors)."""
+        refs = (version.manifest or {}).get("item_files") or []
+        return any(
+            str(ref.get("path") or "").startswith("items/interest_tags/")
+            for ref in refs
+            if isinstance(ref, dict)
+        )
+
+    async def _install_reference_banks(self, source: SeedSource, *, actor: str | uuid.UUID) -> None:
+        """Install the reference-banks tile before a catalog pack applies.
+
+        The catalog's interest tags validate against the anchors the banks
+        pack publishes. The recursion guard is the subpath itself: the banks
+        tile carries no interest tags, so it never re-enters this branch. A
+        missing tile is not synthesized here — the catalog apply then refuses
+        with ``CATALOG_REF_UNRESOLVED`` naming the pack.
+        """
+        reference = (
+            await self.db.execute(
+                select(SeedSource)
+                .where(
+                    SeedSource.trust_tier == "official",
+                    SeedSource.subpath == REFERENCE_BANK_SUBPATH,
+                )
+                .order_by(SeedSource.created_at.asc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if reference is None or reference.id == source.id:
+            return
+        await self.install_official(reference.id, actor=actor)
 
     async def upload(
         self,

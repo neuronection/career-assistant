@@ -39,8 +39,44 @@ async def test_registry_seed_is_idempotent(db):
 
 
 async def test_riasec_mapping_covers_seeded_categories(db, fixture_catalog):
+    from sqlalchemy import select
+
+    from app.models.metric_model import MetricCategoryAnchor
+    from app.models.taxonomy_model import InterestTag
     from app.seeds.metrics import unmapped_categories
 
+    assert await unmapped_categories(db) == []
+    anchored = set(
+        (
+            await db.execute(
+                select(MetricCategoryAnchor.category).where(
+                    MetricCategoryAnchor.status == "published"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    seeded = {
+        category
+        for (category,) in (
+            await db.execute(
+                select(InterestTag.category).where(InterestTag.deprecated.is_(False)).distinct()
+            )
+        ).all()
+        if category
+    }
+    assert seeded <= anchored, "every active interest category has a published anchor"
+
+    anchor = await db.scalar(
+        select(MetricCategoryAnchor).where(MetricCategoryAnchor.category == "science")
+    )
+    assert anchor is not None
+    anchor.status = "retired"
+    await db.commit()
+    assert "science" in await unmapped_categories(db)
+    anchor.status = "published"
+    await db.commit()
     assert await unmapped_categories(db) == []
 
 

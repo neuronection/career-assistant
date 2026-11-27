@@ -87,8 +87,15 @@ def _catalog_pack(
 
 
 async def _operator_source(db):
+    from app.models.metric_model import MetricCategoryAnchor
+
     source = await _source(db)
     source.trust_tier = "operator"
+    anchor = await db.scalar(
+        select(MetricCategoryAnchor).where(MetricCategoryAnchor.category == "science")
+    )
+    if anchor is None:
+        db.add(MetricCategoryAnchor(category="science", letter="investigative"))
     await db.commit()
     await db.refresh(source)
     return source
