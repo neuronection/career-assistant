@@ -9,6 +9,8 @@ interface CatalogState {
   total: number;
   facets: JobFacets;
   loading: boolean;
+  /** The last load failed; the previous jobs stay (and read as stale). */
+  error: boolean;
   filters: Record<string, unknown>;
   loadFamilies: () => Promise<void>;
   loadJobs: (filters?: Record<string, unknown>) => Promise<void>;
@@ -21,6 +23,7 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   total: 0,
   facets: {},
   loading: false,
+  error: false,
   filters: {},
 
   loadFamilies: async () => {
@@ -29,7 +32,7 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   },
 
   loadJobs: async (filters) => {
-    set({ loading: true });
+    set({ loading: true, error: false });
     try {
       const next = filters ?? {};
       const page = await jobsApi.fetchJobs({ page_size: 100, ...next });
@@ -38,7 +41,11 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
         total: page.total ?? 0,
         facets: page.facets ?? {},
         filters: next,
+        error: false,
       });
+    } catch {
+      // Keep the last grid but stop describing the query that never ran.
+      set({ facets: {}, error: true });
     } finally {
       set({ loading: false });
     }

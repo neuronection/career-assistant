@@ -89,6 +89,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [sources, setSources] = useState<PostingSourceInfo[]>([]);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState("");
+  // A failed refetch keeps the last list but must not keep describing the
+  // query that never ran (facets, total and the sheet's "Show N").
+  const [listStale, setListStale] = useState(false);
   const navigate = useNavigate();
   const captureParam = searchParams.get("capture") ?? "";
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -126,6 +129,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const load = useCallback(
     (current: Filters, append: boolean) => {
       setError("");
+      setListStale(false);
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
           const merged = append
@@ -148,9 +152,13 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             }
           );
         })
-        .catch((err) => setError(String(err)));
+        .catch(() => {
+          setFacets({});
+          setListStale(true);
+          setError(t("explore.loadFailed"));
+        });
     },
-    [cursor, paramsFrom, profileEpoch]
+    [cursor, paramsFrom, profileEpoch, t]
   );
 
   useEffect(() => {
@@ -267,7 +275,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           }
         );
       })
-      .catch((err) => setError(String(err)))
+      .catch(() => setError(t("explore.loadFailed")))
       .finally(() => setLoadingMore(false));
   }, [cursor, filters, paramsFrom, radarActive, profileEpoch]);
 
@@ -376,7 +384,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       setSearchParams(toSearchParams(next), { replace: true });
       setSmartApplied({ interpreted: response.interpreted, keys });
     } catch (err) {
-      setError(String(err));
+      setError(t("explore.loadFailed"));
     } finally {
       setSmartBusy(false);
     }
@@ -488,7 +496,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           asideTestId="explore-filters"
           testId="explore-filter-rail"
           band={band}
-          resultCount={total}
+          resultCount={listStale ? undefined : total}
           triggerTestId="explore-filters-open"
           sheetTestId="explore-filters-sheet"
           search={
@@ -636,10 +644,16 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             >
               <TriStateChips
                 showCounts
-                values={Object.entries((facets ?? {}).seniority ?? {}).map(([value, count]) => ({
+                values={Array.from(
+                  new Set([
+                    ...Object.keys(facets?.seniority ?? {}),
+                    ...filters.seniority,
+                    ...filters.seniorityExclude,
+                  ])
+                ).map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
-                  count,
+                  count: facets?.seniority?.[value],
                   testId: `seniority-${value}`,
                 }))}
                 include={filters.seniority}
@@ -663,10 +677,16 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             >
               <TriStateChips
                 showCounts
-                values={Object.entries((facets ?? {}).remote_policy ?? {}).map(([value, count]) => ({
+                values={Array.from(
+                  new Set([
+                    ...Object.keys(facets?.remote_policy ?? {}),
+                    ...filters.remotePolicy,
+                    ...filters.remotePolicyExclude,
+                  ])
+                ).map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
-                  count,
+                  count: facets?.remote_policy?.[value],
                   testId: `mode-${value}`,
                 }))}
                 include={filters.remotePolicy}
@@ -1012,7 +1032,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500" data-testid="explore-result-count">
-              {total ? t("explore.matching", { count: total }) : ""}
+              {!listStale && total ? t("explore.matching", { count: total }) : ""}
             </p>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />

@@ -57,7 +57,8 @@ export function CatalogFilterRail({
   filters: CatalogFilters;
   facets: JobFacets;
   families: JobFamilyNode[];
-  total: number;
+  /** Omit while the last load is stale: the sheet then says Done, never Show N. */
+  total?: number;
   band?: ContainerBand;
   onChange: (update: Partial<CatalogFilters>) => void;
   onClear: () => void;

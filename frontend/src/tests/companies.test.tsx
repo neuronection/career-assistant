@@ -408,6 +408,125 @@ describe("Companies browsing (plan 135)", () => {
     expect(screen.getByTestId("company-filter-new")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("company-search")).toHaveValue("acme");
   });
+
+  it("explains missing counts but keeps a selected value removable when facets are null", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    // one honest line per facet section, shown even while collapsed
+    expect(screen.getAllByTestId("company-facets-unavailable")).toHaveLength(4);
+    expect(screen.getAllByTestId("company-facets-unavailable")[0]).toHaveTextContent(
+      "Counts aren't available for this many companies. Filters still apply."
+    );
+
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).not.toBeDisabled();
+    expect(chip).not.toHaveTextContent("·");
+
+    fireEvent.click(screen.getByTestId("company-work_mode-remote-clear"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
+    );
+  });
+
+  it("keeps a selected value the facet payload omits", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: { onsite: 1 },
+        seniority: {},
+        employment: {},
+        industries: {},
+        locations: {},
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).not.toBeDisabled();
+    expect(chip).not.toHaveTextContent("· 1");
+    expect(screen.getByTestId("company-work_mode-onsite")).toHaveTextContent("· 1");
+
+    fireEvent.click(screen.getByTestId("company-work_mode-remote-clear"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
+    );
+  });
+
+  it("says the facet list is cut when the payload is truncated", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: {},
+        seniority: {},
+        employment: {},
+        industries: { fintech: 2, health: 1 },
+        locations: {},
+        truncated: true,
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    expect(screen.getByTestId("company-facets-truncated")).toHaveTextContent(
+      "Showing the most common 2."
+    );
+  });
+
+  it("drops stale facet counts and never shows Show N after a failed refetch", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: { remote: 3 },
+        seniority: {},
+        employment: {},
+        industries: {},
+        locations: {},
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies band="compact" />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    fireEvent.click(screen.getByTestId("company-filters-open"));
+    expect(await screen.findByTestId("company-filters-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("company-work_mode-remote")).toHaveTextContent("· 3");
+
+    mocked.fetchCompanies.mockRejectedValue(new Error("network down"));
+    fireEvent.change(screen.getByTestId("company-search"), {
+      target: { value: "acme" },
+    });
+
+    expect(await screen.findByText("Could not load companies.")).toBeInTheDocument();
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveTextContent("remote");
+    expect(chip).not.toBeDisabled();
+    expect(chip).not.toHaveTextContent("· 3");
+    expect(screen.getAllByTestId("company-facets-unavailable")).toHaveLength(4);
+
+    expect(await screen.findByTestId("company-filters-sheet-done")).toHaveTextContent("Done");
+  });
 });
 
 function LocationProbe() {

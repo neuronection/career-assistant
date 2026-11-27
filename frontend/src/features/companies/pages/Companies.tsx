@@ -126,7 +126,12 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
             { companies: items, facets: result.facets ?? null }
           );
         })
-        .catch(() => setError(t("companies.loadError")))
+        .catch(() => {
+          // A failed refetch keeps the last list but must stop describing the
+          // query that never ran: counts are gone and the sheet says Done.
+          setFacets(null);
+          setError(t("companies.loadError"));
+        })
         .finally(() => setLoaded(true));
     },
     [t, profileEpoch]
@@ -166,15 +171,47 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   const chips = useMemo(() => companiesFilterChips(filters, t), [filters, t]);
 
   const facetChips = useCallback(
-    (facet: CompanyFacetAxis): FacetChip[] =>
-      Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
+    (facet: CompanyFacetAxis, selected: string[]): FacetChip[] => {
+      const counts = facets?.[facet] ?? {};
+      // A selected value missing from the payload stays in the rail so it can
+      // be removed; it simply carries no count.
+      const values = Array.from(
+        new Set([...Object.keys(counts), ...selected])
+      );
+      return values.map((value) => ({
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
-        count,
+        count: counts[value],
         testId: `company-${facet}-${value}`,
-      })),
+      }));
+    },
     [facets, t]
   );
+
+  const facetsUnavailable = facets === null ? (
+    <p
+      className="text-xs text-[var(--as-muted-fg)]"
+      data-testid="company-facets-unavailable"
+    >
+      {t("companies.facetsUnavailable")}
+    </p>
+  ) : null;
+
+  const truncatedFacetCount = facets?.truncated
+    ? Math.max(
+        Object.keys(facets.industries ?? {}).length,
+        Object.keys(facets.locations ?? {}).length
+      )
+    : 0;
+
+  const facetsTruncated = facets?.truncated ? (
+    <p
+      className="text-xs text-[var(--as-muted-fg)]"
+      data-testid="company-facets-truncated"
+    >
+      {t("companies.facetsTruncated", { count: truncatedFacetCount })}
+    </p>
+  ) : null;
 
   const clearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
 
@@ -231,9 +268,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           <Section
             title={t("companies.facetTitle.work_mode")}
             active={filters.workMode.length + filters.workModeExclude.length > 0}
+            notice={facetsUnavailable}
           >
             <TriStateChips
-              values={facetChips("work_mode")}
+              values={facetChips("work_mode", [
+                ...filters.workMode,
+                ...filters.workModeExclude,
+              ])}
               include={filters.workMode}
               exclude={filters.workModeExclude}
               onToggle={(value, mode) => toggleAxis("workMode", "workModeExclude", value, mode)}
@@ -243,9 +284,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           <Section
             title={t("companies.facetTitle.seniority")}
             active={filters.seniority.length + filters.seniorityExclude.length > 0}
+            notice={facetsUnavailable}
           >
             <TriStateChips
-              values={facetChips("seniority")}
+              values={facetChips("seniority", [
+                ...filters.seniority,
+                ...filters.seniorityExclude,
+              ])}
               include={filters.seniority}
               exclude={filters.seniorityExclude}
               onToggle={(value, mode) => toggleAxis("seniority", "seniorityExclude", value, mode)}
@@ -255,9 +300,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           <Section
             title={t("companies.facetTitle.employment")}
             active={filters.employment.length + filters.employmentExclude.length > 0}
+            notice={facetsUnavailable}
           >
             <TriStateChips
-              values={facetChips("employment")}
+              values={facetChips("employment", [
+                ...filters.employment,
+                ...filters.employmentExclude,
+              ])}
               include={filters.employment}
               exclude={filters.employmentExclude}
               onToggle={(value, mode) => toggleAxis("employment", "employmentExclude", value, mode)}
@@ -267,9 +316,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           <Section
             title={t("companies.facetTitle.industries")}
             active={filters.industries.length + filters.industriesExclude.length > 0}
+            notice={facetsUnavailable ?? facetsTruncated}
           >
             <TriStateChips
-              values={facetChips("industries")}
+              values={facetChips("industries", [
+                ...filters.industries,
+                ...filters.industriesExclude,
+              ])}
               include={filters.industries}
               exclude={filters.industriesExclude}
               onToggle={(value, mode) =>

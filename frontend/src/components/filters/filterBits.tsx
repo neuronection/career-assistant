@@ -20,12 +20,15 @@ export function Section({
   active,
   count,
   defaultOpen = false,
+  notice,
   children,
 }: {
   title: string;
   active: boolean;
   count?: number;
   defaultOpen?: boolean;
+  /** Page-specific explanation shown under the header even when collapsed. */
+  notice?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(active || defaultOpen);
@@ -60,6 +63,7 @@ export function Section({
           />
         </span>
       </button>
+      {notice ? <div className="px-3 pb-2">{notice}</div> : null}
       {effectiveOpen ? (
         <div id={bodyId} className="space-y-2 px-3 pb-3">
           {children}
@@ -181,6 +185,9 @@ export function TriStateChips({
               {label}
               {showCounts && count !== undefined ? (
                 <span className="ml-1 opacity-70">· {count}</span>
+              ) : null}
+              {dimmed ? (
+                <span className="sr-only"> ({t("filters.noMatches")})</span>
               ) : null}
             </button>
             {selected ? (
