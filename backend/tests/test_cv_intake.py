@@ -123,10 +123,7 @@ async def test_apply_twice_dedupes(client, db, auth_headers):
     assert report["duplicates"], "re-intake must dedupe, not duplicate"
 
 
-async def test_basics_languages_interests_apply(client, db, auth_headers):
-    from app.seeds.run import seed_taxonomy
-
-    await seed_taxonomy(db)
+async def test_basics_languages_interests_apply(client, db, auth_headers, fixture_catalog):
     doc_id = await _upload_and_parse(client, db, auth_headers)
     applied = await client.post(
         f"/api/v1/cv/intake/{doc_id}/apply",
@@ -444,14 +441,11 @@ async def test_import_history_reports_section_count(client, db, auth_headers):
     assert rows[0]["section_count"] == 0
 
 
-async def test_apply_records_landed_provenance(client, db, auth_headers):
+async def test_apply_records_landed_provenance(client, db, auth_headers, fixture_catalog):
     """Every created entity lands in cv_intake_applied, keyed to the doc."""
     import uuid
 
     from app.models.cv_intake_model import CvIntakeApplied
-    from app.seeds.run import seed_taxonomy
-
-    await seed_taxonomy(db)
 
     doc_id = await _upload_and_parse(client, db, auth_headers)
     applied = await client.post(

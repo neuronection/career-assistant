@@ -14,6 +14,19 @@ All notable changes to **Career Assistant** are documented here.
   app-side and no call site changed; `@neuronection/assistant-ui` moves to
   `^0.91.1`.
 
+### Changed
+
+- **The app ships no catalog at all — not even as seed data.** The curated
+  job catalog and taxonomy now live only in the reviewed seed pack: the
+  bundled JSON and its boot/lazy seeders are gone, the desktop `seed` mode
+  and the demo/e2e seeders install the pinned pack through the normal
+  upload → approve → apply lane, and the one-shot `migrate` registers the
+  official tiles (serve never fetches). A fresh catalog page shows an
+  explicit empty state with a one-click **Load the official catalog**
+  (sync → approve → apply → enable) for admins; other catalog-fed surfaces
+  carry the same "not loaded yet" note, and students are told to ask their
+  administrator.
+
 ### Added
 
 - **The official repository now offers the job catalog as a pack.** The

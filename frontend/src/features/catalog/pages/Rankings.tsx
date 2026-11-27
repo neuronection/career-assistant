@@ -11,6 +11,7 @@ import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
 import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { CatalogEmptyNotice } from "@/components/CatalogEmptyNotice";
 import { useCompareStore } from "@/stores/compareStore";
 import type { RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
 
@@ -143,6 +144,7 @@ export function Rankings() {
         <FitStaleBadge />
         <ScoreLegend align="start" />
       </div>
+      <CatalogEmptyNotice />
       <div className="ca-rail-cols">
         <FilterRail
           title={t("filters.title")}

@@ -22,6 +22,7 @@ class BootstrapOut(BaseModel):
     suggested_scoring_weights: ScoringWeights
     effective_scoring_weights: ScoringWeights
     weights_overridden: bool
+    catalog_empty: bool = False
     fit_stale: bool = False
     refit_queued: bool | None = None
     refit_job_id: str | None = None

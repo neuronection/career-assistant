@@ -17,11 +17,12 @@ deployment.md). **The seeder refuses anything else** — loudly, non-zero:
   (no `instance_settings`, `users` or `profiles` rows); anything else is
   refused.
 
-Reference data is not demo data: the starter catalogs (taxonomy, job
-catalog, career paths, assessment bank, CV templates) live in
-`backend/app/seeds/*` and stay reference data — this script only
-*ensures* they exist (the product's idempotent `app.seeds.run`), so the
-synthetic experience rows can link to real skill ids. Catalog rows are
+Reference data is not demo data: the assessment, CV-template, metric and
+skill-pack banks live in `backend/app/seeds/*` and stay reference data — this
+script only *ensures* they exist (the product's idempotent `app.seeds.run`).
+The job catalog and taxonomy arrive as the released seed pack (plan 224); the
+demo installs the pinned fixture copy so synthetic rows can link real skill
+ids, without network access. Catalog rows are
 never removed by `--reset`.
 
 Usage (interpreter with the app's dependencies, e.g. `uv run --directory backend python`):
@@ -149,7 +150,7 @@ class AchievementSpec:
 class SkillSpec:
     """A participation in one experience, keyed by a REFERENCE skill key.
 
-    The skill rows themselves are reference data (`app/seeds/taxonomy.py`)
+    The skill rows themselves come from the released catalog pack
     and are never created here — unknown keys are skipped, never invented.
     """
 
@@ -255,7 +256,7 @@ class UserSpec:
 class PostingSkillSpec:
     """One requirement edge of a synthetic posting.
 
-    `skill_key` must be a reference `SKILL_TAGS` key (`taxonomy.json`);
+    `skill_key` must be a key from the released catalog pack's skills;
     the seeder resolves it to a real `skills` row and never writes one.
     """
 
@@ -291,7 +292,7 @@ class PostingSpec:
 # apply to). `catalog_job_code` links onto the reference catalog when the
 # code exists — mapping is a lookup, never a catalog write. Postings are
 # spread over the current and the previous 30-day window so Market → Skills
-# has top, rising and falling examples; skills stay within `SKILL_TAGS`.
+# has top, rising and falling examples; skills stay within the catalog pack's skills.
 DEMO_POSTINGS: tuple[PostingSpec, ...] = (
     PostingSpec(
         key="data-analyst",
@@ -2273,12 +2274,21 @@ def has_schema(engine: Any) -> bool:
 
 
 def ensure_reference_catalog() -> None:
-    """Ensure the REFERENCE starter catalogs exist (identity: reference
-    data ≠ demo data — `backend/app/seeds/*` stays reference, this only
-    runs its idempotent entry point so demo rows can link real skill ids)."""
+    """Ensure the reference banks and the job catalog exist.
+
+    Reference data ≠ demo data: the banks come from the product's idempotent
+    `app.seeds.run`; the catalog is the released pack, installed from its
+    pinned fixture copy so demo rows can link real skill ids offline.
+    """
     from app.seeds.run import run as run_reference_seed
 
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from seed_pack_fixture import install as install_catalog_fixture
+
     asyncio.run(run_reference_seed())
+    asyncio.run(install_catalog_fixture())
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -491,6 +491,35 @@ class ProviderService:
             source, trigger="manual", actor=str(actor)
         )
 
+    async def install_official(
+        self, source_id: uuid.UUID | str, *, actor: str | uuid.UUID = "system"
+    ) -> dict[str, Any]:
+        """One-click install of an official catalog tile (plan 224 S4).
+
+        Sync → approve → apply → enable. Only official tiles qualify: a
+        community/operator pack keeps the reviewed, one-version-at-a-time lane.
+        """
+        source = await self._source(source_id)
+        if source.trust_tier != "official":
+            raise ValidationError("one-click install is reserved for official providers")
+        report = await ProviderSyncService(self.db, packs=self.packs).sync(
+            source, trigger="manual", actor=str(actor)
+        )
+        if report["status"] not in ("ok", "noop") or not report.get("version_id"):
+            raise ValidationError(
+                f"{report.get('code') or 'SYNC_FAILED'}: "
+                f"{report.get('message') or 'the official repository could not be reached'}"
+            )
+        version = await self._version(source, report["version_id"])
+        apply_service = SeedApplyService(self.db, packs=self.packs)
+        if version.status == "pending":
+            await apply_service.approve(version, actor=actor)
+        result = await apply_service.apply(source, version, actor=actor)
+        if not source.enabled:
+            source.enabled = True
+            await self.db.commit()
+        return result.as_dict()
+
     async def upload(
         self,
         source_id: uuid.UUID | str,

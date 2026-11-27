@@ -18,7 +18,8 @@ for listings and no app release is needed to refresh them.
   [career-assistant-seeds](https://github.com/neuronection/career-assistant-seeds)
   repository: Greece ATS, worldwide remote boards, and the curated job
   catalog. **Sync now**, approve and apply a pack to populate the gallery or
-  the catalog.
+  the catalog — or use the empty catalog page's **Load the official catalog**
+  button, which does the same in one click.
 
 ## Add your own provider
 

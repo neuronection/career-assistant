@@ -1476,7 +1476,10 @@ function AddProviderDialog({
               key={value}
               type="button"
               aria-pressed={kind === value}
-              onClick={() => setKind(value)}
+              onClick={() => {
+                setKind(value);
+                if (value === "file" && trust === "community") setTrust("operator");
+              }}
               className={`rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
                 kind === value
                   ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))]"

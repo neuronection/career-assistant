@@ -11,6 +11,12 @@ slugs so labels can change without breaking your data.
 
 ## The family tree
 
+**The catalog is loaded from a pack, not bundled.** A fresh instance shows an
+empty state on `/catalog`; an administrator either clicks **Load the official
+catalog** (sync → approve → apply) or adds a downloaded pack zip under
+**Settings → Data providers**. Until then, students see an "ask your
+administrator" note on the catalog-fed pages.
+
 Open **Catalog** (`/catalog`). The page uses the same three-column template
 as Postings: the **filter rail** on the left, the job results in the middle
 and your **recent searches** on the right. On a narrower window the rail

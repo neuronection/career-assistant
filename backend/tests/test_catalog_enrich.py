@@ -79,17 +79,11 @@ async def test_generator_emits_v2_vocabulary(db, auth_headers, seeded_catalog):
 async def test_enrichment_sweep_propose_apply_reject(
     client, auth_headers, client_admin_headers, seeded_catalog, db
 ):
-    from sqlalchemy import select
-
-    from app.models.job_model import Job
-
-    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
-    assert job is not None
-    salary_before = (job.attributes or {}).get("salary")
-    assert salary_before, "seeded archetype carries human-owned salary"
 
     service = CatalogEnrichService(db)
-    assert job in await service.candidates(), "archetype lacks v2 fields"
+    job = (await service.candidates(limit=1))[0]
+    salary_before = (job.attributes or {}).get("salary")
+    assert salary_before, "the archetype carries human-owned salary"
 
     result = await service.run_sweep(limit=5)
     assert result["proposed"] >= 1
@@ -118,12 +112,9 @@ async def test_enrichment_sweep_propose_apply_reject(
 async def test_enrichment_moderation_endpoints(
     client, auth_headers, client_admin_headers, seeded_catalog, db
 ):
-    from sqlalchemy import select
 
-    from app.models.job_model import Job
-
-    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     service = CatalogEnrichService(db)
+    job = (await service.candidates(limit=1))[0]
     await service.run_sweep(limit=5)
     await db.refresh(job)
 

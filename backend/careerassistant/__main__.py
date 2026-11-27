@@ -5,7 +5,7 @@ app (default) — pywebview desktop window over a local loopback server,
                 with tray + background mode (`app --tray` boots tray-only
                 for login auto-start).
 web           — fixed loopback port + system browser (no window shell).
-seed          — apply migrations + idempotent starter catalog, then exit.
+seed          — apply migrations + idempotent reference banks (no catalog), then exit.
 backup        — create a backup archive now, then prune old ones.
 restore ZIPO  — replace local data (db/uploads/secret) from an archive; the
                 second argument must be the path to the backup zip.
@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap_environment,
         default_data_dir,
         run_migrations,
-        seed_catalog_data,
+        seed_reference_data,
     )
 
     data_dir = default_data_dir()
@@ -174,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     run_migrations()
-    seed_catalog_data()
+    seed_reference_data()
 
     archive = backups.backup_if_due(data_dir)
     if archive is not None:

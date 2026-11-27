@@ -3,7 +3,8 @@
 The seeder (`scripts/seed-demo.py`) must refuse anything that is not a
 demo target *and* a demo instance — loudly, non-zero — seed idempotent
 synthetic-only content, and land rows nowhere but the demo instance.
-Reference catalogs (`backend/app/seeds/*`) stay reference data. The
+Reference banks (`backend/app/seeds/*`) stay reference data; the job
+catalog comes from the released seed pack (plan 224). The
 public `GET /api/v1/instance/config` endpoint (product-owned) feeds the
 SPA's "Demo — synthetic data" badge before login, and the kit's demo
 rules hold through career's real app: the `demo` principal only on demo
@@ -14,9 +15,12 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.util
+import json
+import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 from types import ModuleType
@@ -25,8 +29,6 @@ import pytest
 from httpx import ASGITransport
 
 from app.core.config import settings
-from app.seeds.catalog import JOBS
-from app.seeds.taxonomy import SKILL_TAGS
 from tests.conftest import CleanJarClient, auth_kit, session_headers
 
 # Every test here implements identity-auth §18.11 (demo principal/seeder
@@ -84,17 +86,29 @@ def load_seeder() -> ModuleType:
 
 
 SEED = load_seeder()
-SKILL_KEYS = {tag["key"] for tag in SKILL_TAGS}
-CATALOG_JOB_CODES = {job["code"] for job in JOBS}
+CATALOG_PACK = (
+    BACKEND_DIR / "tests" / "fixtures" / "seed_packs" / "packs" / "neuronection" / "job-catalog"
+)
+
+
+def _pack_items(relative: str) -> list[dict]:
+    envelope = json.loads((CATALOG_PACK / "items" / relative).read_text(encoding="utf-8"))
+    return list(envelope["items"])
+
+
+SKILL_KEYS = {item["key"] for item in _pack_items("skills/skills.json")}
+CATALOG_JOB_CODES = {item["code"] for item in _pack_items("job_types/jobs.json")}
 
 
 def run_seeder(*args: str) -> subprocess.CompletedProcess[str]:
+    upload_dir = Path(tempfile.mkdtemp(prefix="career-demo-uploads-"))
     return subprocess.run(
         [sys.executable, str(SEEDER), *args],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
         timeout=180,
+        env={**os.environ, "CAREER_UPLOAD_DIR": str(upload_dir)},
     )
 
 

@@ -336,6 +336,16 @@ async def test_mock_ai_phase3_prompt_includes_stage(
 # ------------------------------------------------------------ bootstrap flags
 
 
+async def test_bootstrap_reports_an_empty_catalog(client, auth_headers, db):
+    body = (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).json()
+    assert body["catalog_empty"] is True
+
+
+async def test_bootstrap_reports_a_loaded_catalog(client, auth_headers, db, fixture_catalog):
+    body = (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).json()
+    assert body["catalog_empty"] is False
+
+
 async def test_bootstrap_flags_gate_universities_for_non_students(
     client, auth_headers, profile_ready
 ):

@@ -9,15 +9,12 @@ from app.ai.gateway import StructuredAIError, ainvoke_structured
 from app.ai.schemas import ChatReply, ProfileInsight
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
-from app.seeds.run import seed_taxonomy
 
 
 async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
-    from app.models.taxonomy_model import InterestTag
-
-    _i, _s = await seed_taxonomy(db)
     from nx_auth.passwords import hash_password
 
+    from app.models.taxonomy_model import InterestTag
     from app.models.user_model import Profile, User, UserInterest
 
     user = User(email="a@example.com", password_hash=hash_password("password123"))
@@ -43,9 +40,7 @@ async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
 async def test_job_generator_valid_and_deduped(db, client, auth_headers, seeded_catalog):
     from app.models.job_model import Job, JobFamily
     from app.models.taxonomy_model import InterestTag, Skill
-    from app.seeds.run import seed_taxonomy
 
-    await seed_taxonomy(db)
     families = (await db.execute(select(JobFamily))).scalars().all()
     interests = (await db.execute(select(InterestTag.key))).scalars().all()
     skills = (await db.execute(select(Skill.key))).scalars().all()

@@ -188,12 +188,12 @@ dc_migrate() {
 
 dc_bootstrap_desktop() {
   # The desktop boot path exactly: datastore break guard + migrations + the
-  # idempotent starter catalog, against the local SQLite profile.
+  # idempotent reference banks, against the local SQLite profile.
   if [[ "$NO_MIGRATE" = true ]]; then
     dc_warn "skipping desktop migrations + seed (--no-migrate)"
     return 0
   fi
-  dc_step "applying desktop migrations + starter catalog (SQLite profile)"
+  dc_step "applying desktop migrations + reference banks (SQLite profile)"
   (cd backend && uv run python -m careerassistant seed) \
     || dc_die "desktop bootstrap failed — see output above"
 }

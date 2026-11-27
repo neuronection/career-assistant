@@ -8,6 +8,7 @@ import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { apiDetail } from "@/api/client";
 import { setOnboardingPath } from "@/api/onboarding";
 import { STEP_LABEL_KEYS, stepsForPath } from "@/config/onboardingPaths";
+import { CatalogEmptyNotice } from "@/components/CatalogEmptyNotice";
 import { PathPicker } from "@/features/profile/components/onboarding/PathPicker";
 import { CvIntakeFlow } from "@/features/cv/components/intake/CvIntakeFlow";
 import type { SectionCardHandle } from "@/features/profile/components/profile/sections/shared";
@@ -235,6 +236,10 @@ export function Onboarding() {
         >
           {t("onboarding.differentStart")}
         </button>
+      </div>
+
+      <div className="mt-4">
+        <CatalogEmptyNotice />
       </div>
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-2xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4 sm:p-6 md:p-8">

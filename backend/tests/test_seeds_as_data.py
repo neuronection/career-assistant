@@ -1,8 +1,11 @@
 """Identical-seed test (plan 123.5): the JSON files ARE the seeds.
 
 The pydantic-validated loader in ``app/seeds/data.py`` must reproduce
-exactly the committed JSON payload — validation may reject, never
-rewrite. Tampered payloads must fail loudly at load.
+exactly the committed JSON payload — validation may reject, never rewrite.
+Tampered payloads must fail loudly at load.
+
+The job catalog and its taxonomy are a versioned seed pack (plan 224), not
+bundled files; this test covers the four remaining reference banks.
 """
 
 import json
@@ -10,24 +13,16 @@ import json
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.seeds import assessment, catalog, cv_templates, metrics, skill_packs, taxonomy
+from app.seeds import assessment, cv_templates, metrics, skill_packs
 from app.seeds.data import (
     SEEDS_DIR,
-    InterestTag,
-    Job,
-    Relation,
+    MetricDimension,
     load_seed,
     seed_list,
 )
 
-#: module constant <-> (seed file, key) pairs — the full seed surface.
+#: module constant <-> (seed file, key) pairs — the bundled seed surface.
 PAIRS = [
-    (taxonomy, "INTEREST_TAGS", "taxonomy"),
-    (taxonomy, "SKILL_TAGS", "taxonomy"),
-    (catalog, "FAMILIES", "catalog"),
-    (catalog, "JOBS", "catalog"),
-    (catalog, "RELATIONS", "catalog"),
-    (catalog, "PATHS", "catalog"),
     (assessment, "BANK_QUESTIONS", "assessment"),
     (cv_templates, "BANK_TEMPLATES", "cv_templates"),
     (metrics, "DIMENSIONS", "metrics"),
@@ -46,44 +41,32 @@ def test_seed_json_is_identical_to_the_module_constant(module, key, name):
     assert _jsonable(getattr(module, key)) == payload
 
 
-def test_experience_years_round_trips_tuples():
-    payload = load_seed("catalog")["EXPERIENCE_YEARS"]
-    assert {k: list(v) for k, v in catalog.EXPERIENCE_YEARS.items()} == payload
-
-
 def test_loading_is_deterministic():
-    first = seed_list(Job, "catalog", "JOBS")
-    second = seed_list(Job, "catalog", "JOBS")
+    first = seed_list(MetricDimension, "metrics", "DIMENSIONS")
+    second = seed_list(MetricDimension, "metrics", "DIMENSIONS")
     assert first == second
 
 
 def test_tampered_seed_fails_validation():
-    payload = load_seed("catalog")
-    del payload["JOBS"][0]["title"]  # required field — never valid
+    payload = load_seed("metrics")
+    del payload["DIMENSIONS"][0]["label"]  # required field — never valid
     with pytest.raises(ValidationError):
-        TypeAdapter(list[Job]).validate_python(payload["JOBS"])
+        TypeAdapter(list[MetricDimension]).validate_python(payload["DIMENSIONS"])
 
 
 def test_unknown_seed_keys_are_rejected():
-    payload = load_seed("taxonomy")
-    payload["INTEREST_TAGS"][0]["mystery"] = True
+    payload = load_seed("metrics")
+    payload["DIMENSIONS"][0]["mystery"] = True
     with pytest.raises(ValidationError):
-        TypeAdapter(list[InterestTag]).validate_python(payload["INTEREST_TAGS"])
+        TypeAdapter(list[MetricDimension]).validate_python(payload["DIMENSIONS"])
 
 
 def test_every_seed_file_is_registered():
     """No orphan JSON: every file in app/data/seeds is loaded by a module."""
     expected = {
-        "taxonomy.json",
-        "catalog.json",
         "assessment.json",
         "cv_templates.json",
         "metrics.json",
         "skill_packs.json",
     }
     assert {p.name for p in SEEDS_DIR.glob("*.json")} == expected
-
-
-def test_relation_aliases_round_trip():
-    rows = seed_list(Relation, "catalog", "RELATIONS")
-    assert {"from", "to"} <= set(rows[0])

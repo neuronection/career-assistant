@@ -499,6 +499,16 @@
       "remote": "Remote",
       "kitchen": "Kitchen",
       "stage": "Stage"
+    },
+    "empty": {
+      "title": "Your catalog is empty",
+      "adminBody": "Load the official Neuronection catalog in one reviewed apply — occupations, families, typed relations, starter paths, skills and interests — or import a pack zip from Data providers (keep the operator or official trust tier).",
+      "memberBody": "The catalog is empty. Ask your administrator to load the official catalog pack from Data providers.",
+      "loadOfficial": "Load the official catalog",
+      "openProviders": "Data providers",
+      "missingTile": "No official catalog tile is registered on this instance.",
+      "adminNotice": "The job catalog is not loaded yet — load the official catalog to fill these lists.",
+      "openCatalog": "Open the catalog"
     }
   },
   "generate": {

@@ -30,6 +30,7 @@ function bootstrap(ai: AiStatus | undefined): Bootstrap {
     suggested_scoring_weights: weights,
     effective_scoring_weights: weights,
     weights_overridden: false,
+    catalog_empty: false,
     fit_stale: false,
     target_mode: false,
     ai,

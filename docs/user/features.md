@@ -18,6 +18,10 @@ short version; this page is the reference. Statuses live in
   presets, endpoints and per-entity catalog counts (families, jobs,
   relations, paths, skills, interests), with retired rows and direct admin
   edits flagged.
+- **Empty catalog, three ways to fill it** — a fresh instance shows an
+  explicit empty state on the catalog page. An admin loads the official
+  catalog with one click (sync → approve → apply) or imports a downloaded
+  pack zip; students see a short "ask your administrator" note.
 - **Follow and hide** — on `/radar`, follow providers, narrow to selected
   providers and hide individual sources. A hidden source never appears in
   Explore, the radar, digests, saved-search runs, RSS or chat, whatever the

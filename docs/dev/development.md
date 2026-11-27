@@ -12,7 +12,7 @@ Prerequisites: Docker, Python 3.12+, Node 18+.
 cp .env.example .env                                       # localhost defaults
 docker compose -f docker/docker-compose.dev-db.yml up -d   # Postgres :5433 + Redis :6380
 ./scripts/run-dev.sh                                       # backend :8100 + frontend :3100
-./scripts/seed.sh                                          # idempotent starter catalog
+./scripts/seed.sh                                          # idempotent banks + fixture catalog pack
 ```
 
 The first `run-dev.sh` run installs all backend dependencies into

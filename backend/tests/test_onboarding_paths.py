@@ -79,11 +79,9 @@ async def test_basics_save_preserves_path(client, auth_headers):
 # --------------------------------------------------------- completeness v2
 
 
-async def test_explore_scope_progression(client, auth_headers, db):
+async def test_explore_scope_progression(client, auth_headers, db, fixture_catalog):
     from app.seeds.metrics import seed_metric_dimensions
-    from app.seeds.run import seed_taxonomy
 
-    await seed_taxonomy(db)
     await seed_metric_dimensions(db)
 
     await client.put("/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers)

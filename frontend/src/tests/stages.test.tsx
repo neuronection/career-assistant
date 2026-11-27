@@ -54,6 +54,7 @@ function bootstrapFor(stage: Bootstrap["career_stage"]): Bootstrap {
       values: 4,
     },
     weights_overridden: false,
+    catalog_empty: false,
     fit_stale: false,
     target_mode: false,
   };

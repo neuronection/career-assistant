@@ -746,33 +746,35 @@ async def auth_headers(client: AsyncClient) -> dict:
 
 
 @pytest.fixture
-async def seeded_catalog(db) -> dict:
-    """Seed taxonomy + catalog + curated paths; returns counts."""
-    from app.seeds.run import seed_catalog, seed_paths, seed_taxonomy
+async def fixture_catalog(db, tmp_path):
+    """Apply the published job-catalog fixture pack (plan 224 S4)."""
+    from tests.seed_pack_fixture import apply_catalog_pack
 
-    i, s = await seed_taxonomy(db)
-    j, r = await seed_catalog(db)
-    p = await seed_paths(db)
-    from app.seeds.assessment import seed_assessment_bank
-
-    q = await seed_assessment_bank(db)
-    return {
-        "interests": i,
-        "skills": s,
-        "jobs": j,
-        "relations": r,
-        "paths": p,
-        "questions": q,
-    }
+    return await apply_catalog_pack(db, tmp_path)
 
 
 @pytest.fixture
-async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
+async def fixture_taxonomy(db, tmp_path):
+    """Apply just the pack's skills and interest tags (profile fixtures)."""
+    from tests.seed_pack_fixture import apply_taxonomy_pack
+
+    return await apply_taxonomy_pack(db, tmp_path)
+
+
+@pytest.fixture
+async def seeded_catalog(db, fixture_catalog) -> dict:
+    """The fixture job catalog plus the assessment bank."""
+    from app.seeds.assessment import seed_assessment_bank
+
+    questions = await seed_assessment_bank(db)
+    return {"questions": questions}
+
+
+@pytest.fixture
+async def profile_ready(client: AsyncClient, auth_headers: dict, db, fixture_taxonomy) -> dict:
     """A user with a filled profile; returns the profile payload."""
     from app.seeds.metrics import seed_metric_dimensions
-    from app.seeds.run import seed_taxonomy
 
-    await seed_taxonomy(db)
     await seed_metric_dimensions(db)
     payload = {
         "basics": {

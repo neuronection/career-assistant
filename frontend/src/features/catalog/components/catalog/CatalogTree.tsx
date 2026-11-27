@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { Library, X } from "lucide-react";
+import { Button, EmptyState } from "@/components/ui";
+import { apiDetail } from "@/api/client";
+import * as providersApi from "@/api/providers";
 import { useCatalogStore } from "@/stores/catalogStore";
+import { useAuthStore } from "@/stores/authStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { CatalogFilterRail } from "@/features/catalog/components/catalog/CatalogFilterRail";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
@@ -21,7 +25,7 @@ import type { JobFamilyNode } from "@/types";
 
 export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const { t } = useTranslation();
-  const { families, jobs, total, facets, loadFamilies, loadJobs } = useCatalogStore();
+  const { families, jobs, total, facets, loading, loadFamilies, loadJobs } = useCatalogStore();
   const { ref: bandRef, band } = useContainerBand(bandOverride);
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseCatalogParams(searchParams), [searchParams]);
@@ -79,6 +83,73 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
     [families, filters.family]
   );
   const chips = catalogActiveChips(filters);
+
+  const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState("");
+  const catalogEmpty =
+    !loading && total === 0 && jobs.length === 0 && families.length === 0;
+
+  const installOfficialCatalog = async () => {
+    setInstalling(true);
+    setInstallError("");
+    try {
+      const providers = await providersApi.listAdminProviders();
+      const tile = providers.find(
+        (provider) =>
+          provider.trust_tier === "official" &&
+          provider.subpath.endsWith("job-catalog")
+      );
+      if (!tile) throw new Error(t("catalog.empty.missingTile"));
+      await providersApi.installOfficialProvider(tile.id);
+      await Promise.all([loadFamilies(), loadJobs(catalogApiParams(filters))]);
+    } catch (error) {
+      setInstallError(apiDetail(error));
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  if (catalogEmpty) {
+    return (
+      <div className="ca-stats-page" data-testid="catalog-empty-page" ref={bandRef}>
+        <EmptyState
+          icon={Library}
+          title={t("catalog.empty.title")}
+          description={
+            isAdmin ? t("catalog.empty.adminBody") : t("catalog.empty.memberBody")
+          }
+          action={
+            isAdmin ? (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  onClick={() => void installOfficialCatalog()}
+                  loading={installing}
+                  data-testid="catalog-load-official"
+                >
+                  {t("catalog.empty.loadOfficial")}
+                </Button>
+                <Button variant="secondary" asChild>
+                  <Link to="/settings/tools?section=sources">
+                    {t("catalog.empty.openProviders")}
+                  </Link>
+                </Button>
+              </div>
+            ) : null
+          }
+          data-testid="catalog-empty"
+        />
+        {installError ? (
+          <p
+            className="mt-3 text-center text-sm text-[var(--as-danger)]"
+            data-testid="catalog-install-error"
+          >
+            {installError}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="ca-stats-page" data-testid="catalog-tree" data-band={band} ref={bandRef}>

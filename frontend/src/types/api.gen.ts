@@ -2516,6 +2516,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/providers/{source_id}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install Official Provider
+         * @description One-click official catalog install: sync, approve, apply, enable.
+         */
+        post: operations["install_official_provider_api_v1_admin_providers__source_id__install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/providers/{source_id}/items/{seed_key}/disable": {
         parameters: {
             query?: never;
@@ -12472,6 +12492,11 @@ export interface components {
         BootstrapOut: {
             ai?: components["schemas"]["AiStatusOut"] | null;
             career_stage: components["schemas"]["CareerStage"];
+            /**
+             * Catalog Empty
+             * @default false
+             */
+            catalog_empty: boolean;
             effective_scoring_weights: components["schemas"]["ScoringWeights"];
             /** Features */
             features: {
@@ -28716,6 +28741,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProbeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_official_provider_api_v1_admin_providers__source_id__install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyOut"];
                 };
             };
             /** @description Validation Error */

@@ -399,3 +399,66 @@ async def test_a_preset_only_provider_reports_no_catalog_groups(
     body = (await client.get(f"{ADMIN}/{provider_id}", headers=auth_headers)).json()
     assert body["catalog"] == []
     assert body["item_counts"]["jobs"] == 0
+
+
+async def test_official_catalog_install_syncs_applies_and_enables(
+    client, auth_headers, db, tmp_path, monkeypatch
+):
+    import app.services.seeds.provider_service as provider_module
+    from app.core.seed_pack.archive import build_pack_archive
+    from app.core.seed_pack.manifest import compute_files_digest
+    from app.models.seed_model import SeedSource, SeedSourceVersion
+    from app.services.seeds.service import ProviderSyncService
+    from tests.seed_pack_fixture import catalog_pack_files, fixture_store
+
+    store = fixture_store(tmp_path)
+    monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
+
+    files = catalog_pack_files()
+    digest = compute_files_digest(files)
+    source = SeedSource(
+        name="Neuronection official — Job catalog",
+        kind="git",
+        uri="https://github.com/neuronection/career-assistant-seeds.git",
+        ref_spec="v2026.11.25.3",
+        subpath="packs/neuronection/job-catalog",
+        priority=100,
+        trust_tier="official",
+        enabled=False,
+        refresh_minutes=0,
+    )
+    db.add(source)
+    await db.commit()
+    await db.refresh(source)
+    store.put(source.id, digest, build_pack_archive(files))
+    version = SeedSourceVersion(
+        source_id=source.id,
+        digest=digest,
+        manifest=json.loads(files["manifest.json"]),
+        pack_version="1.0.0",
+        schema_version="1.0",
+        status="pending",
+    )
+    db.add(version)
+    await db.commit()
+
+    async def fake_sync(self, source_arg, *, trigger="manual", actor="system"):
+        return {"status": "noop", "version_id": str(version.id), "code": None, "message": ""}
+
+    monkeypatch.setattr(ProviderSyncService, "sync", fake_sync)
+
+    response = await client.post(f"{ADMIN}/{source.id}/install", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "applied"
+    assert body["counts"]["create"] > 0
+    assert await db.scalar(select(Job)) is not None
+    enabled = await db.scalar(select(SeedSource.enabled).where(SeedSource.id == source.id))
+    assert enabled is True
+
+
+async def test_one_click_install_is_reserved_for_official_tiles(client, auth_headers):
+    created = await client.post(ADMIN, headers=auth_headers, json=_file_provider())
+    response = await client.post(f"{ADMIN}/{created.json()['id']}/install", headers=auth_headers)
+    assert response.status_code == 400
+    assert "official" in response.json()["detail"]

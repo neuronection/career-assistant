@@ -499,6 +499,16 @@
       "remote": "Remote",
       "kitchen": "Küche",
       "stage": "Bühne"
+    },
+    "empty": {
+      "title": "Dein Katalog ist leer",
+      "adminBody": "Lade den offiziellen Neuronection-Katalog in einem geprüften Vorgang — Berufe, Familien, typisierte Beziehungen, Startpfade, Fähigkeiten und Interessen — oder importiere ein Pack-Zip über Datenquellen (Trust-Stufe „Operator“ oder „Offiziell“ beibehalten).",
+      "memberBody": "Der Katalog ist leer. Bitte deine Administration, das offizielle Katalog-Paket über Datenquellen zu laden.",
+      "loadOfficial": "Offiziellen Katalog laden",
+      "openProviders": "Datenquellen",
+      "missingTile": "Auf dieser Instanz ist keine offizielle Katalog-Kachel registriert.",
+      "adminNotice": "Der Berufskatalog ist noch nicht geladen — lade den offiziellen Katalog, um diese Listen zu füllen.",
+      "openCatalog": "Katalog öffnen"
     }
   },
   "generate": {

@@ -152,10 +152,7 @@ async def test_generation_skips_a_duplicate_title_and_reports_duplicate_title(
     ]
 
 
-async def test_seed_writes_a_key_for_every_non_retired_job(db):
-    from app.seeds.run import seed_catalog
-
-    await seed_catalog(db)
+async def test_seed_writes_a_key_for_every_non_retired_job(db, fixture_catalog):
     rows = (await db.execute(select(Job).where(Job.status != "retired"))).scalars().all()
     assert rows
     assert all(job.title_key for job in rows)

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Plus, Copy, Trash2, MailPlus, Sparkles, Wand2 } from "lucide-react";
 import { Button, Card, ConfirmationModal, EmptyState, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
+import { CatalogEmptyNotice } from "@/components/CatalogEmptyNotice";
 import { apiDetail } from "@/api/client";
 import {
   createCoverLetter,
@@ -204,6 +205,7 @@ export function CvStudio() {
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6" data-testid="cv-studio">
+      <CatalogEmptyNotice />
       <header className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--as-fg)]">{t("cvStudio.title")}</h1>

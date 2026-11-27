@@ -878,7 +878,7 @@
       "proofs": [
         "Exact-digest approval; sync never applies, and applying a pack is the admin’s choice (its presets start enabled, per-item switches override)",
         "Priority-aware plan preview with typed equal-priority conflicts; one transaction per apply",
-        "No catalog ships in the app: uploads, public Git/index providers, or the official pinned repository tiles",
+        "No catalog ships in the app: one-click official load, uploaded packs or public Git/index providers",
         "Provenance per catalog row; retirement never deletes; provider detail counts each entity and flags retired or edited rows",
         "User follow/hide: a hidden source is denied across Explore, radar, digests, RSS and chat"
       ],
