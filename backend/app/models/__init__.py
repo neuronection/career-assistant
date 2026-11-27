@@ -73,6 +73,7 @@ from app.models.market_model import MarketSnapshot  # noqa: F401
 from app.models.matching_model import MatchInsight
 from app.models.mcp_bridge_model import AIMCPServer, McpToken
 from app.models.metric_model import (
+    MetricCategoryAnchor,
     MetricDimension,
     SkillTransferability,
     UserMetricProfile,
@@ -198,6 +199,7 @@ __all__ = [
     "LearningResource",
     "MatchInsight",
     "McpToken",
+    "MetricCategoryAnchor",
     "MetricDimension",
     "MigrationArchive",
     "Notification",

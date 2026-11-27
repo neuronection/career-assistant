@@ -20,6 +20,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,12 +41,16 @@ class MetricDimension(TimestampMixin, UUIDPrimaryKeyMixin, Base):
     __tablename__ = "metric_dimensions"
 
     key: Mapped[str] = mapped_column(String(60), unique=True, index=True, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     label: Mapped[str] = mapped_column(String(80), nullable=False)
     group: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     description: Mapped[str] = mapped_column(String(400), nullable=False, default="")
     # Kept for vector dimensions later; every current dimension is scalar.
     scale: Mapped[str] = mapped_column(String(10), nullable=False, default="scalar")
     reverse_score: Mapped[bool] = mapped_column(nullable=False, default=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="published", server_default="published"
+    )
     # Which assessment kinds / profile sections / behaviors feed it and
     # which consumers read it — declared, not implied.
     sources: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
@@ -57,7 +62,43 @@ class MetricDimension(TimestampMixin, UUIDPrimaryKeyMixin, Base):
             name="group_allowed",
         ),
         CheckConstraint("scale IN ('scalar', 'vector')", name="scale_allowed"),
+        CheckConstraint("status IN ('published', 'retired')", name="status_allowed"),
+        Index(
+            "uq_metric_dimensions_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
+
+
+class MetricCategoryAnchor(TimestampMixin, UUIDPrimaryKeyMixin, Base):
+    """One taxonomy interest category anchored to its Holland letter."""
+
+    __tablename__ = "metric_category_anchors"
+    __table_args__ = (
+        CheckConstraint(
+            "letter IN ('realistic', 'investigative', 'artistic', 'social', "
+            "'enterprising', 'conventional')",
+            name="letter_allowed",
+        ),
+        CheckConstraint("status IN ('published', 'retired')", name="status_allowed"),
+        Index(
+            "uq_metric_category_anchors_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
+
+    category: Mapped[str] = mapped_column(String(60), unique=True, index=True, nullable=False)
+    letter: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="published", server_default="published"
+    )
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class SkillTransferability(TimestampMixin, UUIDPrimaryKeyMixin, Base):

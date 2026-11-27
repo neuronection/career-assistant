@@ -485,3 +485,17 @@ async def test_endpoint_descriptors_apply(db, tmp_path):
         select(SeedItemProvenance).where(SeedItemProvenance.entity_type == ENTITY_ENDPOINT)
     )
     assert provenance is not None
+
+
+async def test_an_unregistered_entity_type_is_still_a_noop(db, tmp_path):
+    from app.services.seeds.planner import PlannedItem
+
+    service = _service(db, _store(tmp_path))
+    item = PlannedItem(
+        entity_type="mystery_entity",
+        seed_key="mystery:item",
+        action="create",
+        payload={},
+        content_hash="",
+    )
+    assert await service._apply_item(item) is None

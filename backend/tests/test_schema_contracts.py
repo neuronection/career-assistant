@@ -221,6 +221,13 @@ CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
     ("vector_documents", "scope_type_allowed", VectorScopeType),
     ("vector_records", "view_allowed", set(V1_VIEWS)),
     ("retrieval_query_rollups", "degraded_reason_allowed", DegradedReason),
+    ("metric_dimensions", "status_allowed", {"published", "retired"}),
+    ("metric_category_anchors", "status_allowed", {"published", "retired"}),
+    (
+        "metric_category_anchors",
+        "letter_allowed",
+        {"realistic", "investigative", "artistic", "social", "enterprising", "conventional"},
+    ),
 ]
 
 

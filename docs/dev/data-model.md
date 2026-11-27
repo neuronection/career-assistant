@@ -103,7 +103,8 @@ provenance.
 | Table(s) | Model | Holds |
 |---|---|---|
 | `match_insights` | `matching_model.py` | AI score + structured rationale (positives, negatives, missing prerequisites) |
-| `metric_dimensions` | `metric_model.py` | The curated dimension registry |
+| `metric_dimensions` | `metric_model.py` | The curated dimension registry (pack identity in `seed_key`, lifecycle `status`) |
+| `metric_category_anchors` | `metric_model.py` | Interest category → Holland letter (RIASEC) anchors |
 | `user_metric_profile` | `metric_model.py` | Measured values with provenance |
 | `skill_transferability` | `metric_model.py` | Per-skill transferability across families |
 | `assessment_templates` | `assessment_template_model.py` | Bank batteries |

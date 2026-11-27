@@ -6,6 +6,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **The remaining seed banks now carry a stored pack identity.** Assessment
+  questions and templates, CV templates, metric dimensions and skill packs
+  gain a nullable `seed_key` (unique where present), metric dimensions gain a
+  published/retired status, and a new `metric_category_anchors` table turns
+  the interest-category → RIASEC map into data. This is lane groundwork — the
+  banks still ship as seed data until their pack formats land, so no
+  user-facing surface changes yet.
+
 - **The chip filter row uses the shared filter module.** The include/exclude
   chip row and the applied-filter pills now render through
   `@neuronection/assistant-ui` (`FacetChip`'s inline variant and

@@ -17,7 +17,7 @@ from alembic.config import Config
 
 from alembic import command
 
-BASELINE = "0021"
+BASELINE = "0022"
 
 
 def _configured() -> Config:
@@ -1560,5 +1560,334 @@ def test_0019_folds_legacy_catalogs_on_postgres(tmp_path, monkeypatch):
         asyncio.run(_assert_0019_pg(temp))
         command.downgrade(config, "0018")
         asyncio.run(_assert_0019_restored_pg(temp, value))
+    finally:
+        asyncio.run(_pg_drop(admin, name))
+
+
+_0022_PROMPT = (
+    "A friend asks you to help organize a big local charity event. "
+    "Which role do you quietly hope for?"
+)
+
+
+def _seed_0022_sqlite(con) -> None:
+    import uuid
+
+    con.execute(
+        'INSERT INTO metric_dimensions (id, key, label, "group", description, scale, '
+        "reverse_score, sources, consumers) VALUES (?, 'interest.social', 'Social', "
+        "'interest', '', 'scalar', 0, '[]', '[]')",
+        (uuid.uuid4().hex,),
+    )
+    con.execute(
+        'INSERT INTO metric_dimensions (id, key, label, "group", description, scale, '
+        "reverse_score, sources, consumers) VALUES (?, 'custom.metric', 'Custom', "
+        "'interest', '', 'scalar', 0, '[]', '[]')",
+        (uuid.uuid4().hex,),
+    )
+    con.execute(
+        "INSERT INTO assessment_questions (id, phase, kind, prompt, help, options, "
+        "audience_stages, source, status, sort_index) VALUES (?, 2, 'scenario_mcq', ?, '', "
+        "'[]', '[]', 'bank', 'active', 1)",
+        (uuid.uuid4().hex, _0022_PROMPT),
+    )
+    con.execute(
+        "INSERT INTO assessment_questions (id, phase, kind, prompt, help, options, "
+        "audience_stages, source, status, sort_index) VALUES (?, 2, 'scenario_mcq', ?, '', "
+        "'[]', '[]', 'bank', 'active', 2)",
+        (uuid.uuid4().hex, _0022_PROMPT + " (edited)"),
+    )
+    con.execute(
+        "INSERT INTO assessment_templates (id, key, version, title, description, author_key, "
+        "source, visibility, audience_stages, language, schema_version, content_hash, status, "
+        "retired, content) VALUES (?, 'riasec-interest-battery', 1, 'RIASEC', '', 'bank', "
+        "'bank', 'private', '[]', 'en', 1, 'abc', 'published', 0, '{}')",
+        (uuid.uuid4().hex,),
+    )
+    con.execute(
+        "INSERT INTO assessment_templates (id, key, version, title, description, author_key, "
+        "source, visibility, audience_stages, language, schema_version, content_hash, status, "
+        "retired, content) VALUES (?, 'riasec-interest-battery', 1, 'Mine', '', 'user-1', "
+        "'user', 'private', '[]', 'en', 1, 'abc', 'draft', 0, '{}')",
+        (uuid.uuid4().hex,),
+    )
+    for key, version, author in (
+        ("ats-classic", 2, "bank"),
+        ("ats-classic", 2, "user-1"),
+    ):
+        con.execute(
+            "INSERT INTO cv_templates (id, key, version, title, description, author_key, "
+            "source, visibility, language, page_size, ats_safe, schema_version, content_hash, "
+            "status, content) VALUES (?, ?, ?, 'ATS', '', ?, 'bank', 'private', 'en', 'a4', "
+            "1, 1, 'abc', 'published', '{}')",
+            (uuid.uuid4().hex, key, version, author),
+        )
+    con.execute(
+        "INSERT INTO ai_skill_packs (id, key, version, title, task, instructions, status, "
+        "author_key, content_hash) VALUES (?, 'interview-prep-style', 1, 'Style', "
+        "'interview_turn', 'Be specific.', 'published', 'bank', 'abc')",
+        (uuid.uuid4().hex,),
+    )
+    con.commit()
+
+
+def test_0022_backfills_bank_identity_and_downgrades(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app.core.config import settings
+
+    path = tmp_path / "bank-identity.db"
+    db_url = f"sqlite+aiosqlite:///{path}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+    command.upgrade(config, "0021")
+
+    con = sqlite3.connect(path)
+    try:
+        _seed_0022_sqlite(con)
+    finally:
+        con.close()
+
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        assert con.execute(
+            "SELECT seed_key, status FROM metric_dimensions WHERE key = 'interest.social'"
+        ).fetchone() == ("metric-dimension:interest.social", "published")
+        assert con.execute(
+            "SELECT seed_key FROM metric_dimensions WHERE key = 'custom.metric'"
+        ).fetchone() == (None,)
+        assert tuple(
+            con.execute("SELECT seed_key FROM assessment_questions ORDER BY sort_index").fetchall()
+        ) == (("assessment-question:charity-event-role",), (None,))
+        assert con.execute(
+            "SELECT seed_key FROM assessment_templates WHERE author_key = 'bank'"
+        ).fetchone() == ("assessment-template:riasec-interest-battery/v1",)
+        assert con.execute(
+            "SELECT seed_key FROM assessment_templates WHERE author_key = 'user-1'"
+        ).fetchone() == (None,)
+        assert con.execute(
+            "SELECT seed_key FROM cv_templates WHERE author_key = 'bank'"
+        ).fetchone() == ("cv-template:ats-classic/v2",)
+        assert con.execute(
+            "SELECT seed_key FROM cv_templates WHERE author_key = 'user-1'"
+        ).fetchone() == (None,)
+        assert con.execute("SELECT seed_key FROM ai_skill_packs").fetchone() == (
+            "skill-pack:interview-prep-style/v1",
+        )
+
+        anchors = con.execute(
+            "SELECT category, letter, status, seed_key FROM metric_category_anchors "
+            "ORDER BY category"
+        ).fetchall()
+        assert len(anchors) == 14
+        assert ("science", "investigative", "published", "interest-category:science") in anchors
+        assert all(
+            letter
+            in {
+                "realistic",
+                "investigative",
+                "artistic",
+                "social",
+                "enterprising",
+                "conventional",
+            }
+            for _category, letter, _status, _seed_key in anchors
+        )
+
+        import uuid
+
+        try:
+            con.execute(
+                'INSERT INTO metric_dimensions (id, key, label, "group", description, '
+                "scale, reverse_score, sources, consumers, seed_key) VALUES (?, 'other', "
+                "'Other', 'interest', '', 'scalar', 0, '[]', '[]', "
+                "'metric-dimension:interest.social')",
+                (uuid.uuid4().hex,),
+            )
+        except sqlite3.IntegrityError:
+            pass
+        else:  # pragma: no cover - the unique partial index must refuse it
+            raise AssertionError("duplicate seed_key was accepted")
+    finally:
+        con.close()
+
+    command.downgrade(config, "0021")
+    con = sqlite3.connect(path)
+    try:
+        assert not {"seed_key"} & {
+            row[1] for row in con.execute("PRAGMA table_info(metric_dimensions)")
+        }
+        assert not {"status"} & {
+            row[1] for row in con.execute("PRAGMA table_info(metric_dimensions)")
+        }
+        for table in (
+            "assessment_questions",
+            "assessment_templates",
+            "cv_templates",
+            "metric_dimensions",
+            "ai_skill_packs",
+        ):
+            assert "seed_key" not in {row[1] for row in con.execute(f"PRAGMA table_info({table})")}
+        assert con.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'metric_category_anchors'"
+        ).fetchone() == (0,)
+    finally:
+        con.close()
+
+    command.upgrade(config, "head")
+    con = sqlite3.connect(path)
+    try:
+        assert con.execute(
+            "SELECT seed_key FROM metric_dimensions WHERE key = 'interest.social'"
+        ).fetchone() == ("metric-dimension:interest.social",)
+    finally:
+        con.close()
+
+
+async def _seed_0022_pg(url: str) -> None:
+    import uuid
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(url)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                sa.text(
+                    'INSERT INTO metric_dimensions (id, key, label, "group", description, '
+                    "scale, reverse_score, sources, consumers) VALUES (:id, 'interest.social', "
+                    "'Social', 'interest', '', 'scalar', false, '[]'::jsonb, '[]'::jsonb)"
+                ),
+                {"id": uuid.uuid4()},
+            )
+            await conn.execute(
+                sa.text(
+                    "INSERT INTO assessment_questions (id, phase, kind, prompt, help, options, "
+                    "audience_stages, source, status, sort_index) VALUES (:id, 2, "
+                    "'scenario_mcq', :prompt, '', '[]'::jsonb, '[]'::jsonb, 'bank', 'active', 1)"
+                ),
+                {"id": uuid.uuid4(), "prompt": _0022_PROMPT},
+            )
+            await conn.execute(
+                sa.text(
+                    "INSERT INTO cv_templates (id, key, version, title, description, author_key, "
+                    "source, visibility, language, page_size, ats_safe, schema_version, "
+                    "content_hash, status, content) VALUES (:id, 'ats-classic', 2, 'ATS', '', "
+                    "'bank', 'bank', 'private', 'en', 'a4', true, 1, 'abc', 'published', "
+                    "'{}'::jsonb)"
+                ),
+                {"id": uuid.uuid4()},
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _assert_0022_pg(url: str) -> None:
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as conn:
+            assert (
+                await conn.execute(
+                    sa.text(
+                        "SELECT seed_key, status FROM metric_dimensions "
+                        "WHERE key = 'interest.social'"
+                    )
+                )
+            ).one() == ("metric-dimension:interest.social", "published")
+            assert (
+                await conn.execute(sa.text("SELECT seed_key FROM assessment_questions"))
+            ).scalar_one() == "assessment-question:charity-event-role"
+            assert (
+                await conn.execute(sa.text("SELECT seed_key FROM cv_templates"))
+            ).scalar_one() == "cv-template:ats-classic/v2"
+            assert (
+                await conn.execute(sa.text("SELECT count(*) FROM metric_category_anchors"))
+            ).scalar_one() == 14
+    finally:
+        await engine.dispose()
+
+
+async def _assert_0022_downgraded_pg(url: str) -> None:
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as conn:
+            for table in (
+                "assessment_questions",
+                "assessment_templates",
+                "cv_templates",
+                "metric_dimensions",
+                "ai_skill_packs",
+            ):
+                columns = set(
+                    (
+                        await conn.execute(
+                            sa.text(
+                                "SELECT column_name FROM information_schema.columns "
+                                "WHERE table_name = :table"
+                            ),
+                            {"table": table},
+                        )
+                    ).scalars()
+                )
+                assert "seed_key" not in columns
+            metric_columns = set(
+                (
+                    await conn.execute(
+                        sa.text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_name = 'metric_dimensions'"
+                        )
+                    )
+                ).scalars()
+            )
+            assert "status" not in metric_columns
+            exists = (
+                await conn.execute(
+                    sa.text(
+                        "SELECT count(*) FROM information_schema.tables "
+                        "WHERE table_name = 'metric_category_anchors'"
+                    )
+                )
+            ).scalar_one()
+            assert exists == 0
+    finally:
+        await engine.dispose()
+
+
+def test_0022_backfills_bank_identity_on_postgres(tmp_path, monkeypatch):
+    import asyncio
+
+    import pytest
+    from sqlalchemy.engine import make_url
+
+    from app.core.config import settings
+
+    base = make_url(settings.database_url)
+    if base.get_backend_name() != "postgresql":
+        pytest.skip("postgres lane only")
+    name = f"career_mig0022_{uuid_seed()}"
+    admin = base.set(database="postgres").render_as_string(hide_password=False)
+    temp = base.set(database=name).render_as_string(hide_password=False)
+    asyncio.run(_pg_admin(admin, f'CREATE DATABASE "{name}"'))
+    try:
+        monkeypatch.setenv("CAREER_DATABASE_URL", temp)
+        monkeypatch.setattr(settings, "database_url", temp, raising=False)
+        config = _configured()
+        command.upgrade(config, "0021")
+        asyncio.run(_seed_0022_pg(temp))
+        command.upgrade(config, "head")
+        asyncio.run(_assert_0022_pg(temp))
+        command.downgrade(config, "0021")
+        asyncio.run(_assert_0022_downgraded_pg(temp))
     finally:
         asyncio.run(_pg_drop(admin, name))
