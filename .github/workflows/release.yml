@@ -58,7 +58,7 @@ jobs:
     # (the 2.38+ requirement shows up only on end-user machines).
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
 
       - name: Verify tag matches app version
@@ -190,7 +190,7 @@ jobs:
     needs: ci-gate
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
 
       - name: Verify tag matches app version
@@ -298,7 +298,7 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -340,7 +340,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build deployment bundle
         run: |
           repo="$(printf '%s' "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
