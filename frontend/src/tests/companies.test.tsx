@@ -335,6 +335,54 @@ describe("Companies browsing (plan 135)", () => {
     expect(screen.getByTestId("company-filters")).not.toHaveTextContent("Show");
   });
 
+  it("withholds facet counts while a refetch is in flight, and after it fails", async () => {
+    mocked.fetchCompanies.mockResolvedValueOnce({
+      items: [COMPANY],
+      facets: {
+        work_mode: {},
+        seniority: {},
+        employment: {},
+        industries: { fintech: 2 },
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Companies />
+      </MemoryRouter>
+    );
+
+    const readyChip = await screen.findByTestId("company-industries-fintech");
+    expect(readyChip).toHaveAccessibleName("fintech, 2");
+
+    let reject: ((reason?: unknown) => void) | undefined;
+    mocked.fetchCompanies.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, rejectRequest) => {
+          reject = rejectRequest;
+        })
+    );
+    fireEvent.click(readyChip);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("company-industries-facet")).toHaveAttribute(
+        "aria-busy",
+        "true"
+      )
+    );
+    expect(screen.getByTestId("company-industries-fintech")).toHaveAccessibleName("fintech");
+
+    // The chip goes busy as soon as the filter changes; the debounced request
+    // is the one that must reject.
+    await waitFor(() => expect(mocked.fetchCompanies).toHaveBeenCalledTimes(2));
+    reject?.(new Error("boom"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("company-industries-facet")).not.toHaveAttribute("aria-busy")
+    );
+    expect(screen.getByTestId("company-industries-fintech")).toHaveAccessibleName("fintech");
+  });
+
   it("cycles an industry chip through include, exclude and clear", async () => {
     mocked.fetchCompanies.mockResolvedValue({
       items: [COMPANY],

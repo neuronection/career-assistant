@@ -18,7 +18,7 @@ All notable changes to **Career Assistant** are documented here.
 - **Every filter surface now uses the shared filter module.** The rail, its
   sections, the tri-state value chips and the applied-filter row render
   `FilterRail` / `FilterSection` / `FacetChip variant="inline"` /
-  `FilterPills` from `@neuronection/assistant-ui@0.92.0`; the local
+  `FilterPills` from `@neuronection/assistant-ui@0.93.0`; the local
   `FilterRail`, `Section`, `TriStateChips`, `ActiveFilterChips` and
   `FilterChips` components are gone. The rail layout is explicit
   (`band==='wide'` → `rail`, otherwise `compact`, the compact form using the
@@ -30,6 +30,17 @@ All notable changes to **Career Assistant** are documented here.
   facet-count slot. The three URL encodings (csv, repeated keys via
   `getAll`, `skills=key:level`) and every `parseFilters` allowlist are
   unchanged; `lib/filterFacets.ts` is the only translation layer.
+
+- **The compact filter sheet shows a real total again, and never a stale
+  facet count.** `@neuronection/assistant-ui@0.93.0` lets a host `footer`
+  receive the sheet's `close`, so `/postings` and `/catalog` render the
+  localized `Show N jobs` from their real result total; it closes the sheet
+  through the library callback and returns focus to the trigger, while
+  `/companies` and `/autopilot` (no total) keep the library `Done`. Facets
+  now carry `countsState`: while a facet fetch is in flight the chip
+  withholds every number and sets `aria-busy`, and a failed refetch withholds
+  them too. The include-only plain-click cycle (include → clear) is fixed at
+  the source, so career's `triStateMode` intent rewrite is gone.
 
 - **The remaining seed banks now carry a stored pack identity.** Assessment
   questions and templates, CV templates, metric dimensions and skill packs
@@ -45,7 +56,7 @@ All notable changes to **Career Assistant** are documented here.
   `FilterPills`), so keyboard handling, screen-reader semantics and styling
   match the other Neuronection apps. The tri-state include/exclude logic stays
   app-side and no call site changed; `@neuronection/assistant-ui` moves to
-  `^0.91.1` here and to `^0.92.0` with the rail adoption described above.
+  `^0.91.1` here and to `^0.93.0` with the rail adoption described above.
 - **Filter counts are shown only when the payload has one.** Company facets
   now carry `truncated` (the industry/location lists were cut) and are
   omitted (`facets: null`) for a full page of companies, whose counts could

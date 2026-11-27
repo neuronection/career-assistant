@@ -44,12 +44,12 @@ import {
 } from "@/features/companies/companiesParams";
 import type { FacetValue, TriStateMode } from "@/lib/filterFacets";
 import {
+  countsState,
   facetLabels,
   facetOptions,
   multiValue,
   railLabels,
   railLayout,
-  triStateMode,
   triStateToggle,
 } from "@/lib/filterFacets";
 
@@ -95,6 +95,10 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   );
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(() => restored !== null);
+  const [facetsLoading, setFacetsLoading] = useState(false);
+  const [facetsFailed, setFacetsFailed] = useState(false);
+  /** Sequence the facet trust state: only the newest request may settle it. */
+  const facetsRequestRef = useRef(0);
 
   const patch = useCallback(
     (update: Partial<CompanyFilters>) => {
@@ -123,6 +127,9 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
 
   const fetchWith = useCallback(
     (current: CompanyFilters) => {
+      const request = ++facetsRequestRef.current;
+      setFacetsLoading(true);
+      setFacetsFailed(false);
       void fetchCompanies({ ...toParams(current), facets: true })
         .then((result) => {
           const items = result.items ?? [];
@@ -134,8 +141,17 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
             { companies: items, facets: result.facets ?? null }
           );
         })
-        .catch(() => setError(t("companies.loadError")))
-        .finally(() => setLoaded(true));
+        .catch(() => {
+          if (request === facetsRequestRef.current) {
+            setError(t("companies.loadError"));
+            setFacetsFailed(true);
+          }
+        })
+        .finally(() => {
+          if (request !== facetsRequestRef.current) return;
+          setFacetsLoading(false);
+          setLoaded(true);
+        });
     },
     [t, profileEpoch]
   );
@@ -147,6 +163,11 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
       return;
     }
     if (restoredForRef.current === filters) return;
+    // The counts on screen predate this filter set: withhold them until the
+    // debounced request lands, rather than showing a stale number meanwhile.
+    facetsRequestRef.current += 1;
+    setFacetsLoading(true);
+    setFacetsFailed(false);
     const handle = setTimeout(() => {
       fetchWith(filters);
     }, 250);
@@ -183,6 +204,8 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
     [facets, t]
   );
 
+  const counts = countsState({ loading: facetsLoading, failed: facetsFailed });
+
   const facetRow = (
     facet: CompanyFacetAxis,
     includeKey: keyof CompanyFilters,
@@ -198,6 +221,7 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
             id: `company-${facet}`,
             label: title,
             kind: "multi",
+            countsState: counts,
             options: facetOptions(facetValues(facet), { include, exclude }),
           }}
           value={multiValue(include, exclude)}
@@ -206,7 +230,7 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           labels={facetLabels(t)}
           onToggleOption={(value, action) => {
             if (value === null) return;
-            toggleAxis(includeKey, excludeKey, value, triStateMode(action));
+            toggleAxis(includeKey, excludeKey, value, action);
           }}
           testId={`company-${facet}-facet`}
           optionTestId={(value) => `company-${facet}-${value ?? "not-recorded"}`}

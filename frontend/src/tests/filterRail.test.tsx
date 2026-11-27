@@ -167,6 +167,36 @@ describe("FilterRail", () => {
     expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
     expect(within(sheet).queryByRole("button", { name: /Clear all/ })).not.toBeInTheDocument();
   });
+
+  it("closes the compact sheet from a function footer and returns focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <FilterRail
+        layout="compact"
+        title="Filters"
+        activeCount={1}
+        onClear={() => {}}
+        footer={(close) => (
+          <button type="button" onClick={close}>
+            Show 3 jobs
+          </button>
+        )}
+      >
+        <p>sections</p>
+      </FilterRail>
+    );
+
+    const trigger = screen.getByRole("button", { name: "Filters (1)" });
+    await user.click(trigger);
+
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    await user.click(within(sheet).getByRole("button", { name: "Show 3 jobs" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument()
+    );
+    expect(trigger).toHaveFocus();
+  });
 });
 
 describe("FilterSection", () => {

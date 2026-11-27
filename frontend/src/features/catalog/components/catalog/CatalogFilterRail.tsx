@@ -7,6 +7,7 @@
 
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   FacetChip,
   FilterRail,
@@ -26,7 +27,7 @@ import {
   type CatalogFilters,
 } from "@/features/catalog/catalogParams";
 import type { ContainerBand } from "@/hooks/useContainerBand";
-import type { FacetValue, TriStateMode } from "@/lib/filterFacets";
+import type { CountsState, FacetValue, TriStateMode } from "@/lib/filterFacets";
 import {
   facetLabels,
   facetOptions,
@@ -34,7 +35,6 @@ import {
   railLabels,
   railLayout,
   singleValue,
-  triStateMode,
   triStateToggle,
 } from "@/lib/filterFacets";
 import type { JobFacets } from "@/types/wire";
@@ -60,6 +60,8 @@ export function CatalogFilterRail({
   facets,
   families,
   band,
+  counts = "ready",
+  footer,
   onChange,
   onClear,
 }: {
@@ -67,6 +69,10 @@ export function CatalogFilterRail({
   facets: JobFacets;
   families: JobFamilyNode[];
   band?: ContainerBand;
+  /** Whether the facet map on screen is still the last successful response. */
+  counts?: CountsState;
+  /** The compact sheet's host footer (a real total); omitted keeps Done. */
+  footer?: (close: () => void) => ReactNode;
   onChange: (update: Partial<CatalogFilters>) => void;
   onClear: () => void;
 }) {
@@ -122,6 +128,7 @@ export function CatalogFilterRail({
           label,
           kind: single ? "single" : "multi",
           allowExclude: allow,
+          countsState: counts,
           options: facetOptions(values, { include, exclude }),
         }}
         value={single ? singleValue(include[0] ?? null) : multiValue(include, exclude)}
@@ -130,7 +137,7 @@ export function CatalogFilterRail({
         labels={labels}
         onToggleOption={(value, action) => {
           if (value === null) return;
-          onToggleValue(value, triStateMode(action, allow));
+          onToggleValue(value, action);
         }}
         testId={`${id}-facet`}
         optionTestId={(value) => `${id}-${value ?? "not-recorded"}`}
@@ -145,6 +152,7 @@ export function CatalogFilterRail({
       labels={railLabels(t)}
       activeCount={activeCount === 0 ? undefined : activeCount}
       onClear={activeCount === 0 ? undefined : onClear}
+      footer={footer}
       className="ca-stats-rail"
       data-testid="catalog-filter-aside"
       search={

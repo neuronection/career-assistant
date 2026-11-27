@@ -573,9 +573,10 @@ view model.
   menu's clear item. No separate × button, no hover reveal.
 - **An include-only axis** (`allowExclude={false}`: the posted and closing
   windows, the job axis, the profile kind/level rows) hides the exclude
-  affordance. Career maps a reported exclude intent to a clear
-  (`triStateMode`), so such an axis never stores a value its URL has no key
-  for.
+  affordance and the library's plain click cycles include → clear
+  (`@neuronection/assistant-ui` 0.93.0), so such an axis can never report an
+  exclusion. Career passes the reported action straight to
+  `triStateToggle` — no local intent rewrite.
 - **A zero-count value stays focusable and selectable** — 0 is information,
   not a reason to disable a control.
 - **A selected value missing from the option list still renders**: career
@@ -694,11 +695,16 @@ career keeps exactly one.
   row — the search field plus a **Filters (n)** button with
   `aria-haspopup="dialog"` — while the sections move into assistant-ui's
   `PanelModal` sheet (Escape closes it and returns focus to the trigger).
-  The sheet footer is the library's: `Clear all` plus `Done`. Career no
-  longer passes a result count: the shared footer has no result-count slot,
-  and a page size must never be presented as a total. Only the **active**
-  chips stay on the page (`FilterPills`; the row renders nothing while the
-  list is unfiltered), and each chip removes exactly the value it names.
+  The sheet's primary footer action closes it: `Show N jobs` where the page
+  holds a real result total (`/postings`, `/catalog`), the library `Done`
+  everywhere else (`/companies`, `/autopilot`). Career renders the former
+  through `FilterSheetFooter` and the library's function `footer`, which
+  hands over the sheet's own `close` — so focus returns to the trigger
+  exactly like `Done`. A host footer replaces the library default whole, so
+  it re-renders `Clear all`; a page size is never presented as a total.
+  Only the **active** chips stay on the page (`FilterPills`; the row renders
+  nothing while the list is unfiltered), and each chip removes exactly the
+  value it names.
   Toggles keep writing the URL immediately, so a link stays shareable with
   the sheet open. The band is the page's own width (container), never `lg:`;
   jsdom never fires `ResizeObserver`, so the page exposes a `band` override
@@ -715,7 +721,13 @@ career keeps exactly one.
   (the library's own); hard-coded `slate`/`primary` scales are drift.
 - **Counts are payload-only**: a chip's count comes from the response's facet
   map; a missing count renders no number — never `0`, never a fallback to an
-  unfiltered or page-scoped total. A facet's real `0` renders `0`.
+  unfiltered or page-scoped total. A facet's real `0` renders `0`. The chip
+  only renders numbers while they are trustworthy: career passes
+  `countsState: 'loading'` while a (re)fetch is in flight (the chip withholds
+  every number and sets `aria-busy`) and `'error'` when the last request
+  failed (no numbers, no busy), `'ready'` otherwise —
+  `lib/filterFacets.ts#countsState` is the one mapping from a request state
+  to that union.
 
 ## 2l. Bulk-selection mode — one contract
 

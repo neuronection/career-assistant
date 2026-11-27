@@ -9,8 +9,8 @@
 
 import type {
   FacetChipLabels,
+  FilterFacet,
   FilterOption,
-  FilterOptionAction,
   FilterRailLabels,
   FilterRailLayout,
   FilterValue,
@@ -32,6 +32,26 @@ export interface FacetValue {
 export type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export type TriStateMode = "include" | "exclude" | "clear";
+
+/** The facet count trust state the shared chip understands. */
+export type CountsState = NonNullable<FilterFacet["countsState"]>;
+
+/**
+ * What a facet's counts are worth right now. The shared chip withholds every
+ * number (and its accessible-name suffix) unless this is `ready`, and marks
+ * itself `aria-busy` while loading. Pass `failed` when the last request
+ * rejected: the numbers on screen are stale, so none may be rendered.
+ */
+export function countsState({
+  loading = false,
+  failed = false,
+}: {
+  loading?: boolean;
+  failed?: boolean;
+} = {}): CountsState {
+  if (failed) return "error";
+  return loading ? "loading" : "ready";
+}
 
 /**
  * The tri-state cycle for one value: off → include → exclude → off.
@@ -63,19 +83,8 @@ export function triStateToggle(
 }
 
 /**
- * The shared chip always cycles include → exclude → clear on a plain click,
- * even on a facet that hides the exclude affordance. An axis that cannot
- * express exclusion reads that intent as a clear, so it never stores a value
- * its URL encoding has no key for.
+ * Career's include/exclude pair as the shared multi value.
  */
-export function triStateMode(
-  action: FilterOptionAction,
-  allowExclude = true
-): TriStateMode {
-  return action === "exclude" && !allowExclude ? "clear" : action;
-}
-
-/** Career's include/exclude pair as the shared multi value. */
 export function multiValue(
   include: readonly (string | null)[],
   exclude: readonly (string | null)[] = []

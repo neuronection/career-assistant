@@ -556,20 +556,63 @@ describe("Explore page", () => {
     );
     await screen.findByTestId("explore");
     expect(screen.getByTestId("explore-filters")).toHaveAttribute("data-layout", "compact");
-    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Filters (1)" });
+    expect(trigger).toBeInTheDocument();
     expect(screen.getByTestId("explore-q")).toBeInTheDocument();
     expect(countBadge("explore-filters")).toBeNull();
     expect(screen.queryByTestId("seen-exclude")).not.toBeInTheDocument();
     expect(screen.getByTestId("explore-chip-seniority-mid")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
-    expect(await screen.findByRole("dialog", { name: "Filters" })).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("seen-exclude"));
+    fireEvent.click(trigger);
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    fireEvent.click(within(sheet).getByTestId("seen-exclude"));
     await waitFor(() =>
       expect(mockExplore).toHaveBeenLastCalledWith(
         expect.objectContaining({ seen_exclude: true })
       )
     );
+
+    // The real server total is the sheet's primary action; it closes the
+    // sheet through the library callback and focus returns to the trigger.
+    const showResults = within(sheet).getByRole("button", { name: "Show 1 job" });
+    fireEvent.click(showResults);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument()
+    );
+    expect(trigger).toHaveFocus();
+  });
+
+  it("withholds facet counts while a refetch is in flight, and after it fails", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+
+    const readyChip = await screen.findByTestId("posted-7d");
+    expect(readyChip).toHaveAccessibleName("last 7 days, 1");
+
+    let reject: ((reason?: unknown) => void) | undefined;
+    mockExplore.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, rejectRequest) => {
+          reject = rejectRequest;
+        })
+    );
+    fireEvent.click(screen.getByTestId("seen-exclude"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("posted-facet")).toHaveAttribute("aria-busy", "true")
+    );
+    expect(screen.getByTestId("posted-7d")).toHaveAccessibleName("last 7 days");
+
+    reject?.(new Error("boom"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("posted-facet")).not.toHaveAttribute("aria-busy")
+    );
+    // A failed refetch leaves stale numbers unusable: none is rendered.
+    expect(screen.getByTestId("posted-7d")).toHaveAccessibleName("last 7 days");
   });
 
   it("removes an active chip from the sheet's page summary", async () => {

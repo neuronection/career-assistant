@@ -35,17 +35,18 @@ import {
   FilterSection,
 } from "@neuronection/assistant-ui/filters";
 import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
+import { FilterSheetFooter } from "@/components/filters/FilterSheetFooter";
 import { exploreFilterChips } from "@/features/postings/components/postings/presetSummary";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
-import type { FacetValue, TriStateMode } from "@/lib/filterFacets";
+import type { CountsState, FacetValue, TriStateMode } from "@/lib/filterFacets";
 import {
+  countsState,
   facetLabels,
   facetOptions,
   multiValue,
   railLabels,
   railLayout,
   singleValue,
-  triStateMode,
   triStateToggle,
 } from "@/lib/filterFacets";
 import {
@@ -95,6 +96,8 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [facets, setFacets] = useState<ExploreFacets>(
     () => restored?.facets ?? EMPTY_FACETS
   );
+  const [facetsLoading, setFacetsLoading] = useState(restored === null);
+  const [facetsFailed, setFacetsFailed] = useState(false);
   const [jobTitles, setJobTitles] = useState<Record<string, string>>(
     () => restored?.jobTitles ?? {}
   );
@@ -128,6 +131,8 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
   const itemsRef = useRef<PostingOut[]>(items);
+  /** Sequence the facet trust state: only the newest request may settle it. */
+  const facetsRequestRef = useRef(0);
 
   const paramsFrom = useCallback(
     (current: Filters, nextCursor?: string | null): ExploreParams => {
@@ -140,7 +145,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
 
   const load = useCallback(
     (current: Filters, append: boolean) => {
+      const request = ++facetsRequestRef.current;
       setError("");
+      setFacetsLoading(true);
+      setFacetsFailed(false);
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
           const merged = append
@@ -163,7 +171,15 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             }
           );
         })
-        .catch((err) => setError(String(err)));
+        .catch((err) => {
+          if (request === facetsRequestRef.current) {
+            setError(String(err));
+            setFacetsFailed(true);
+          }
+        })
+        .finally(() => {
+          if (request === facetsRequestRef.current) setFacetsLoading(false);
+        });
     },
     [cursor, paramsFrom, profileEpoch]
   );
@@ -269,6 +285,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
         itemsRef.current = merged;
         setTotal(response.total);
         setFacets(response.facets ?? {});
+        setFacetsFailed(false);
         setJobTitles(response.job_titles ?? {});
         setCursor(response.next_cursor ?? null);
         rememberExploreList(
@@ -294,7 +311,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   };
 
   const applyRadar = async () => {
+    const request = ++facetsRequestRef.current;
     setError("");
+    setFacetsLoading(true);
+    setFacetsFailed(false);
     try {
       const radar = await fetchRadar();
       const configured =
@@ -326,7 +346,12 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       setCursor(null);
       setRadarActive(true);
     } catch (err) {
-      setError(apiDetail(err));
+      if (request === facetsRequestRef.current) {
+        setError(apiDetail(err));
+        setFacetsFailed(true);
+      }
+    } finally {
+      if (request === facetsRequestRef.current) setFacetsLoading(false);
     }
   };
 
@@ -423,6 +448,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
     (facets ?? {})[group]?.[key];
 
   const labels = facetLabels(t);
+  const counts: CountsState = countsState({ loading: facetsLoading, failed: facetsFailed });
   /** One inline facet row: career's include/exclude pair on the shared chip.
    * `id` doubles as the option test-id prefix (`seniority-mid`, `job-…`). */
   const facetChip = (
@@ -442,6 +468,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           label,
           kind: single ? "single" : "multi",
           allowExclude: allow,
+          countsState: counts,
           options: facetOptions(values, { include, exclude }),
         }}
         value={single ? singleValue(include[0] ?? null) : multiValue(include, exclude)}
@@ -450,7 +477,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
         labels={labels}
         onToggleOption={(value, action) => {
           if (value === null) return;
-          onToggleValue(value, triStateMode(action, allow));
+          onToggleValue(value, action);
         }}
         testId={`${id}-facet`}
         optionTestId={(value) => `${id}-${value ?? "not-recorded"}`}
@@ -470,6 +497,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
     count: facets?.job?.[code],
   }));
   const chips = useMemo(() => exploreFilterChips(filters, t), [filters, t]);
+  const layout = railLayout(band);
+  /** The sheet footer's “Show N jobs” is only honest once a response put a
+   * real total on screen — never the initial 0, and never in the wide rail. */
+  const showResultFooter = layout === "compact" && total > 0;
 
   return (
     <div
@@ -530,13 +561,26 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
 
       <div className="ca-stats-cols">
         <FilterRail
-          layout={railLayout(band)}
+          layout={layout}
           title={t("filters.title")}
           labels={railLabels(t)}
           activeCount={activeCount === 0 ? undefined : activeCount}
           onClear={activeCount === 0 ? undefined : resetFilters}
           className="ca-stats-rail"
           data-testid="explore-filters"
+          footer={
+            showResultFooter
+              ? (close) => (
+                  <FilterSheetFooter
+                    onClose={close}
+                    onClear={activeCount === 0 ? undefined : resetFilters}
+                    clearLabel={t("filters.clearAll")}
+                    doneLabel={t("filters.showResults", { count: total })}
+                    testId="explore-filters-done"
+                  />
+                )
+              : undefined
+          }
           search={
             <FilterRailSearch
               value={filters.q}

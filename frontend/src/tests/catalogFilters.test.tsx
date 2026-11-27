@@ -356,7 +356,7 @@ describe("catalog filter rail", () => {
       expect(screen.getByTestId("search-probe")).toHaveTextContent("demand_exclude=hot")
     );
 
-    const done = within(sheet).getByRole("button", { name: "Done" });
+    const done = within(sheet).getByRole("button", { name: "Show 1 job" });
     await user.click(done);
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument()

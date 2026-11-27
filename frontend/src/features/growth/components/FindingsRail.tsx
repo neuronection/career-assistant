@@ -23,7 +23,7 @@ import {
   countActiveFindingsFilters,
   type FindingsFilters,
 } from "@/features/growth/findingsFilterState";
-import type { FacetValue } from "@/lib/filterFacets";
+import type { CountsState, FacetValue } from "@/lib/filterFacets";
 import {
   facetLabels,
   facetOptions,
@@ -39,6 +39,8 @@ interface FindingsRailProps {
   onChange: (next: FindingsFilters) => void;
   onClear: () => void;
   band?: ContainerBand;
+  /** Whether `facets` is still the last successful feed response. */
+  counts?: CountsState;
 }
 
 /** One single-valued findings axis: one option set, one value or none. */
@@ -47,6 +49,7 @@ function SingleFacet({
   label,
   values,
   value,
+  counts,
   onChange,
   labels,
 }: {
@@ -54,6 +57,7 @@ function SingleFacet({
   label: string;
   values: FacetValue[];
   value: string | null;
+  counts: CountsState;
   onChange: (value: string | null) => void;
   labels: ReturnType<typeof facetLabels>;
 }) {
@@ -63,6 +67,7 @@ function SingleFacet({
         id,
         label,
         kind: "single",
+        countsState: counts,
         options: facetOptions(values, { include: value ? [value] : [] }),
       }}
       value={singleValue(value)}
@@ -86,6 +91,7 @@ export function FindingsRail({
   onChange,
   onClear,
   band,
+  counts = "ready",
 }: FindingsRailProps) {
   const { t } = useTranslation();
   const active = countActiveFindingsFilters(filters);
@@ -120,6 +126,7 @@ export function FindingsRail({
               state: (value ?? "open") as FindingsFilters["state"],
             })
           }
+          counts={counts}
           labels={labels}
         />
         <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
@@ -213,6 +220,7 @@ export function FindingsRail({
           }))}
           value={filters.source}
           onChange={(value) => onChange({ ...filters, source: value })}
+          counts={counts}
           labels={labels}
         />
         {sources.length === 0 ? (
@@ -234,6 +242,7 @@ export function FindingsRail({
           }))}
           value={filters.seniority}
           onChange={(value) => onChange({ ...filters, seniority: value })}
+          counts={counts}
           labels={labels}
         />
       </FilterSection>
@@ -260,6 +269,7 @@ export function FindingsRail({
           }))}
           value={filters.postedWithin || null}
           onChange={(value) => onChange({ ...filters, postedWithin: value ?? "" })}
+          counts={counts}
           labels={labels}
         />
       </FilterSection>

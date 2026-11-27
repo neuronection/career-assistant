@@ -5,11 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { FacetChip } from "@neuronection/assistant-ui/filters";
 
 import {
+  countsState,
   facetLabels,
   facetOptions,
   multiValue,
-  triStateMode,
   triStateToggle,
+  type CountsState,
   type FacetValue,
 } from "@/lib/filterFacets";
 
@@ -39,11 +40,13 @@ function Row({
   values = VALUES,
   initialInclude = [],
   initialExclude = [],
+  counts = "ready",
 }: {
   allowExclude?: boolean;
   values?: FacetValue[];
   initialInclude?: string[];
   initialExclude?: string[];
+  counts?: CountsState;
 }) {
   const [include, setInclude] = useState<string[]>(initialInclude);
   const [exclude, setExclude] = useState<string[]>(initialExclude);
@@ -54,6 +57,7 @@ function Row({
         label: "Work mode",
         kind: "multi",
         allowExclude,
+        countsState: counts,
         options: facetOptions(values, { include, exclude }),
       }}
       value={multiValue(include, exclude)}
@@ -62,7 +66,7 @@ function Row({
       labels={facetLabels(t)}
       onToggleOption={(value, action) => {
         if (value === null) return;
-        const next = triStateToggle(include, exclude, value, triStateMode(action, allowExclude));
+        const next = triStateToggle(include, exclude, value, action);
         setInclude(next.include);
         setExclude(next.exclude);
       }}
@@ -86,11 +90,14 @@ describe("triStateToggle", () => {
     const next = triStateToggle(["remote"], ["remote"], "remote", "include");
     expect(next.exclude).toEqual([]);
   });
+});
 
-  it("reads an exclude intent on an include-only axis as a clear", () => {
-    expect(triStateMode("exclude", false)).toBe("clear");
-    expect(triStateMode("exclude", true)).toBe("exclude");
-    expect(triStateMode("include", false)).toBe("include");
+describe("countsState", () => {
+  it("is ready only when no request is in flight or failed", () => {
+    expect(countsState()).toBe("ready");
+    expect(countsState({ loading: true })).toBe("loading");
+    expect(countsState({ failed: true })).toBe("error");
+    expect(countsState({ loading: true, failed: true })).toBe("error");
   });
 });
 
@@ -195,12 +202,46 @@ describe("FacetChip (career tri-state row)", () => {
     expect(screen.getByTestId("mode-remote").className).toContain("max-sm:min-h-11");
   });
 
-  it("offers no exclude affordance on an include-only axis", () => {
+  it("offers no exclude affordance on an include-only axis", async () => {
+    const user = userEvent.setup();
     render(<Row allowExclude={false} />);
     expect(
       screen.getByTestId("mode-remote").parentElement?.querySelector("button")
     ).toBeNull();
     fireEvent.keyDown(screen.getByTestId("mode-remote"), { key: "Enter", shiftKey: true });
     expect(screen.getByTestId("mode-remote")).toHaveAttribute("aria-checked", "false");
+
+    // 0.93.0 fixes the plain-click cycle at the source: include → clear,
+    // never an exclusion this axis' URL has no key for.
+    const chip = screen.getByTestId("mode-remote");
+    await user.click(chip);
+    expect(chip).toHaveAttribute("aria-checked", "true");
+    await user.click(chip);
+    expect(chip).toHaveAttribute("aria-checked", "false");
+  });
+});
+
+describe("FacetChip counts trust state", () => {
+  it("withholds every number and sets aria-busy while counts load", () => {
+    render(<Row counts="loading" />);
+    const root = screen.getByTestId("mode");
+    expect(root).toHaveAttribute("aria-busy", "true");
+    const chip = screen.getByTestId("mode-remote");
+    expect(chip).not.toHaveTextContent(/\d/);
+    expect(chip).toHaveAccessibleName("Remote");
+  });
+
+  it("withholds stale numbers after a failed refetch without claiming busy", () => {
+    render(<Row counts="error" />);
+    const root = screen.getByTestId("mode");
+    expect(root).not.toHaveAttribute("aria-busy");
+    const chip = screen.getByTestId("mode-remote");
+    expect(chip).not.toHaveTextContent(/\d/);
+    expect(chip).toHaveAccessibleName("Remote");
+  });
+
+  it("renders the counts again once they are ready", () => {
+    render(<Row counts="ready" />);
+    expect(screen.getByTestId("mode-remote")).toHaveTextContent("3");
   });
 });
