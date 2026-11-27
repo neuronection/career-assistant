@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
@@ -39,10 +39,20 @@ class AssessmentQuestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A question instance; run_id NULL marks a bank item (Phase 23)."""
 
     __tablename__ = "assessment_questions"
+    __table_args__ = (
+        Index(
+            "uq_assessment_questions_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
+    )
 
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("assessment_runs.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     phase: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(30), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)

@@ -19061,6 +19061,10 @@ export interface components {
             current_id?: string | null;
             /** Entity Type */
             entity_type: string;
+            /** Preview */
+            preview?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Priority
              * @default 0

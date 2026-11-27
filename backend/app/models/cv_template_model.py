@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,10 +44,18 @@ class CvTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("version >= 1", name="version_positive"),
         CheckConstraint("page_size IN ('a4', 'letter')", name="page_size_allowed"),
         Index("ix_cv_templates_key", "key"),
+        Index(
+            "uq_cv_templates_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     author_user_id: Mapped[uuid.UUID | None] = mapped_column(

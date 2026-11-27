@@ -42,6 +42,16 @@ from app.models.seed_model import (
 )
 from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
+from app.services.seeds.banks import (
+    BANK_ENTITY_MODELS,
+    adapter_for_entity,
+)
+from app.services.seeds.banks import (
+    retire as retire_bank,
+)
+from app.services.seeds.banks import (
+    stage as bank_stage,
+)
 from app.services.seeds.catalog import (
     ENTITY_MODELS as CATALOG_ENTITY_MODELS,
 )
@@ -76,6 +86,12 @@ from app.services.seeds.planner import (
 APPLY_LOCK_KEY = "provider_apply"
 APPLY_LOCK_JOB = BackgroundJobType.PROVIDER_APPLY.value
 DEFERRED_MAX_ATTEMPTS = 10
+
+
+def _stage(action: str, entity: str) -> int:
+    if entity in BANK_ENTITY_MODELS:
+        return bank_stage(action, entity)
+    return catalog_stage(action, entity)
 
 
 def _utcnow() -> datetime:
@@ -557,9 +573,7 @@ class SeedApplyService:
             # the per-item switches remain the override.
             default_enabled = True
             changed_jobs: list[uuid.UUID] = []
-            ordered = sorted(
-                plan.items, key=lambda item: catalog_stage(item.action, item.entity_type)
-            )
+            ordered = sorted(plan.items, key=lambda item: _stage(item.action, item.entity_type))
             for item in ordered:
                 if item.action in (ACTION_CREATE, ACTION_UPDATE):
                     job_id = await self._apply_item(item, default_enabled=default_enabled)
@@ -755,6 +769,13 @@ class SeedApplyService:
                 return None
             await self._upsert_provenance(item.entity_type, row.id, item, now)
             return row.id if item.entity_type == "job_type" else None
+        if item.entity_type in BANK_ENTITY_MODELS:
+            model = BANK_ENTITY_MODELS[item.entity_type]
+            row = await self.db.get(model, item.current_id) if item.current_id else None
+            adapter = adapter_for_entity(item.entity_type)
+            row = await adapter(self.db, item.payload, row, seed_key=item.seed_key)
+            await self._upsert_provenance(item.entity_type, row.id, item, now)
+            return None
         return None
 
     async def _delete_row(self, item: PlannedItem) -> None:
@@ -777,7 +798,11 @@ class SeedApplyService:
         await self.db.flush()
 
     async def _retire_row(self, item: PlannedItem) -> None:
-        model = CATALOG_ENTITY_MODELS.get(item.entity_type) or ENTITY_MODELS.get(item.entity_type)
+        model = (
+            CATALOG_ENTITY_MODELS.get(item.entity_type)
+            or BANK_ENTITY_MODELS.get(item.entity_type)
+            or ENTITY_MODELS.get(item.entity_type)
+        )
         if model is None or item.current_id is None:
             return
         row = await self.db.get(model, item.current_id)
@@ -785,6 +810,8 @@ class SeedApplyService:
             return
         if item.entity_type in CATALOG_ENTITY_MODELS:
             await retire_catalog(self.db, item.entity_type, row)
+        elif item.entity_type in BANK_ENTITY_MODELS:
+            await retire_bank(self.db, item.entity_type, row)
         else:
             row.state = "retired"
         if item.entity_type == ENTITY_PRESET:

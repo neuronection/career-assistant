@@ -178,6 +178,7 @@ TABLES = [
     "user_metric_profile",
     "skill_transferability",
     "metric_dimensions",
+    "metric_category_anchors",
     "job_skills",
     "job_tags",
     "job_relations",

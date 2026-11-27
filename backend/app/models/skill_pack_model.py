@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,10 +38,18 @@ class AISkillPack(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         CheckConstraint("version >= 1", name="version_positive"),
         Index("ix_ai_skill_packs_task_status", "task", "status"),
+        Index(
+            "uq_ai_skill_packs_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     # AITaskType value the pack binds to (open enum — plain string, no FK).
     task: Mapped[str] = mapped_column(String(60), nullable=False)

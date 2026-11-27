@@ -108,7 +108,7 @@ result is now folded into the baseline; the lesson stays.
 Both revisions are covered by fresh SQLite and temp-Postgres round-trip/data
 tests; the head literals live in `test_migrations.py` and `test_autopilot.py`.
 
-The current head is **`0021`**. Recent additions: `0018` is the seed-provider
+The current head is **`0022`**. Recent additions: `0018` is the seed-provider
 schema (sources, versions, runs, presets/endpoints, subscriptions/prefs,
 provenance, deferred refs, migration archive; `job_sources` provenance columns;
 widened schedule vocabulary), `0019` folds the legacy stored
@@ -121,11 +121,17 @@ nullable `seed_key` identity to the six catalog tables (unique where present,
 both dialect predicates), a `job_families.status`, `PathStatus.RETIRED`
 (enum only) and the `delete` action in the import-run ledger, backfilling only
 known seeded keys (families/skills/interests by embedded allowlist;
-jobs/relations/paths by `source='seed'`). Its downgrade maps retired paths
-back to published and restores the old action vocabulary. The historical list
+jobs/relations/paths by `source='seed'`). `0022` extends the same stored
+identity to the five remaining banks (assessment questions/templates, CV
+templates, metric dimensions, skill packs), adds `metric_dimensions.status`
+and the `metric_category_anchors` table, and backfills only embedded literal
+keys/prompts/categories — the migration imports no `app.seeds.*` module, so
+it stays runnable after the bank cutover removes those modules from code. Both
+downgrades are runnable (`0021` maps retired paths back to published;
+`0022` drops the table/indexes/columns and the status). The historical list
 below starts at `0004`.
 
-## Later revisions (`0004`–`0012`, historical; head `0021`)
+## Later revisions (`0004`–`0012`, historical; head `0022`)
 
 - `0004_ai_cost_provenance` — call-time cost columns on `ai_generations`
   (cost, usage/price provenance, estimate method) and the new

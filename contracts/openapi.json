@@ -18994,6 +18994,18 @@
             "title": "Entity Type",
             "type": "string"
           },
+          "preview": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
           "priority": {
             "default": 0,
             "title": "Priority",

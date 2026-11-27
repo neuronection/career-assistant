@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.seed_pack.archive import extract_pack_archive
 from app.core.seed_pack.errors import (
+    BANK_TRUST_DENIED,
     CATALOG_TRUST_DENIED,
     PACK_ARCHIVE_MISSING,
     PLAN_EMPTY,
@@ -38,6 +39,21 @@ from app.models.seed_model import (
     SeedItemProvenance,
     SeedSource,
     SeedSourceVersion,
+)
+from app.services.seeds.banks import (
+    BANK_ENTITY_MODELS,
+    BANK_ITEM_TYPES,
+    ENTITY_FORMATS,
+    require_adapter,
+)
+from app.services.seeds.banks import (
+    ITEM_ENTITY as BANK_ITEM_ENTITY,
+)
+from app.services.seeds.banks import (
+    load_current as load_bank_current,
+)
+from app.services.seeds.banks import (
+    preview_fields as bank_preview_fields,
 )
 from app.services.seeds.catalog import (
     ENTITY_INTEREST,
@@ -64,7 +80,13 @@ ITEM_ENTITY = {
     "ats_presets": ENTITY_PRESET,
     "endpoint_descriptors": ENTITY_ENDPOINT,
     **CATALOG_ITEM_ENTITY,
+    **BANK_ITEM_ENTITY,
 }
+TRACKED_ENTITY_MODELS: Mapping[str, Any] = {
+    **CATALOG_ENTITY_MODELS,
+    **BANK_ENTITY_MODELS,
+}
+TRACKED_ITEM_TYPES = frozenset(CATALOG_ITEM_ENTITY) | BANK_ITEM_TYPES
 
 ACTION_CREATE = "create"
 ACTION_UPDATE = "update"
@@ -98,6 +120,7 @@ class PlannedItem:
     priority: int = 0
     current_id: uuid.UUID | None = None
     reason: str = ""
+    preview: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -110,6 +133,7 @@ class PlannedItem:
             "priority": self.priority,
             "current_id": str(self.current_id) if self.current_id else None,
             "reason": self.reason,
+            "preview": self.preview,
         }
 
 
@@ -211,18 +235,29 @@ async def load_version(
 
 
 def _guard_catalog_candidate(source: SeedSource, parsed: ParsedPack) -> None:
-    """Type-check a catalog candidate before any row is planned."""
+    """Type-check a candidate before any row is planned."""
     catalog_items = [item for item in parsed.items if item.item_type in CATALOG_ITEM_ENTITY]
     if catalog_items and source.trust_tier not in ("official", "operator"):
         raise SeedPackError(
             CATALOG_TRUST_DENIED,
             f"catalog packs require the official or operator trust tier, not {source.trust_tier!r}",
         )
+    # Guard on the formats the pack declares, not only the items it parsed:
+    # an empty bank file is still a bank pack (and may scope retirement), so
+    # it must carry the trust tier and a registered adapter.
+    bank_formats = [fmt for fmt in parsed.formats if fmt in BANK_ITEM_TYPES]
+    if bank_formats and source.trust_tier not in ("official", "operator"):
+        raise SeedPackError(
+            BANK_TRUST_DENIED,
+            f"bank packs require the official or operator trust tier, not {source.trust_tier!r}",
+        )
+    for fmt in bank_formats:
+        require_adapter(fmt)
     if not parsed.items and any(fmt in CATALOG_FORMATS for fmt, _version in parsed.skipped_formats):
         raise SeedPackError(PLAN_EMPTY, "no catalog item could be read from this pack")
 
 
-async def _catalog_claims(
+async def _provided_claims(
     db: AsyncSession,
     packs: SeedPackStore,
     connectors: Mapping[str, Any] | None,
@@ -245,14 +280,14 @@ async def _catalog_claims(
         claims.update(
             (ITEM_ENTITY[item.item_type], item.seed_key)
             for item in parsed.items
-            if item.item_type in CATALOG_ITEM_ENTITY
+            if item.item_type in TRACKED_ITEM_TYPES
         )
     if candidate is not None and candidate[1].status == "approved":
         parsed = await load_version(db, packs, candidate[0], candidate[1], connectors=connectors)
         claims.update(
             (ITEM_ENTITY[item.item_type], item.seed_key)
             for item in parsed.items
-            if item.item_type in CATALOG_ITEM_ENTITY
+            if item.item_type in TRACKED_ITEM_TYPES
         )
     return claims
 
@@ -269,7 +304,7 @@ def _apply_replaces(
         old_rows = [
             (entity, key, row)
             for (entity, key), row in current.items()
-            if entity in CATALOG_ENTITY_MODELS and key.split(":", 1)[1] == body
+            if entity in TRACKED_ENTITY_MODELS and key.split(":", 1)[1] == body
         ]
         if not old_rows:
             plan.warnings.append(
@@ -486,6 +521,9 @@ async def build_plan(
             )
         )
     entries.sort(key=lambda entry: _sort_key(entry.source))
+    bank_scope: set[str] = set()
+    for entry in entries:
+        bank_scope.update(fmt for fmt in entry.parsed.formats if fmt in BANK_ITEM_TYPES)
 
     winners: dict[tuple[str, str], tuple[_Entry, ParsedItem]] = {}
     losers: list[PlannedItem] = []
@@ -547,8 +585,9 @@ async def build_plan(
     }
     catalog_current = await load_catalog_current(db)
     current.update(catalog_current)
-    claimed_catalog = await _catalog_claims(db, packs, connectors, candidate)
-    claimed_catalog.update(key for key in winners if key[0] in CATALOG_ENTITY_MODELS)
+    current.update(await load_bank_current(db))
+    claimed = await _provided_claims(db, packs, connectors, candidate)
+    claimed.update(key for key in winners if key[0] in TRACKED_ENTITY_MODELS)
 
     renamed_old: set[tuple[str, str]] = set()
     if candidate is not None and candidate_parsed is not None:
@@ -582,6 +621,19 @@ async def build_plan(
                 action, reason = ACTION_NOOP, "unchanged"
             else:
                 action, reason = ACTION_UPDATE, "content changed"
+        elif entity in BANK_ENTITY_MODELS:
+            if getattr(row, "seed_key", None) != seed_key:
+                action, reason = ACTION_UPDATE, "adopt existing seeded row"
+            elif getattr(row, "status", None) == "retired" or bool(
+                getattr(row, "deprecated", False)
+            ):
+                action, reason = ACTION_UPDATE, "restore retired row"
+            elif prov is not None and prov.user_modified:
+                action, reason = ACTION_OVERRIDE, "user-modified; explicit adoption required"
+            elif prov is not None and prov.content_hash == item.content_hash:
+                action, reason = ACTION_NOOP, "unchanged"
+            else:
+                action, reason = ACTION_UPDATE, "content changed"
         elif row.state == "overridden" or (prov is not None and prov.user_modified):
             action, reason = ACTION_OVERRIDE, "user-modified; explicit adoption required"
         elif row.state == "active" and prov is not None and prov.content_hash == item.content_hash:
@@ -600,18 +652,25 @@ async def build_plan(
                 priority=entry.source.priority,
                 current_id=row.id if row is not None else None,
                 reason=reason,
+                preview=(
+                    bank_preview_fields(entity, item.payload)
+                    if entity in BANK_ENTITY_MODELS
+                    else None
+                ),
             )
         )
 
     for (entity, seed_key), row in sorted(current.items()):
-        if entity in CATALOG_ENTITY_MODELS:
+        if entity in TRACKED_ENTITY_MODELS:
             if (
                 (entity, seed_key) in winners
-                or (entity, seed_key) in claimed_catalog
+                or (entity, seed_key) in claimed
                 or (entity, seed_key) in renamed_old
             ):
                 continue
             if getattr(row, "seed_key", None) is None:
+                continue
+            if entity in BANK_ENTITY_MODELS and ENTITY_FORMATS[entity] not in bank_scope:
                 continue
             action = ACTION_DELETE if entity == "job_relation" else ACTION_RETIRE
             plan.items.append(
@@ -625,6 +684,11 @@ async def build_plan(
                     version_id=None,
                     current_id=row.id,
                     reason="no approved source provides this key",
+                    preview=(
+                        bank_preview_fields(entity, {}, row)
+                        if entity in BANK_ENTITY_MODELS
+                        else None
+                    ),
                 )
             )
             continue

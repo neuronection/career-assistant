@@ -398,6 +398,11 @@ async def run() -> None:
 
         packs = await seed_skill_packs(db)
         logger.info("ai: +%d bank skill packs", packs)
+        from app.seeds.bank_stamp import stamp_bank_identities
+
+        identified = await stamp_bank_identities(db)
+        await db.commit()
+        logger.info("banks: %d rows stamped with seed identity", identified)
         from app.seeds.econ_regions import seed_econ_regions
 
         regions = await seed_econ_regions(db)

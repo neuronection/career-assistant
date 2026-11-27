@@ -248,6 +248,7 @@ class PlanItemOut(BaseModel):
     priority: int = 0
     current_id: str | None = None
     reason: str = ""
+    preview: dict[str, Any] | None = None
 
 
 class PlanOut(BaseModel):

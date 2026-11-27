@@ -69,3 +69,5 @@ provider_endpoints :: record
 provider_subscriptions :: record
 source_prefs :: record
 migration_archive :: record
+# plan 225: RIASEC anchors are curated reference data (the category→letter map becomes a record).
+metric_category_anchors :: record

@@ -51,6 +51,10 @@ from app.core.seed_pack.errors import (
     SEED_KEY_DUPLICATE,
     SeedPackError,
 )
+from app.models.enums.ai import AITaskType, QuestionKind
+from app.models.enums.catalog import MetricGroup
+from app.schemas.assessment_template import TemplateContent as AssessmentTemplateContent
+from app.schemas.cv_template import TemplateContent as CvTemplateContent
 
 LICENSES: Final = frozenset({"Apache-2.0", "CC-BY-4.0", "CC-BY-SA-4.0", "CC0-1.0", "MIT"})
 SCHEMA_VERSION: Final = "1.0"
@@ -67,12 +71,16 @@ _KEBAB = r"^[a-z][a-z0-9-]{1,63}$"
 _SEED_KEY = re.compile(r"^([a-z][a-z0-9-]{1,63}):([a-z0-9][a-z0-9._/-]{0,119})$")
 _SEED_BODY = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,119}$")
 _SLUG = r"^[a-z0-9][a-z0-9-]{0,79}$"
+_DIMENSION_KEY = r"^[a-z0-9][a-z0-9._-]{0,59}$"
 _COUNTRY = r"^[A-Z]{2}$"
 _REGION = r"^[A-Z][A-Z0-9_-]{1,31}$"
 _LANGUAGE = r"^[a-z]{2}$"
 _SEMVER = r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$"
 _SHA256 = r"^[0-9a-f]{64}$"
 _WORK_MODES: Final = frozenset({"remote", "hybrid", "onsite"})
+_RIASEC_LETTERS: Final = frozenset(
+    {"realistic", "investigative", "artistic", "social", "enterprising", "conventional"}
+)
 
 
 def canonical_json(value: Any) -> bytes:
@@ -486,6 +494,120 @@ class InterestTagItem(BaseModel):
     kind: str = "topic"
 
 
+class BankOptionScores(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skill_levels: dict[str, float] = Field(default_factory=dict)
+    dimension_levels: dict[str, float] = Field(default_factory=dict)
+    interest_keys: list[str] = Field(default_factory=list, max_length=10)
+    constraint_value: str | None = Field(default=None, max_length=80)
+
+
+class BankOption(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=60)
+    label: str = Field(min_length=1, max_length=300)
+    detail: str = Field(default="", max_length=500)
+    scores: BankOptionScores = Field(default_factory=BankOptionScores)
+
+
+class AssessmentQuestionItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    prompt: str = Field(min_length=1, max_length=2000)
+    help: str = Field(default="", max_length=2000)
+    phase: int = Field(ge=1, le=10)
+    kind: QuestionKind
+    options: list[BankOption] = Field(default_factory=list, max_length=12)
+    sort_index: int = Field(default=0, ge=0)
+    audience_stages: list[str] = Field(default_factory=list, max_length=10)
+    time_split: dict[str, float] | None = None
+
+
+class AssessmentTemplateItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_SLUG)
+    version: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    audience_stages: list[str] = Field(default_factory=list, max_length=10)
+    language: str = Field(default="en", pattern=_LANGUAGE)
+    schema_version: int = Field(default=1, ge=1, le=99)
+    content: AssessmentTemplateContent
+
+
+class CvTemplateItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_SLUG)
+    version: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    language: str = Field(default="en", pattern=_LANGUAGE)
+    page_size: str = Field(default="a4")
+    ats_safe: bool = False
+    content: CvTemplateContent
+
+    @field_validator("page_size")
+    @classmethod
+    def _page_size(cls, value: str) -> str:
+        if value not in {"a4", "letter"}:
+            raise ValueError("page_size must be a4|letter")
+        return value
+
+
+class MetricDimensionItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_DIMENSION_KEY)
+    label: str = Field(min_length=1, max_length=80)
+    group: MetricGroup
+    description: str = Field(default="", max_length=400)
+    scale: str = "scalar"
+    reverse_score: bool = False
+    sources: list[str] = Field(default_factory=list, max_length=20)
+    consumers: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("scale")
+    @classmethod
+    def _scale(cls, value: str) -> str:
+        if value not in {"scalar", "vector"}:
+            raise ValueError("scale must be scalar|vector")
+        return value
+
+
+class MetricCategoryAnchorItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    category: str = Field(min_length=1, max_length=60)
+    letter: str
+
+    @field_validator("letter")
+    @classmethod
+    def _letter(cls, value: str) -> str:
+        if value not in _RIASEC_LETTERS:
+            raise ValueError("letter must be a Holland code")
+        return value
+
+
+class SkillPackItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seed_key: str
+    key: str = Field(pattern=_SLUG)
+    version: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    task: AITaskType
+    instructions: str = Field(min_length=1, max_length=20_000)
+
+
 @dataclass(frozen=True)
 class FormatSpec:
     item_type: str
@@ -493,6 +615,7 @@ class FormatSpec:
     model: type[BaseModel]
     max_items: int
     catalog: bool = False
+    bank: bool = False
     adapter: Any | None = None
 
 
@@ -513,11 +636,28 @@ FORMATS: Final[dict[tuple[str, int], FormatSpec]] = {
     ("interest_tags", 1): FormatSpec(
         "interest_tags", "interest", InterestTagItem, 1_000, catalog=True
     ),
+    ("assessment_questions", 1): FormatSpec(
+        "assessment_questions", "assessment-question", AssessmentQuestionItem, 50, bank=True
+    ),
+    ("assessment_templates", 1): FormatSpec(
+        "assessment_templates", "assessment-template", AssessmentTemplateItem, 20, bank=True
+    ),
+    ("cv_templates", 1): FormatSpec("cv_templates", "cv-template", CvTemplateItem, 50, bank=True),
+    ("metric_dimensions", 1): FormatSpec(
+        "metric_dimensions", "metric-dimension", MetricDimensionItem, 200, bank=True
+    ),
+    ("metric_category_anchors", 1): FormatSpec(
+        "metric_category_anchors", "interest-category", MetricCategoryAnchorItem, 200, bank=True
+    ),
+    ("skill_packs", 1): FormatSpec("skill_packs", "skill-pack", SkillPackItem, 50, bank=True),
 }
 CATALOG_FORMATS: Final[frozenset[str]] = frozenset(
     {"job_families", "job_types", "job_relations", "career_paths", "skills", "interest_tags"}
 )
 CATALOG_ITEM_TYPES: Final[frozenset[str]] = CATALOG_FORMATS
+BANK_FORMAT_NAMES: Final[frozenset[str]] = frozenset(
+    name for (name, _version), spec in FORMATS.items() if spec.bank
+)
 
 
 class Publisher(BaseModel):
@@ -597,6 +737,7 @@ class ParsedPack:
     item_files: dict[str, bytes]
     items: tuple[ParsedItem, ...]
     skipped_formats: tuple[tuple[str, int], ...] = ()
+    formats: tuple[str, ...] = ()
 
     @property
     def by_key(self) -> dict[str, ParsedItem]:
@@ -709,7 +850,7 @@ def _parse_supported(
             item = fmt.model.model_validate(raw)
         except PydanticValidationError as exc:
             raise SeedPackError(ITEM_FILE_INVALID, f"{label}: {_model_error(exc)}") from exc
-        if fmt.catalog:
+        if fmt.catalog or fmt.bank:
             payload = item.model_dump(mode="json", by_alias=True)
         else:
             _validate_item(cast(AtsPreset | EndpointDescriptor, item), connectors, label=label)
@@ -767,6 +908,7 @@ def parse_pack(
     digest_files: list[tuple[str, bytes]] = []
     items: list[ParsedItem] = []
     skipped: list[tuple[str, int]] = []
+    present: list[str] = []
     seen_keys: set[str] = set()
 
     for entry in manifest.item_files:
@@ -804,6 +946,7 @@ def parse_pack(
                 ITEM_TYPE_MISMATCH,
                 f"{entry.path}: item_type {meta.item_type!r} != {spec.item_type!r}",
             )
+        present.append(spec.item_type)
         if len(envelope.items) > spec.max_items:
             raise SeedPackError(
                 CAP_EXCEEDED, f"{entry.path}: {len(envelope.items)} items (max {spec.max_items})"
@@ -832,6 +975,7 @@ def parse_pack(
         item_files=dict(digest_files),
         items=tuple(items),
         skipped_formats=tuple(skipped),
+        formats=tuple(dict.fromkeys(present)),
     )
 
 
@@ -843,19 +987,26 @@ def parse_repo_pack(index: RepoIndex, pack_id: str) -> IndexedPack:
 
 
 __all__ = [
+    "BANK_FORMAT_NAMES",
     "FORMATS",
     "LICENSES",
+    "AssessmentQuestionItem",
+    "AssessmentTemplateItem",
     "AtsPreset",
+    "CvTemplateItem",
     "EndpointDescriptor",
     "EndpointParam",
     "FormatSpec",
     "IndexedPack",
     "ItemEnvelope",
     "ItemMetadata",
+    "MetricCategoryAnchorItem",
+    "MetricDimensionItem",
     "PackManifest",
     "ParsedItem",
     "ParsedPack",
     "RepoIndex",
+    "SkillPackItem",
     "canonical_json",
     "compute_pack_digest",
     "default_connectors",

@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,10 +47,18 @@ class AssessmentTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         CheckConstraint("version >= 1", name="version_positive"),
         Index("ix_assessment_templates_key", "key"),
+        Index(
+            "uq_assessment_templates_seed_key",
+            "seed_key",
+            unique=True,
+            postgresql_where=text("seed_key IS NOT NULL"),
+            sqlite_where=text("seed_key IS NOT NULL"),
+        ),
     )
 
     key: Mapped[str] = mapped_column(String(80), nullable=False)
     version: Mapped[int] = mapped_column(default=1, nullable=False)
+    seed_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     author_user_id: Mapped[uuid.UUID | None] = mapped_column(

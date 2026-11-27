@@ -29,6 +29,7 @@ PROVIDER_AUDIT_EVENTS = (
     "provider.apply.conflicted",
     "provider.apply.failed",
     "provider.item.retired",
+    "provider.item.published",
     "provider.source.created",
     "provider.source.updated",
     "provider.source.retired",
