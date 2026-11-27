@@ -336,8 +336,14 @@ export function Assessment() {
         )}
         <div className="mt-3 flex flex-wrap gap-2">
           {templates.length === 0 && (
-            <p className="text-xs text-slate-400">
-              {t("assessment.noTemplates")}
+            <p className="text-xs text-slate-400" data-testid="assessment-no-templates">
+              {t("assessment.noTemplates")}{" "}
+              <Link
+                to="/settings/tools?section=sources"
+                className="text-primary-700"
+              >
+                {t("assessment.noTemplatesAction")}
+              </Link>
             </p>
           )}
           {templates.map((template) => (

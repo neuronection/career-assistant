@@ -320,10 +320,11 @@ def test_bank_registries_are_total():
     assert set(COUNT_KEYS) == set(BANK_ENTITY_MODELS)
     assert BANK_FORMATS["assessment_templates"] is not None
     assert BANK_FORMATS["assessment_questions"] is not None
+    assert BANK_FORMATS["cv_templates"] is not None
     assert all(
         adapter is None
         for name, adapter in BANK_FORMATS.items()
-        if name not in {"assessment_questions", "assessment_templates"}
+        if name not in {"assessment_questions", "assessment_templates", "cv_templates"}
     )
 
 

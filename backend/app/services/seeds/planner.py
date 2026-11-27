@@ -44,7 +44,9 @@ from app.services.seeds.banks import (
     BANK_ENTITY_MODELS,
     BANK_ITEM_TYPES,
     ENTITY_ASSESSMENT_TEMPLATE,
+    ENTITY_CV_TEMPLATE,
     ENTITY_FORMATS,
+    cv_template_content_hash,
     require_adapter,
     template_content_hash,
 )
@@ -626,6 +628,22 @@ async def build_plan(
         elif entity in BANK_ENTITY_MODELS:
             if getattr(row, "seed_key", None) != seed_key:
                 action, reason = ACTION_UPDATE, "adopt existing seeded row"
+            elif (
+                entity == ENTITY_CV_TEMPLATE
+                and getattr(row, "content_hash", None)
+                and row.content_hash != cv_template_content_hash(item.payload)
+            ):
+                plan.conflicts.append(
+                    {
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "priority": entry.source.priority,
+                        "reason": "published template version is immutable; bump the version",
+                        "source_ids": [str(entry.source.id)],
+                        "content_hashes": [row.content_hash, item.content_hash],
+                    }
+                )
+                continue
             elif getattr(row, "status", None) == "retired" or bool(
                 getattr(row, "deprecated", False)
             ):

@@ -3,6 +3,7 @@ import { vi, describe, it, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
 import { TemplateGallery, galleryFilter } from "@/features/cv/components/cv/TemplateGallery";
+import { fetchTemplates } from "@/api/cvTemplates";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
 
 vi.mock("@/api/cvTemplates", () => ({
@@ -112,5 +113,23 @@ describe("TemplateGallery filters + compare", () => {
     fireEvent.click(screen.getByTestId("compare-use-tpl-2"));
     await waitFor(() => expect(onUse).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the seed-pack empty state with a Data providers action", async () => {
+    vi.mocked(fetchTemplates).mockResolvedValueOnce([]);
+    render(
+      <MemoryRouter>
+        <TemplateGallery
+          open
+          onClose={onClose}
+          actionLabel="Use for new CV"
+          onUse={onUse}
+        />
+      </MemoryRouter>
+    );
+    const empty = await screen.findByTestId("gallery-empty");
+    expect(empty).toHaveTextContent("templates arrive from a seed pack");
+    const link = screen.getByRole("link", { name: "Open Data providers" });
+    expect(link).toHaveAttribute("href", "/settings/tools?section=sources");
   });
 });
