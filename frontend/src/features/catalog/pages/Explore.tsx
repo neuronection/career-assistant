@@ -866,7 +866,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                   values={sources.map((s) => ({
                     value: s.key,
                     label: s.key,
-                    count: facetCount("source", s.key) ?? s.open_postings,
+                    count: facetCount("source", s.key),
                     testId: `source-${s.key}`,
                   }))}
                   include={filters.source}

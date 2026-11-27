@@ -4263,7 +4263,7 @@
         "type": "object"
       },
       "CompanyFacets": {
-        "description": "Per-value COMPANY counts over the filtered set's active postings \u2014\nthe filter options literally describe the hiring those companies are\ndoing right now (plan 154).",
+        "description": "Per-value COMPANY counts over the filtered set's active postings \u2014\nthe filter options literally describe the hiring those companies are\ndoing right now (plan 154).\n\n``truncated`` is true when the industries or locations list was cut to\nits cap. The counts cover the returned page's companies, not the whole\nfiltered set; the self-excluding version is C1.1.",
         "properties": {
           "employment": {
             "additionalProperties": {
@@ -4292,6 +4292,11 @@
             },
             "title": "Seniority",
             "type": "object"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
           },
           "work_mode": {
             "additionalProperties": {

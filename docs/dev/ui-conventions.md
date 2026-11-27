@@ -560,7 +560,8 @@ Every filter chip follows the same contract (`TriStateChips` in
   straight to exclude. Values are mutually exclusive across the pair of
   lists, and every mode drops the value from the other list.
 - **A selected chip carries an ×** that clears it in one click — never
-  make a user cycle back out of a state, and never hover-reveal it.
+  make a user cycle back out of a state, and never hover-reveal it. The
+  remove button is at least 24×24 px (WCAG 2.2 AA 2.5.8).
 - **The pill is a wrapper with two sibling buttons** (value + remove):
   a `<button>` inside a `<button>` is invalid markup and swallows the
   inner click. Keep the value button's `data-testid` (its accessible name
@@ -668,7 +669,9 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
   band (`useContainerBand`, `hooks/`) passes `band` and the rail renders one
   row — the search field plus a **Filters** button carrying the active-count
   badge — while the sections move into the library `PanelModal` sheet, whose
-  footer carries `Clear all` and `Show N jobs`. Only the **active** chips stay
+  footer carries `Clear all` and, only where the page's payload has a total,
+  `Show N jobs` (otherwise `Done`: the footer never presents a page size as
+  a total). Only the **active** chips stay
   on the page (`ActiveFilterChips`; the row renders nothing while the list is
   unfiltered), and each chip removes exactly the value it names. Toggles keep
   writing the URL immediately, so a link stays shareable with the sheet open.
@@ -680,6 +683,11 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
   filter sheet.
 - **Tokens only**: the shell, `Section`, `TriStateChips` and all controls use
   `--as-*` tokens; hard-coded `slate`/`primary` scales are drift.
+- **Counts are payload-only**: a chip's count comes from the response's facet
+  map; a missing count renders no number — never `0`, never a fallback to an
+  unfiltered or page-scoped total. A `Section`'s `count` is the number of
+  active values (one per selected value/bound), not a facet count; `0`
+  renders nothing because the active dot already carries the state.
 - **Testids are contracts**: the aside carries the page's existing testid
   (`explore-filters`, `company-filters`, `catalog-filter-aside`,
   `autopilot-filters`, `filter-bar`); the card carries the rail testid

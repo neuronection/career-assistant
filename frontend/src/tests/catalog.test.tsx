@@ -120,7 +120,7 @@ describe("Catalog subtabs", () => {
         job({ id: "job-2", code: "ui-designer", title: "UI Designer", family_key: "creative-arts" }),
       ],
       total: 2,
-      facets: {},
+      facets: { family: { technology: 2, "creative-arts": 0 } },
     });
     vi.mocked(jobsApi.fetchGraph).mockResolvedValue({
       nodes: [

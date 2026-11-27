@@ -1,13 +1,28 @@
 from collections.abc import Sequence
+from json import dumps
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, and_, case, func, not_, or_, select
+from sqlalchemy import (
+    Boolean,
+    String,
+    and_,
+    case,
+    cast,
+    exists,
+    func,
+    literal,
+    literal_column,
+    not_,
+    or_,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from app.core.job_titles import job_type_key
+from app.models.base import StructuredJSON
 from app.models.enums import (
     DemandOutlook,
     EducationLevel,
@@ -112,17 +127,40 @@ def _json_text(*path: str):
     return _json_node(*path).as_string()
 
 
-def _json_array_text(*path: str):
-    return func.coalesce(func.cast(_json_node(*path), Text), "")
+def _json_array(*path: str):
+    return func.coalesce(_json_node(*path), cast(literal("[]"), String).cast(StructuredJSON))
 
 
-def _array_include(values: Sequence[str], *path: str):
-    text = _json_array_text(*path)
-    return or_(*[text.like(f'%"{value}"%') for value in values])
+def _array_include(values: Sequence[str], *path: str, dialect: str):
+    """Rows whose JSON array at ``path`` holds one of ``values`` exactly.
+
+    PostgreSQL uses JSONB containment (``@>``) and SQLite walks
+    ``json_each``. Element equality is exact, so ``on_call`` never matches
+    ``on-call`` and ``%`` is a literal value instead of a wildcard. A NULL
+    or empty array matches nothing.
+    """
+    if dialect == "postgresql":
+        if not values:
+            return literal(False)
+        # one containment per value, OR-ed: `column @> ANY(array[...])` says the
+        # same thing, but postgresql.array() cannot infer its element type from
+        # a TypeEngine instance and mypy rejects it.
+        column = _json_array(*path)
+        return or_(
+            *(
+                column.op("@>", return_type=Boolean)(cast(literal(dumps([value])), StructuredJSON))
+                for value in values
+            )
+        )
+    return exists(
+        select(literal(1))
+        .select_from(func.json_each(Job.attributes, "$." + ".".join(path)))
+        .where(literal_column("json_each.value").in_(list(values)))
+    )
 
 
-def _array_exclude(values: Sequence[str], *path: str):
-    return not_(_array_include(values, *path))
+def _array_exclude(values: Sequence[str], *path: str, dialect: str):
+    return not_(_array_include(values, *path, dialect=dialect))
 
 
 def _scalar_exclude(expr, values: Sequence[str]):
@@ -155,10 +193,12 @@ async def _grouped_scalar(db: AsyncSession, scope, expr) -> dict[object, int]:
     return {key: int(count) for key, count in rows.all() if key is not None}
 
 
-async def _array_facet(db: AsyncSession, scope, values: Sequence[str], *path: str):
-    text = _json_array_text(*path)
+async def _array_facet(db: AsyncSession, scope, values: Sequence[str], *path: str, dialect: str):
     columns = [
-        func.coalesce(func.sum(case((text.like(f'%"{value}"%'), 1), else_=0)), 0)
+        func.coalesce(
+            func.sum(case((_array_include([value], *path, dialect=dialect), 1), else_=0)),
+            0,
+        )
         for value in values
     ]
     row = (await db.execute(select(*columns).where(Job.id.in_(scope)))).one()
@@ -274,6 +314,7 @@ class JobService:
             raise ValidationError("skill_mode must be all|any")
 
         axis_conditions: dict[str, list] = {}
+        dialect = self.db.get_bind().dialect.name
 
         def add(axis: str, *conditions) -> None:
             axis_conditions.setdefault(axis, []).extend(conditions)
@@ -284,7 +325,7 @@ class JobService:
         if source:
             add("source", Job.source.in_(source))
         if source_exclude:
-            add("source", Job.source.not_in(source_exclude))
+            add("source", _scalar_exclude(Job.source, source_exclude))
         if q:
             pattern = f"%{q.strip()}%"
             add(
@@ -380,9 +421,12 @@ class JobService:
                 _scalar_exclude(_json_text("contract_type"), contract_exclude),
             )
         if schedule:
-            add("schedule", _array_include(schedule, "schedule_cues"))
+            add("schedule", _array_include(schedule, "schedule_cues", dialect=dialect))
         if schedule_exclude:
-            add("schedule", _array_exclude(schedule_exclude, "schedule_cues"))
+            add(
+                "schedule",
+                _array_exclude(schedule_exclude, "schedule_cues", dialect=dialect),
+            )
         if travel:
             add("travel", _json_text("travel_required", "level").in_(travel))
         if travel_exclude:
@@ -391,9 +435,12 @@ class JobService:
                 _scalar_exclude(_json_text("travel_required", "level"), travel_exclude),
             )
         if environment:
-            add("environment", _array_include(environment, "environments"))
+            add("environment", _array_include(environment, "environments", dialect=dialect))
         if environment_exclude:
-            add("environment", _array_exclude(environment_exclude, "environments"))
+            add(
+                "environment",
+                _array_exclude(environment_exclude, "environments", dialect=dialect),
+            )
         if experience_max_years is not None:
             lower = _json_node("experience_typical_years")[0].as_float()
             add("experience", or_(lower.is_(None), lower <= experience_max_years))
@@ -457,6 +504,7 @@ class JobService:
     ) -> dict[str, dict[str, int]]:
         """One grouped query per rendered axis, each skipping its own filter."""
         facets: dict[str, dict[str, int]] = {}
+        dialect = self.db.get_bind().dialect.name
         for axis in FACET_AXES:
             scope_conditions = [
                 condition
@@ -513,7 +561,7 @@ class JobService:
                 facets["contract"] = {value: counts.get(value, 0) for value in CONTRACT_VALUES}
             elif axis == "schedule":
                 facets["schedule"] = await _array_facet(
-                    self.db, scope, SCHEDULE_VALUES, "schedule_cues"
+                    self.db, scope, SCHEDULE_VALUES, "schedule_cues", dialect=dialect
                 )
             elif axis == "travel":
                 counts = await _grouped_scalar(
@@ -522,7 +570,11 @@ class JobService:
                 facets["travel"] = {value: counts.get(value, 0) for value in TRAVEL_VALUES}
             elif axis == "environment":
                 facets["environment"] = await _array_facet(
-                    self.db, scope, [entry.value for entry in Environment], "environments"
+                    self.db,
+                    scope,
+                    [entry.value for entry in Environment],
+                    "environments",
+                    dialect=dialect,
                 )
             elif axis == "source":
                 counts = await _grouped_scalar(self.db, scope, Job.source)

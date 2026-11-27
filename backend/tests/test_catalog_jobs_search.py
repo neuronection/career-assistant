@@ -8,11 +8,12 @@ grouped aggregate per page; absent on the detail endpoint).
 import json
 
 import pytest
+from sqlalchemy import String, func, literal, select, union_all
 
 from app.models.job_model import Job, JobFamily, JobSkill, JobTag
 from app.models.posting_model import JobPosting, JobSource
 from app.models.taxonomy_model import InterestTag, Skill
-from app.services.catalog.job_service import JobService
+from app.services.catalog.job_service import JobService, _scalar_exclude
 
 
 async def _seed(db) -> dict:
@@ -219,6 +220,100 @@ async def test_filter_axes_include_and_exclude(db):
     assert codes == {"beta-role"}
     codes, _, _ = await _codes(db, family_key="search-child")
     assert codes == {"beta-role"}
+
+
+async def test_scalar_exclude_keeps_not_recorded_rows(db):
+    """The exclude rule keeps NULLs where a bare ``NOT IN`` drops them.
+
+    The audit's fixture: four rows ``(NULL, a, b, NULL)`` — raw keeps 1,
+    the guarded form keeps 3. ``jobs.source`` is NOT NULL today, so this
+    pins the rule rather than a live row-loss case.
+    """
+    union = union_all(
+        select(literal(None, String).label("v")),
+        select(literal("a", String)),
+        select(literal("b", String)),
+        select(literal(None, String)),
+    ).subquery()
+    raw = (
+        await db.execute(select(func.count()).select_from(union).where(union.c.v.not_in(["a"])))
+    ).scalar_one()
+    guarded = (
+        await db.execute(
+            select(func.count()).select_from(union).where(_scalar_exclude(union.c.v, ["a"]))
+        )
+    ).scalar_one()
+    assert raw == 1
+    assert guarded == 3
+
+
+class _RecordingSession:
+    def __init__(self, session):
+        self.session = session
+        self.statements: list = []
+
+    def get_bind(self):
+        return self.session.get_bind()
+
+    async def execute(self, statement, *args, **kwargs):
+        self.statements.append(statement)
+        return await self.session.execute(statement, *args, **kwargs)
+
+
+async def test_source_exclude_uses_the_null_guarded_predicate(db):
+    await _seed(db)
+    recording = _RecordingSession(db)
+    await JobService(recording).list_jobs(page_size=100, source_exclude=["ai"])
+    dialect = db.get_bind().dialect
+    compiled = [
+        str(statement.compile(dialect=dialect))
+        for statement in recording.statements
+        if hasattr(statement, "compile")
+    ]
+    assert any("jobs.source IS NULL" in sql for sql in compiled)
+
+
+async def test_array_filters_match_exact_elements_only(db):
+    root = JobFamily(key="exact-root", label="Exact Root", path="exact-root")
+    db.add(root)
+    await db.flush()
+    definitions = {
+        "exact-hyphen": ("on-call", ["office"]),
+        "exact-space": ("on call", ["lab"]),
+        "exact-glued": ("onxcall", ["remote"]),
+        "exact-plain": ("on_call", ["office"]),
+        "exact-empty": (None, []),
+    }
+    for code, (cue, environments) in definitions.items():
+        db.add(
+            Job(
+                code=code,
+                title=code,
+                family_id=root.id,
+                source="seed",
+                attributes={
+                    "schedule_cues": [] if cue is None else [cue],
+                    "environments": environments,
+                },
+            )
+        )
+    await db.commit()
+
+    codes, _, _ = await _codes(db, schedule=["on_call"])
+    assert codes == {"exact-plain"}
+    codes, _, _ = await _codes(db, schedule=["on-call"])
+    assert codes == {"exact-hyphen"}
+    codes, _, _ = await _codes(db, schedule=["%"])
+    assert codes == set(), "% is a literal array element, not a wildcard"
+    codes, _, _ = await _codes(db, schedule_exclude=["on_call"])
+    assert codes == {"exact-hyphen", "exact-space", "exact-glued", "exact-empty"}
+
+    _, _, facets = await _codes(db, with_facets=True)
+    assert facets["schedule"]["on_call"] == 1
+    assert facets["schedule"]["shift_work"] == 0
+    assert facets["environment"]["office"] == 2
+    assert facets["environment"]["remote"] == 1
+    assert facets["environment"]["lab"] == 1
 
 
 async def test_skills_axis_all_any_and_min_level(db):

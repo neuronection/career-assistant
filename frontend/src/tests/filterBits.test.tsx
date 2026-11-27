@@ -65,6 +65,15 @@ describe("TriStateChips", () => {
     expect(screen.queryByTestId("mode-onsite-clear")).not.toBeInTheDocument();
   });
 
+  it("gives the clear button a 24px tap target (12px icon + 6px each side)", () => {
+    render(
+      <TriStateChips values={VALUES} include={["remote"]} exclude={[]} onToggle={vi.fn()} />
+    );
+    const clear = screen.getByTestId("mode-remote-clear");
+    expect(clear.className).toContain("pl-1.5");
+    expect(clear.className).toContain("pr-1.5");
+  });
+
   it("offers no remove button on an unselected chip and no exclude when disabled", () => {
     const onToggle = vi.fn();
     render(

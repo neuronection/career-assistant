@@ -27,6 +27,9 @@ from app.schemas.company import (
 )
 from app.services.postings.explore_service import OPEN_STATUSES
 
+INDUSTRY_FACET_LIMIT = 12
+LOCATION_FACET_LIMIT = 8
+
 
 class CompanyService:
     """The company section over the normalized org entity (1:1 profiles)."""
@@ -58,7 +61,11 @@ class CompanyService:
 
         `sort` orders the directory: ``open_postings`` (default, busiest
         first), ``name`` (A-Z) or ``recent`` (latest open posting first).
+        Facets are returned only for a page that is complete: a full page
+        may hide companies, so the counts would describe an unknown slice
+        and ``facets`` is None instead.
         """
+        query_limit = max(1, min(limit, 500))
         counts = (
             select(
                 JobPosting.org_id,
@@ -77,7 +84,7 @@ class CompanyService:
                 Organization.status.in_(["active", "proposed"]),
                 counts.c.open_postings.is_not(None),
             )
-            .limit(max(1, min(limit, 500)))
+            .limit(query_limit)
         )
         if sort == "name":
             query = query.order_by(Organization.name.asc(), Organization.id.asc())
@@ -150,7 +157,7 @@ class CompanyService:
             ]
 
         facet_data = None
-        if facets:
+        if facets and len(rows) < query_limit:
             facet_data = await self._facets(
                 [item.key for item in items],
                 industry=industry,
@@ -167,7 +174,13 @@ class CompanyService:
     ) -> dict:
         """Per-value COMPANY counts over the filtered set's active
         postings — the filters literally describe the hiring those
-        companies are doing right now (plan 154)."""
+        companies are doing right now (plan 154).
+
+        The counts cover the returned page's companies (not the whole
+        filtered set — the self-excluding version is C1.1), and
+        ``truncated`` is true when the industries or locations list was
+        cut to its cap.
+        """
         if not keys:
             return {
                 "work_mode": {},
@@ -175,8 +188,13 @@ class CompanyService:
                 "employment": {},
                 "industries": {},
                 "locations": {},
+                "truncated": False,
             }
-        org_ids = select(Organization.id).where(Organization.key.in_(keys)).subquery()
+        org_ids = list(
+            (
+                await self.db.execute(select(Organization.id).where(Organization.key.in_(keys)))
+            ).scalars()
+        )
         postings = (
             await self.db.execute(
                 select(
@@ -186,7 +204,7 @@ class CompanyService:
                     JobPosting.employment_type,
                     JobPosting.location,
                 ).where(
-                    JobPosting.org_id.in_(org_ids),  # type: ignore[arg-type]
+                    JobPosting.org_id.in_(org_ids),
                     JobPosting.status.in_(OPEN_STATUSES),
                 )
             )
@@ -194,7 +212,7 @@ class CompanyService:
         profiles = (
             await self.db.execute(
                 select(CompanyProfile.organization_id, CompanyProfile.industry_tags).where(
-                    CompanyProfile.organization_id.in_(org_ids)  # type: ignore[arg-type]
+                    CompanyProfile.organization_id.in_(org_ids)
                 )
             )
         ).all()
@@ -220,16 +238,14 @@ class CompanyService:
         }
         industry_counts: dict[str, set] = {}
         profile_by_org = {row[0]: row[1] for row in profiles}
-        for key in keys:
-            for tag in profile_by_org.get(key, []) or []:
+        for org_id in org_ids:
+            for tag in profile_by_org.get(org_id, []) or []:
                 if industry and tag.lower() in {t.lower() for t in industry}:
                     continue
-                industry_counts.setdefault(tag, set()).add(key)
+                industry_counts.setdefault(tag, set()).add(org_id)
+        ranked_industries = sorted(industry_counts.items(), key=lambda kv: (-len(kv[1]), kv[0]))
         facets["industries"] = {
-            tag: len(orgs)
-            for tag, orgs in sorted(industry_counts.items(), key=lambda kv: (-len(kv[1]), kv[0]))[
-                :12
-            ]
+            tag: len(orgs) for tag, orgs in ranked_industries[:INDUSTRY_FACET_LIMIT]
         }
         location_counts: dict[str, set] = {}
         for row in postings:
@@ -237,12 +253,14 @@ class CompanyService:
             place = loc.get("city") or loc.get("country")
             if place:
                 location_counts.setdefault(str(place), set()).add(row[0])
+        ranked_locations = sorted(location_counts.items(), key=lambda kv: (-len(kv[1]), kv[0]))
         facets["locations"] = {
-            place: len(orgs)
-            for place, orgs in sorted(location_counts.items(), key=lambda kv: (-len(kv[1]), kv[0]))[
-                :8
-            ]
+            place: len(orgs) for place, orgs in ranked_locations[:LOCATION_FACET_LIMIT]
         }
+        facets["truncated"] = (
+            len(ranked_industries) > INDUSTRY_FACET_LIMIT
+            or len(ranked_locations) > LOCATION_FACET_LIMIT
+        )
         return facets
 
     async def get_company(self, key: str) -> CompanyDetailOut:

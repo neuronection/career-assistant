@@ -47,6 +47,8 @@ import type { TriStateMode } from "@/components/filters/filterBits";
 
 const STATUS_FILTERS: CompanyFilters["status"][] = ["all", "new"];
 
+type CompanyFacetAxis = "work_mode" | "seniority" | "employment" | "industries" | "locations";
+
 function employeesRange(company: Company): string | null {
   const parts = [company.employees_min, company.employees_max].filter(
     (v) => v != null
@@ -164,7 +166,7 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   const chips = useMemo(() => companiesFilterChips(filters, t), [filters, t]);
 
   const facetChips = useCallback(
-    (facet: keyof CompanyFacets): FacetChip[] =>
+    (facet: CompanyFacetAxis): FacetChip[] =>
       Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
@@ -190,7 +192,6 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           asideTestId="company-filters"
           testId="company-filter-rail"
           band={band}
-          resultCount={visible.length}
           triggerLabel={t("filters.title")}
           triggerTestId="company-filters-open"
           sheetTestId="company-filters-sheet"

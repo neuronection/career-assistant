@@ -416,6 +416,7 @@ async def test_facets_count_companies_per_value(db, client, auth_headers, seeded
     assert facets["employment"]["full_time"] == 1
     assert facets["employment"]["part_time"] == 1
     assert facets["locations"]["Berlin"] == 1
+    assert facets["truncated"] is False
 
     filtered = await client.get(
         "/api/v1/companies", params={"facets": True, "seniority": "mid"}, headers=auth_headers
@@ -452,3 +453,59 @@ async def test_employment_exclude_removes_internship_only_companies(
     names = [row["name"] for row in res.json()["items"]]
     assert "ProShop" in names
     assert "InternMill" not in names
+
+
+async def test_facets_are_absent_when_the_page_may_be_incomplete(
+    db, client, auth_headers, seeded_catalog, source
+):
+    for name in ("Ardent", "Basalt", "Cobalt"):
+        await _seed_company(db, source, name=name, count=1)
+
+    res = await client.get(
+        "/api/v1/companies", params={"facets": True, "limit": 2}, headers=auth_headers
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["items"]) == 2
+    assert body["facets"] is None, "a full page may hide companies; its counts would mislead"
+
+
+async def test_facets_flag_a_cut_industry_or_location_list(
+    db, client, auth_headers, seeded_catalog, source
+):
+    names = (
+        "Ardent",
+        "Basalt",
+        "Cobalt",
+        "Dunmore",
+        "Everest",
+        "Falcon",
+        "Granite",
+        "Harbor",
+        "Ironclad",
+        "Juniper",
+        "Kestrel",
+        "Lumen",
+        "Meridian",
+    )
+    orgs = [await _seed_company(db, source, name=name, count=1) for name in names]
+    db.add_all(
+        [
+            CompanyProfile(organization_id=org.id, industry_tags=[f"industry-{index:02d}"])
+            for index, org in enumerate(orgs)
+        ]
+    )
+    await db.commit()
+    for index, org in enumerate(orgs):
+        for posting in await _org_postings(db, org.id):
+            posting.location = {"city": f"City {index:02d}", "country": "GR", "remote": False}
+    await db.commit()
+
+    res = await client.get(
+        "/api/v1/companies", params={"facets": True, "limit": 20}, headers=auth_headers
+    )
+    assert res.status_code == 200
+    facets = res.json()["facets"]
+    assert len(facets["industries"]) == 12
+    assert len(facets["locations"]) == 8
+    assert facets["truncated"] is True

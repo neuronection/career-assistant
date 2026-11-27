@@ -30,6 +30,13 @@ All notable changes to **Career Assistant** are documented here.
   match the other Neuronection apps. The tri-state include/exclude logic stays
   app-side and no call site changed; `@neuronection/assistant-ui` moves to
   `^0.91.1`.
+- **Filter counts are shown only when the payload has one.** Company facets
+  now carry `truncated` (the industry/location lists were cut) and are
+  omitted (`facets: null`) for a full page of companies, whose counts could
+  only describe an unknown slice; the company, autopilot, Explore source and
+  catalog family chips no longer substitute a page-scoped or unfiltered
+  number, and a filter sheet without a total says `Done` instead of a page
+  size.
 
 ### Changed
 
@@ -78,6 +85,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Fixed
 
+- **Filter matches are exact, exclusions keep "not recorded" rows, and
+  company facets describe the companies they counted.** The catalog's
+  schedule/environment axes match whole JSON-array elements (PostgreSQL
+  `@>`, SQLite `json_each`) instead of a `LIKE '%"value"%'` pattern, so
+  `on_call` no longer selects `on-call`, `on call` or `onxcall` and `%`
+  no longer selects every row with any array; the facet counts use the same
+  match. `source_exclude` now uses the NULL-safe rule every other scalar
+  exclude uses. The company industry facet now looks profiles up by
+  organization id (it was keyed by id but queried by key, so it was always
+  empty).
 - **A lost pack archive no longer breaks a provider preview.** If a stored
   pack archive is missing (a restored database, a moved profile or a
   restored backup), syncing the provider again re-stores the archive for the

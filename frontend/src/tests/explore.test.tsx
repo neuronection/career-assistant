@@ -235,6 +235,21 @@ describe("Explore page", () => {
     expect(screen.getByTestId("source-synth")).toHaveTextContent("synth");
   });
 
+  it("never invents a source count from the unfiltered open-posting total", async () => {
+    const base = exploreResponse();
+    mockExplore.mockResolvedValue({ ...base, facets: { ...base.facets, source: {} } });
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("explore")).toBeInTheDocument();
+    openSection("Sources");
+    const chip = screen.getByTestId("source-synth");
+    expect(chip).toHaveTextContent("synth");
+    expect(chip).not.toHaveTextContent("· 3");
+  });
+
   it("passes v2 lifestyle filters and the org picker to the API", async () => {
     mockExplore.mockResolvedValue(exploreResponse());
     const user = userEvent.setup();

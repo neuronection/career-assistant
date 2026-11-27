@@ -86,7 +86,7 @@ export function CatalogFilterRail({
   const familyChips = flattenFamilies(families).map(({ node, depth }) => ({
     value: node.key,
     label: `${"\u00a0".repeat(depth * 2)}${node.label}`,
-    count: facetCount(facets, "family", node.key) ?? node.job_count,
+    count: facetCount(facets, "family", node.key),
     testId: `catalog-family-${node.key}`,
   }));
 
