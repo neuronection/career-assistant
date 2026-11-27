@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Check, GitCompare, Pencil, Sparkles, X } from "lucide-react";
 import { Button, Card, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
 import { apiDetail } from "@/api/client";
@@ -440,6 +440,22 @@ export function TemplateGallery({
                   </div>
                 </Card>
               ))}
+            </div>
+          ) : templates.length === 0 ? (
+            <div
+              className="rounded-lg border border-[var(--as-border)] p-4 text-sm"
+              data-testid="gallery-empty"
+            >
+              <p className="text-[var(--as-muted-fg)]">
+                {t("cvStudio.gallery.emptyTemplates")}
+              </p>
+              <Link
+                to="/settings/tools?section=sources"
+                className="mt-2 inline-block font-medium text-[var(--as-accent)]"
+                onClick={() => onClose()}
+              >
+                {t("cvStudio.gallery.emptyTemplatesAction")}
+              </Link>
             </div>
           ) : visible.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]">

@@ -48,6 +48,15 @@ All notable changes to **Career Assistant** are documented here.
   withholds every number and sets `aria-busy`, and a failed refetch withholds
   them too. The include-only plain-click cycle (include → clear) is fixed at
   the source, so career's `triStateMode` intent rewrite is gone.
+
+- **CV templates can now be installed from a seed pack.** The `cv_templates`
+  bank format creates a published row per immutable `(key, version)`, adopts
+  fresh-install rows without duplicating them, retires removed versions
+  instead of deleting them, and refuses a changed body at an already-applied
+  version as a conflict. Retired versions leave the template picker while
+  existing CVs keep rendering the template they reference; the CV Studio and
+  assessment empty states now point to the Data providers seed-pack lane.
+
 - **Assessment questions can now be installed from a seed pack.** The
   `assessment_questions` bank format upserts by stored `seed_key` (options,
   audience stages and time split included), adopts fresh-install rows without
