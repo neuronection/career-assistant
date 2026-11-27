@@ -269,8 +269,9 @@ async def test_facets_exclude_their_own_axis(db):
     assert facets["contract"]["temporary"] == 1
     assert facets["contract"]["contract"] == 1
 
-    _, _, facets = await _codes(db, family_key="search-root", with_facets=True)
-    assert facets["family"]["search-root"] == 3
+    _, total, facets = await _codes(db, family_key="search-root", with_facets=True)
+    assert total == 4
+    assert facets["family"]["search-root"] == 4
     assert facets["family"]["search-child"] == 1
 
     _, _, facets = await _codes(db, with_facets=True)
