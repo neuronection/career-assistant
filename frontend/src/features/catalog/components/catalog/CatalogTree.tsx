@@ -28,13 +28,13 @@ import type { JobFamilyNode } from "@/types";
 
 export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const { t } = useTranslation();
-  const { families, jobs, total, facets, loading, loadFamilies, loadJobs } = useCatalogStore();
+  const { families, jobs, total, facets, loading, error, loadFamilies, loadJobs } =
+    useCatalogStore();
   const { ref: bandRef, band } = useContainerBand(bandOverride);
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseCatalogParams(searchParams), [searchParams]);
   const paramsKey = catalogParams(filters).toString();
   const [historyKey, setHistoryKey] = useState(0);
-  const [jobsFailed, setJobsFailed] = useState(false);
   const recordSearch = useSearchHistory("catalog");
   const navigate = useNavigate();
 
@@ -43,8 +43,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
   }, [loadFamilies]);
 
   useEffect(() => {
-    setJobsFailed(false);
-    void loadJobs(catalogApiParams(filters)).catch(() => setJobsFailed(true));
+    void loadJobs(catalogApiParams(filters));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadJobs, paramsKey]);
 
@@ -65,6 +64,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
 
   useEffect(() => {
     if (filters.q.trim().length < 2 && !filters.family) return;
+    if (error) return;  // the total describes a query that did not run
     recordSearch(filters.q, { family_key: filters.family || null }, total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.q, filters.family, total]);
@@ -92,7 +92,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
   const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState("");
-  const counts = countsState({ loading, failed: jobsFailed });
+  const counts = countsState({ loading, failed: error });
   const compact = railLayout(band) === "compact";
   const activeFilterCount = countActiveCatalogFilters(filters);
   const catalogEmpty =
@@ -169,7 +169,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
           band={band}
           counts={counts}
           footer={
-            compact && total > 0
+            compact && !error && total > 0
               ? (close) => (
                   <FilterSheetFooter
                     onClose={close}
@@ -203,10 +203,21 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
             </div>
           )}
 
+          {error ? (
+            <p
+              className="text-sm text-[var(--as-danger)]"
+              role="alert"
+              data-testid="catalog-error"
+            >
+              {t("catalog.filters.loadFailed")}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--as-muted-fg)]">
-            <span data-testid="catalog-result-count">
-              {t("catalog.filters.resultCount", { count: total })}
-            </span>
+            {!error ? (
+              <span data-testid="catalog-result-count">
+                {t("catalog.filters.resultCount", { count: total })}
+              </span>
+            ) : null}
             <label className="ml-auto flex items-center gap-1">
               {t("catalog.filters.sort")}
               <select

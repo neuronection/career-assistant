@@ -440,6 +440,7 @@
       "rolesHas": "Hat offene Stellen",
       "rolesNone": "Keine offenen Stellen",
       "resultCount": "{{count}} Stellen",
+      "loadFailed": "Der Katalog konnte nicht geladen werden. Versuche es erneut.",
       "sort": "Sortierung"
     },
     "sort": {
@@ -577,6 +578,7 @@
   },
   "explore": {
     "searchPlaceholder": "Suche nach Titel oder Firma…",
+    "loadFailed": "Stellen konnten nicht geladen werden. Versuche es erneut.",
     "addSkill": "Füge Fähigkeit hinzu…",
     "skillLevel": "Fähigkeitslevel",
     "anyLevel": "beliebig",
@@ -5534,6 +5536,8 @@
     "sortRecent": "Zuletzt ausgeschrieben",
     "searchPlaceholder": "Unternehmen suchen…",
     "loadError": "Unternehmen konnten nicht geladen werden.",
+    "facetsUnavailable": "Zählwerte sind für so viele Unternehmen nicht verfügbar. Filter gelten weiterhin.",
+    "facetsTruncated": "Die {{count}} häufigsten werden angezeigt.",
     "noneYetTitle": "Noch keine Unternehmen",
     "noneYetBody": "Unternehmen erscheinen hier, sobald Connector-Syncs Stellen mit erkanntem Arbeitgeber bringen.",
     "openPostings": "{{count}} offene Stellen",
@@ -5835,6 +5839,7 @@
     "noneMatch": "derzeit keine Treffer",
     "notRecorded": "Nicht erfasst",
     "optionMenu": "Optionen für {{value}}",
+    "noMatches": "keine Treffer",
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "clickToToggle": "Klicken, um danach zu filtern",
     "menu": {

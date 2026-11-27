@@ -71,7 +71,11 @@ export function CatalogFilterRail({
   band?: ContainerBand;
   /** Whether the facet map on screen is still the last successful response. */
   counts?: CountsState;
-  /** The compact sheet's host footer (a real total); omitted keeps Done. */
+  /**
+   * The compact sheet's host footer, carrying a real result total. Omit it
+   * while the last load is stale (the total then describes a query that did
+   * not run): the sheet falls back to the library `Done`, never `Show N`.
+   */
   footer?: (close: () => void) => ReactNode;
   onChange: (update: Partial<CatalogFilters>) => void;
   onClear: () => void;

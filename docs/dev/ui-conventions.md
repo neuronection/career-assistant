@@ -567,10 +567,19 @@ view model.
 - **ARIA is the library's**: both applied states are `role="checkbox"` with
   `aria-checked="true"`, the excluded row's accessible name ends
   `"(excluded)"`, and a count rides the name (`≥N` when the bucket was
-  truncated, `0` when the facet really says zero). Never `aria-pressed` — it
-  cannot express three states.
+  truncated, `0` when the facet really says zero, plus the no-matches
+  phrase — `labels.noneMatch` — a real zero carries). Never `aria-pressed`:
+  it cannot express three states, and a name of "label + count" alone leaves
+  an excluded chip announced as merely pressed.
 - **Clearing is one action**: the third activation, Delete, or the row
-  menu's clear item. No separate × button, no hover reveal.
+  menu's clear item. A user never has to cycle back out of a state, and the
+  control is never hover-revealed. There is no separate × button on a facet
+  value — the `−`/check is visual only, the state lives in the name.
+- **Never nest a button in a button**: the chip's value control
+  (`role="checkbox"`) and its per-row menu button are siblings, and a
+  `FilterPills` pill is a single button. A nested button is invalid markup
+  and swallows the inner click — keep host-composed controls (the catalog
+  skill chip's ×) siblings too.
 - **An include-only axis** (`allowExclude={false}`: the posted and closing
   windows, the job axis, the profile kind/level rows) hides the exclude
   affordance and the library's plain click cycles include → clear
@@ -585,7 +594,10 @@ view model.
   and removable instead of silently narrowing the list.
 - **44px at phone widths** is the library's inline contract
   (`max-sm:min-h-11` on every option and menu trigger); never shrink it with
-  page-local classes.
+  page-local classes. Host-rendered remove controls (the catalog skill
+  chip's ×) meet the 24×24 px target, or 24 px in one dimension with 24 px
+  of spacing around it (WCAG 2.2 AA 2.5.8, spacing exception) — that is a
+  floor, not a blessing of anything smaller.
 - Binary state toggles (saved only, hide seen, deep-extracted) are
   checkboxes, not chips: their uncheck *is* the clear.
 - **Exclude pickers are excluded chips too**: the skills /
@@ -694,17 +706,22 @@ career keeps exactly one.
   (`useContainerBand`, `hooks/`) passes `band` and the shared rail renders one
   row — the search field plus a **Filters (n)** button with
   `aria-haspopup="dialog"` — while the sections move into assistant-ui's
-  `PanelModal` sheet (Escape closes it and returns focus to the trigger).
+  `PanelModal` sheet (Escape closes it and returns focus to the trigger; the
+  sheet body owns its scroll, so pages never nest another scroll container).
   The sheet's primary footer action closes it: `Show N jobs` where the page
   holds a real result total (`/postings`, `/catalog`), the library `Done`
   everywhere else (`/companies`, `/autopilot`). Career renders the former
   through `FilterSheetFooter` and the library's function `footer`, which
   hands over the sheet's own `close` — so focus returns to the trigger
   exactly like `Done`. A host footer replaces the library default whole, so
-  it re-renders `Clear all`; a page size is never presented as a total.
-  Only the **active** chips stay on the page (`FilterPills`; the row renders
-  nothing while the list is unfiltered), and each chip removes exactly the
-  value it names.
+  it re-renders `Clear all`; a page size is never presented as a total, and a
+  **stale** total (the last refetch failed) is no total: the page omits the
+  footer and falls back to `Done` rather than describing a query that never
+  ran. Only the **active** chips stay on the page (`FilterPills`; the row
+  renders nothing while the list is unfiltered), and each chip removes
+  exactly the value it names. `/catalog` still renders its active chips by
+  hand (`CatalogTree.tsx`) without a `Remove {label}` name: that is a gap
+  against this rule, not an exemption.
   Toggles keep writing the URL immediately, so a link stays shareable with
   the sheet open. The band is the page's own width (container), never `lg:`;
   jsdom never fires `ResizeObserver`, so the page exposes a `band` override
@@ -716,9 +733,18 @@ career keeps exactly one.
   carry the state. `FilterSection.count` is a *facet* count (`0` renders,
   `≥N` when truncated) and it applies to every layout; career passes none
   until a facet total exists. The old local `Section.count` (active values)
-  is gone: the rail header already counts them.
+  is gone: the rail header already counts them. The shared section has no
+  `notice` slot and hides its children while collapsed, so a page-specific
+  explanation that must survive collapsing (the companies rail's
+  "counts aren't available") is rendered as a **sibling above** the section
+  inside the rail — never as a section child, never dropped.
 - **Tokens only**: the shell, sections and chips use `--as-*` tokens
   (the library's own); hard-coded `slate`/`primary` scales are drift.
+- **A facet count counts what its page counts.** The unit is per page and
+  must be stated where two pages differ: on `/catalog` a count is matching
+  jobs, on `/companies` it is companies hiring, not open postings. A chip's
+  count must equal the number of results clicking it produces — including a
+  parent family, whose count covers its subtree because its filter does.
 - **Counts are payload-only**: a chip's count comes from the response's facet
   map; a missing count renders no number — never `0`, never a fallback to an
   unfiltered or page-scoped total. A facet's real `0` renders `0`. The chip

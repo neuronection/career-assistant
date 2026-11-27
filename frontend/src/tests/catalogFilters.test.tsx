@@ -123,6 +123,7 @@ beforeEach(() => {
     total: 0,
     facets: {},
     loading: false,
+    error: false,
     filters: {},
   });
   vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
@@ -156,14 +157,18 @@ describe("catalog filter rail", () => {
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent(""));
   });
 
-  it("keeps a zero-count facet value selectable and shows its real zero", async () => {
+  it("keeps a zero-count facet value selectable, shows its real zero and says why", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
     await user.click(await screen.findByRole("button", { name: /Demand/ }));
     const stable = await screen.findByTestId("catalog-demand-stable");
-    expect(stable).toHaveTextContent("0");
+    // 0 is information, not a reason to disable a control …
     expect(stable).not.toHaveAttribute("aria-disabled");
+    expect(stable).toHaveTextContent("0");
+    // … and the shared chip appends the "no matches" phrase to its name.
+    expect(stable).toHaveAccessibleName(/none match now/);
+    expect(screen.getByTestId("catalog-demand-hot")).toHaveAccessibleName(/, 2$/);
     await user.click(stable);
     await waitFor(() =>
       expect(screen.getByTestId("search-probe")).toHaveTextContent("demand=stable")
@@ -318,6 +323,36 @@ describe("catalog filter rail", () => {
     renderCatalog();
     await screen.findByTestId("catalog-result-count");
     expect(screen.queryByTestId("catalog-active-chips")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of silently keeping the previous results", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Routes>
+          <Route path="/catalog" element={<CatalogTree band="compact" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("catalog-result-count")).toBeInTheDocument();
+
+    vi.mocked(jobsApi.fetchJobs).mockRejectedValue(new Error("boom"));
+    await user.selectOptions(screen.getByTestId("catalog-sort"), "open_roles");
+
+    expect(await screen.findByTestId("catalog-error")).toHaveTextContent(
+      "Couldn't load the catalogue. Try again."
+    );
+    // the previous grid stays as stale context, but no count describes the
+    // query that did not run
+    expect(screen.getByTestId("catalog-grid")).toBeInTheDocument();
+    expect(screen.getByText("Software Developer")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-result-count")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    // stale total: the sheet offers the library Done, never "Show N jobs"
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Show \d+ jobs?/ })).not.toBeInTheDocument();
   });
 
   it("collapses the rail into a Filters sheet on a narrow page", async () => {

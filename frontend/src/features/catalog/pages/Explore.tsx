@@ -107,6 +107,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [sources, setSources] = useState<PostingSourceInfo[]>([]);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState("");
+  // A failed refetch keeps the last list but must not keep describing the
+  // query that never ran (facets, total and the sheet's "Show N").
+  const [listStale, setListStale] = useState(false);
   const navigate = useNavigate();
   const captureParam = searchParams.get("capture") ?? "";
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -149,6 +152,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       setError("");
       setFacetsLoading(true);
       setFacetsFailed(false);
+      setListStale(false);
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
           const merged = append
@@ -171,17 +175,21 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
             }
           );
         })
-        .catch((err) => {
-          if (request === facetsRequestRef.current) {
-            setError(String(err));
-            setFacetsFailed(true);
-          }
+        .catch(() => {
+          if (request !== facetsRequestRef.current) return;
+          // A failed refetch keeps the last list as stale context, but it may
+          // not keep describing the query that never ran: the facet lists and
+          // the total go, and the error says so in the user's language.
+          setFacets({});
+          setFacetsFailed(true);
+          setListStale(true);
+          setError(t("explore.loadFailed"));
         })
         .finally(() => {
           if (request === facetsRequestRef.current) setFacetsLoading(false);
         });
     },
-    [cursor, paramsFrom, profileEpoch]
+    [cursor, paramsFrom, profileEpoch, t]
   );
 
   useEffect(() => {
@@ -299,9 +307,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           }
         );
       })
-      .catch((err) => setError(String(err)))
+      .catch(() => setError(t("explore.loadFailed")))
       .finally(() => setLoadingMore(false));
-  }, [cursor, filters, paramsFrom, radarActive, profileEpoch]);
+  }, [cursor, filters, paramsFrom, radarActive, profileEpoch, t]);
 
   const sentinelRef = useInfiniteScroll(loadMore, !!cursor && !radarActive);
 
@@ -416,7 +424,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       setSearchParams(toSearchParams(next), { replace: true });
       setSmartApplied({ interpreted: response.interpreted, keys });
     } catch (err) {
-      setError(String(err));
+      setError(t("explore.loadFailed"));
     } finally {
       setSmartBusy(false);
     }
@@ -499,8 +507,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const chips = useMemo(() => exploreFilterChips(filters, t), [filters, t]);
   const layout = railLayout(band);
   /** The sheet footer's “Show N jobs” is only honest once a response put a
-   * real total on screen — never the initial 0, and never in the wide rail. */
-  const showResultFooter = layout === "compact" && total > 0;
+   * real total on screen — never the initial 0, never while the last load is
+   * stale, and never in the wide rail. */
+  const showResultFooter = layout === "compact" && !listStale && total > 0;
 
   return (
     <div
@@ -723,10 +732,19 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
               {facetChip(
                 "seniority",
                 t("explore.seniority"),
-                Object.entries((facets ?? {}).seniority ?? {}).map(([value, count]) => ({
+                // A selected value the payload omits stays visible (and
+                // removable) with no count — a stale or hand-edited URL value
+                // never disappears from the rail.
+                Array.from(
+                  new Set([
+                    ...Object.keys(facets?.seniority ?? {}),
+                    ...filters.seniority,
+                    ...filters.seniorityExclude,
+                  ])
+                ).map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
-                  count,
+                  count: facets?.seniority?.[value],
                 })),
                 filters.seniority,
                 filters.seniorityExclude,
@@ -749,10 +767,16 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
               {facetChip(
                 "mode",
                 t("explore.facet.workMode"),
-                Object.entries((facets ?? {}).remote_policy ?? {}).map(([value, count]) => ({
+                Array.from(
+                  new Set([
+                    ...Object.keys(facets?.remote_policy ?? {}),
+                    ...filters.remotePolicy,
+                    ...filters.remotePolicyExclude,
+                  ])
+                ).map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
-                  count,
+                  count: facets?.remote_policy?.[value],
                 })),
                 filters.remotePolicy,
                 filters.remotePolicyExclude,
@@ -1090,7 +1114,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500" data-testid="explore-result-count">
-              {total ? t("explore.matching", { count: total }) : ""}
+              {!listStale && total ? t("explore.matching", { count: total }) : ""}
             </p>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />

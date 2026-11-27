@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   useLocation,
   useNavigate,
@@ -142,10 +142,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           );
         })
         .catch(() => {
-          if (request === facetsRequestRef.current) {
-            setError(t("companies.loadError"));
-            setFacetsFailed(true);
-          }
+          if (request !== facetsRequestRef.current) return;
+          // A failed refetch keeps the last list as stale context, but it must
+          // stop describing the query that never ran: the counts are gone (and
+          // the sheet says Done, never Show N) while each section explains why.
+          setFacets(null);
+          setError(t("companies.loadError"));
+          setFacetsFailed(true);
         })
         .finally(() => {
           if (request !== facetsRequestRef.current) return;
@@ -195,47 +198,89 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   const chips = useMemo(() => companiesFilterChips(filters, t), [filters, t]);
 
   const facetValues = useCallback(
-    (facet: CompanyFacetAxis): FacetValue[] =>
-      Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
+    (facet: CompanyFacetAxis, selected: string[]): FacetValue[] => {
+      const counts = facets?.[facet] ?? {};
+      // A selected value the facet payload omits stays in the rail so it can
+      // be removed; it simply carries no count.
+      return Array.from(new Set([...Object.keys(counts), ...selected])).map((value) => ({
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
-        count,
-      })),
+        count: counts[value],
+      }));
+    },
     [facets, t]
   );
 
   const counts = countsState({ loading: facetsLoading, failed: facetsFailed });
 
+  /** Every facet section explains a missing count map — the payload carried no
+   * facets, so no number may be shown; the filters themselves still apply. */
+  const facetsUnavailable =
+    loaded && facets === null ? (
+      <p
+        className="text-xs text-[var(--as-muted-fg)]"
+        data-testid="company-facets-unavailable"
+      >
+        {t("companies.facetsUnavailable")}
+      </p>
+    ) : null;
+
+  const truncatedFacetCount = facets?.truncated
+    ? Math.max(
+        Object.keys(facets.industries ?? {}).length,
+        Object.keys(facets.locations ?? {}).length
+      )
+    : 0;
+
+  const facetsTruncated = facets?.truncated ? (
+    <p
+      className="text-xs text-[var(--as-muted-fg)]"
+      data-testid="company-facets-truncated"
+    >
+      {t("companies.facetsTruncated", { count: truncatedFacetCount })}
+    </p>
+  ) : null;
+
   const facetRow = (
     facet: CompanyFacetAxis,
     includeKey: keyof CompanyFilters,
     excludeKey: keyof CompanyFilters,
-    title: string
+    title: string,
+    notice?: ReactNode
   ) => {
     const include = filters[includeKey] as string[];
     const exclude = filters[excludeKey] as string[];
     return (
-      <FilterSection title={title} active={include.length + exclude.length > 0}>
-        <FacetChip
-          facet={{
-            id: `company-${facet}`,
-            label: title,
-            kind: "multi",
-            countsState: counts,
-            options: facetOptions(facetValues(facet), { include, exclude }),
-          }}
-          value={multiValue(include, exclude)}
-          variant="inline"
-          showActivePills={false}
-          labels={facetLabels(t)}
-          onToggleOption={(value, action) => {
-            if (value === null) return;
-            toggleAxis(includeKey, excludeKey, value, action);
-          }}
-          testId={`company-${facet}-facet`}
-          optionTestId={(value) => `company-${facet}-${value ?? "not-recorded"}`}
-        />
-      </FilterSection>
+      <div key={facet}>
+        {/* The shared `FilterSection` has no notice slot and hides its children
+            while collapsed, so the page's explanation is a SIBLING of the
+            section — it stays on screen with the section closed. */}
+        {notice}
+        <FilterSection title={title} active={include.length + exclude.length > 0}>
+          <FacetChip
+            facet={{
+              id: `company-${facet}`,
+              label: title,
+              kind: "multi",
+              countsState: counts,
+              options: facetOptions(facetValues(facet, [...include, ...exclude]), {
+                include,
+                exclude,
+              }),
+            }}
+            value={multiValue(include, exclude)}
+            variant="inline"
+            showActivePills={false}
+            labels={facetLabels(t)}
+            onToggleOption={(value, action) => {
+              if (value === null) return;
+              toggleAxis(includeKey, excludeKey, value, action);
+            }}
+            testId={`company-${facet}-facet`}
+            optionTestId={(value) => `company-${facet}-${value ?? "not-recorded"}`}
+          />
+        </FilterSection>
+      </div>
     );
   };
 
@@ -291,25 +336,29 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
             "work_mode",
             "workMode",
             "workModeExclude",
-            t("companies.facetTitle.work_mode")
+            t("companies.facetTitle.work_mode"),
+            facetsUnavailable
           )}
           {facetRow(
             "seniority",
             "seniority",
             "seniorityExclude",
-            t("companies.facetTitle.seniority")
+            t("companies.facetTitle.seniority"),
+            facetsUnavailable
           )}
           {facetRow(
             "employment",
             "employment",
             "employmentExclude",
-            t("companies.facetTitle.employment")
+            t("companies.facetTitle.employment"),
+            facetsUnavailable
           )}
           {facetRow(
             "industries",
             "industries",
             "industriesExclude",
-            t("companies.facetTitle.industries")
+            t("companies.facetTitle.industries"),
+            facetsUnavailable ?? facetsTruncated
           )}
           <div className="space-y-2 pt-1">
             <label className="block text-xs">

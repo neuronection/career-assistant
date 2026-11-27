@@ -503,6 +503,134 @@ describe("Companies browsing (plan 135)", () => {
     expect(screen.getByTestId("company-filter-new")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("company-search")).toHaveValue("acme");
   });
+
+  it("explains missing counts but keeps a selected value removable when facets are null", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    // one honest line per facet section, shown even while collapsed
+    expect(screen.getAllByTestId("company-facets-unavailable")).toHaveLength(4);
+    expect(screen.getAllByTestId("company-facets-unavailable")[0]).toHaveTextContent(
+      "Counts aren't available for this many companies. Filters still apply."
+    );
+
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveAttribute("aria-checked", "true");
+    expect(chip).not.toBeDisabled();
+    expect(chip.querySelector("bdi")).toBeNull();
+
+    // the removal lives in the shared pill row, one click, one value
+    fireEvent.click(screen.getByTestId("company-chip-work_mode-remote"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
+    );
+  });
+
+  it("keeps a selected value the facet payload omits", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: { onsite: 1 },
+        seniority: {},
+        employment: {},
+        industries: {},
+        locations: {},
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveAttribute("aria-checked", "true");
+    expect(chip).not.toBeDisabled();
+    // the omitted value carries NO number; the payload's value carries its own
+    expect(chip.querySelector("bdi")).toBeNull();
+    expect(screen.getByTestId("company-work_mode-onsite")).toHaveAccessibleName(/, 1$/);
+
+    fireEvent.click(screen.getByTestId("company-chip-work_mode-remote"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
+    );
+  });
+
+  it("says the facet list is cut when the payload is truncated", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: {},
+        seniority: {},
+        employment: {},
+        industries: { fintech: 2, health: 1 },
+        locations: {},
+        truncated: true,
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    expect(screen.getByTestId("company-facets-truncated")).toHaveTextContent(
+      "Showing the most common 2."
+    );
+  });
+
+  it("drops stale facet counts and never shows Show N after a failed refetch", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: {
+        work_mode: { remote: 3 },
+        seniority: {},
+        employment: {},
+        industries: {},
+        locations: {},
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/companies?work_mode=remote"]}>
+        <Companies band="compact" />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    fireEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Filter by active hiring" })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("company-work_mode-remote")).toHaveAccessibleName(/, 3$/);
+
+    mocked.fetchCompanies.mockRejectedValue(new Error("network down"));
+    fireEvent.change(screen.getByTestId("company-search"), {
+      target: { value: "acme" },
+    });
+
+    expect(await screen.findByText("Could not load companies.")).toBeInTheDocument();
+    // the previous list is kept as stale context
+    expect(screen.getByTestId("company-card-acme-cloud")).toBeInTheDocument();
+    expect(screen.queryByText(/Show \d+ jobs/)).not.toBeInTheDocument();
+    const chip = screen.getByTestId("company-work_mode-remote");
+    expect(chip).toHaveTextContent("remote");
+    expect(chip).not.toBeDisabled();
+    expect(chip.querySelector("bdi")).toBeNull();
+    expect(screen.getAllByTestId("company-facets-unavailable")).toHaveLength(4);
+
+    const sheet = screen.getByRole("dialog", { name: "Filter by active hiring" });
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Show \d+ jobs?/ })).not.toBeInTheDocument();
+  });
 });
 
 function LocationProbe() {
