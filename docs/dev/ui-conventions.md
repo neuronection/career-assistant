@@ -396,8 +396,8 @@ page-local form for a profile section.
   a per-card `CheckIndicator` outside the card's open-button (rendered
   only in selection mode). Card `Duplicate` re-creates from the same
   toIn/form snapshot with a "(copy)" suffix. Client-side `filters` (search
-  / status segmented / kind or level `FilterChips` from
-  `components/filters/FilterChips.tsx` `{page}-search`,
+  / status segmented / kind or level `FacetChip` (library, `variant="inline"`,
+  include-only) `{page}-search`,
   `-filter-{all|active|draft}`, `-kind-{value}`; empty state: "No entries
   match these filters.").
 - **Experience kind groups** — with no kind chip selected, the
@@ -551,32 +551,53 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
 
 ## 2i. Filter chips — one cycle, one clear
 
-Every filter chip follows the same contract (`TriStateChips` in
-`components/filters/filterBits.tsx`), on every rail (`/postings`,
-`/companies`):
+Every filter chip is the family `FacetChip` from
+`@neuronection/assistant-ui/filters` (`variant="inline"` inside a rail,
+`FilterPills` for the removable summary row), on every rail (`/postings`,
+`/companies`, `/catalog`, `/autopilot`) and in the two workspace toolbars
+(`/profile/experience`, `/profile/education`). Career renders no chip of its
+own: `lib/filterFacets.ts` only translates its URL state into the shared
+view model.
 
-- **off → include → exclude → off**: one click includes (accent), the
-  second excludes (rose, `−` prefix), the third clears. Right-click jumps
-  straight to exclude. Values are mutually exclusive across the pair of
-  lists, and every mode drops the value from the other list.
-- **A selected chip carries an ×** that clears it in one click — never
-  make a user cycle back out of a state, and never hover-reveal it. The
-  remove button's target is at least 24×24 px, or at least 24 px in one
-  dimension with 24 px of spacing around it (WCAG 2.2 AA 2.5.8, spacing
-  exception). Today it renders 24×20 (`py-1` + `h-3` icon) and the test
-  asserts only the horizontal padding: the vertical half is owed, not
-  blessed.
-- **The pill is a wrapper with two sibling buttons** (value + remove):
-  a `<button>` inside a `<button>` is invalid markup and swallows the
-  inner click. Keep the value button's `data-testid`; its accessible name
-  carries the label, the count when present, **and the include/exclude
-  state** — the `−` is visual only and `aria-pressed` is binary, so a name
-  of "label + count" alone leaves an excluded chip announced as merely
-  pressed. Give the remove button
-  `data-testid="{testId}-clear"` + `aria-label` "Remove {label}".
-- Chips that intentionally cannot be excluded (`allowExclude={false}`,
-  e.g. the posted-window selector) cycle include → clear only, and still
-  get the × — the visual contract stays identical.
+- **off → include → exclude → off**: one activation includes, the second
+  excludes, the third clears. Enter includes, Shift+Enter excludes, Delete
+  clears, and Shift+F10 (or the per-row menu button) opens the same actions
+  for touch. Values are mutually exclusive across the pair of lists, and
+  every mode drops the value from the other list.
+- **ARIA is the library's**: both applied states are `role="checkbox"` with
+  `aria-checked="true"`, the excluded row's accessible name ends
+  `"(excluded)"`, and a count rides the name (`≥N` when the bucket was
+  truncated, `0` when the facet really says zero, plus the no-matches
+  phrase — `labels.noneMatch` — a real zero carries). Never `aria-pressed`:
+  it cannot express three states, and a name of "label + count" alone leaves
+  an excluded chip announced as merely pressed.
+- **Clearing is one action**: the third activation, Delete, or the row
+  menu's clear item. A user never has to cycle back out of a state, and the
+  control is never hover-revealed. There is no separate × button on a facet
+  value — the `−`/check is visual only, the state lives in the name.
+- **Never nest a button in a button**: the chip's value control
+  (`role="checkbox"`) and its per-row menu button are siblings, and a
+  `FilterPills` pill is a single button. A nested button is invalid markup
+  and swallows the inner click — keep host-composed controls (the catalog
+  skill chip's ×) siblings too.
+- **An include-only axis** (`allowExclude={false}`: the posted and closing
+  windows, the job axis, the profile kind/level rows) hides the exclude
+  affordance and the library's plain click cycles include → clear
+  (`@neuronection/assistant-ui` 0.93.0), so such an axis can never report an
+  exclusion. Career passes the reported action straight to
+  `triStateToggle` — no local intent rewrite.
+- **A zero-count value stays focusable and selectable** — 0 is information,
+  not a reason to disable a control.
+- **A selected value missing from the option list still renders**: career
+  unions the applied `include`/`exclude` values into the options with **no
+  count** (`facetOptions`), so a stale or hand-edited URL value is visible
+  and removable instead of silently narrowing the list.
+- **44px at phone widths** is the library's inline contract
+  (`max-sm:min-h-11` on every option and menu trigger); never shrink it with
+  page-local classes. Host-rendered remove controls (the catalog skill
+  chip's ×) meet the 24×24 px target, or 24 px in one dimension with 24 px
+  of spacing around it (WCAG 2.2 AA 2.5.8, spacing exception) — that is a
+  floor, not a blessing of anything smaller.
 - Binary state toggles (saved only, hide seen, deep-extracted) are
   checkboxes, not chips: their uncheck *is* the clear.
 - **Exclude pickers are excluded chips too**: the skills /
@@ -649,49 +670,76 @@ its loaded pages and scroll height. The return contract on top of §2h:
   PUSH carrying `listReturn` restores it, REPLACE (filter patches, mount
   canonicalization) never moves it.
 
-## 2k. Filter rails — one template, one scroll owner
+## 2k. Filter rails — one shell, one scroll owner
 
-Every filter side panel renders through `components/filters/FilterRail.tsx`
-(`FilterRail` + `FilterRailSearch`) on top of the `Section`/`TriStateChips`
-bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
+Every filter side panel renders the family `FilterRail` from
+`@neuronection/assistant-ui/filters` — `/postings`, `/catalog`, `/companies`,
+`/autopilot`, `/rankings` — with a `FilterSection` per collapsible group and
+`FacetChip variant="inline"` for its values. Career keeps only
+`FilterRailSearch` (`components/filters/FilterRailSearch.tsx`), the labelled
+wrapper around the library `SearchInput`: the module owns no search field, so
+career keeps exactly one.
 
-- **One shell**: title, live active count (`filters.activeCount`), a single
-  `Clear all` action and the always-visible search field wherever the page's
-  result set has a text query (`/postings`, `/catalog`, `/companies`,
-  `/rankings`). `FilterRailSearch` composes the library `SearchInput` — one
-  search style (tokens, focus ring, clear button) across the app, never a
-  page-local input. It is never hidden inside a collapsible section, and it
-  is never duplicated above the results. Pages without a text-query contract
-  (`/autopilot`) do not get a decorative search. The shell is
-  **transparent — no border, background or padding** of its own: the bordered
-  sections are the only boxes, so the rail is not a card inside a card.
+- **Layout is explicit**: `layout={railLayout(band)}` — the `wide` page band
+  renders the vertical rail, `medium`/`compact` the toolbar + sheet. The
+  shared rail has no default layout and no dead `asideOpen` prop; career's
+  `railLayout` is the one place the band mapping lives (`lib/filterFacets.ts`).
+- **One shell**: title, live active count, a single `Clear all` action and
+  the always-visible search field wherever the page's result set has a text
+  query (`/postings`, `/catalog`, `/companies`, `/rankings`). The library
+  omits the count badge for an `undefined` count, so career passes
+  `undefined` (and no `onClear`) at zero active filters — never a `0` badge.
+  `FilterRailSearch` composes the library `SearchInput` — one search style
+  (tokens, focus ring, clear button) across the app. It is never hidden
+  inside a collapsible section, and it is never duplicated above the results.
+  Pages without a text-query contract (`/autopilot`) do not get a decorative
+  search. The shell paints no card of its own: the app adds only
+  `.ca-stats-rail` for sticky/scroll.
 - **Scroll lives in one place**: `.ca-stats-rail` (or `.ca-rail-cols` for the
   two-column Rankings page) is sticky below the app header and scrolls
   independently above 64rem of PAGE width; below that the card stacks in
   normal page flow. Pages must not add `sticky`, `top-*`, `max-h-*` or
-  `overflow-y-*` to the aside — nested scroll containers were what made
+  `overflow-y-*` to the rail — nested scroll containers were what made
   `/catalog` behave differently from `/postings` and `/companies`.
 - **Below 64rem the rail becomes a toolbar** (`/catalog`, `/postings`,
-  `/companies`, `/autopilot`; 2026-11-06). A page that measures its own width
-  band (`useContainerBand`, `hooks/`) passes `band` and the rail renders one
-  row — the search field plus a **Filters** button carrying the active-count
-  badge — while the sections move into the library `PanelModal` sheet, whose
-  footer carries `Clear all` and, only where the page's payload has a total,
-  `Show N jobs` (otherwise `Done`: the footer never presents a page size as
-  a total). Only the **active** chips stay
-  on the page (`ActiveFilterChips`; the row renders nothing while the list is
-  unfiltered), and each chip removes exactly the value it names. `/catalog`
-  still renders its active chips by hand (`CatalogTree.tsx`) without a
-  `Remove {label}` name: that is a gap against this rule, not an exemption. Toggles keep
-  writing the URL immediately, so a link stays shareable with the sheet open.
-  The band is the page's own width (container), never `lg:`; jsdom never fires
-  `ResizeObserver`, so the page exposes a `band` override for tests and the
-  sheet must scroll in its own body (`bodyClassName`) or the last sections
-  paint over the footer. Rankings stays inline on purpose: its rail carries the
+  `/companies`, `/autopilot`). A page that measures its own width band
+  (`useContainerBand`, `hooks/`) passes `band` and the shared rail renders one
+  row — the search field plus a **Filters (n)** button with
+  `aria-haspopup="dialog"` — while the sections move into assistant-ui's
+  `PanelModal` sheet (Escape closes it and returns focus to the trigger; the
+  sheet body owns its scroll, so pages never nest another scroll container).
+  The sheet's primary footer action closes it: `Show N jobs` where the page
+  holds a real result total (`/postings`, `/catalog`), the library `Done`
+  everywhere else (`/companies`, `/autopilot`). Career renders the former
+  through `FilterSheetFooter` and the library's function `footer`, which
+  hands over the sheet's own `close` — so focus returns to the trigger
+  exactly like `Done`. A host footer replaces the library default whole, so
+  it re-renders `Clear all`; a page size is never presented as a total, and a
+  **stale** total (the last refetch failed) is no total: the page omits the
+  footer and falls back to `Done` rather than describing a query that never
+  ran. Only the **active** chips stay on the page (`FilterPills`; the row
+  renders nothing while the list is unfiltered), and each chip removes
+  exactly the value it names. `/catalog` still renders its active chips by
+  hand (`CatalogTree.tsx`) without a `Remove {label}` name: that is a gap
+  against this rule, not an exemption.
+  Toggles keep writing the URL immediately, so a link stays shareable with
+  the sheet open. The band is the page's own width (container), never `lg:`;
+  jsdom never fires `ResizeObserver`, so the page exposes a `band` override
+  for tests. Rankings stays inline on purpose: its rail carries the
   score-distribution chart and recent searches, which do not belong in a
   filter sheet.
-- **Tokens only**: the shell, `Section`, `TriStateChips` and all controls use
-  `--as-*` tokens; hard-coded `slate`/`primary` scales are drift.
+- **Sections never force open**: an active section may stay collapsed
+  (`aria-expanded` follows the actual state) — the dot and the rail count
+  carry the state. `FilterSection.count` is a *facet* count (`0` renders,
+  `≥N` when truncated) and it applies to every layout; career passes none
+  until a facet total exists. The old local `Section.count` (active values)
+  is gone: the rail header already counts them. The shared section has no
+  `notice` slot and hides its children while collapsed, so a page-specific
+  explanation that must survive collapsing (the companies rail's
+  "counts aren't available") is rendered as a **sibling above** the section
+  inside the rail — never as a section child, never dropped.
+- **Tokens only**: the shell, sections and chips use `--as-*` tokens
+  (the library's own); hard-coded `slate`/`primary` scales are drift.
 - **A facet count counts what its page counts.** The unit is per page and
   must be stated where two pages differ: on `/catalog` a count is matching
   jobs, on `/companies` it is companies hiring, not open postings. A chip's
@@ -699,16 +747,13 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
   parent family, whose count covers its subtree because its filter does.
 - **Counts are payload-only**: a chip's count comes from the response's facet
   map; a missing count renders no number — never `0`, never a fallback to an
-  unfiltered or page-scoped total. A `Section`'s `count` is the number of
-  active values (one per selected value/bound), not a facet count; `0`
-  renders nothing because the active dot already carries the state.
-- **Testids are contracts**: the aside carries the page's existing testid
-  (`explore-filters`, `company-filters`, `catalog-filter-aside`,
-  `autopilot-filters`, `filter-bar`); the card carries the rail testid
-  (`explore-filter-rail`, `company-filter-rail`, `catalog-filter-rail`,
-  `findings-rail`, `rankings-filter-rail`). Count/clear testids stay per page.
-- A rail that can collapse below the breakpoint (`/autopilot`) passes
-  `asideClassName` + `asideOpen` — the CSS still owns the show/hide rule.
+  unfiltered or page-scoped total. A facet's real `0` renders `0`. The chip
+  only renders numbers while they are trustworthy: career passes
+  `countsState: 'loading'` while a (re)fetch is in flight (the chip withholds
+  every number and sets `aria-busy`) and `'error'` when the last request
+  failed (no numbers, no busy), `'ready'` otherwise —
+  `lib/filterFacets.ts#countsState` is the one mapping from a request state
+  to that union.
 
 ## 2l. Bulk-selection mode — one contract
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   useLocation,
   useNavigate,
@@ -7,6 +7,12 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowUpDown, Building2, Globe, MapPin } from "lucide-react";
+import {
+  FacetChip,
+  FilterPills,
+  FilterRail,
+  FilterSection,
+} from "@neuronection/assistant-ui/filters";
 import { fetchCompanies } from "@/api/companies";
 import { rememberListSearch, isListReturn } from "@/lib/listReturn";
 import {
@@ -20,14 +26,7 @@ import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
 import { ItemCardShell } from "@/components/cards/ItemCardShell";
-import {
-  Section,
-  TriStateChips,
-  triStateToggle,
-  type FacetChip,
-} from "@/components/filters/filterBits";
-import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
+import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
@@ -43,7 +42,16 @@ import {
   toSearchParams,
   type CompanyFilters,
 } from "@/features/companies/companiesParams";
-import type { TriStateMode } from "@/components/filters/filterBits";
+import type { FacetValue, TriStateMode } from "@/lib/filterFacets";
+import {
+  countsState,
+  facetLabels,
+  facetOptions,
+  multiValue,
+  railLabels,
+  railLayout,
+  triStateToggle,
+} from "@/lib/filterFacets";
 
 const STATUS_FILTERS: CompanyFilters["status"][] = ["all", "new"];
 
@@ -87,6 +95,10 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   );
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(() => restored !== null);
+  const [facetsLoading, setFacetsLoading] = useState(false);
+  const [facetsFailed, setFacetsFailed] = useState(false);
+  /** Sequence the facet trust state: only the newest request may settle it. */
+  const facetsRequestRef = useRef(0);
 
   const patch = useCallback(
     (update: Partial<CompanyFilters>) => {
@@ -115,6 +127,9 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
 
   const fetchWith = useCallback(
     (current: CompanyFilters) => {
+      const request = ++facetsRequestRef.current;
+      setFacetsLoading(true);
+      setFacetsFailed(false);
       void fetchCompanies({ ...toParams(current), facets: true })
         .then((result) => {
           const items = result.items ?? [];
@@ -127,12 +142,19 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           );
         })
         .catch(() => {
-          // A failed refetch keeps the last list but must stop describing the
-          // query that never ran: counts are gone and the sheet says Done.
+          if (request !== facetsRequestRef.current) return;
+          // A failed refetch keeps the last list as stale context, but it must
+          // stop describing the query that never ran: the counts are gone (and
+          // the sheet says Done, never Show N) while each section explains why.
           setFacets(null);
           setError(t("companies.loadError"));
+          setFacetsFailed(true);
         })
-        .finally(() => setLoaded(true));
+        .finally(() => {
+          if (request !== facetsRequestRef.current) return;
+          setFacetsLoading(false);
+          setLoaded(true);
+        });
     },
     [t, profileEpoch]
   );
@@ -144,6 +166,11 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
       return;
     }
     if (restoredForRef.current === filters) return;
+    // The counts on screen predate this filter set: withhold them until the
+    // debounced request lands, rather than showing a stale number meanwhile.
+    facetsRequestRef.current += 1;
+    setFacetsLoading(true);
+    setFacetsFailed(false);
     const handle = setTimeout(() => {
       fetchWith(filters);
     }, 250);
@@ -170,32 +197,33 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   const filtersActive = countActive(filters);
   const chips = useMemo(() => companiesFilterChips(filters, t), [filters, t]);
 
-  const facetChips = useCallback(
-    (facet: CompanyFacetAxis, selected: string[]): FacetChip[] => {
+  const facetValues = useCallback(
+    (facet: CompanyFacetAxis, selected: string[]): FacetValue[] => {
       const counts = facets?.[facet] ?? {};
-      // A selected value missing from the payload stays in the rail so it can
+      // A selected value the facet payload omits stays in the rail so it can
       // be removed; it simply carries no count.
-      const values = Array.from(
-        new Set([...Object.keys(counts), ...selected])
-      );
-      return values.map((value) => ({
+      return Array.from(new Set([...Object.keys(counts), ...selected])).map((value) => ({
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
         count: counts[value],
-        testId: `company-${facet}-${value}`,
       }));
     },
     [facets, t]
   );
 
-  const facetsUnavailable = loaded && facets === null ? (
-    <p
-      className="text-xs text-[var(--as-muted-fg)]"
-      data-testid="company-facets-unavailable"
-    >
-      {t("companies.facetsUnavailable")}
-    </p>
-  ) : null;
+  const counts = countsState({ loading: facetsLoading, failed: facetsFailed });
+
+  /** Every facet section explains a missing count map — the payload carried no
+   * facets, so no number may be shown; the filters themselves still apply. */
+  const facetsUnavailable =
+    loaded && facets === null ? (
+      <p
+        className="text-xs text-[var(--as-muted-fg)]"
+        data-testid="company-facets-unavailable"
+      >
+        {t("companies.facetsUnavailable")}
+      </p>
+    ) : null;
 
   const truncatedFacetCount = facets?.truncated
     ? Math.max(
@@ -213,6 +241,49 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
     </p>
   ) : null;
 
+  const facetRow = (
+    facet: CompanyFacetAxis,
+    includeKey: keyof CompanyFilters,
+    excludeKey: keyof CompanyFilters,
+    title: string,
+    notice?: ReactNode
+  ) => {
+    const include = filters[includeKey] as string[];
+    const exclude = filters[excludeKey] as string[];
+    return (
+      <div key={facet}>
+        {/* The shared `FilterSection` has no notice slot and hides its children
+            while collapsed, so the page's explanation is a SIBLING of the
+            section — it stays on screen with the section closed. */}
+        {notice}
+        <FilterSection title={title} active={include.length + exclude.length > 0}>
+          <FacetChip
+            facet={{
+              id: `company-${facet}`,
+              label: title,
+              kind: "multi",
+              countsState: counts,
+              options: facetOptions(facetValues(facet, [...include, ...exclude]), {
+                include,
+                exclude,
+              }),
+            }}
+            value={multiValue(include, exclude)}
+            variant="inline"
+            showActivePills={false}
+            labels={facetLabels(t)}
+            onToggleOption={(value, action) => {
+              if (value === null) return;
+              toggleAxis(includeKey, excludeKey, value, action);
+            }}
+            testId={`company-${facet}-facet`}
+            optionTestId={(value) => `company-${facet}-${value ?? "not-recorded"}`}
+          />
+        </FilterSection>
+      </div>
+    );
+  };
+
   const clearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
 
   return (
@@ -221,17 +292,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
 
       <div className="ca-stats-cols">
         <FilterRail
+          layout={railLayout(band)}
           title={t("companies.railTitle")}
-          activeCount={filtersActive}
-          onClear={clearAll}
-          countTestId="company-filter-count"
-          clearTestId="company-filters-clear"
-          asideTestId="company-filters"
-          testId="company-filter-rail"
-          band={band}
-          triggerLabel={t("filters.title")}
-          triggerTestId="company-filters-open"
-          sheetTestId="company-filters-sheet"
+          labels={railLabels(t)}
+          activeCount={filtersActive === 0 ? undefined : filtersActive}
+          onClear={filtersActive === 0 ? undefined : clearAll}
+          className="ca-stats-rail"
+          data-testid="company-filters"
           search={
             <FilterRailSearch
               value={filters.q}
@@ -265,72 +332,34 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
                 ))}
               </div>
             </div>
-          <Section
-            title={t("companies.facetTitle.work_mode")}
-            active={filters.workMode.length + filters.workModeExclude.length > 0}
-            notice={facetsUnavailable}
-          >
-            <TriStateChips
-              values={facetChips("work_mode", [
-                ...filters.workMode,
-                ...filters.workModeExclude,
-              ])}
-              include={filters.workMode}
-              exclude={filters.workModeExclude}
-              onToggle={(value, mode) => toggleAxis("workMode", "workModeExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.seniority")}
-            active={filters.seniority.length + filters.seniorityExclude.length > 0}
-            notice={facetsUnavailable}
-          >
-            <TriStateChips
-              values={facetChips("seniority", [
-                ...filters.seniority,
-                ...filters.seniorityExclude,
-              ])}
-              include={filters.seniority}
-              exclude={filters.seniorityExclude}
-              onToggle={(value, mode) => toggleAxis("seniority", "seniorityExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.employment")}
-            active={filters.employment.length + filters.employmentExclude.length > 0}
-            notice={facetsUnavailable}
-          >
-            <TriStateChips
-              values={facetChips("employment", [
-                ...filters.employment,
-                ...filters.employmentExclude,
-              ])}
-              include={filters.employment}
-              exclude={filters.employmentExclude}
-              onToggle={(value, mode) => toggleAxis("employment", "employmentExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.industries")}
-            active={filters.industries.length + filters.industriesExclude.length > 0}
-            notice={facetsUnavailable ?? facetsTruncated}
-          >
-            <TriStateChips
-              values={facetChips("industries", [
-                ...filters.industries,
-                ...filters.industriesExclude,
-              ])}
-              include={filters.industries}
-              exclude={filters.industriesExclude}
-              onToggle={(value, mode) =>
-                toggleAxis("industries", "industriesExclude", value, mode)
-              }
-              showCounts
-            />
-          </Section>
+          {facetRow(
+            "work_mode",
+            "workMode",
+            "workModeExclude",
+            t("companies.facetTitle.work_mode"),
+            facetsUnavailable
+          )}
+          {facetRow(
+            "seniority",
+            "seniority",
+            "seniorityExclude",
+            t("companies.facetTitle.seniority"),
+            facetsUnavailable
+          )}
+          {facetRow(
+            "employment",
+            "employment",
+            "employmentExclude",
+            t("companies.facetTitle.employment"),
+            facetsUnavailable
+          )}
+          {facetRow(
+            "industries",
+            "industries",
+            "industriesExclude",
+            t("companies.facetTitle.industries"),
+            facetsUnavailable ?? facetsTruncated
+          )}
           <div className="space-y-2 pt-1">
             <label className="block text-xs">
               <span className="mb-1 block font-medium text-[var(--as-muted-fg)]">
@@ -389,14 +418,14 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           </div>
         </div>
       </div>
-      <ActiveFilterChips
-        chips={chips}
+      <FilterPills
+        items={chips}
         onRemove={(key) => {
           const chip = chips.find((entry) => entry.key === key);
           if (chip) patch(chip.patch);
         }}
         testId="company-active-chips"
-        chipTestId={(key) => `company-chip-${key}`}
+        itemTestId={(key) => `company-chip-${key}`}
       />
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 

@@ -1,16 +1,21 @@
 /**
- * The findings filter rail (plan 175 S2): the shared filterBits
- * primitives with the findings vocabulary — state + dedupe/applied
- * toggles, score/coverage bounds, org text, source/seniority facet
- * chips with self-excluding counts, remote and posted-within. Own small
- * filter set; the /postings engine's axes don't apply here.
+ * The findings filter rail (plan 175 S2, C1.1): the shared filter module
+ * (`FilterRail` + `FilterSection` + `FacetChip`) with the findings
+ * vocabulary — state + dedupe/applied toggles, score/coverage bounds, org
+ * text, source/seniority facet chips with self-excluding counts, remote and
+ * posted-within. Own small filter set; the /postings engine's axes don't
+ * apply here. Sections carry no count: a facet count is never put in the
+ * section's active slot, and the active dot already marks the state.
  */
 
 import { useTranslation } from "react-i18next";
+import {
+  FacetChip,
+  FilterRail,
+  FilterSection,
+} from "@neuronection/assistant-ui/filters";
 
 import type { FindingFeedFacets } from "@/api/autopilot";
-import { Section, TriStateChips } from "@/components/filters/filterBits";
-import { FilterRail } from "@/components/filters/FilterRail";
 import type { ContainerBand } from "@/hooks/useContainerBand";
 import {
   FINDINGS_POSTED_WINDOWS,
@@ -18,6 +23,14 @@ import {
   countActiveFindingsFilters,
   type FindingsFilters,
 } from "@/features/growth/findingsFilterState";
+import type { CountsState, FacetValue } from "@/lib/filterFacets";
+import {
+  facetLabels,
+  facetOptions,
+  railLabels,
+  railLayout,
+  singleValue,
+} from "@/lib/filterFacets";
 
 interface FindingsRailProps {
   filters: FindingsFilters;
@@ -26,6 +39,49 @@ interface FindingsRailProps {
   onChange: (next: FindingsFilters) => void;
   onClear: () => void;
   band?: ContainerBand;
+  /** Whether `facets` is still the last successful feed response. */
+  counts?: CountsState;
+}
+
+/** One single-valued findings axis: one option set, one value or none. */
+function SingleFacet({
+  id,
+  label,
+  values,
+  value,
+  counts,
+  onChange,
+  labels,
+}: {
+  id: string;
+  label: string;
+  values: FacetValue[];
+  value: string | null;
+  counts: CountsState;
+  onChange: (value: string | null) => void;
+  labels: ReturnType<typeof facetLabels>;
+}) {
+  return (
+    <FacetChip
+      facet={{
+        id,
+        label,
+        kind: "single",
+        countsState: counts,
+        options: facetOptions(values, { include: value ? [value] : [] }),
+      }}
+      value={singleValue(value)}
+      variant="inline"
+      showActivePills={false}
+      labels={labels}
+      onToggleOption={(option, action) => {
+        if (option === null) return;
+        onChange(action === "clear" ? null : option);
+      }}
+      testId={`${id}-facet`}
+      optionTestId={(option) => `${id}-${option ?? "not-recorded"}`}
+    />
+  );
 }
 
 export function FindingsRail({
@@ -35,36 +91,43 @@ export function FindingsRail({
   onChange,
   onClear,
   band,
+  counts = "ready",
 }: FindingsRailProps) {
   const { t } = useTranslation();
   const active = countActiveFindingsFilters(filters);
+  const labels = facetLabels(t);
 
   return (
     <FilterRail
+      layout={railLayout(band)}
       title={t("autopilot.workspace.filtersTitle")}
-      activeCount={active}
-      onClear={onClear}
-      countTestId="findings-filter-count"
-      clearTestId="findings-filter-clear"
-      asideTestId="autopilot-filters"
-      testId="findings-rail"
-      band={band}
-      triggerTestId="findings-filters-open"
-      sheetTestId="findings-filters-sheet"
+      labels={railLabels(t)}
+      activeCount={active === 0 ? undefined : active}
+      onClear={active === 0 ? undefined : onClear}
+      className="ca-stats-rail"
+      data-testid="autopilot-filters"
     >
-      <Section title={t("autopilot.workspace.stateSection")} active={filters.state !== "open" || !filters.latest || filters.hideApplied}>
-        <TriStateChips
+      <FilterSection
+        title={t("autopilot.workspace.stateSection")}
+        active={filters.state !== "open" || !filters.latest || filters.hideApplied}
+      >
+        <SingleFacet
+          id="state"
+          label={t("autopilot.workspace.stateSection")}
           values={[
             { value: "open", label: t("autopilot.workspace.stateOpen") },
             { value: "dismissed", label: t("autopilot.workspace.stateDismissed") },
             { value: "all", label: t("autopilot.workspace.stateAll") },
           ]}
-          include={[filters.state]}
-          exclude={[]}
-          allowExclude={false}
-          onToggle={(value) =>
-            onChange({ ...filters, state: value as FindingsFilters["state"] })
+          value={filters.state}
+          onChange={(value) =>
+            onChange({
+              ...filters,
+              state: (value ?? "open") as FindingsFilters["state"],
+            })
           }
+          counts={counts}
+          labels={labels}
         />
         <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
           {t("autopilot.workspace.latestOnly")}
@@ -84,9 +147,9 @@ export function FindingsRail({
             data-testid="findings-hide-applied-toggle"
           />
         </label>
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("autopilot.workspace.scoreSection")}
         active={filters.minScore !== null || filters.coverageMin !== null}
       >
@@ -131,9 +194,9 @@ export function FindingsRail({
             data-testid="findings-coverage-min"
           />
         </div>
-      </Section>
+      </FilterSection>
 
-      <Section title={t("autopilot.workspace.orgSection")} active={!!filters.org.trim()}>
+      <FilterSection title={t("autopilot.workspace.orgSection")} active={!!filters.org.trim()}>
         <input
           className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm text-[var(--as-fg)]"
           placeholder={t("autopilot.workspace.orgPlaceholder")}
@@ -141,54 +204,50 @@ export function FindingsRail({
           onChange={(e) => onChange({ ...filters, org: e.target.value })}
           data-testid="findings-org-input"
         />
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("autopilot.workspace.sourceSection")}
         active={!!filters.source}
       >
-        <TriStateChips
+        <SingleFacet
+          id="source"
+          label={t("autopilot.workspace.sourceSection")}
           values={sources.map((source) => ({
             value: source.key,
             label: source.label,
             count: facets?.source?.[source.key],
-            testId: `source-${source.key}`,
           }))}
-          include={filters.source ? [filters.source] : []}
-          exclude={[]}
-          allowExclude={false}
-          showCounts
-          onToggle={(value) =>
-            onChange({ ...filters, source: filters.source === value ? null : value })
-          }
+          value={filters.source}
+          onChange={(value) => onChange({ ...filters, source: value })}
+          counts={counts}
+          labels={labels}
         />
         {sources.length === 0 ? (
           <p className="text-xs text-[var(--as-muted-fg)]">{t("autopilot.workspace.noSources")}</p>
         ) : null}
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("autopilot.workspace.senioritySection")}
         active={!!filters.seniority}
       >
-        <TriStateChips
+        <SingleFacet
+          id="seniority"
+          label={t("autopilot.workspace.senioritySection")}
           values={FINDINGS_SENIORITIES.map((value) => ({
             value,
             label: t(`autopilot.seniority.${value}`, { defaultValue: value }),
             count: facets?.seniority?.[value],
-            testId: `seniority-${value}`,
           }))}
-          include={filters.seniority ? [filters.seniority] : []}
-          exclude={[]}
-          allowExclude={false}
-          showCounts
-          onToggle={(value) =>
-            onChange({ ...filters, seniority: filters.seniority === value ? null : value })
-          }
+          value={filters.seniority}
+          onChange={(value) => onChange({ ...filters, seniority: value })}
+          counts={counts}
+          labels={labels}
         />
-      </Section>
+      </FilterSection>
 
-      <Section title={t("autopilot.workspace.remoteSection")} active={filters.remote}>
+      <FilterSection title={t("autopilot.workspace.remoteSection")} active={filters.remote}>
         <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
           {t("autopilot.workspace.remoteOnly")}
           <input
@@ -198,32 +257,22 @@ export function FindingsRail({
             data-testid="findings-remote-toggle"
           />
         </label>
-      </Section>
+      </FilterSection>
 
-      <Section title={t("autopilot.workspace.postedSection")} active={!!filters.postedWithin}>
-        <div className="flex flex-wrap gap-1.5">
-          {FINDINGS_POSTED_WINDOWS.map((window) => (
-            <button
-              key={window}
-              type="button"
-              aria-pressed={filters.postedWithin === window}
-              className={`text-xs px-2.5 py-1 rounded-full border ${
-                filters.postedWithin === window
-                  ? "border-[var(--as-accent)] bg-[var(--as-muted)] font-medium text-[var(--as-accent)]"
-                  : "border-[var(--as-border)] text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
-              }`}
-              onClick={() =>
-                onChange({
-                  ...filters,
-                  postedWithin: filters.postedWithin === window ? "" : window,
-                })
-              }
-            >
-              {window}
-            </button>
-          ))}
-        </div>
-      </Section>
+      <FilterSection title={t("autopilot.workspace.postedSection")} active={!!filters.postedWithin}>
+        <SingleFacet
+          id="posted"
+          label={t("autopilot.workspace.postedSection")}
+          values={FINDINGS_POSTED_WINDOWS.map((window) => ({
+            value: window,
+            label: window,
+          }))}
+          value={filters.postedWithin || null}
+          onChange={(value) => onChange({ ...filters, postedWithin: value ?? "" })}
+          counts={counts}
+          labels={labels}
+        />
+      </FilterSection>
     </FilterRail>
   );
 }

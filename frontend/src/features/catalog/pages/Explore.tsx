@@ -28,11 +28,27 @@ import { SkillPicker } from "@/features/postings/components/postings/SkillPicker
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
-import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
-import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
+import {
+  FacetChip,
+  FilterPills,
+  FilterRail,
+  FilterSection,
+} from "@neuronection/assistant-ui/filters";
+import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
+import { FilterSheetFooter } from "@/components/filters/FilterSheetFooter";
 import { exploreFilterChips } from "@/features/postings/components/postings/presetSummary";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
+import type { CountsState, FacetValue, TriStateMode } from "@/lib/filterFacets";
+import {
+  countsState,
+  facetLabels,
+  facetOptions,
+  multiValue,
+  railLabels,
+  railLayout,
+  singleValue,
+  triStateToggle,
+} from "@/lib/filterFacets";
 import {
   applyCardFilter,
   filterStateOf,
@@ -80,6 +96,8 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [facets, setFacets] = useState<ExploreFacets>(
     () => restored?.facets ?? EMPTY_FACETS
   );
+  const [facetsLoading, setFacetsLoading] = useState(restored === null);
+  const [facetsFailed, setFacetsFailed] = useState(false);
   const [jobTitles, setJobTitles] = useState<Record<string, string>>(
     () => restored?.jobTitles ?? {}
   );
@@ -116,6 +134,8 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
   const itemsRef = useRef<PostingOut[]>(items);
+  /** Sequence the facet trust state: only the newest request may settle it. */
+  const facetsRequestRef = useRef(0);
 
   const paramsFrom = useCallback(
     (current: Filters, nextCursor?: string | null): ExploreParams => {
@@ -128,7 +148,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
 
   const load = useCallback(
     (current: Filters, append: boolean) => {
+      const request = ++facetsRequestRef.current;
       setError("");
+      setFacetsLoading(true);
+      setFacetsFailed(false);
       setListStale(false);
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
@@ -153,9 +176,17 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           );
         })
         .catch(() => {
+          if (request !== facetsRequestRef.current) return;
+          // A failed refetch keeps the last list as stale context, but it may
+          // not keep describing the query that never ran: the facet lists and
+          // the total go, and the error says so in the user's language.
           setFacets({});
+          setFacetsFailed(true);
           setListStale(true);
           setError(t("explore.loadFailed"));
+        })
+        .finally(() => {
+          if (request === facetsRequestRef.current) setFacetsLoading(false);
         });
     },
     [cursor, paramsFrom, profileEpoch, t]
@@ -262,6 +293,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
         itemsRef.current = merged;
         setTotal(response.total);
         setFacets(response.facets ?? {});
+        setFacetsFailed(false);
         setJobTitles(response.job_titles ?? {});
         setCursor(response.next_cursor ?? null);
         rememberExploreList(
@@ -287,7 +319,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   };
 
   const applyRadar = async () => {
+    const request = ++facetsRequestRef.current;
     setError("");
+    setFacetsLoading(true);
+    setFacetsFailed(false);
     try {
       const radar = await fetchRadar();
       const configured =
@@ -319,7 +354,12 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
       setCursor(null);
       setRadarActive(true);
     } catch (err) {
-      setError(apiDetail(err));
+      if (request === facetsRequestRef.current) {
+        setError(apiDetail(err));
+        setFacetsFailed(true);
+      }
+    } finally {
+      if (request === facetsRequestRef.current) setFacetsLoading(false);
     }
   };
 
@@ -415,6 +455,44 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const facetCount = (group: string, key: string): number | undefined =>
     (facets ?? {})[group]?.[key];
 
+  const labels = facetLabels(t);
+  const counts: CountsState = countsState({ loading: facetsLoading, failed: facetsFailed });
+  /** One inline facet row: career's include/exclude pair on the shared chip.
+   * `id` doubles as the option test-id prefix (`seniority-mid`, `job-…`). */
+  const facetChip = (
+    id: string,
+    label: string,
+    values: FacetValue[],
+    include: string[],
+    exclude: string[],
+    onToggleValue: (value: string, mode: TriStateMode) => void,
+    { allowExclude = true, single = false }: { allowExclude?: boolean; single?: boolean } = {}
+  ) => {
+    const allow = allowExclude && !single;
+    return (
+      <FacetChip
+        facet={{
+          id,
+          label,
+          kind: single ? "single" : "multi",
+          allowExclude: allow,
+          countsState: counts,
+          options: facetOptions(values, { include, exclude }),
+        }}
+        value={single ? singleValue(include[0] ?? null) : multiValue(include, exclude)}
+        variant="inline"
+        showActivePills={false}
+        labels={labels}
+        onToggleOption={(value, action) => {
+          if (value === null) return;
+          onToggleValue(value, action);
+        }}
+        testId={`${id}-facet`}
+        optionTestId={(value) => `${id}-${value ?? "not-recorded"}`}
+      />
+    );
+  };
+
   const sortOptions = SORT_OPTIONS.filter(
     (option) => option.value !== "relevance" || filters.q.trim().length > 0
   ).map((option) => ({ value: option.value, label: t(option.labelKey) }));
@@ -425,9 +503,13 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
     label: jobTitles[code] ?? code,
     hint: jobTitles[code] ? code : undefined,
     count: facets?.job?.[code],
-    testId: `job-${code}`,
   }));
   const chips = useMemo(() => exploreFilterChips(filters, t), [filters, t]);
+  const layout = railLayout(band);
+  /** The sheet footer's “Show N jobs” is only honest once a response put a
+   * real total on screen — never the initial 0, never while the last load is
+   * stale, and never in the wide rail. */
+  const showResultFooter = layout === "compact" && !listStale && total > 0;
 
   return (
     <div
@@ -488,17 +570,26 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
 
       <div className="ca-stats-cols">
         <FilterRail
+          layout={layout}
           title={t("filters.title")}
-          activeCount={activeCount}
-          onClear={resetFilters}
-          countTestId="explore-filter-count"
-          clearTestId="clear-filters"
-          asideTestId="explore-filters"
-          testId="explore-filter-rail"
-          band={band}
-          resultCount={listStale ? undefined : total}
-          triggerTestId="explore-filters-open"
-          sheetTestId="explore-filters-sheet"
+          labels={railLabels(t)}
+          activeCount={activeCount === 0 ? undefined : activeCount}
+          onClear={activeCount === 0 ? undefined : resetFilters}
+          className="ca-stats-rail"
+          data-testid="explore-filters"
+          footer={
+            showResultFooter
+              ? (close) => (
+                  <FilterSheetFooter
+                    onClose={close}
+                    onClear={activeCount === 0 ? undefined : resetFilters}
+                    clearLabel={t("filters.clearAll")}
+                    doneLabel={t("filters.showResults", { count: total })}
+                    testId="explore-filters-done"
+                  />
+                )
+              : undefined
+          }
           search={
             <FilterRailSearch
               value={filters.q}
@@ -514,10 +605,9 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
           }
         >
 
-            <Section
+            <FilterSection
               title={t("explore.facet.skills")}
               active={filters.skills.length > 0 || filters.skillsExclude.length > 0}
-              count={filters.skills.length + filters.skillsExclude.length}
               defaultOpen
             >
               <SkillPicker
@@ -607,27 +697,25 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     ))}
                 </div>
               )}
-            </Section>
+            </FilterSection>
 
-            <Section title={t("explore.facet.posted")} active={!!filters.postedWithin}>
-              <TriStateChips
-                showCounts
-                allowExclude={false}
-                values={POSTED_WINDOWS.map((w) => ({
+            <FilterSection title={t("explore.facet.posted")} active={!!filters.postedWithin}>
+              {facetChip(
+                "posted",
+                t("explore.facet.posted"),
+                POSTED_WINDOWS.map((w) => ({
                   value: w.value,
                   label: t(w.labelKey),
                   count: (facets ?? {}).posted?.[w.value],
-                  testId: `posted-${w.value}`,
-                }))}
-                include={filters.postedWithin ? [filters.postedWithin] : []}
-                exclude={[]}
-                onToggle={(value, mode) =>
-                  patch({ postedWithin: mode === "clear" ? "" : value })
-                }
-              />
-            </Section>
+                })),
+                filters.postedWithin ? [filters.postedWithin] : [],
+                [],
+                (value, mode) => patch({ postedWithin: mode === "clear" ? "" : value }),
+                { single: true }
+              )}
+            </FilterSection>
 
-            <Section title={t("explore.salaryFrom")} active={!!filters.salaryMin}>
+            <FilterSection title={t("explore.salaryFrom")} active={!!filters.salaryMin}>
               <input
                 value={filters.salaryMin}
                 onChange={(e) => patch({ salaryMin: e.target.value.replace(/[^0-9]/g, "") })}
@@ -635,16 +723,19 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                 className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm text-[var(--as-fg)]"
                 data-testid="salary-min"
               />
-            </Section>
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.seniority")}
               active={filters.seniority.length + filters.seniorityExclude.length > 0}
-              count={filters.seniority.length + filters.seniorityExclude.length}
             >
-              <TriStateChips
-                showCounts
-                values={Array.from(
+              {facetChip(
+                "seniority",
+                t("explore.seniority"),
+                // A selected value the payload omits stays visible (and
+                // removable) with no count — a stale or hand-edited URL value
+                // never disappears from the rail.
+                Array.from(
                   new Set([
                     ...Object.keys(facets?.seniority ?? {}),
                     ...filters.seniority,
@@ -654,11 +745,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
                   count: facets?.seniority?.[value],
-                  testId: `seniority-${value}`,
-                }))}
-                include={filters.seniority}
-                exclude={filters.seniorityExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.seniority,
+                filters.seniorityExclude,
+                (value, mode) => {
                   const next = triStateToggle(
                     filters.seniority,
                     filters.seniorityExclude,
@@ -666,18 +756,18 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     mode
                   );
                   patch({ seniority: next.include, seniorityExclude: next.exclude });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.workMode")}
               active={filters.remotePolicy.length + filters.remotePolicyExclude.length > 0}
-              count={filters.remotePolicy.length + filters.remotePolicyExclude.length}
             >
-              <TriStateChips
-                showCounts
-                values={Array.from(
+              {facetChip(
+                "mode",
+                t("explore.facet.workMode"),
+                Array.from(
                   new Set([
                     ...Object.keys(facets?.remote_policy ?? {}),
                     ...filters.remotePolicy,
@@ -687,11 +777,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
                   count: facets?.remote_policy?.[value],
-                  testId: `mode-${value}`,
-                }))}
-                include={filters.remotePolicy}
-                exclude={filters.remotePolicyExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.remotePolicy,
+                filters.remotePolicyExclude,
+                (value, mode) => {
                   const next = triStateToggle(
                     filters.remotePolicy,
                     filters.remotePolicyExclude,
@@ -699,30 +788,29 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     mode
                   );
                   patch({ remotePolicy: next.include, remotePolicyExclude: next.exclude });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.opportunityType")}
               active={
                 filters.opportunityType.length + filters.opportunityTypeExclude.length > 0
               }
-              count={filters.opportunityType.length + filters.opportunityTypeExclude.length}
             >
-              <TriStateChips
-                showCounts
-                values={OPPORTUNITY_VALUES.map((value) => ({
+              {facetChip(
+                "opportunity",
+                t("explore.facet.opportunityType"),
+                OPPORTUNITY_VALUES.map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, {
                     defaultValue: value.replace(/_/g, " "),
                   }),
                   count: (facets ?? {}).opportunity_type?.[value],
-                  testId: `opportunity-${value}`,
-                }))}
-                include={filters.opportunityType}
-                exclude={filters.opportunityTypeExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.opportunityType,
+                filters.opportunityTypeExclude,
+                (value, mode) => {
                   const next = triStateToggle(
                     filters.opportunityType,
                     filters.opportunityTypeExclude,
@@ -733,20 +821,20 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     opportunityType: next.include,
                     opportunityTypeExclude: next.exclude,
                   });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.workAuthorization")}
               active={
                 filters.workAuthorization.length + filters.workAuthorizationExclude.length > 0
               }
-              count={filters.workAuthorization.length + filters.workAuthorizationExclude.length}
             >
-              <TriStateChips
-                showCounts
-                values={WORK_AUTH_VALUES.map((value) => ({
+              {facetChip(
+                "work-auth",
+                t("explore.facet.workAuthorization"),
+                WORK_AUTH_VALUES.map((value) => ({
                   value,
                   label:
                     value === "none"
@@ -755,11 +843,10 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                           defaultValue: value.replace(/_/g, " "),
                         }),
                   count: (facets ?? {}).work_authorization?.[value],
-                  testId: `work-auth-${value}`,
-                }))}
-                include={filters.workAuthorization}
-                exclude={filters.workAuthorizationExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.workAuthorization,
+                filters.workAuthorizationExclude,
+                (value, mode) => {
                   const next = triStateToggle(
                     filters.workAuthorization,
                     filters.workAuthorizationExclude,
@@ -770,92 +857,89 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                     workAuthorization: next.include,
                     workAuthorizationExclude: next.exclude,
                   });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section title={t("explore.facet.closing")} active={!!filters.closingWithin}>
-              <TriStateChips
-                showCounts
-                allowExclude={false}
-                values={CLOSING_WINDOWS.map((option) => ({
+            <FilterSection title={t("explore.facet.closing")} active={!!filters.closingWithin}>
+              {facetChip(
+                "closing",
+                t("explore.facet.closing"),
+                CLOSING_WINDOWS.map((option) => ({
                   value: option.value,
                   label: t(option.labelKey),
                   count: (facets ?? {}).closing?.[option.value],
-                  testId: `closing-${option.value}`,
-                }))}
-                include={filters.closingWithin ? [filters.closingWithin] : []}
-                exclude={[]}
-                onToggle={(value, mode) =>
-                  patch({ closingWithin: mode === "clear" ? "" : value })
-                }
-              />
-            </Section>
+                })),
+                filters.closingWithin ? [filters.closingWithin] : [],
+                [],
+                (value, mode) => patch({ closingWithin: mode === "clear" ? "" : value }),
+                { single: true }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.contract")}
               active={filters.contract.length + filters.contractExclude.length > 0}
-              count={filters.contract.length + filters.contractExclude.length}
             >
-              <TriStateChips
-                values={CONTRACT_VALUES.map((value) => ({
+              {facetChip(
+                "contract",
+                t("explore.facet.contract"),
+                CONTRACT_VALUES.map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") }),
-                  testId: `contract-${value}`,
-                }))}
-                include={filters.contract}
-                exclude={filters.contractExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.contract,
+                filters.contractExclude,
+                (value, mode) => {
                   const next = triStateToggle(filters.contract, filters.contractExclude, value, mode);
                   patch({ contract: next.include, contractExclude: next.exclude });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.travel")}
               active={filters.travel.length + filters.travelExclude.length > 0}
-              count={filters.travel.length + filters.travelExclude.length}
             >
-              <TriStateChips
-                values={TRAVEL_VALUES.map((value) => ({
+              {facetChip(
+                "travel",
+                t("explore.facet.travel"),
+                TRAVEL_VALUES.map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value }),
-                  testId: `travel-${value}`,
-                }))}
-                include={filters.travel}
-                exclude={filters.travelExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.travel,
+                filters.travelExclude,
+                (value, mode) => {
                   const next = triStateToggle(filters.travel, filters.travelExclude, value, mode);
                   patch({ travel: next.include, travelExclude: next.exclude });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.schedule")}
               active={filters.schedule.length + filters.scheduleExclude.length > 0}
-              count={filters.schedule.length + filters.scheduleExclude.length}
             >
-              <TriStateChips
-                values={SCHEDULE_VALUES.map((value) => ({
+              {facetChip(
+                "schedule",
+                t("explore.facet.schedule"),
+                SCHEDULE_VALUES.map((value) => ({
                   value,
                   label: t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") }),
-                  testId: `schedule-${value}`,
-                }))}
-                include={filters.schedule}
-                exclude={filters.scheduleExclude}
-                onToggle={(value, mode) => {
+                })),
+                filters.schedule,
+                filters.scheduleExclude,
+                (value, mode) => {
                   const next = triStateToggle(filters.schedule, filters.scheduleExclude, value, mode);
                   patch({ schedule: next.include, scheduleExclude: next.exclude });
-                }}
-              />
-            </Section>
+                }
+              )}
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.organization")}
               active={filters.orgs.length + filters.orgsExclude.length > 0}
-              count={filters.orgs.length + filters.orgsExclude.length}
             >
               <OrgPicker
                 value={filters.orgs}
@@ -871,55 +955,53 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
                 onChange={(names) => patch({ orgsExclude: names })}
                 placeholder={t("explore.excludeOrgPlaceholder")}
               />
-            </Section>
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.sources")}
               active={filters.source.length + filters.sourceExclude.length > 0}
-              count={filters.source.length + filters.sourceExclude.length}
             >
               {sources.length === 0 ? (
                 <p className="text-xs text-[var(--as-muted-fg)]">{t("explore.noSources")}</p>
               ) : (
-                <TriStateChips
-                  showCounts
-                  values={sources.map((s) => ({
+                facetChip(
+                  "source",
+                  t("explore.facet.sources"),
+                  sources.map((s) => ({
                     value: s.key,
                     label: s.key,
                     count: facetCount("source", s.key),
-                    testId: `source-${s.key}`,
-                  }))}
-                  include={filters.source}
-                  exclude={filters.sourceExclude}
-                  onToggle={(value, mode) => {
+                  })),
+                  filters.source,
+                  filters.sourceExclude,
+                  (value, mode) => {
                     const next = triStateToggle(filters.source, filters.sourceExclude, value, mode);
                     patch({ source: next.include, sourceExclude: next.exclude });
-                  }}
-                />
+                  }
+                )
               )}
-            </Section>
+            </FilterSection>
 
-            <Section
+            <FilterSection
               title={t("explore.facet.job")}
               active={filters.job.length > 0}
-              count={filters.job.length}
             >
-              <TriStateChips
-                showCounts
-                allowExclude={false}
-                values={jobValues}
-                include={filters.job}
-                exclude={[]}
-                onToggle={(value, mode) =>
+              {facetChip(
+                "job",
+                t("explore.facet.job"),
+                jobValues,
+                filters.job,
+                [],
+                (value, mode) =>
                   patch({
                     job:
                       mode === "clear"
                         ? filters.job.filter((code) => code !== value)
                         : [...filters.job.filter((code) => code !== value), value],
-                  })
-                }
-              />
-            </Section>
+                  }),
+                { allowExclude: false }
+              )}
+            </FilterSection>
 
             <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
               <span>{t("explore.deepExtractedOnly")}</span>
@@ -1052,14 +1134,14 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
               </div>
             </div>
           </div>
-          <ActiveFilterChips
-            chips={chips}
+          <FilterPills
+            items={chips}
             onRemove={(key) => {
               const chip = chips.find((entry) => entry.key === key);
               if (chip) patch(chip.patch);
             }}
             testId="explore-active-chips"
-            chipTestId={(key) => `explore-chip-${key}`}
+            itemTestId={(key) => `explore-chip-${key}`}
           />
           {error && <p className="text-sm text-rose-600">{error}</p>}
           {items.length === 0 && !error && (

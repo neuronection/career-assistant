@@ -1,5 +1,5 @@
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
@@ -273,8 +273,10 @@ describe("Companies browsing (plan 135)", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("company-card-acme-cloud");
-    expect(screen.getByTestId("company-filters")).toHaveClass("ca-stats-rail");
-    expect(screen.getByTestId("company-filter-rail")).toBeInTheDocument();
+    const aside = screen.getByTestId("company-filters");
+    expect(aside).toHaveClass("ca-stats-rail");
+    expect(aside).toHaveAttribute("data-layout", "rail");
+    expect(aside.querySelector('[data-as="filter-rail-body"]')).not.toBeNull();
 
     fireEvent.change(screen.getByTestId("company-search"), { target: { value: "acme" } });
     await waitFor(() =>
@@ -297,7 +299,7 @@ describe("Companies browsing (plan 135)", () => {
       expect(screen.getByTestId("location-search").textContent).toContain("status=new")
     );
 
-    fireEvent.click(screen.getByTestId("company-filters-clear"));
+    fireEvent.click(screen.getByRole("button", { name: /Clear all/ }));
     await waitFor(() => expect(screen.getByTestId("location-search").textContent).toBe(""));
   });
 
@@ -309,13 +311,13 @@ describe("Companies browsing (plan 135)", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("company-card-acme-cloud");
-    expect(screen.getByTestId("company-filters")).toHaveAttribute("data-band", "compact");
+    expect(screen.getByTestId("company-filters")).toHaveAttribute("data-layout", "compact");
     expect(screen.getByTestId("company-search")).toBeInTheDocument();
     expect(screen.queryByTestId("company-filter-location")).not.toBeInTheDocument();
     expect(screen.getByTestId("company-chip-location")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("company-filters-open"));
-    expect(await screen.findByTestId("company-filters-sheet")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
+    expect(await screen.findByRole("dialog", { name: "Filter by active hiring" })).toBeInTheDocument();
     expect(screen.getByTestId("company-filter-location")).toHaveValue("Athens");
   });
 
@@ -327,8 +329,58 @@ describe("Companies browsing (plan 135)", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("company-card-acme-cloud");
-    fireEvent.click(screen.getByTestId("company-filters-open"));
-    expect(await screen.findByTestId("company-filters-sheet-done")).toHaveTextContent("Done");
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const sheet = await screen.findByRole("dialog", { name: "Filter by active hiring" });
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(screen.getByTestId("company-filters")).not.toHaveTextContent("Show");
+  });
+
+  it("withholds facet counts while a refetch is in flight, and after it fails", async () => {
+    mocked.fetchCompanies.mockResolvedValueOnce({
+      items: [COMPANY],
+      facets: {
+        work_mode: {},
+        seniority: {},
+        employment: {},
+        industries: { fintech: 2 },
+        truncated: false,
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Companies />
+      </MemoryRouter>
+    );
+
+    const readyChip = await screen.findByTestId("company-industries-fintech");
+    expect(readyChip).toHaveAccessibleName("fintech, 2");
+
+    let reject: ((reason?: unknown) => void) | undefined;
+    mocked.fetchCompanies.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, rejectRequest) => {
+          reject = rejectRequest;
+        })
+    );
+    fireEvent.click(readyChip);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("company-industries-facet")).toHaveAttribute(
+        "aria-busy",
+        "true"
+      )
+    );
+    expect(screen.getByTestId("company-industries-fintech")).toHaveAccessibleName("fintech");
+
+    // The chip goes busy as soon as the filter changes; the debounced request
+    // is the one that must reject.
+    await waitFor(() => expect(mocked.fetchCompanies).toHaveBeenCalledTimes(2));
+    reject?.(new Error("boom"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("company-industries-facet")).not.toHaveAttribute("aria-busy")
+    );
+    expect(screen.getByTestId("company-industries-fintech")).toHaveAccessibleName("fintech");
   });
 
   it("cycles an industry chip through include, exclude and clear", async () => {
@@ -374,11 +426,54 @@ describe("Companies browsing (plan 135)", () => {
       )
     );
 
-    await user.click(screen.getByTestId("company-industries-fintech-clear"));
+    await user.click(screen.getByTestId("company-industries-fintech"));
     await waitFor(() => {
       const search = screen.getByTestId("location-search").textContent ?? "";
       expect(search).not.toContain("industry");
     });
+  });
+
+  it("replays a pre-plan URL: csv axes and their exclude variants", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/companies?work_mode=remote,hybrid&work_mode_exclude=onsite&industry=fintech&industry_exclude=health&min_open=5",
+        ]}
+      >
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          work_mode: ["remote", "hybrid"],
+          work_mode_exclude: ["onsite"],
+          industry: ["fintech"],
+          industry_exclude: ["health"],
+          min_open: 5,
+        })
+      )
+    );
+
+    expect(screen.getByTestId("company-work_mode-remote")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("company-work_mode-onsite")).toHaveAccessibleName(
+      /\(excluded\)$/
+    );
+    expect(screen.getByTestId("company-industries-fintech")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    // facets: null — no chip may invent a number
+    expect(screen.getByTestId("company-work_mode-remote").querySelector("bdi")).toBeNull();
+    expect(
+      screen.getByTestId("company-industries-fintech").querySelector("bdi")
+    ).toBeNull();
   });
 
   it("restores directory filters from the URL", async () => {
@@ -426,11 +521,12 @@ describe("Companies browsing (plan 135)", () => {
     );
 
     const chip = screen.getByTestId("company-work_mode-remote");
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAttribute("aria-checked", "true");
     expect(chip).not.toBeDisabled();
-    expect(chip).not.toHaveTextContent("·");
+    expect(chip.querySelector("bdi")).toBeNull();
 
-    fireEvent.click(screen.getByTestId("company-work_mode-remote-clear"));
+    // the removal lives in the shared pill row, one click, one value
+    fireEvent.click(screen.getByTestId("company-chip-work_mode-remote"));
     await waitFor(() =>
       expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
     );
@@ -457,12 +553,13 @@ describe("Companies browsing (plan 135)", () => {
     await screen.findByTestId("company-card-acme-cloud");
 
     const chip = screen.getByTestId("company-work_mode-remote");
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAttribute("aria-checked", "true");
     expect(chip).not.toBeDisabled();
-    expect(chip).not.toHaveTextContent("· 1");
-    expect(screen.getByTestId("company-work_mode-onsite")).toHaveTextContent("· 1");
+    // the omitted value carries NO number; the payload's value carries its own
+    expect(chip.querySelector("bdi")).toBeNull();
+    expect(screen.getByTestId("company-work_mode-onsite")).toHaveAccessibleName(/, 1$/);
 
-    fireEvent.click(screen.getByTestId("company-work_mode-remote-clear"));
+    fireEvent.click(screen.getByTestId("company-chip-work_mode-remote"));
     await waitFor(() =>
       expect(screen.getByTestId("location-search").textContent).not.toContain("work_mode")
     );
@@ -509,9 +606,11 @@ describe("Companies browsing (plan 135)", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("company-card-acme-cloud");
-    fireEvent.click(screen.getByTestId("company-filters-open"));
-    expect(await screen.findByTestId("company-filters-sheet")).toBeInTheDocument();
-    expect(screen.getByTestId("company-work_mode-remote")).toHaveTextContent("· 3");
+    fireEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Filter by active hiring" })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("company-work_mode-remote")).toHaveAccessibleName(/, 3$/);
 
     mocked.fetchCompanies.mockRejectedValue(new Error("network down"));
     fireEvent.change(screen.getByTestId("company-search"), {
@@ -525,10 +624,12 @@ describe("Companies browsing (plan 135)", () => {
     const chip = screen.getByTestId("company-work_mode-remote");
     expect(chip).toHaveTextContent("remote");
     expect(chip).not.toBeDisabled();
-    expect(chip).not.toHaveTextContent("· 3");
+    expect(chip.querySelector("bdi")).toBeNull();
     expect(screen.getAllByTestId("company-facets-unavailable")).toHaveLength(4);
 
-    expect(await screen.findByTestId("company-filters-sheet-done")).toHaveTextContent("Done");
+    const sheet = screen.getByRole("dialog", { name: "Filter by active hiring" });
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Show \d+ jobs?/ })).not.toBeInTheDocument();
   });
 });
 

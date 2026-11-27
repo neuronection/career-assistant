@@ -50,7 +50,8 @@ import type {
 } from "@/types/education";
 import type { Department, University } from "@/types/wire";
 import { EDUCATION_LEVEL_ORDER } from "@/features/profile/components/profile/sections/options";
-import { FilterChips } from "@/components/filters/FilterChips";
+import { FacetChip } from "@neuronection/assistant-ui/filters";
+import { multiValue } from "@/lib/filterFacets";
 import { CheckIndicator } from "@neuronection/assistant-ui";
 import {
   SelectionEntry,
@@ -1022,41 +1023,63 @@ export function Education() {
               })}
             </div>
             {entity === "education" && (
-              <FilterChips
-                testidPrefix="education"
-                options={EDUCATION_LEVEL_ORDER.map((level) => ({
-                  value: level,
-                  label: t(`education.level.${level}`, {
-                    defaultValue: level,
-                  }),
-                }))}
-                selected={filters.aspects}
-                onToggle={(level) =>
+              <FacetChip
+                facet={{
+                  id: "education-aspects",
+                  label: t("education.levelLabel"),
+                  kind: "multi",
+                  allowExclude: false,
+                  options: EDUCATION_LEVEL_ORDER.map((level) => ({
+                    value: level,
+                    label: t(`education.level.${level}`, {
+                      defaultValue: level,
+                    }),
+                  })),
+                }}
+                value={multiValue(filters.aspects)}
+                variant="inline"
+                showActivePills={false}
+                onToggleOption={(level, action) => {
+                  if (level === null) return;
                   setFilters((prev) => ({
                     ...prev,
-                    aspects: prev.aspects.includes(level)
-                      ? prev.aspects.filter((value) => value !== level)
-                      : [...prev.aspects, level],
-                  }))
-                }
+                    aspects:
+                      action === "clear"
+                        ? prev.aspects.filter((value) => value !== level)
+                        : [...prev.aspects.filter((value) => value !== level), level],
+                  }));
+                }}
+                testId="education-aspects"
+                optionTestId={(level) => `education-kind-${level}`}
               />
             )}
             {entity === "achievements" && (
-              <FilterChips
-                testidPrefix="education"
-                options={Object.keys(ACHIEVEMENT_KIND_ICONS).map((kind) => ({
-                  value: kind,
-                  label: t(`education.kind.${kind}`, { defaultValue: kind }),
-                }))}
-                selected={filters.aspects}
-                onToggle={(kind) =>
+              <FacetChip
+                facet={{
+                  id: "education-kinds",
+                  label: t("education.kindLabel"),
+                  kind: "multi",
+                  allowExclude: false,
+                  options: Object.keys(ACHIEVEMENT_KIND_ICONS).map((kind) => ({
+                    value: kind,
+                    label: t(`education.kind.${kind}`, { defaultValue: kind }),
+                  })),
+                }}
+                value={multiValue(filters.aspects)}
+                variant="inline"
+                showActivePills={false}
+                onToggleOption={(kind, action) => {
+                  if (kind === null) return;
                   setFilters((prev) => ({
                     ...prev,
-                    aspects: prev.aspects.includes(kind)
-                      ? prev.aspects.filter((value) => value !== kind)
-                      : [...prev.aspects, kind],
-                  }))
-                }
+                    aspects:
+                      action === "clear"
+                        ? prev.aspects.filter((value) => value !== kind)
+                        : [...prev.aspects.filter((value) => value !== kind), kind],
+                  }));
+                }}
+                testId="education-kinds"
+                optionTestId={(kind) => `education-kind-${kind}`}
               />
             )}
             {view !== "all" && (

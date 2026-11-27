@@ -9,14 +9,17 @@ import { useCatalogStore } from "@/stores/catalogStore";
 import { useAuthStore } from "@/stores/authStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { CatalogFilterRail } from "@/features/catalog/components/catalog/CatalogFilterRail";
+import { FilterSheetFooter } from "@/components/filters/FilterSheetFooter";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { countsState, railLayout } from "@/lib/filterFacets";
 import {
   CATALOG_SORT_OPTIONS,
   catalogActiveChips,
   catalogApiParams,
   catalogParams,
+  countActiveCatalogFilters,
   parseCatalogParams,
   removeCatalogChip,
 } from "@/features/catalog/catalogParams";
@@ -89,6 +92,9 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
   const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState("");
+  const counts = countsState({ loading, failed: error });
+  const compact = railLayout(band) === "compact";
+  const activeFilterCount = countActiveCatalogFilters(filters);
   const catalogEmpty =
     !loading && total === 0 && jobs.length === 0 && families.length === 0;
 
@@ -160,8 +166,21 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
           filters={filters}
           facets={facets}
           families={families}
-          total={error ? undefined : total}
           band={band}
+          counts={counts}
+          footer={
+            compact && !error && total > 0
+              ? (close) => (
+                  <FilterSheetFooter
+                    onClose={close}
+                    onClear={activeFilterCount === 0 ? undefined : clearAll}
+                    clearLabel={t("filters.clearAll")}
+                    doneLabel={t("filters.showResults", { count: total })}
+                    testId="catalog-filters-done"
+                  />
+                )
+              : undefined
+          }
           onChange={patch}
           onClear={clearAll}
         />

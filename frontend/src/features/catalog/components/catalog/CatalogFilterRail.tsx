@@ -7,14 +7,14 @@
 
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-
+import type { ReactNode } from "react";
 import {
-  Section,
-  TriStateChips,
-  triStateToggle,
-  type TriStateMode,
-} from "@/components/filters/filterBits";
-import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
+  FacetChip,
+  FilterRail,
+  FilterSection,
+} from "@neuronection/assistant-ui/filters";
+
+import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import {
   CONTRACT_VALUES,
@@ -27,6 +27,16 @@ import {
   type CatalogFilters,
 } from "@/features/catalog/catalogParams";
 import type { ContainerBand } from "@/hooks/useContainerBand";
+import type { CountsState, FacetValue, TriStateMode } from "@/lib/filterFacets";
+import {
+  facetLabels,
+  facetOptions,
+  multiValue,
+  railLabels,
+  railLayout,
+  singleValue,
+  triStateToggle,
+} from "@/lib/filterFacets";
 import type { JobFacets } from "@/types/wire";
 import type { JobFamilyNode } from "@/types";
 
@@ -49,17 +59,24 @@ export function CatalogFilterRail({
   filters,
   facets,
   families,
-  total,
   band,
+  counts = "ready",
+  footer,
   onChange,
   onClear,
 }: {
   filters: CatalogFilters;
   facets: JobFacets;
   families: JobFamilyNode[];
-  /** Omit while the last load is stale: the sheet then says Done, never Show N. */
-  total?: number;
   band?: ContainerBand;
+  /** Whether the facet map on screen is still the last successful response. */
+  counts?: CountsState;
+  /**
+   * The compact sheet's host footer, carrying a real result total. Omit it
+   * while the last load is stale (the total then describes a query that did
+   * not run): the sheet falls back to the library `Done`, never `Show N`.
+   */
+  footer?: (close: () => void) => ReactNode;
   onChange: (update: Partial<CatalogFilters>) => void;
   onClear: () => void;
 }) {
@@ -76,19 +93,17 @@ export function CatalogFilterRail({
     const next = triStateToggle(include, exclude, value, mode);
     onChange({ [axis]: next.include, [`${axis}Exclude`]: next.exclude } as Partial<CatalogFilters>);
   };
-  const enumChips = (axis: "education" | "demand" | "contract" | "schedule" | "travel" | "environment", values: readonly string[]) =>
+  const enumChips = (axis: "education" | "demand" | "contract" | "schedule" | "travel" | "environment", values: readonly string[]): FacetValue[] =>
     values.map((value) => ({
       value,
       label: valueLabel(value),
       count: facetCount(facets, axis, value),
-      testId: `catalog-${axis}-${value}`,
     }));
 
   const familyChips = flattenFamilies(families).map(({ node, depth }) => ({
     value: node.key,
     label: `${"\u00a0".repeat(depth * 2)}${node.label}`,
     count: facetCount(facets, "family", node.key),
-    testId: `catalog-family-${node.key}`,
   }));
 
   const interestValues = selectedValues(
@@ -97,19 +112,53 @@ export function CatalogFilterRail({
     filters.interestsExclude
   );
 
+  const activeCount = countActiveCatalogFilters(filters);
+  const labels = facetLabels(t);
+  /** One inline facet row on the shared chip; `id` is the option test-id prefix. */
+  const facetChip = (
+    id: string,
+    label: string,
+    values: FacetValue[],
+    include: string[],
+    exclude: string[],
+    onToggleValue: (value: string, mode: TriStateMode) => void,
+    { allowExclude = true, single = false }: { allowExclude?: boolean; single?: boolean } = {}
+  ) => {
+    const allow = allowExclude && !single;
+    return (
+      <FacetChip
+        facet={{
+          id,
+          label,
+          kind: single ? "single" : "multi",
+          allowExclude: allow,
+          countsState: counts,
+          options: facetOptions(values, { include, exclude }),
+        }}
+        value={single ? singleValue(include[0] ?? null) : multiValue(include, exclude)}
+        variant="inline"
+        showActivePills={false}
+        labels={labels}
+        onToggleOption={(value, action) => {
+          if (value === null) return;
+          onToggleValue(value, action);
+        }}
+        testId={`${id}-facet`}
+        optionTestId={(value) => `${id}-${value ?? "not-recorded"}`}
+      />
+    );
+  };
+
   return (
     <FilterRail
+      layout={railLayout(band)}
       title={t("filters.title")}
-      activeCount={countActiveCatalogFilters(filters)}
-      onClear={onClear}
-      countTestId="catalog-filter-count"
-      clearTestId="catalog-clear-all"
-      asideTestId="catalog-filter-aside"
-      testId="catalog-filter-rail"
-      band={band}
-      resultCount={total}
-      triggerTestId="catalog-filters-open"
-      sheetTestId="catalog-filters-sheet"
+      labels={railLabels(t)}
+      activeCount={activeCount === 0 ? undefined : activeCount}
+      onClear={activeCount === 0 ? undefined : onClear}
+      footer={footer}
+      className="ca-stats-rail"
+      data-testid="catalog-filter-aside"
       search={
         <FilterRailSearch
           value={filters.q}
@@ -119,10 +168,9 @@ export function CatalogFilterRail({
         />
       }
     >
-      <Section
+      <FilterSection
         title={t("catalog.filters.skills")}
         active={filters.skills.length + filters.skillsExclude.length + (filters.minLevel ? 1 : 0) > 0}
-        count={filters.skills.length + filters.skillsExclude.length}
         defaultOpen
       >
         <SkillPicker
@@ -243,39 +291,39 @@ export function CatalogFilterRail({
               ))}
           </div>
         ) : null}
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.family")}
         active={filters.family !== ""}
         defaultOpen
       >
-        <TriStateChips
-          showCounts
-          allowExclude={false}
-          values={familyChips}
-          include={filters.family ? [filters.family] : []}
-          exclude={[]}
-          onToggle={(value, mode) => onChange({ family: mode === "clear" ? "" : value })}
-        />
-      </Section>
+        {facetChip(
+          "catalog-family",
+          t("catalog.filters.family"),
+          familyChips,
+          filters.family ? [filters.family] : [],
+          [],
+          (value, mode) => onChange({ family: mode === "clear" ? "" : value }),
+          { single: true }
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.interests")}
         active={filters.interests.length + filters.interestsExclude.length > 0}
-        count={filters.interests.length + filters.interestsExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={interestValues.map((value) => ({
+        {facetChip(
+          "catalog-interest",
+          t("catalog.filters.interests"),
+          interestValues.map((value) => ({
             value,
             label: value,
             count: facetCount(facets, "interests", value),
-            testId: `catalog-interest-${value}`,
-          }))}
-          include={filters.interests}
-          exclude={filters.interestsExclude}
-          onToggle={(value, mode) => {
+          })),
+          filters.interests,
+          filters.interestsExclude,
+          (value, mode) => {
             const next = triStateToggle(
               filters.interests,
               filters.interestsExclude,
@@ -283,27 +331,26 @@ export function CatalogFilterRail({
               mode
             );
             onChange({ interests: next.include, interestsExclude: next.exclude });
-          }}
-        />
-      </Section>
+          }
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.education")}
         active={
           filters.education.length + filters.educationExclude.length + (filters.educationMin ? 1 : 0) >
           0
         }
-        count={filters.education.length + filters.educationExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("education", EDUCATION_VALUES)}
-          include={filters.education}
-          exclude={filters.educationExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-education",
+          t("catalog.filters.education"),
+          enumChips("education", EDUCATION_VALUES),
+          filters.education,
+          filters.educationExclude,
+          (value, mode) =>
             toggle("education", filters.education, filters.educationExclude, value, mode)
-          }
-        />
+        )}
         <label className="flex items-center gap-2 text-xs text-[var(--as-muted-fg)]">
           {t("catalog.filters.educationMin")}
           <select
@@ -320,28 +367,26 @@ export function CatalogFilterRail({
             ))}
           </select>
         </label>
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.demand")}
         active={filters.demand.length + filters.demandExclude.length > 0}
-        count={filters.demand.length + filters.demandExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("demand", DEMAND_VALUES)}
-          include={filters.demand}
-          exclude={filters.demandExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-demand",
+          t("catalog.filters.demand"),
+          enumChips("demand", DEMAND_VALUES),
+          filters.demand,
+          filters.demandExclude,
+          (value, mode) =>
             toggle("demand", filters.demand, filters.demandExclude, value, mode)
-          }
-        />
-      </Section>
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.salary")}
         active={filters.salaryMin !== "" || filters.salaryMax !== ""}
-        count={(filters.salaryMin ? 1 : 0) + (filters.salaryMax ? 1 : 0)}
       >
         <div className="flex items-center gap-2">
           <input
@@ -366,57 +411,54 @@ export function CatalogFilterRail({
             data-testid="catalog-salary-max"
           />
         </div>
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.contract")}
         active={filters.contract.length + filters.contractExclude.length > 0}
-        count={filters.contract.length + filters.contractExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("contract", CONTRACT_VALUES)}
-          include={filters.contract}
-          exclude={filters.contractExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-contract",
+          t("catalog.filters.contract"),
+          enumChips("contract", CONTRACT_VALUES),
+          filters.contract,
+          filters.contractExclude,
+          (value, mode) =>
             toggle("contract", filters.contract, filters.contractExclude, value, mode)
-          }
-        />
-      </Section>
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.schedule")}
         active={filters.schedule.length + filters.scheduleExclude.length > 0}
-        count={filters.schedule.length + filters.scheduleExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("schedule", SCHEDULE_VALUES)}
-          include={filters.schedule}
-          exclude={filters.scheduleExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-schedule",
+          t("catalog.filters.schedule"),
+          enumChips("schedule", SCHEDULE_VALUES),
+          filters.schedule,
+          filters.scheduleExclude,
+          (value, mode) =>
             toggle("schedule", filters.schedule, filters.scheduleExclude, value, mode)
-          }
-        />
-      </Section>
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.travel")}
         active={filters.travel.length + filters.travelExclude.length > 0}
-        count={filters.travel.length + filters.travelExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("travel", TRAVEL_VALUES)}
-          include={filters.travel}
-          exclude={filters.travelExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-travel",
+          t("catalog.filters.travel"),
+          enumChips("travel", TRAVEL_VALUES),
+          filters.travel,
+          filters.travelExclude,
+          (value, mode) =>
             toggle("travel", filters.travel, filters.travelExclude, value, mode)
-          }
-        />
-      </Section>
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.experience")}
         active={filters.experienceMax !== ""}
       >
@@ -432,25 +474,24 @@ export function CatalogFilterRail({
             data-testid="catalog-experience-max"
           />
         </label>
-      </Section>
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.environment")}
         active={filters.environment.length + filters.environmentExclude.length > 0}
-        count={filters.environment.length + filters.environmentExclude.length}
       >
-        <TriStateChips
-          showCounts
-          values={enumChips("environment", ENVIRONMENT_VALUES)}
-          include={filters.environment}
-          exclude={filters.environmentExclude}
-          onToggle={(value, mode) =>
+        {facetChip(
+          "catalog-environment",
+          t("catalog.filters.environment"),
+          enumChips("environment", ENVIRONMENT_VALUES),
+          filters.environment,
+          filters.environmentExclude,
+          (value, mode) =>
             toggle("environment", filters.environment, filters.environmentExclude, value, mode)
-          }
-        />
-      </Section>
+        )}
+      </FilterSection>
 
-      <Section
+      <FilterSection
         title={t("catalog.filters.roles")}
         active={filters.hasRoles !== null}
       >
@@ -481,7 +522,7 @@ export function CatalogFilterRail({
               ? t("catalog.filters.rolesHas")
               : t("catalog.filters.rolesNone")}
         </button>
-      </Section>
+      </FilterSection>
     </FilterRail>
   );
 }
