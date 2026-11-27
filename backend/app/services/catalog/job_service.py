@@ -17,7 +17,6 @@ from sqlalchemy import (
     or_,
     select,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -141,11 +140,18 @@ def _array_include(values: Sequence[str], *path: str, dialect: str):
     or empty array matches nothing.
     """
     if dialect == "postgresql":
-        needles = array(
-            [cast(literal(dumps([value]), String), StructuredJSON) for value in values],
-            type_=ARRAY(StructuredJSON),
+        if not values:
+            return literal(False)
+        # one containment per value, OR-ed: `column @> ANY(array[...])` says the
+        # same thing, but postgresql.array() cannot infer its element type from
+        # a TypeEngine instance and mypy rejects it.
+        column = _json_array(*path)
+        return or_(
+            *(
+                column.op("@>", return_type=Boolean)(cast(literal(dumps([value])), StructuredJSON))
+                for value in values
+            )
         )
-        return _json_array(*path).op("@>", return_type=Boolean)(func.any_(needles))
     return exists(
         select(literal(1))
         .select_from(func.json_each(Job.attributes, "$." + ".".join(path)))
