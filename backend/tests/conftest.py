@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -229,8 +230,6 @@ async def warm_checkpointer():
     yield
     await aclose_checkpointer()
 
-
-import pytest_asyncio
 
 
 @pytest_asyncio.fixture
