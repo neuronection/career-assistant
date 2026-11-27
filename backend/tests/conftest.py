@@ -30,9 +30,38 @@ from app.extensions.sdk import (
 )
 from app.main import app
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
+from tests.xdist_routing import routed_worker_root
 
 TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
+
+
+def _assert_worker_state_isolation() -> None:
+    """Fail when a routed worker's data/upload roots escaped its worker directory.
+
+    ``tests/xdist_routing.py`` routes a worker's database *and* its
+    ``CAREER_DATA_DIR``/``CAREER_UPLOAD_DIR``; a test that hard-codes the
+    shared ``tests/_data``/``tests/_uploads`` trees would silently reintroduce
+    cross-worker sharing. Routing is a no-op for serial runs, the xdist
+    controller, a missing ``CAREER_DATABASE_URL`` and in-memory databases, so
+    this only applies to processes that were actually routed.
+    """
+    worker_root = routed_worker_root()
+    if worker_root is None:
+        return
+    root = worker_root.expanduser().resolve()
+    scopes = (("data_dir", settings.data_dir), ("upload_root", settings.upload_root))
+    for label, path in scopes:
+        resolved = Path(path).expanduser().resolve()
+        if not resolved.is_relative_to(root):
+            raise RuntimeError(
+                f"xdist worker state escaped its worker directory: {label}={resolved} "
+                f"is outside {root}. Tests must not hard-code tests/_data or "
+                "tests/_uploads — route the path through tests/xdist_routing.py."
+            )
+
+
+_assert_worker_state_isolation()
 
 _engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True, json_serializer=json_serializer)
 if IS_SQLITE:
