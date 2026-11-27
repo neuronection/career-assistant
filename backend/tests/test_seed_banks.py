@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 from pathlib import Path
 
@@ -144,6 +145,29 @@ async def test_assessment_template_pack_parses_plans_applies_noops_and_retires(d
     assert back.status == "applied", back.error
     await db.refresh(row)
     assert row.status == "published"
+
+
+async def test_a_published_battery_version_is_immutable(db, tmp_path):
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(db, store, source, _template_pack())
+    applied = await _service(db, store).apply(source, first)
+    assert applied.status == "applied", applied.error
+    row = await db.scalar(select(AssessmentTemplate))
+    assert row is not None
+    original_content = dict(row.content)
+
+    changed = copy.deepcopy(TEMPLATE)
+    changed["content"]["phases"][0]["questions"][0]["prompt"] = "Changed prompt."
+    version = await _version(db, store, source, _bank_pack([changed], version="2.0.0"))
+    plan = await _service(db, store).build_plan(source, version)
+    assert plan.status == "conflicted"
+    assert any("immutable" in conflict["reason"] for conflict in plan.conflicts)
+
+    refused = await _service(db, store).apply(source, version)
+    assert refused.status == "conflicted"
+    await db.refresh(row)
+    assert row.content == original_content
 
 
 async def test_a_user_modified_bank_row_plans_an_override(db, tmp_path):
@@ -295,8 +319,11 @@ def test_bank_registries_are_total():
     assert set(RETIRE) == set(BANK_ENTITY_MODELS)
     assert set(COUNT_KEYS) == set(BANK_ENTITY_MODELS)
     assert BANK_FORMATS["assessment_templates"] is not None
+    assert BANK_FORMATS["assessment_questions"] is not None
     assert all(
-        adapter is None for name, adapter in BANK_FORMATS.items() if name != "assessment_templates"
+        adapter is None
+        for name, adapter in BANK_FORMATS.items()
+        if name not in {"assessment_questions", "assessment_templates"}
     )
 
 

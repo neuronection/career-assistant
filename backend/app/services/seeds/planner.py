@@ -43,8 +43,10 @@ from app.models.seed_model import (
 from app.services.seeds.banks import (
     BANK_ENTITY_MODELS,
     BANK_ITEM_TYPES,
+    ENTITY_ASSESSMENT_TEMPLATE,
     ENTITY_FORMATS,
     require_adapter,
+    template_content_hash,
 )
 from app.services.seeds.banks import (
     ITEM_ENTITY as BANK_ITEM_ENTITY,
@@ -628,6 +630,23 @@ async def build_plan(
                 getattr(row, "deprecated", False)
             ):
                 action, reason = ACTION_UPDATE, "restore retired row"
+            elif (
+                entity == ENTITY_ASSESSMENT_TEMPLATE
+                and getattr(row, "status", None) == "published"
+                and getattr(row, "content_hash", None)
+                and row.content_hash != template_content_hash(item.payload)
+            ):
+                plan.conflicts.append(
+                    {
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "priority": entry.source.priority,
+                        "reason": "published template version is immutable; bump the version",
+                        "source_ids": [str(entry.source.id)],
+                        "content_hashes": [row.content_hash, item.content_hash],
+                    }
+                )
+                continue
             elif prov is not None and prov.user_modified:
                 action, reason = ACTION_OVERRIDE, "user-modified; explicit adoption required"
             elif prov is not None and prov.content_hash == item.content_hash:
