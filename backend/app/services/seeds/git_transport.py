@@ -31,6 +31,7 @@ from app.core.seed_pack.errors import (
     SeedPackError,
 )
 from app.core.seed_pack.manifest import MAX_PACK_BYTES
+from app.core.subprocess import communicate_and_reap
 
 GIT_TIMEOUT_SECONDS = 120
 GIT_MAX_BYTES = MAX_PACK_BYTES
@@ -121,10 +122,8 @@ async def _run_git(args: list[str], *, cwd: Path, env: dict[str, str], timeout: 
             GIT_UNAVAILABLE, "git is not installed; use the official registry mirror"
         ) from exc
     try:
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        stdout, stderr = await communicate_and_reap(process, timeout=timeout)
     except TimeoutError as exc:
-        process.kill()
-        await process.wait()
         raise SeedPackError(GIT_TIMEOUT, f"git operation exceeded {timeout:.0f}s") from exc
     if process.returncode != 0:
         detail = stderr.decode("utf-8", errors="replace").strip().splitlines()

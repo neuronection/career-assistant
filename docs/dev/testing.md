@@ -169,7 +169,7 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 | Gate | Command | Wall |
 |---|---|---|
 | Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=79` | coverage 79% |
-| Backend (SQLite profile) | same, with `CAREER_DATABASE_URL=sqlite+aiosqlite:///./neuronection_career_test.db` (serial) | coverage 79% |
+| Backend (SQLite profile) | same, with `CAREER_DATABASE_URL=sqlite+aiosqlite:///./neuronection_career_test.db` (serial) and `-W error::pytest.PytestUnraisableExceptionWarning` | coverage 79%; no leaked asyncio subprocess transports |
 | Contract (both dialects) | `uv run pytest -m contract` | identity-auth §18 |
 | Types | `uv run mypy` | `[tool.mypy] files` — clean packages only |
 | Type ratchet | `uv run python ../scripts/check-mypy-ratchet.py` | `[tool.career-mypy-ratchet]` pegs |
@@ -183,6 +183,17 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 to the measured value. When your change improves a number, move the pin in
 the same commit: the ratchet gate fails on a stale pin too (an
 out-of-date pin silently tolerates new debt).
+
+**No ignored-teardown escapes.** The SQLite lane runs pytest with
+`-W error::pytest.PytestUnraisableExceptionWarning`, so an exception raised
+from a finalizer during garbage collection fails the lane instead of printing
+a traceback between two passing tests. The realistic case is an `asyncio`
+subprocess transport reaped after its event loop closed
+(`BaseSubprocessTransport.__del__` → `RuntimeError: Event loop is closed`):
+spawn through `app/core/subprocess.communicate_and_reap` (bounded, always
+reaped and pipe-closed) or close the child in the same frame; per-call stdio
+MCP clients must not keep their server alive
+(`StdioTransport(..., keep_alive=False)`).
 
 **Drift audit.** `scripts/audit-assistant-ui-usage.mjs` is a byte-identical
 vendored copy of the assistant-ui canonical (`audit-usage.mjs`). The

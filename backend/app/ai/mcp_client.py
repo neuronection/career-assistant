@@ -31,7 +31,7 @@ def client_for(row: AIMCPServer):
         parts = shlex_split(row.command)
         if not parts:
             raise DomainError("stdio command is empty")
-        transport = StdioTransport(parts[0], parts[1:])
+        transport = StdioTransport(parts[0], parts[1:], keep_alive=False)
     else:
         raise DomainError(f"Unknown MCP transport: {row.transport}")
     return Client(transport), transport
@@ -66,7 +66,14 @@ def client_for_spec(
         parts = shlex_split(command)
         if not parts:
             raise DomainError("stdio command is empty")
-        spec = StdioTransport(parts[0], parts[1:])
+        # One client (and one transport) per connection: the callers open a
+        # fresh client for each ``async with client``. Leaving the SDK's
+        # default ``keep_alive=True`` would orphan the spawned server when the
+        # client is dropped — its asyncio subprocess transport is then only
+        # reaped by the GC, possibly after the event loop closed (the
+        # "Event loop is closed" unraisable). ``keep_alive=False`` makes the
+        # session exit terminate the child and close its pipes deterministically.
+        spec = StdioTransport(parts[0], parts[1:], keep_alive=False)
     else:
         raise DomainError(f"Unknown MCP transport: {transport}")
     return Client(spec, timeout=timeout_seconds)

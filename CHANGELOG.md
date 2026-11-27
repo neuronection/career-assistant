@@ -6,6 +6,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Fixed
 
+- **The SQLite CI lane no longer hides a leaked subprocess transport.** The
+  managed stdio MCP client kept its server process alive after each call
+  (the SDK transport defaults to `keep_alive=True`, while the app builds one
+  client per call), so the child and its asyncio transport were only reaped
+  by the garbage collector — sometimes after the session event loop closed,
+  printing `PytestUnraisableExceptionWarning` / `RuntimeError: Event loop is
+  closed` over a green run. Per-call stdio transports now close with their
+  session, and the bounded git spawners reap and close through
+  `app/core/subprocess.communicate_and_reap`. The SQLite lane now runs
+  pytest with `-W error::pytest.PytestUnraisableExceptionWarning`, so a
+  future leak fails the lane instead of being annotated as noise.
+
 - **A family chip's count now matches the results it yields.** The catalogue
   family facet counted jobs by their exact `family_id` while the family filter
   includes the whole subtree, so a parent chip could read 0 while its children

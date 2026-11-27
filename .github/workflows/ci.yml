@@ -121,9 +121,15 @@ jobs:
       - name: Migrate test database
         run: uv run alembic upgrade head
       - name: Run tests (coverage floor parity with the Postgres lane)
-        run: uv run pytest tests/ --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+        # `-W error::pytest.PytestUnraisableExceptionWarning` makes a resource
+        # leak (an asyncio subprocess transport reaped after its loop closed)
+        # fail this lane instead of printing an ignorable traceback mid-run.
+        run: >
+          uv run pytest tests/
+          -W error::pytest.PytestUnraisableExceptionWarning
+          --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
       - name: Contract drift gate (identity-auth §18)
-        run: uv run pytest -m contract
+        run: uv run pytest -m contract -W error::pytest.PytestUnraisableExceptionWarning
 
   frontend:
     name: Frontend (lint + build + vitest)
