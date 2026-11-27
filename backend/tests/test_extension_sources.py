@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 import uuid
@@ -1246,13 +1247,20 @@ async def test_import_capabilities_follow_the_boot_gates(tmp_path, monkeypatch):
 
 # ------------------------------------------------- template-repo fidelity
 
+#: The published fixture is the canonical template with internal ADR
+#: references scrubbed (release-blocking CI repair: the SDK docs are the
+#: published claim surface, so they never carry internal plan/ADR markers).
+_SCRUBBED_ADR = re.compile(rb"\s*\(ADR-\d{4}(?: clause \d+)?\)")
+
 
 def test_fixture_manifest_matches_the_canonical_template():
     canonical = TEMPLATE_DIR / "manifest.json"
     if not canonical.exists():
         pytest.skip(f"sibling template repo not checked out: {TEMPLATE_DIR}")
-    assert FIXTURE_MANIFEST.read_bytes() == canonical.read_bytes(), (
-        "fixtures/mcp_template_manifest.json drifted from career-connector-template/manifest.json"
+    scrubbed = _SCRUBBED_ADR.sub(b"", canonical.read_bytes())
+    assert FIXTURE_MANIFEST.read_bytes() == scrubbed, (
+        "fixtures/mcp_template_manifest.json drifted from the scrubbed "
+        "career-connector-template/manifest.json"
     )
 
 
