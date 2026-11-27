@@ -561,11 +561,18 @@ Every filter chip follows the same contract (`TriStateChips` in
   lists, and every mode drops the value from the other list.
 - **A selected chip carries an ×** that clears it in one click — never
   make a user cycle back out of a state, and never hover-reveal it. The
-  remove button is at least 24×24 px (WCAG 2.2 AA 2.5.8).
+  remove button's target is at least 24×24 px, or at least 24 px in one
+  dimension with 24 px of spacing around it (WCAG 2.2 AA 2.5.8, spacing
+  exception). Today it renders 24×20 (`py-1` + `h-3` icon) and the test
+  asserts only the horizontal padding: the vertical half is owed, not
+  blessed.
 - **The pill is a wrapper with two sibling buttons** (value + remove):
   a `<button>` inside a `<button>` is invalid markup and swallows the
-  inner click. Keep the value button's `data-testid` (its accessible name
-  is the label + count) and give the remove button
+  inner click. Keep the value button's `data-testid`; its accessible name
+  carries the label, the count when present, **and the include/exclude
+  state** — the `−` is visual only and `aria-pressed` is binary, so a name
+  of "label + count" alone leaves an excluded chip announced as merely
+  pressed. Give the remove button
   `data-testid="{testId}-clear"` + `aria-label` "Remove {label}".
 - Chips that intentionally cannot be excluded (`allowExclude={false}`,
   e.g. the posted-window selector) cycle include → clear only, and still
@@ -673,7 +680,9 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
   `Show N jobs` (otherwise `Done`: the footer never presents a page size as
   a total). Only the **active** chips stay
   on the page (`ActiveFilterChips`; the row renders nothing while the list is
-  unfiltered), and each chip removes exactly the value it names. Toggles keep
+  unfiltered), and each chip removes exactly the value it names. `/catalog`
+  still renders its active chips by hand (`CatalogTree.tsx`) without a
+  `Remove {label}` name: that is a gap against this rule, not an exemption. Toggles keep
   writing the URL immediately, so a link stays shareable with the sheet open.
   The band is the page's own width (container), never `lg:`; jsdom never fires
   `ResizeObserver`, so the page exposes a `band` override for tests and the
@@ -683,6 +692,11 @@ bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
   filter sheet.
 - **Tokens only**: the shell, `Section`, `TriStateChips` and all controls use
   `--as-*` tokens; hard-coded `slate`/`primary` scales are drift.
+- **A facet count counts what its page counts.** The unit is per page and
+  must be stated where two pages differ: on `/catalog` a count is matching
+  jobs, on `/companies` it is companies hiring, not open postings. A chip's
+  count must equal the number of results clicking it produces — including a
+  parent family, whose count covers its subtree because its filter does.
 - **Counts are payload-only**: a chip's count comes from the response's facet
   map; a missing count renders no number — never `0`, never a fallback to an
   unfiltered or page-scoped total. A `Section`'s `count` is the number of
