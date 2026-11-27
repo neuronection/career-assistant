@@ -231,7 +231,6 @@ async def warm_checkpointer():
     await aclose_checkpointer()
 
 
-
 @pytest_asyncio.fixture
 async def _stop_pdf_engine():
     """Stop the cached Playwright driver on the test's own loop.
@@ -259,6 +258,7 @@ def pytest_collection_modifyitems(items):
         obj = getattr(item, "obj", None)
         if obj is not None and inspect.iscoroutinefunction(obj):
             item.add_marker(pytest.mark.usefixtures("_stop_pdf_engine"))
+
 
 @pytest.fixture(autouse=True)
 def restore_kit_config() -> Iterator[None]:
