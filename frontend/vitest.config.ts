@@ -7,6 +7,7 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: "jsdom",
+      execArgv: ["--no-experimental-webstorage"],
       setupFiles: ["./src/tests/setup.ts"],
       css: false,
       coverage: {

@@ -335,7 +335,7 @@ at the TLS layer.
 
 ## Bare metal (no Docker)
 
-Python 3.12+, Node 20+, and a reachable Postgres 16:
+Python 3.12+, Node 26+, and a reachable Postgres 16:
 
 ```bash
 # Build the SPA

@@ -228,7 +228,7 @@ First launch creates a strong `secret.key`, applies migrations and seeds the ref
 
 ### Prerequisites
 
-- **Docker** and Docker Compose (for the dev database), or **Python 3.12+ / Node 18+** for the app itself.
+- **Docker** and Docker Compose (for the dev database), or **Python 3.12+ / Node 26+** for the app itself.
 - **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → My AI Configuration** (or **Instance AI Configuration** as an admin). For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `CAREER_MOCK_AI=1`), so the app works fully without one.
 - **PostgreSQL** — the dev compose ships one on port 5433; Redis (6380) is included for a future worker split.
 

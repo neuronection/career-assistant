@@ -17,7 +17,7 @@ fastest path. If you are deploying for others, see
 - **Desktop:** a prebuilt package needs nothing installed; running from
   source needs **Python 3.12+**.
 - **Self-hosted:** **Docker** + Docker Compose, or **Python 3.12+** and
-  **Node 20+** for a bare-metal install.
+  **Node 26+** for a bare-metal install.
 - **An OpenAI-compatible LLM provider** (API key + endpoint) for AI
   features. Configure it in the app after first launch — there are no AI
   environment variables. For offline development you can opt into the
