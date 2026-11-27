@@ -146,6 +146,25 @@ async def test_assessment_template_pack_parses_plans_applies_noops_and_retires(d
     assert row.status == "published"
 
 
+async def test_a_user_modified_bank_row_plans_an_override(db, tmp_path):
+    from app.services.seeds.catalog import mark_user_modified
+
+    store = _store(tmp_path)
+    source = await _operator_source(db)
+    first = await _version(db, store, source, _template_pack())
+    applied = await _service(db, store).apply(source, first)
+    assert applied.status == "applied", applied.error
+    row = await db.scalar(select(AssessmentTemplate))
+    assert row is not None
+    await mark_user_modified(db, "assessment_template", row.id)
+    await db.commit()
+
+    second = await _version(db, store, source, _template_pack(version="2.0.0"))
+    plan = await _service(db, store).build_plan(source, second)
+    [item] = [p for p in plan.items if p.entity_type == "assessment_template"]
+    assert item.action == "override"
+
+
 async def test_a_bank_pack_requires_operator_or_official_trust(db, tmp_path):
     store = _store(tmp_path)
     source = await _source(db)
@@ -279,3 +298,77 @@ def test_bank_registries_are_total():
     assert all(
         adapter is None for name, adapter in BANK_FORMATS.items() if name != "assessment_templates"
     )
+
+
+async def test_an_empty_bank_file_still_requires_the_official_trust_tier(db, tmp_path):
+    from app.core.seed_pack.errors import BANK_TRUST_DENIED
+
+    store = _store(tmp_path)
+    source = await _source(db)
+    source.trust_tier = "community"
+    await db.commit()
+    files = _pack(
+        {"items/metric_dimensions/dimensions.json": _envelope("metric_dimensions", [])},
+        manifest={"version": "1.0.0", "replaces": []},
+    )
+    version = await _version(db, store, source, files)
+
+    with pytest.raises(SeedPackError) as excinfo:
+        await _service(db, store).build_plan(source, version)
+    assert excinfo.value.code == BANK_TRUST_DENIED
+
+
+async def test_an_empty_unadapted_bank_file_is_refused_not_silently_planned(db, tmp_path):
+    from app.core.seed_pack.errors import BANK_UNSUPPORTED
+
+    store = _store(tmp_path)
+    source = await _source(db)
+    source.trust_tier = "operator"
+    await db.commit()
+    files = _pack(
+        {"items/metric_dimensions/dimensions.json": _envelope("metric_dimensions", [])},
+        manifest={"version": "1.0.0", "replaces": []},
+    )
+    version = await _version(db, store, source, files)
+
+    with pytest.raises(SeedPackError) as excinfo:
+        await _service(db, store).build_plan(source, version)
+    assert excinfo.value.code == BANK_UNSUPPORTED
+
+
+async def test_fresh_bank_rows_get_their_pack_identity(db):
+    from sqlalchemy import func
+
+    from app.models.assessment_model import AssessmentQuestion
+    from app.models.assessment_template_model import AssessmentTemplate
+    from app.models.cv_template_model import CvTemplate
+    from app.models.metric_model import MetricDimension
+    from app.models.skill_pack_model import AISkillPack
+    from app.seeds.assessment import seed_assessment_bank
+    from app.seeds.bank_stamp import stamp_bank_identities
+    from app.seeds.cv_templates import seed_cv_template_bank
+    from app.seeds.metrics import seed_metric_dimensions, seed_metric_templates
+    from app.seeds.skill_packs import seed_skill_packs
+
+    await seed_metric_dimensions(db)
+    await seed_metric_templates(db)
+    await seed_assessment_bank(db)
+    await seed_cv_template_bank(db)
+    await seed_skill_packs(db)
+
+    assert await stamp_bank_identities(db) > 0
+    await db.commit()
+
+    for model in (
+        AssessmentQuestion,
+        AssessmentTemplate,
+        CvTemplate,
+        MetricDimension,
+        AISkillPack,
+    ):
+        missing = await db.scalar(
+            select(func.count()).select_from(model).where(model.seed_key.is_(None))
+        )
+        assert missing == 0, model.__tablename__
+    assert await db.scalar(select(func.count()).select_from(MetricCategoryAnchor)) == 14
+    assert await stamp_bank_identities(db) == 0

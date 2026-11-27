@@ -27,7 +27,6 @@ from app.core.seed_pack.errors import (
 )
 from app.core.seed_pack.manifest import (
     CATALOG_FORMATS,
-    FORMATS,
     ParsedItem,
     ParsedPack,
     parse_pack,
@@ -243,21 +242,19 @@ def _guard_catalog_candidate(source: SeedSource, parsed: ParsedPack) -> None:
             CATALOG_TRUST_DENIED,
             f"catalog packs require the official or operator trust tier, not {source.trust_tier!r}",
         )
-    bank_items = [item for item in parsed.items if _is_bank_item(item)]
-    if bank_items and source.trust_tier not in ("official", "operator"):
+    # Guard on the formats the pack declares, not only the items it parsed:
+    # an empty bank file is still a bank pack (and may scope retirement), so
+    # it must carry the trust tier and a registered adapter.
+    bank_formats = [fmt for fmt in parsed.formats if fmt in BANK_ITEM_TYPES]
+    if bank_formats and source.trust_tier not in ("official", "operator"):
         raise SeedPackError(
             BANK_TRUST_DENIED,
             f"bank packs require the official or operator trust tier, not {source.trust_tier!r}",
         )
-    for item in bank_items:
-        require_adapter(item.format)
+    for fmt in bank_formats:
+        require_adapter(fmt)
     if not parsed.items and any(fmt in CATALOG_FORMATS for fmt, _version in parsed.skipped_formats):
         raise SeedPackError(PLAN_EMPTY, "no catalog item could be read from this pack")
-
-
-def _is_bank_item(item: ParsedItem) -> bool:
-    spec = FORMATS.get((item.format, item.format_version))
-    return bool(spec is not None and spec.bank)
 
 
 async def _provided_claims(

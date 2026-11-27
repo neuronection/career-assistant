@@ -314,6 +314,12 @@
       "reason_contains": "Azure smoke disabled",
       "when": "conditional",
       "why": "opt-in Azure Blob provider smoke; normal PRs and the desktop suite need no cloud credentials"
+    },
+    {
+      "id": "tests/test_migrations.py::test_0022_backfills_bank_identity_on_postgres",
+      "reason_contains": "postgres lane only",
+      "when": "always",
+      "why": "the migration-seeding round-trip runs against a live throwaway Postgres database; the Postgres lane asserts it"
     }
   ]
 }
