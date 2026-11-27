@@ -1,11 +1,19 @@
-"""Bank entity adapters for the seed lane (plan 225 S0).
+"""Bank entity adapters for the seed lane (plan 225 S0/S1).
 
 The six bank formats ride the same parse → plan → apply lane as the catalog:
 identity is the stored ``seed_key``, content is compared by the item digest,
-and removal retires the stored row instead of deleting it. S0 ships only the
-assessment-template adapter; the other five formats are registered with
-``adapter=None`` so the planner refuses them with ``BANK_UNSUPPORTED`` instead
-of silently skipping a registered format (the catalog lane's rule).
+and removal retires the stored row instead of deleting it. S0 ships the
+assessment-template adapter; S1 adds the assessment-question adapter. The
+other four formats stay registered with ``adapter=None`` so the planner
+refuses them with ``BANK_UNSUPPORTED`` instead of silently skipping a
+registered format (the catalog lane's rule).
+
+A question row is written as an active bank item (``source='bank'``,
+``status='active'``) and retires to ``status='retired'``; run clones are
+separate rows and are never touched. The lane's canonical item digest
+(``ParsedItem.content_hash``)
+drives no-op/update detection through ``SeedItemProvenance`` — the question
+table has no hash column of its own.
 """
 
 from __future__ import annotations
@@ -95,6 +103,46 @@ async def load_current(db: AsyncSession) -> dict[tuple[str, str], Any]:
     return current
 
 
+async def apply_assessment_question(
+    db: AsyncSession, payload: dict[str, Any], row: AssessmentQuestion | None, *, seed_key: str
+) -> AssessmentQuestion:
+    """Upsert one bank question with its options, stages and time split.
+
+    Questions publish as ``active`` (their lifecycle is active/retired and the
+    phase reader selects active bank rows); removal retires them.
+    """
+    fields = {
+        "phase": int(payload["phase"]),
+        "kind": str(payload["kind"]),
+        "prompt": str(payload["prompt"]),
+        "help": str(payload.get("help") or ""),
+        "options": list(payload.get("options") or []),
+        "time_split": payload.get("time_split"),
+        "audience_stages": list(payload.get("audience_stages") or []),
+        "source": "bank",
+        "status": "active",
+        "sort_index": int(payload.get("sort_index") or 0),
+    }
+    if row is None:
+        row = AssessmentQuestion(run_id=None, **fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
+def template_content_hash(payload: dict[str, Any]) -> str:
+    """Canonical hash of a battery's validated content (the row's hash column)."""
+    from app.schemas.assessment_template import TemplateContent
+    from app.services.assessment.assessment_templates import _canonical_hash
+
+    content = TemplateContent.model_validate(payload["content"])
+    return _canonical_hash(content.model_dump(mode="json"))
+
+
 async def apply_assessment_template(
     db: AsyncSession, payload: dict[str, Any], row: AssessmentTemplate | None, *, seed_key: str
 ) -> AssessmentTemplate:
@@ -134,7 +182,7 @@ async def apply_assessment_template(
 
 
 BANK_FORMATS: dict[str, Callable[..., Any] | None] = {
-    "assessment_questions": None,
+    "assessment_questions": apply_assessment_question,
     "assessment_templates": apply_assessment_template,
     "cv_templates": None,
     "metric_dimensions": None,
@@ -240,10 +288,12 @@ __all__ = [
     "RETIRE_ORDER",
     "adapter_for",
     "adapter_for_entity",
+    "apply_assessment_question",
     "apply_assessment_template",
     "load_current",
     "preview_fields",
     "require_adapter",
     "retire",
     "stage",
+    "template_content_hash",
 ]

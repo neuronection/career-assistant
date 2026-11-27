@@ -48,6 +48,16 @@ All notable changes to **Career Assistant** are documented here.
   withholds every number and sets `aria-busy`, and a failed refetch withholds
   them too. The include-only plain-click cycle (include → clear) is fixed at
   the source, so career's `triStateMode` intent rewrite is gone.
+- **Assessment questions can now be installed from a seed pack.** The
+  `assessment_questions` bank format upserts by stored `seed_key` (options,
+  audience stages and time split included), adopts fresh-install rows without
+  duplicating them, and retires removed questions instead of deleting them so
+  completed runs keep their clones and answers. Battery templates still
+  upsert by `(key, version)`, and a published version is immutable: a content
+  change under the same version is refused as a conflict instead of
+  overwriting it. Starting an assessment run before the question bank is
+  applied now answers 409 naming the `neuronection-reference-banks` pack, and
+  a bank phase with no eligible question is skipped with a typed notice.
 
 - **The remaining seed banks now carry a stored pack identity.** Assessment
   questions and templates, CV templates, metric dimensions and skill packs
