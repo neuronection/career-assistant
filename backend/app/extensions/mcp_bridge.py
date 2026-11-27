@@ -6,6 +6,7 @@ the protocol. Tool enablement is an explicit allowlist per server: a
 refresh may discover NEW tools but never widens access on its own.
 """
 
+import contextlib
 import uuid
 from datetime import UTC, datetime
 
@@ -103,7 +104,7 @@ class MCPBridgeService:
     async def refresh(self, server_id: uuid.UUID) -> AIMCPServer:
         """Re-discover the server's tools (explicit; never auto-widens)."""
         row = await self.get_server(server_id)
-        client, _ = self._client_for(row)
+        client, transport = self._client_for(row)
         tools = []
         try:
             async with client as session:
@@ -111,6 +112,9 @@ class MCPBridgeService:
                 tools = [{"name": t.name, "description": t.description or ""} for t in listed]
         except Exception as exc:
             raise DomainError(f"MCP refresh failed: {exc}") from exc
+        finally:
+            with contextlib.suppress(Exception):
+                await transport.close()
         # Keep allowlist entries that still exist; new tools start disabled.
         discovered_names = {t["name"] for t in tools}
         row.discovered_tools = tools
@@ -143,7 +147,7 @@ class MCPBridgeService:
             raise DomainError("This MCP server is disabled")
         if tool_name not in (row.enabled_tools or []):
             raise DomainError(f"Tool '{tool_name}' is not enabled on this server")
-        client, _ = self._client_for(row)
+        client, transport = self._client_for(row)
         started = datetime.now(UTC)
         try:
             async with client as session:
@@ -173,6 +177,9 @@ class MCPBridgeService:
             )
             await self.db.commit()
             raise DomainError(f"MCP call failed: {exc}") from exc
+        finally:
+            with contextlib.suppress(Exception):
+                await transport.close()
 
         await _record(
             self.db,
