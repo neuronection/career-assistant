@@ -470,7 +470,14 @@ class JobService:
 
             if axis == "family":
                 counts = await _grouped_scalar(self.db, scope, Job.family_id)
-                facets["family"] = {family.key: counts.get(family.id, 0) for family in families}
+                facets["family"] = {
+                    family.key: sum(
+                        counts.get(member.id, 0)
+                        for member in families
+                        if member.path.startswith(family.path)
+                    )
+                    for family in families
+                }
             elif axis == "skills":
                 rows = await self.db.execute(
                     select(Skill.key, func.count(JobSkill.job_id))

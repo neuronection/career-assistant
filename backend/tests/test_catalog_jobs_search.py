@@ -241,6 +241,33 @@ async def test_skills_axis_all_any_and_min_level(db):
     assert codes == {"gamma-role", "delta-role"}
 
 
+async def test_family_facet_counts_a_parent_with_no_direct_jobs(db):
+    """The reported symptom: a parent chip reads 0 while its subtree has jobs."""
+    jobs = await _seed(db)
+    parent = JobFamily(key="search-empty-root", label="Empty Root", path="search-empty-root")
+    db.add(parent)
+    await db.flush()
+    child = JobFamily(
+        key="search-empty-child",
+        label="Empty Child",
+        path="search-empty-root-child",
+        parent_id=parent.id,
+        level=1,
+    )
+    db.add(child)
+    await db.flush()
+    moved = jobs["delta-role"]
+    moved.family_id = child.id
+    await db.flush()
+
+    codes, total, facets = await _codes(db, family_key="search-empty-root", with_facets=True)
+    assert codes == {"delta-role"}
+    assert total == 1
+    # no job points at the parent itself: the count comes from the subtree
+    assert facets["family"]["search-empty-root"] == 1
+    assert facets["family"]["search-empty-child"] == 1
+
+
 async def test_has_roles_truth_table(db):
     await _seed(db)
 
@@ -269,8 +296,9 @@ async def test_facets_exclude_their_own_axis(db):
     assert facets["contract"]["temporary"] == 1
     assert facets["contract"]["contract"] == 1
 
-    _, _, facets = await _codes(db, family_key="search-root", with_facets=True)
-    assert facets["family"]["search-root"] == 3
+    _, total, facets = await _codes(db, family_key="search-root", with_facets=True)
+    assert total == 4
+    assert facets["family"]["search-root"] == 4
     assert facets["family"]["search-child"] == 1
 
     _, _, facets = await _codes(db, with_facets=True)
