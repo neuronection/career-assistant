@@ -440,6 +440,7 @@
       "rolesHas": "Has open roles",
       "rolesNone": "No open roles",
       "resultCount": "{{count}} jobs",
+      "loadFailed": "Couldn't load the catalogue. Try again.",
       "sort": "Sort"
     },
     "sort": {
@@ -577,6 +578,7 @@
   },
   "explore": {
     "searchPlaceholder": "Search title or company…",
+    "loadFailed": "Couldn't load postings. Try again.",
     "addSkill": "Add skill…",
     "skillLevel": "Skill level",
     "anyLevel": "any",
@@ -5535,6 +5537,8 @@
     "sortRecent": "Recently hiring",
     "searchPlaceholder": "Search companies…",
     "loadError": "Could not load companies.",
+    "facetsUnavailable": "Counts aren't available for this many companies. Filters still apply.",
+    "facetsTruncated": "Showing the most common {{count}}.",
     "noneYetTitle": "No companies yet",
     "noneYetBody": "Companies appear here once connector syncs bring in postings with a recognized employer.",
     "openPostings": "{{count}} open postings",
@@ -5832,6 +5836,7 @@
     "clickToExclude": "Click to exclude",
     "clickToClear": "Click to clear",
     "removeValue": "Remove {{value}}",
+    "noMatches": "no matches",
     "clickToIncludeOnly": "Click to include",
     "clickToToggle": "Click to filter by this",
     "menu": {

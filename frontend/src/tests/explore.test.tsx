@@ -842,6 +842,34 @@ describe("Explore page", () => {
     expect(screen.queryByTestId("explore-undo-exclude")).not.toBeInTheDocument();
   });
 
+  it("maps a failed refetch to the localized message, never the raw error", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("posting-title");
+    openSection("Seniority");
+    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("· 2");
+
+    mockExplore.mockRejectedValue(
+      new Error("AxiosError: Request failed with status code 401")
+    );
+    fireEvent.change(screen.getByTestId("explore-q"), {
+      target: { value: "engineer" },
+    });
+
+    expect(
+      await screen.findByText("Couldn't load postings. Try again.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/AxiosError/)).not.toBeInTheDocument();
+    // the old counts no longer describe the query that did not run
+    expect(screen.queryByTestId("seniority-mid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("explore-result-count")).toHaveTextContent("");
+    // the previous results stay on screen as stale context
+    expect(screen.getByTestId("posting-title")).toBeInTheDocument();
+  });
+
   it("hides the card entity menu while the radar preview is active", async () => {
     mockFetchRadar.mockResolvedValue({
       keywords: ["data"],

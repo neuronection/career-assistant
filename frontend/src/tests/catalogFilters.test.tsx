@@ -123,6 +123,7 @@ beforeEach(() => {
     total: 0,
     facets: {},
     loading: false,
+    error: false,
     filters: {},
   });
   vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
@@ -155,12 +156,15 @@ describe("catalog filter rail", () => {
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent(""));
   });
 
-  it("disables a zero-count facet value", async () => {
+  it("disables a zero-count facet value, keeps its count and says why", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
     await user.click(await screen.findByRole("button", { name: "Demand" }));
-    expect(await screen.findByTestId("catalog-demand-stable")).toBeDisabled();
+    const stable = await screen.findByTestId("catalog-demand-stable");
+    expect(stable).toBeDisabled();
+    expect(stable).toHaveTextContent("· 0");
+    expect(stable).toHaveAccessibleName(/no matches/);
     expect(screen.getByTestId("catalog-demand-hot")).not.toBeDisabled();
   });
 
@@ -284,6 +288,33 @@ describe("catalog filter rail", () => {
     renderCatalog();
     await screen.findByTestId("catalog-result-count");
     expect(screen.queryByTestId("catalog-active-chips")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of silently keeping the previous results", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Routes>
+          <Route path="/catalog" element={<CatalogTree band="compact" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("catalog-result-count")).toBeInTheDocument();
+
+    vi.mocked(jobsApi.fetchJobs).mockRejectedValue(new Error("boom"));
+    await user.selectOptions(screen.getByTestId("catalog-sort"), "open_roles");
+
+    expect(await screen.findByTestId("catalog-error")).toHaveTextContent(
+      "Couldn't load the catalogue. Try again."
+    );
+    // the previous grid stays as stale context, but no count describes the
+    // query that did not run
+    expect(screen.getByTestId("catalog-grid")).toBeInTheDocument();
+    expect(screen.getByText("Software Developer")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-result-count")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("catalog-filters-open"));
+    expect(await screen.findByTestId("catalog-filters-sheet-done")).toHaveTextContent("Done");
   });
 
   it("collapses the rail into a Filters sheet on a narrow page", async () => {

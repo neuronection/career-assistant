@@ -11,6 +11,12 @@ All notable changes to **Career Assistant** are documented here.
   includes the whole subtree, so a parent chip could read 0 while its children
   had jobs — and a 0 chip is disabled, so the drill-down disappeared. The count
   now uses the same predicate as the filter (#54).
+- **Filter rails stop inventing counts.** When a page of companies is too large
+  for facet counts, the rail says so and keeps every selected filter removable;
+  after a failed refetch the counts are cleared and the sheet returns to `Done`
+  instead of describing a query that did not run. `/postings` shows a localized
+  error instead of the raw exception, and `/catalog` no longer keeps stale data
+  silently (#53, #55).
 
 
 ### Changed
