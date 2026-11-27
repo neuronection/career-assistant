@@ -45,12 +45,14 @@ uv sync --extra desktop
 uv run python -m careerassistant              # window + tray (default)
 uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
 uv run python -m careerassistant web          # loopback server + browser
-uv run python -m careerassistant seed         # migrations + starter catalog only
+uv run python -m careerassistant seed         # migrations + reference banks (no catalog)
 ```
 
 First launch creates a strong per-instance key file (`auth_keys.json`,
-0600), applies migrations and seeds the
-starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). Closing
+0600), applies migrations and seeds the reference banks automatically (opt
+out with `CAREER_SKIP_SEED=1`). **No job catalog ships with the app**: the
+catalog page starts empty and an admin loads the official catalog with one
+click (or uploads a pack zip under Settings → Data providers). Closing
 the window keeps the app running in the tray after a first-run opt-in prompt
 — see [Desktop app](desktop-app.md).
 

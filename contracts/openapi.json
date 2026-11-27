@@ -2260,6 +2260,11 @@
           "career_stage": {
             "$ref": "#/components/schemas/CareerStage"
           },
+          "catalog_empty": {
+            "default": false,
+            "title": "Catalog Empty",
+            "type": "boolean"
+          },
           "effective_scoring_weights": {
             "$ref": "#/components/schemas/ScoringWeights"
           },
@@ -39277,6 +39282,50 @@
           }
         },
         "summary": "Probe Provider Endpoint",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/install": {
+      "post": {
+        "description": "One-click official catalog install: sync, approve, apply, enable.",
+        "operationId": "install_official_provider_api_v1_admin_providers__source_id__install_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Install Official Provider",
         "tags": [
           "admin"
         ]

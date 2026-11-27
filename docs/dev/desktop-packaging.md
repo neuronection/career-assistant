@@ -20,7 +20,7 @@ python -m careerassistant enginecheck    # PDF engine health probe
 | `app` (default) | pywebview window over a local loopback server, with tray + background mode |
 | `app --tray` | Tray-only boot (for auto-start on login) |
 | `web` | Fixed loopback port + system browser (no window shell) |
-| `seed` | Apply migrations + idempotent starter catalog, then exit |
+| `seed` | Apply migrations + idempotent reference banks (no catalog pack), then exit |
 | `backup` / `restore ZIP` | Local profile backup/restore |
 | `enginecheck` | Print one PDF through the engine and report page-count health |
 

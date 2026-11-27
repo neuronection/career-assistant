@@ -84,6 +84,12 @@ export async function syncProvider(id: string): Promise<ProviderSyncReport> {
   return data;
 }
 
+/** One-click official catalog install: sync, approve, apply and enable. */
+export async function installOfficialProvider(id: string): Promise<ProviderApply> {
+  const { data } = await api.post<ProviderApply>(`${ADMIN}/${id}/install`);
+  return data;
+}
+
 export async function uploadProviderPack(id: string, file: File): Promise<ProviderSyncReport> {
   const form = new FormData();
   form.append("file", file);

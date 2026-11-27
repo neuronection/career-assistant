@@ -166,8 +166,8 @@ def run_provisioning_migrations() -> None:
     run_migrations()
 
 
-def seed_catalog_data() -> None:
-    """Seed the starter taxonomy + catalog (idempotent, opt-out)."""
+def seed_reference_data() -> None:
+    """Seed the reference banks, notifications and official provider tiles."""
     if os.environ.get(SKIP_SEED_VAR) == "1":
         logger.info("Seeding skipped (%s=1)", SKIP_SEED_VAR)
         return

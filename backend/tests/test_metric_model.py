@@ -38,11 +38,9 @@ async def test_registry_seed_is_idempotent(db):
     assert groups <= {"interest", "value", "workstyle"}
 
 
-async def test_riasec_mapping_covers_seeded_categories(db):
+async def test_riasec_mapping_covers_seeded_categories(db, fixture_catalog):
     from app.seeds.metrics import unmapped_categories
-    from app.seeds.run import seed_taxonomy
 
-    await seed_taxonomy(db)
     assert await unmapped_categories(db) == []
 
 

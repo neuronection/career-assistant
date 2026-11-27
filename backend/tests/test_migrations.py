@@ -263,7 +263,7 @@ def test_0003_job_title_key_roundtrips_and_backfills_on_a_fresh_sqlite_database(
     command.upgrade(config, "0002")
     asyncio.run(_seed_0003_async(db_url))
     command.upgrade(config, "head")
-    asyncio.run(_seed_catalog_and_assert_keys_async(db_url))
+    asyncio.run(_assert_job_title_keys_async(db_url))
 
     con = sqlite3.connect(tmp_path / "job-title-key.db")
     try:
@@ -400,17 +400,15 @@ async def _seed_0003_async(url: str) -> None:
         await engine.dispose()
 
 
-async def _seed_catalog_and_assert_keys_async(url: str) -> None:
+async def _assert_job_title_keys_async(url: str) -> None:
     import sqlalchemy as sa
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
     from app.models.job_model import Job
-    from app.seeds.run import seed_catalog
 
     engine = create_async_engine(url)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            await seed_catalog(session)
             rows = (
                 (await session.execute(sa.select(Job).where(Job.status != "retired")))
                 .scalars()

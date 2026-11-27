@@ -91,6 +91,7 @@ async def _bootstrap_payload(db, profile) -> dict:
     from app.ai.status import ai_status
     from app.models.engagement_model import NotificationRule
     from app.models.enums import NotificationRuleKind
+    from app.models.job_model import Job
     from app.services.notification_channels import available_channels
     from app.services.profile.experience_service import ExperienceService
     from app.services.profile.stages_service import (
@@ -119,9 +120,13 @@ async def _bootstrap_payload(db, profile) -> dict:
     )
     for rule in rules:
         target_families.extend(rule.params.get("family_keys") or [])
+    catalog_empty = (
+        await db.scalar(select(Job.id).where(Job.status == "published").limit(1))
+    ) is None
     return {
         "career_stage": stage.value,
         "stage_source": source,
+        "catalog_empty": catalog_empty,
         "onboarding_path": (profile.basics or {}).get("onboarding_path"),
         "features": feature_flags(stage),
         "suggested_scoring_weights": stage_preset(stage),

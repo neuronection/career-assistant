@@ -155,10 +155,14 @@ class SeedApplyService:
         *,
         packs: SeedPackStore | None = None,
         connectors: Mapping[str, Any] | None = None,
+        side_effects: bool = True,
     ) -> None:
         self.db = db
         self.packs = packs or SeedPackStore()
         self.connectors = connectors
+        # Test fixture packs apply catalog rows without the production
+        # queue/fit side effects; the catalog adapters stay the same.
+        self.side_effects = side_effects
 
     async def build_plan(
         self,
@@ -567,7 +571,8 @@ class SeedApplyService:
             for item in ordered:
                 if item.action == ACTION_RETIRE:
                     await self._retire_row(item)
-            await job_side_effects(self.db, changed_jobs)
+            if self.side_effects:
+                await job_side_effects(self.db, changed_jobs)
             if advance and version is not None:
                 source.current_version_id = version.id
             await self.retry_deferred(

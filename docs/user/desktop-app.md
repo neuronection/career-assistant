@@ -16,7 +16,7 @@ uv sync --extra desktop
 uv run python -m careerassistant              # window + tray (default)
 uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
 uv run python -m careerassistant web          # loopback server + browser
-uv run python -m careerassistant seed         # migrations + starter catalog only
+uv run python -m careerassistant seed         # migrations + reference banks (no catalog)
 ```
 
 Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (the
@@ -25,8 +25,10 @@ tray degrades gracefully without one).
 ## First launch
 
 First launch creates a strong per-instance key file (`auth_keys.json`,
-0600), applies migrations and seeds the
-starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI
+0600), applies migrations and seeds the reference banks automatically (opt
+out with `CAREER_SKIP_SEED=1`). **No job catalog ships with the app**: the
+catalog page starts empty and an admin loads the official catalog with one
+click (or uploads a pack zip under Settings → Data providers). AI
 providers are configured in-app through the [first-run AI setup](ai-setup.md)
 step (or **Settings → My AI Configuration**) — for a fully local setup, point a
 provider at Ollama (`http://localhost:11434/v1`) or LM Studio.

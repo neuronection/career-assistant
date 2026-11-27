@@ -723,7 +723,7 @@ def test_main_app_tray_flag(monkeypatch):
     monkeypatch.setattr(local_mod, "default_data_dir", Path)
     monkeypatch.setattr(local_mod, "bootstrap_environment", lambda *_: {})
     monkeypatch.setattr(local_mod, "run_migrations", lambda: None)
-    monkeypatch.setattr(local_mod, "seed_catalog_data", lambda: None)
+    monkeypatch.setattr(local_mod, "seed_reference_data", lambda: None)
     monkeypatch.setattr("app.storage.datastore_guard.guard_datastore", lambda *_: None)
     monkeypatch.setattr(backups, "backup_if_due", lambda *_: None)
 

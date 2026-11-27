@@ -1,10 +1,11 @@
 """Seed data loading (plan 123.5): JSON files, pydantic-validated at load.
 
-The literal catalog/assessment/template/metric vocabularies live in
-``app/data/seeds/*.json`` (bundled with the desktop app via the
-packaging spec's ``app/data`` entry). Every structure is validated
+The assessment, CV-template, metric and skill-pack banks live in
+``app/data/seeds/*.json`` (bundled with the desktop app via the packaging
+spec's ``app/data`` entry). The job catalog and taxonomy are shipped as a
+versioned seed pack instead (plan 224). Every structure is validated
 through pydantic models at import time — a malformed seed file fails
-loudly at boot instead of seeding half a catalog. Nested JSONB payloads
+loudly at boot instead of seeding half a bank. Nested JSONB payloads
 (``options``, ``content``, ``sources``) stay schema-free by design
 (plan 42: the JSONB shapes are disciplined; no blanket cleanup).
 """
@@ -13,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 SEEDS_DIR = Path(__file__).resolve().parents[1] / "data" / "seeds"
 
@@ -25,107 +26,6 @@ def load_seed(name: str) -> dict[str, Any]:
 
 class _SeedModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=False)
-
-
-class InterestTag(_SeedModel):
-    key: str
-    label: str
-    category: str
-
-
-class SkillTag(_SeedModel):
-    key: str
-    label: str
-    category: str
-
-
-class Family(_SeedModel):
-    key: str
-    label: str
-    description: str | None = None
-    parent: str | None = None
-
-
-class WorkStyle(_SeedModel):
-    teamwork: int
-    environment: int
-    structure: int
-    pace: int
-    leadership: int
-    physical_activity: str
-
-
-class JobEducation(_SeedModel):
-    level: str
-    fields: list[str]
-
-
-class JobPhysical(_SeedModel):
-    activity: str
-    requirements: list[str]
-
-
-class JobSalary(_SeedModel):
-    currency: str
-    entry: list[int]
-    median: list[int]
-    senior: list[int]
-
-
-class JobDemand(_SeedModel):
-    outlook: str
-    note: str
-    sources: dict[str, Any]
-
-
-class Aspect(_SeedModel):
-    title: str
-    detail: str
-    weight: float | None = None
-
-
-class Job(_SeedModel):
-    code: str
-    title: str
-    family: str
-    description: str
-    interests: list[str]
-    skills: list[str]
-    subjects: list[str]
-    work_style: WorkStyle
-    education: JobEducation
-    physical: JobPhysical
-    salary: JobSalary
-    demand: JobDemand
-    environments: list[str]
-    positives: list[Aspect]
-    negatives: list[Aspect]
-
-
-class Relation(_SeedModel):
-    from_job: str = Field(alias="from")
-    to_job: str = Field(alias="to")
-    type: str
-    weight: float
-    rationale: str
-
-
-class PathStep(_SeedModel):
-    # step payloads vary by kind (education_level / skill_key / optional / …);
-    # known keys stay typed, the rest pass through untouched.
-    model_config = ConfigDict(extra="allow")
-
-    kind: str
-    label: str
-    education_level: str | None = None
-    detail: str | None = None
-
-
-class CareerPath(_SeedModel):
-    job: str
-    title: str
-    description: str
-    steps: list[PathStep]
 
 
 class MetricDimension(_SeedModel):

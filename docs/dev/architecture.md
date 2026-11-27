@@ -423,9 +423,11 @@ There is no side door around it.
   snapshot when the pin moves or a pack is added — a data change, not a code
   change. One provider owns exactly one pack (a version is one pack digest);
   `POST /admin/providers/import` adds every pack of any repository at
-  runtime. Checking/enabling a tile stays an explicit admin act, and all
-  provisioning is idempotent in `app/seeds/run.py`
-  (`ensure_seed_providers`).
+  runtime. Checking/enabling a tile stays an explicit admin act; the
+  one-shot `migrate` registers the tiles (serve never fetches) and
+  `POST /admin/providers/{id}/install` gives an official tile its one-click
+  sync → approve → apply → enable path. Provisioning is idempotent in
+  `app/seeds/run.py` (`ensure_seed_providers`).
 - **Catalog packs reuse the same lane.** `0021` adds a stored `seed_key` to
   the catalog tables (nullable, unique where present); the adapters upsert by
   key, adopt pre-existing seeded rows on first apply, retire referenced rows

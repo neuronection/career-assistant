@@ -40,6 +40,7 @@ function bootstrapWith(ai: AiStatus | undefined): Bootstrap {
       values: 3,
     },
     weights_overridden: false,
+    catalog_empty: false,
     fit_stale: false,
     target_mode: false,
     ai,

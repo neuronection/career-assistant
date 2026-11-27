@@ -111,6 +111,16 @@ async def sync_provider(
     return await _service(db).sync(source_id, actor=str(user.id))
 
 
+@router.post("/{source_id}/install", response_model=ApplyOut)
+async def install_official_provider(
+    source_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    """One-click official catalog install: sync, approve, apply, enable."""
+    return await _service(db).install_official(source_id, actor=str(user.id))
+
+
 @router.post("/{source_id}/upload", response_model=SyncReportOut)
 async def upload_provider_pack(
     source_id: uuid.UUID,

@@ -27,6 +27,7 @@ function bootstrap(partial: Partial<Bootstrap>): Bootstrap {
       values: 3,
     },
     weights_overridden: false,
+    catalog_empty: false,
     fit_stale: false,
     target_mode: false,
     ...partial,

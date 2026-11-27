@@ -222,6 +222,21 @@ def grant_app_role(engine: Engine, app_user: str) -> list[str]:
     return statements
 
 
+async def _register_official_providers() -> int:
+    """Register the official repository's disabled tiles (plan 224 S4).
+
+    The one-shot ``migrate`` is the server's only seeder: a serving process
+    never provisions providers at boot. Idempotent — a re-run finds the
+    existing tiles and creates nothing.
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.services.seeds.boot import ensure_seed_providers
+
+    async with AsyncSessionLocal() as db:
+        result = await ensure_seed_providers(db)
+    return len(result["official"])
+
+
 def run_server_provisioning() -> None:
     """The one-shot migrate entry: the full seam, in order.
 
@@ -257,6 +272,8 @@ def run_server_provisioning() -> None:
         # 2. extensions → 3. Alembic → 4. checkpoint schema → 5. spaces.
         ensure_extensions(engine)
         run_provisioning_migrations()
+        tiles = asyncio.run(_register_official_providers())
+        logger.info("provision: %d official provider tile(s) registered", tiles)
         asyncio.run(provision_postgres_checkpoints(owner_url))
         provisioned = provision_vector_spaces(engine)
         logger.info("provision: %d vector space(s) provisioned", provisioned)
