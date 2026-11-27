@@ -5831,6 +5831,10 @@
     "clickToExclude": "Zum Ausschließen klicken",
     "clickToClear": "Zum Entfernen klicken",
     "removeValue": "{{value}} entfernen",
+    "excluded": "ausgeschlossen",
+    "noneMatch": "derzeit keine Treffer",
+    "notRecorded": "Nicht erfasst",
+    "optionMenu": "Optionen für {{value}}",
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "clickToToggle": "Klicken, um danach zu filtern",
     "menu": {

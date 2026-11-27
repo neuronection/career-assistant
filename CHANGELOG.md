@@ -15,6 +15,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **Every filter surface now uses the shared filter module.** The rail, its
+  sections, the tri-state value chips and the applied-filter row render
+  `FilterRail` / `FilterSection` / `FacetChip variant="inline"` /
+  `FilterPills` from `@neuronection/assistant-ui@0.92.0`; the local
+  `FilterRail`, `Section`, `TriStateChips`, `ActiveFilterChips` and
+  `FilterChips` components are gone. The rail layout is explicit
+  (`band==='wide'` → `rail`, otherwise `compact`, the compact form using the
+  library `PanelModal`), active sections are allowed to stay collapsed,
+  exclude is reachable from the keyboard and the per-row menu (right-click is
+  no longer the only path), a zero-count value stays selectable, a selected
+  value missing from the option list still renders as a removable chip with
+  no count, and section headers no longer put an active-value count in a
+  facet-count slot. The three URL encodings (csv, repeated keys via
+  `getAll`, `skills=key:level`) and every `parseFilters` allowlist are
+  unchanged; `lib/filterFacets.ts` is the only translation layer.
+
 - **The remaining seed banks now carry a stored pack identity.** Assessment
   questions and templates, CV templates, metric dimensions and skill packs
   gain a nullable `seed_key` (unique where present), metric dimensions gain a
@@ -29,7 +45,7 @@ All notable changes to **Career Assistant** are documented here.
   `FilterPills`), so keyboard handling, screen-reader semantics and styling
   match the other Neuronection apps. The tri-state include/exclude logic stays
   app-side and no call site changed; `@neuronection/assistant-ui` moves to
-  `^0.91.1`.
+  `^0.91.1` here and to `^0.92.0` with the rail adoption described above.
 - **Filter counts are shown only when the payload has one.** Company facets
   now carry `truncated` (the industry/location lists were cut) and are
   omitted (`facets: null`) for a full page of companies, whose counts could

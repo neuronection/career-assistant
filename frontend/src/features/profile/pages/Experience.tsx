@@ -27,7 +27,8 @@ import type {
   ExperienceItemIn,
   ExperienceItemOut,
 } from "@/types/experience";
-import { FilterChips } from "@/components/filters/FilterChips";
+import { FacetChip } from "@neuronection/assistant-ui/filters";
+import { multiValue } from "@/lib/filterFacets";
 import { CheckIndicator } from "@neuronection/assistant-ui";
 import {
   SelectionEntry,
@@ -624,23 +625,34 @@ export function Experience() {
                   );
                 })}
               </div>
-              <FilterChips
-                testidPrefix="experience"
-                options={(Object.keys(KIND_ICONS) as ExperienceItemOut["kind"][]).map(
-                  (kind) => ({
-                    value: kind,
-                    label: t(`experience.kind.${kind}`, { defaultValue: kind }),
-                  })
-                )}
-                selected={filters.kinds}
-                onToggle={(kind) =>
+              <FacetChip
+                facet={{
+                  id: "experience-kinds",
+                  label: t("experience.kindLabel"),
+                  kind: "multi",
+                  allowExclude: false,
+                  options: (Object.keys(KIND_ICONS) as ExperienceItemOut["kind"][]).map(
+                    (kind) => ({
+                      value: kind,
+                      label: t(`experience.kind.${kind}`, { defaultValue: kind }),
+                    })
+                  ),
+                }}
+                value={multiValue(filters.kinds)}
+                variant="inline"
+                showActivePills={false}
+                onToggleOption={(kind, action) => {
+                  if (kind === null) return;
                   setFilters((prev) => ({
                     ...prev,
-                    kinds: prev.kinds.includes(kind)
-                      ? prev.kinds.filter((value) => value !== kind)
-                      : [...prev.kinds, kind],
-                  }))
-                }
+                    kinds:
+                      action === "clear"
+                        ? prev.kinds.filter((value) => value !== kind)
+                        : [...prev.kinds.filter((value) => value !== kind), kind],
+                  }));
+                }}
+                testId="experience-kinds"
+                optionTestId={(kind) => `experience-kind-${kind}`}
               />
               <div className="flex justify-end">
                 <SelectionEntry

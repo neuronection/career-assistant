@@ -178,15 +178,17 @@ describe("Catalog subtabs", () => {
     );
     const chip = await screen.findByTestId("catalog-family-creative-arts");
     expect(chip).toHaveTextContent("Creative & Arts");
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    expect(chip).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders the /postings layout with one family surface in the filter rail", async () => {
     const { container } = renderCatalog();
 
     await waitFor(() => expect(screen.getByTestId("catalog-filter-aside")).toBeInTheDocument());
-    expect(screen.getByTestId("catalog-filter-aside")).toHaveClass("ca-stats-rail");
-    expect(screen.getByTestId("catalog-filter-rail")).toBeInTheDocument();
+    const aside = screen.getByTestId("catalog-filter-aside");
+    expect(aside).toHaveClass("ca-stats-rail");
+    expect(aside).toHaveAttribute("data-layout", "rail");
+    expect(aside.querySelector('[data-as="filter-rail-body"]')).not.toBeNull();
     expect(container.querySelector(".ca-stats-page")).not.toBeNull();
     expect(container.querySelector(".ca-stats-cols")).not.toBeNull();
     expect(container.querySelector(".ca-catalog-cols")).not.toBeNull();
@@ -210,7 +212,7 @@ describe("Catalog subtabs", () => {
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "technology" }))
     );
-    expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute("aria-checked", "true");
   });
 
   it("drills into children as chips from the family section", async () => {
@@ -248,7 +250,7 @@ describe("Catalog subtabs", () => {
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "software-dev" }))
     );
-    expect(screen.getByTestId("catalog-family-software-dev")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("catalog-family-software-dev")).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows the universities subtab (visible before bootstrap loads)", async () => {

@@ -24,7 +24,7 @@ import {
   Spinner,
 } from "@/components/ui";
 import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
+import { FilterPills } from "@neuronection/assistant-ui/filters";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import {
   ChipTogglesRow,
@@ -1061,14 +1061,14 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
                 </div>
               </div>
 
-              <ActiveFilterChips
-                chips={chips}
+              <FilterPills
+                items={chips}
                 onRemove={(key) => {
                   const chip = chips.find((entry) => entry.key === key);
                   if (chip) writeFilters({ ...filters, ...chip.patch });
                 }}
                 testId="findings-active-chips"
-                chipTestId={(key) => `findings-chip-${key}`}
+                itemTestId={(key) => `findings-chip-${key}`}
               />
 
               {goals !== null && (goals ?? []).length === 0 ? null : feed === null ? (

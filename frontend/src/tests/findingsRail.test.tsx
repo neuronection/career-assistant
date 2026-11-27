@@ -30,7 +30,8 @@ describe("FindingsRail counts", () => {
     );
     const chip = screen.getByTestId("source-board-postings");
     expect(chip).toHaveTextContent("board-postings");
-    expect(chip).not.toHaveTextContent("·");
+    expect(chip.querySelector("bdi")).toBeNull();
+    expect(chip).toHaveAccessibleName("board-postings (3)");
   });
 
   it("keeps the facet count on the chip, never in the section's active slot", () => {
@@ -43,7 +44,7 @@ describe("FindingsRail counts", () => {
         onClear={vi.fn()}
       />
     );
-    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("· 3");
-    expect(screen.queryAllByTestId("section-count")).toHaveLength(0);
+    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("3");
+    expect(document.querySelector('[data-as="filter-section-count"]')).toBeNull();
   });
 });

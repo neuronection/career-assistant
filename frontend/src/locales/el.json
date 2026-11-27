@@ -5831,6 +5831,10 @@
     "clickToExclude": "Κλικ για αποκλεισμό",
     "clickToClear": "Κλικ για αφαίρεση",
     "removeValue": "Αφαίρεση {{value}}",
+    "excluded": "εξαιρέθηκε",
+    "noneMatch": "κανένα αποτέλεσμα τώρα",
+    "notRecorded": "Δεν έχει καταγραφεί",
+    "optionMenu": "Επιλογές για {{value}}",
     "clickToIncludeOnly": "Κλικ για συμπερίληψη",
     "clickToToggle": "Κλικ για φιλτράρισμα",
     "menu": {

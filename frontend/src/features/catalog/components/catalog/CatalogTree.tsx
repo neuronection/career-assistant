@@ -158,7 +158,6 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
           filters={filters}
           facets={facets}
           families={families}
-          total={total}
           band={band}
           onChange={patch}
           onClear={clearAll}

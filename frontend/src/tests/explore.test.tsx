@@ -212,7 +212,13 @@ beforeEach(() => {
 });
 
 function openSection(title: string) {
-  fireEvent.click(screen.getByText(title));
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${title}`) }));
+}
+
+function countBadge(testId: string) {
+  return screen
+    .getByTestId(testId)
+    .querySelector('[data-as="filter-rail-count"]');
 }
 
 describe("Explore page", () => {
@@ -365,7 +371,7 @@ describe("Explore page", () => {
     });
   });
 
-  it("clears a selected chip from its remove button", async () => {
+  it("clears a selected chip from the keyboard", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -374,17 +380,16 @@ describe("Explore page", () => {
     );
     await screen.findByTestId("explore");
     openSection("Seniority");
-    await user.click(screen.getByTestId("seniority-mid"));
-    await waitFor(() =>
-      expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "true")
-    );
-    await user.click(screen.getByTestId("seniority-mid-clear"));
+    const chip = () => screen.getByTestId("seniority-mid");
+    await user.click(chip());
+    await waitFor(() => expect(chip()).toHaveAttribute("aria-checked", "true"));
+    fireEvent.keyDown(chip(), { key: "Delete" });
     await waitFor(() => {
       const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
       expect(call.seniority).toBeUndefined();
       expect(call.seniority_exclude).toBeUndefined();
     });
-    expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "false");
+    expect(chip()).toHaveAttribute("aria-checked", "false");
   });
 
   it("excludes skills, sources and organizations", async () => {
@@ -404,8 +409,8 @@ describe("Explore page", () => {
       )
     );
 
-    // right-click excludes directly
-    fireEvent.contextMenu(screen.getByTestId("source-synth"));
+    // excluded from the keyboard (Enter includes, Shift+Enter excludes)
+    fireEvent.keyDown(screen.getByTestId("source-synth"), { key: "Enter", shiftKey: true });
     await waitFor(() =>
       expect(mockExplore).toHaveBeenLastCalledWith(
         expect.objectContaining({ source_exclude: "synth" })
@@ -480,7 +485,7 @@ describe("Explore page", () => {
     fireEvent.change(await screen.findByTestId("explore-q"), {
       target: { value: "engineer" },
     });
-    fireEvent.click(await screen.findByTestId("clear-filters"));
+    fireEvent.click(await screen.findByRole("button", { name: /Clear all/ }));
     expect(screen.getByTestId("explore-q")).toHaveValue("");
   });
 
@@ -494,7 +499,7 @@ describe("Explore page", () => {
     openSection("Job");
     const software = await screen.findByTestId("job-software-engineer");
     expect(software).toHaveTextContent("Software Engineer");
-    expect(software.getAttribute("title")).toContain("software-engineer");
+    expect(software).toHaveAccessibleName(/software-engineer/);
     fireEvent.click(software);
     fireEvent.click(await screen.findByTestId("job-data-analyst"));
     await waitFor(() => {
@@ -506,6 +511,20 @@ describe("Explore page", () => {
     });
   });
 
+  it("prints no job count when the facet carries none", async () => {
+    mockExplore.mockResolvedValue({ ...exploreResponse(), facets: {} });
+    render(
+      <MemoryRouter initialEntries={["/postings?job=software-engineer"]}>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    const chip = screen.getByTestId("job-software-engineer");
+    expect(chip).toHaveTextContent("Software Engineer");
+    expect(chip.querySelector("bdi")).toBeNull();
+  });
+
   it("excludes seen postings from the filter rail", async () => {
     render(
       <MemoryRouter>
@@ -513,8 +532,10 @@ describe("Explore page", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("explore");
-    expect(screen.getByTestId("explore-filters")).toHaveClass("ca-stats-rail");
-    expect(screen.getByTestId("explore-filter-rail")).toBeInTheDocument();
+    const aside = screen.getByTestId("explore-filters");
+    expect(aside).toHaveClass("ca-stats-rail");
+    expect(aside).toHaveAttribute("data-layout", "rail");
+    expect(aside.querySelector('[data-as="filter-rail-body"]')).not.toBeNull();
     expect(mockExplore).toHaveBeenLastCalledWith(
       expect.not.objectContaining({ seen_exclude: expect.anything() })
     );
@@ -524,7 +545,7 @@ describe("Explore page", () => {
         expect.objectContaining({ seen_exclude: true })
       )
     );
-    expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+    expect(countBadge("explore-filters")).toHaveTextContent("1");
   });
 
   it("collapses the rail into a toolbar and filter sheet on a narrow page", async () => {
@@ -534,15 +555,15 @@ describe("Explore page", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("explore");
-    expect(screen.getByTestId("explore-filters")).toHaveAttribute("data-band", "compact");
-    expect(screen.getByTestId("explore-filters-open")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-filters")).toHaveAttribute("data-layout", "compact");
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(screen.getByTestId("explore-q")).toBeInTheDocument();
-    expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+    expect(countBadge("explore-filters")).toBeNull();
     expect(screen.queryByTestId("seen-exclude")).not.toBeInTheDocument();
     expect(screen.getByTestId("explore-chip-seniority-mid")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("explore-filters-open"));
-    expect(await screen.findByTestId("explore-filters-sheet")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Filters (1)" }));
+    expect(await screen.findByRole("dialog", { name: "Filters" })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("seen-exclude"));
     await waitFor(() =>
       expect(mockExplore).toHaveBeenLastCalledWith(
@@ -677,6 +698,40 @@ describe("Explore page", () => {
     );
   });
 
+  it("replays a pre-plan URL: csv axes, repeated keys and skills=key:level", async () => {
+    mockExplore.mockResolvedValue(exploreResponse());
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/postings?skills=sql:3,excel&skill_mode=any&org=Acme%20Corp&org=Globex&source=synth,seed&seniority_exclude=intern&sort=fresh",
+        ]}
+      >
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    // the same request params the pre-plan URL produced
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          skills: "sql:3,excel",
+          skill_mode: "any",
+          org: ["Acme Corp", "Globex"],
+          source: "synth,seed",
+          seniority_exclude: "intern",
+          sort: "fresh",
+        })
+      )
+    );
+
+    // and the same state in the shared rail
+    expect(screen.getByTestId("explore-chip-skill-sql")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-chip-seniorityExclude-intern")).toBeInTheDocument();
+    expect(screen.getByTestId("seniority-intern")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("seniority-intern")).toHaveAccessibleName(/\(excluded\)$/);
+  });
+
   it("restores sort and filters from the URL on load", async () => {
     render(
       <MemoryRouter
@@ -722,7 +777,7 @@ describe("Explore page", () => {
       expect(search).toContain("seen_exclude=true");
     });
 
-    fireEvent.click(screen.getByTestId("clear-filters"));
+    fireEvent.click(screen.getByRole("button", { name: /Clear all/ }));
     await waitFor(() =>
       expect(screen.getByTestId("location-search").textContent).toBe("")
     );

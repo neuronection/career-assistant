@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { FilterPills } from "@neuronection/assistant-ui/filters";
 
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
 import { DEFAULT_FILTERS } from "@/features/catalog/exploreParams";
 import { exploreFilterChips } from "@/features/postings/components/postings/presetSummary";
 import {
@@ -18,10 +18,10 @@ const t = (key: string, options?: Record<string, unknown>) => {
   return parts.length ? `${key}(${parts.join(",")})` : key;
 };
 
-describe("ActiveFilterChips", () => {
+describe("FilterPills", () => {
   it("renders nothing without chips", () => {
     const { container } = render(
-      <ActiveFilterChips chips={[]} onRemove={vi.fn()} testId="chips" />
+      <FilterPills items={[]} onRemove={vi.fn()} testId="chips" />
     );
     expect(container).toBeEmptyDOMElement();
   });
@@ -29,14 +29,14 @@ describe("ActiveFilterChips", () => {
   it("renders one removable button per chip", () => {
     const onRemove = vi.fn();
     render(
-      <ActiveFilterChips
-        chips={[
+      <FilterPills
+        items={[
           { key: "a", label: "Alpha" },
           { key: "b", label: "Beta" },
         ]}
         onRemove={onRemove}
         testId="chips"
-        chipTestId={(key) => `chip-${key}`}
+        itemTestId={(key) => `chip-${key}`}
       />
     );
     expect(screen.getByTestId("chips")).toBeInTheDocument();

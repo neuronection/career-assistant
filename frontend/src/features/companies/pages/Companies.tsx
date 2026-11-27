@@ -7,6 +7,12 @@ import {
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowUpDown, Building2, Globe, MapPin } from "lucide-react";
+import {
+  FacetChip,
+  FilterPills,
+  FilterRail,
+  FilterSection,
+} from "@neuronection/assistant-ui/filters";
 import { fetchCompanies } from "@/api/companies";
 import { rememberListSearch, isListReturn } from "@/lib/listReturn";
 import {
@@ -20,14 +26,7 @@ import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
 import { ItemCardShell } from "@/components/cards/ItemCardShell";
-import {
-  Section,
-  TriStateChips,
-  triStateToggle,
-  type FacetChip,
-} from "@/components/filters/filterBits";
-import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
+import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
@@ -43,7 +42,16 @@ import {
   toSearchParams,
   type CompanyFilters,
 } from "@/features/companies/companiesParams";
-import type { TriStateMode } from "@/components/filters/filterBits";
+import type { FacetValue, TriStateMode } from "@/lib/filterFacets";
+import {
+  facetLabels,
+  facetOptions,
+  multiValue,
+  railLabels,
+  railLayout,
+  triStateMode,
+  triStateToggle,
+} from "@/lib/filterFacets";
 
 const STATUS_FILTERS: CompanyFilters["status"][] = ["all", "new"];
 
@@ -165,16 +173,47 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
   const filtersActive = countActive(filters);
   const chips = useMemo(() => companiesFilterChips(filters, t), [filters, t]);
 
-  const facetChips = useCallback(
-    (facet: CompanyFacetAxis): FacetChip[] =>
+  const facetValues = useCallback(
+    (facet: CompanyFacetAxis): FacetValue[] =>
       Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
         count,
-        testId: `company-${facet}-${value}`,
       })),
     [facets, t]
   );
+
+  const facetRow = (
+    facet: CompanyFacetAxis,
+    includeKey: keyof CompanyFilters,
+    excludeKey: keyof CompanyFilters,
+    title: string
+  ) => {
+    const include = filters[includeKey] as string[];
+    const exclude = filters[excludeKey] as string[];
+    return (
+      <FilterSection title={title} active={include.length + exclude.length > 0}>
+        <FacetChip
+          facet={{
+            id: `company-${facet}`,
+            label: title,
+            kind: "multi",
+            options: facetOptions(facetValues(facet), { include, exclude }),
+          }}
+          value={multiValue(include, exclude)}
+          variant="inline"
+          showActivePills={false}
+          labels={facetLabels(t)}
+          onToggleOption={(value, action) => {
+            if (value === null) return;
+            toggleAxis(includeKey, excludeKey, value, triStateMode(action));
+          }}
+          testId={`company-${facet}-facet`}
+          optionTestId={(value) => `company-${facet}-${value ?? "not-recorded"}`}
+        />
+      </FilterSection>
+    );
+  };
 
   const clearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
 
@@ -184,17 +223,13 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
 
       <div className="ca-stats-cols">
         <FilterRail
+          layout={railLayout(band)}
           title={t("companies.railTitle")}
-          activeCount={filtersActive}
-          onClear={clearAll}
-          countTestId="company-filter-count"
-          clearTestId="company-filters-clear"
-          asideTestId="company-filters"
-          testId="company-filter-rail"
-          band={band}
-          triggerLabel={t("filters.title")}
-          triggerTestId="company-filters-open"
-          sheetTestId="company-filters-sheet"
+          labels={railLabels(t)}
+          activeCount={filtersActive === 0 ? undefined : filtersActive}
+          onClear={filtersActive === 0 ? undefined : clearAll}
+          className="ca-stats-rail"
+          data-testid="company-filters"
           search={
             <FilterRailSearch
               value={filters.q}
@@ -228,56 +263,30 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
                 ))}
               </div>
             </div>
-          <Section
-            title={t("companies.facetTitle.work_mode")}
-            active={filters.workMode.length + filters.workModeExclude.length > 0}
-          >
-            <TriStateChips
-              values={facetChips("work_mode")}
-              include={filters.workMode}
-              exclude={filters.workModeExclude}
-              onToggle={(value, mode) => toggleAxis("workMode", "workModeExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.seniority")}
-            active={filters.seniority.length + filters.seniorityExclude.length > 0}
-          >
-            <TriStateChips
-              values={facetChips("seniority")}
-              include={filters.seniority}
-              exclude={filters.seniorityExclude}
-              onToggle={(value, mode) => toggleAxis("seniority", "seniorityExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.employment")}
-            active={filters.employment.length + filters.employmentExclude.length > 0}
-          >
-            <TriStateChips
-              values={facetChips("employment")}
-              include={filters.employment}
-              exclude={filters.employmentExclude}
-              onToggle={(value, mode) => toggleAxis("employment", "employmentExclude", value, mode)}
-              showCounts
-            />
-          </Section>
-          <Section
-            title={t("companies.facetTitle.industries")}
-            active={filters.industries.length + filters.industriesExclude.length > 0}
-          >
-            <TriStateChips
-              values={facetChips("industries")}
-              include={filters.industries}
-              exclude={filters.industriesExclude}
-              onToggle={(value, mode) =>
-                toggleAxis("industries", "industriesExclude", value, mode)
-              }
-              showCounts
-            />
-          </Section>
+          {facetRow(
+            "work_mode",
+            "workMode",
+            "workModeExclude",
+            t("companies.facetTitle.work_mode")
+          )}
+          {facetRow(
+            "seniority",
+            "seniority",
+            "seniorityExclude",
+            t("companies.facetTitle.seniority")
+          )}
+          {facetRow(
+            "employment",
+            "employment",
+            "employmentExclude",
+            t("companies.facetTitle.employment")
+          )}
+          {facetRow(
+            "industries",
+            "industries",
+            "industriesExclude",
+            t("companies.facetTitle.industries")
+          )}
           <div className="space-y-2 pt-1">
             <label className="block text-xs">
               <span className="mb-1 block font-medium text-[var(--as-muted-fg)]">
@@ -336,14 +345,14 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
           </div>
         </div>
       </div>
-      <ActiveFilterChips
-        chips={chips}
+      <FilterPills
+        items={chips}
         onRemove={(key) => {
           const chip = chips.find((entry) => entry.key === key);
           if (chip) patch(chip.patch);
         }}
         testId="company-active-chips"
-        chipTestId={(key) => `company-chip-${key}`}
+        itemTestId={(key) => `company-chip-${key}`}
       />
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
