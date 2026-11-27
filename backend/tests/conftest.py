@@ -1109,3 +1109,20 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         for problem in problems:
             reporter.write_line(f"  {problem}", red=True)
         reporter.write_line(f"  update {_SKIP_ALLOWLIST_PATH} (documented skips only)")
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def _shutdown_pdf_engine_after_the_session():
+    """Stop the persistent Playwright driver inside the test loop.
+
+    Tests that exercise the real PDF engine start a Node subprocess bound to
+    the session loop. Without an explicit stop, the transport is garbage
+    collected after the loop closes — an unraisable warning that pytest can
+    turn into a session error. The app lifespan does this on shutdown; the
+    suite must do the same.
+    """
+    yield
+    from app.services.cv.cv_pdf_service import shutdown_engine
+
+    with contextlib.suppress(Exception):
+        await shutdown_engine()
