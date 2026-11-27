@@ -61,6 +61,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
 
   useEffect(() => {
     if (filters.q.trim().length < 2 && !filters.family) return;
+    if (error) return;  // the total describes a query that did not run
     recordSearch(filters.q, { family_key: filters.family || null }, total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.q, filters.family, total]);

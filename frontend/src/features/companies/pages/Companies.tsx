@@ -188,7 +188,7 @@ export function Companies({ band: bandOverride }: { band?: ContainerBand } = {})
     [facets, t]
   );
 
-  const facetsUnavailable = facets === null ? (
+  const facetsUnavailable = loaded && facets === null ? (
     <p
       className="text-xs text-[var(--as-muted-fg)]"
       data-testid="company-facets-unavailable"

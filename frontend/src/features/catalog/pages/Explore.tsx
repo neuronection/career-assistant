@@ -424,7 +424,7 @@ export function Explore({ band: bandOverride }: { band?: ContainerBand } = {}) {
     value: code,
     label: jobTitles[code] ?? code,
     hint: jobTitles[code] ? code : undefined,
-    count: facets?.job?.[code] ?? 0,
+    count: facets?.job?.[code],
     testId: `job-${code}`,
   }));
   const chips = useMemo(() => exploreFilterChips(filters, t), [filters, t]);

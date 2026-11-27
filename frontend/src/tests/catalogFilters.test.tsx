@@ -310,6 +310,7 @@ describe("catalog filter rail", () => {
     // the previous grid stays as stale context, but no count describes the
     // query that did not run
     expect(screen.getByTestId("catalog-grid")).toBeInTheDocument();
+    expect(screen.getByText("Software Developer")).toBeInTheDocument();
     expect(screen.queryByTestId("catalog-result-count")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("catalog-filters-open"));

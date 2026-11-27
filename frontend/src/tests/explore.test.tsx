@@ -866,6 +866,8 @@ describe("Explore page", () => {
     // the old counts no longer describe the query that did not run
     expect(screen.queryByTestId("seniority-mid")).not.toBeInTheDocument();
     expect(screen.getByTestId("explore-result-count")).toHaveTextContent("");
+    // the previous results stay on screen as stale context
+    expect(screen.getByTestId("posting-title")).toBeInTheDocument();
   });
 
   it("hides the card entity menu while the radar preview is active", async () => {

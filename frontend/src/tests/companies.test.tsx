@@ -519,6 +519,9 @@ describe("Companies browsing (plan 135)", () => {
     });
 
     expect(await screen.findByText("Could not load companies.")).toBeInTheDocument();
+    // the previous list is kept as stale context
+    expect(screen.getByTestId("company-card-acme-cloud")).toBeInTheDocument();
+    expect(screen.queryByText(/Show \d+ jobs/)).not.toBeInTheDocument();
     const chip = screen.getByTestId("company-work_mode-remote");
     expect(chip).toHaveTextContent("remote");
     expect(chip).not.toBeDisabled();
