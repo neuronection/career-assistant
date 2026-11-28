@@ -97,7 +97,7 @@ real-Alembic migration tests safe to distribute.
 - **Two lanes, sharded in CI.** `./scripts/run-tests.sh` runs
   `pytest -m "not serial" -n <workers> --dist loadfile` and then
   `pytest -m serial` in one process. CI splits the parallel pass into two
-  duration-balanced matrix jobs at `-n 4 --dist loadfile` (plan 227); the
+  duration-balanced matrix jobs at `-n 4 --dist loadfile`; the
   `backend-sqlite-gate` job then runs the serial pass once over the whole
   tree, after downloading the shard coverage and merging the shard skip
   observations, and closes with `coverage combine` + one
