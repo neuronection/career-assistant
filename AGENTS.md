@@ -97,8 +97,8 @@ database — `neuronection_career_test_gw0`… (created + migrated automatically
 migrations for a `-n` run. SQLite workers write isolated files and
 data/upload trees under `backend/tests/_xdist/<worker>/` (gitignored); the
 SQLite (desktop profile) lane runs two passes — `-m "not serial"` in
-parallel, then `-m serial` sequentially — because a few tests are not
-parallel-safe there (they carry the `serial` marker and a
+parallel (two shards in CI), then `-m serial` sequentially — because a few
+tests are not parallel-safe there (they carry the `serial` marker and a
 `tests/serial_allowlist.json` entry). Serial runs keep plain
 `neuronection_career_test` and need their one-shot `alembic upgrade head` as before.
 Test isolation is dialect-split: Postgres wraps each test in one outer

@@ -125,8 +125,53 @@ jobs:
 
   backend-gate:
     name: Backend (ruff + pytest)
-    needs: backend
+    needs: [backend, backend-checks]
     if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Require the shards and the static checks
+        # `if: always()` keeps this job reachable for diagnostics, but the
+        # protected context must FAIL when a shard or a static check failed —
+        # otherwise moving mypy/contract out of this job would silently drop
+        # them from the required check.
+        if: always()
+        env:
+          SHARDS: ${{ needs.backend.result }}
+          CHECKS: ${{ needs.backend-checks.result }}
+        run: |
+          for result in "$SHARDS" "$CHECKS"; do
+            if [[ "$result" != "success" ]]; then
+              echo "a required upstream job did not succeed: $result" >&2
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Download shard coverage
+        uses: actions/download-artifact@v7
+        with:
+          pattern: postgres-coverage-*
+          path: backend
+          merge-multiple: true
+      - name: Combine shard coverage
+        # Explicit inputs: a missing shard artifact is an error, not a pass.
+        run: uv run coverage combine .coverage.shard-1 .coverage.shard-2
+      - name: Coverage floor (whole suite, both shards)
+        run: uv run coverage report --fail-under=79 --skip-covered
+
+  backend-checks:
+    name: Backend checks (static + contract)
+    # Plan 227 T1 follow-up: the static gates read the tree, not the shard
+    # artifacts, so they belong in their own job alongside the matrix instead
+    # of serialised behind it in the required gate. The gate depends on this
+    # job, so a red check still blocks `main`.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -186,17 +231,6 @@ jobs:
 
           asyncio.run(main())
           PY
-      - name: Download shard coverage
-        uses: actions/download-artifact@v7
-        with:
-          pattern: postgres-coverage-*
-          path: backend
-          merge-multiple: true
-      - name: Combine shard coverage
-        # Explicit inputs: a missing shard artifact is an error, not a pass.
-        run: uv run coverage combine .coverage.shard-1 .coverage.shard-2
-      - name: Coverage floor (whole suite, both shards)
-        run: uv run coverage report --fail-under=79 --skip-covered
       - name: Tracing suite with the otel extra installed (plan 168)
         run: uv run --extra otel pytest tests/test_tracing.py
       - name: Contract drift gate (identity-auth §18)
@@ -296,10 +330,12 @@ jobs:
           path: backend/tests/_xdist/skip_observations.json
           if-no-files-found: ignore
 
-  backend-sqlite-gate:
-    name: Backend on SQLite (desktop profile) — gate
-    needs: backend-sqlite
-    if: always()
+  backend-sqlite-checks:
+    name: Backend on SQLite (desktop profile) — checks
+    # Plan 227 T1 follow-up: partition integrity, the spawner teardown gate and
+    # the contract drift gate read the tree, not the shard artifacts, so they
+    # must not be serialised behind the shards. No `needs`: this job overlaps
+    # the shard matrix and joins the lane wall at max(shard, checks).
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -351,6 +387,57 @@ jobs:
             echo "partition integrity failed: parallel + serial must cover the full collection exactly once" >&2
             exit 1
           fi
+      - name: Spawner teardown gate (unraisable leaks fatal)
+        run: >
+          uv run pytest
+          tests/test_extension_sources.py tests/test_mcp_connector.py
+          tests/test_subprocess_teardown.py tests/test_ai_tools.py
+          -W error::pytest.PytestUnraisableExceptionWarning
+      - name: Contract drift gate (identity-auth §18)
+        run: uv run pytest -m contract
+
+  backend-sqlite-gate:
+    name: Backend on SQLite (desktop profile) — gate
+    needs: [backend-sqlite, backend-sqlite-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+      CAREER_MOCK_AI: "1"
+      CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
+    steps:
+      - name: Require the shards and the tree-only checks
+        # The lane's aggregate must mean "tests + checks + coverage": the
+        # tree-only gates moved out of this job, so a red one has to fail this
+        # job even though `if: always()` keeps it reachable.
+        if: always()
+        env:
+          SHARDS: ${{ needs.backend-sqlite.result }}
+          CHECKS: ${{ needs.backend-sqlite-checks.result }}
+        run: |
+          for result in "$SHARDS" "$CHECKS"; do
+            if [[ "$result" != "success" ]]; then
+              echo "a required upstream job did not succeed: $result" >&2
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Migrate test database
+        run: uv run alembic upgrade head
       - name: Download shard coverage
         uses: actions/download-artifact@v7
         with:
@@ -381,14 +468,6 @@ jobs:
         # The floor is enforced here and only here: no shard pass carries
         # --cov-fail-under, so a selectable pass cannot take it with it.
         run: uv run coverage report --fail-under=79 --skip-covered
-      - name: Spawner teardown gate (unraisable leaks fatal)
-        run: >
-          uv run pytest
-          tests/test_extension_sources.py tests/test_mcp_connector.py
-          tests/test_subprocess_teardown.py tests/test_ai_tools.py
-          -W error::pytest.PytestUnraisableExceptionWarning
-      - name: Contract drift gate (identity-auth §18)
-        run: uv run pytest -m contract
 
   frontend:
     name: Frontend (lint + build + vitest)

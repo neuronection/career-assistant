@@ -94,15 +94,25 @@ real-Alembic migration tests safe to distribute.
 - Never hand-run migrations for an `-n` run; the routing bootstrap does it.
 - **SQLite workers** (the desktop profile) write isolated files and state
   trees under `backend/tests/_xdist/<worker>/` (gitignored).
-- **Two lanes.** `./scripts/run-tests.sh` runs
+- **Two lanes, sharded in CI.** `./scripts/run-tests.sh` runs
   `pytest -m "not serial" -n <workers> --dist loadfile` and then
-  `pytest -m serial` in one process; the CI SQLite job runs the same
-  two passes at `-n 4 --dist loadfile`, then a partition-integrity step
-  (`--collect-only` ×3 with `-o addopts=""`; the parallel and serial node-id
-  sets must cover the full collection exactly once, and an empty serial
-  selection exits 5), then `coverage report --fail-under=79 --skip-covered`
-  over the combined data (the floor lives only in that step, never inside a
-  selectable pass), then `-m contract`. A test is marked `serial` only when it
+  `pytest -m serial` in one process. CI splits the parallel pass into two
+  duration-balanced matrix jobs at `-n 4 --dist loadfile` (plan 227); the
+  `backend-sqlite-gate` job then runs the serial pass once over the whole
+  tree, after downloading the shard coverage and merging the shard skip
+  observations, and closes with `coverage combine` + one
+  `coverage report --fail-under=79 --skip-covered` (the floor lives only in
+  that step, never inside a selectable pass). A separate
+  `backend-sqlite-checks` job with no `needs` overlaps the shards with the
+  tree-only gates — partition integrity (`--collect-only` ×3 with
+  `-o addopts=""`; the parallel and serial node-id sets must cover the full
+  collection exactly once, and an empty serial selection exits 5), the
+  spawner teardown gate and `-m contract` — so they are not serialised
+  behind the matrix. The Postgres lane follows the same shape: two shards plus
+  a `backend-checks` job (tracing, contract, OpenAPI diff, mypy, type ratchet,
+  pip-audit) that `backend-gate` needs, so the protected `Backend (ruff +
+  pytest)` context still subsumes every static gate while the gate itself only
+  downloads, combines and reports coverage. A test is marked `serial` only when it
   is not parallel-safe on the SQLite desktop profile (a child-process
   wall-clock barrier, or an asserted elapsed bound), and every marked test
   needs an entry in `tests/serial_allowlist.json` naming its criterion
@@ -245,8 +255,10 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 
 | Gate | Command | Wall |
 |---|---|---|
-| Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=79` | coverage 79% |
-| Backend (SQLite profile) | two passes (`-m "not serial" -n 4 --dist loadfile`, then `-m serial`), a partition-integrity check, a separate `coverage report --fail-under=79` step over the combined data, and the spawner tests with `-W error::pytest.PytestUnraisableExceptionWarning` | coverage 79% (separate step); no leaked asyncio subprocess transports in the spawner tests |
+| Backend (Postgres) | sharded parallel passes (`-n auto --dist loadfile`); the gate combines the shard coverage and runs one `coverage report --fail-under=79` step over the combined data | coverage 79% (separate step) |
+| Backend (Postgres) — checks | own job, no `needs` (overlaps the shards); the protected gate needs it: tracing with the otel extra, contract, OpenAPI diff, mypy, type ratchet, pip-audit | the required context subsumes every static gate |
+| Backend (SQLite profile) | sharded parallel passes (`-m "not serial" -n 4 --dist loadfile`), then one whole-tree serial pass; the gate combines the shard coverage and runs a separate `coverage report --fail-under=79` step over the combined data | coverage 79% (separate step) |
+| Backend (SQLite profile) — checks | own job, no `needs` (overlaps the shards): partition-integrity check, the spawner tests with `-W error::pytest.PytestUnraisableExceptionWarning`, `-m contract` | partition is parallel + serial exactly once; no leaked asyncio subprocess transports in the spawner tests |
 | Contract (both dialects) | `uv run pytest -m contract` | identity-auth §18 |
 | Types | `uv run mypy` | `[tool.mypy] files` — clean packages only |
 | Type ratchet | `uv run python ../scripts/check-mypy-ratchet.py` | `[tool.career-mypy-ratchet]` pegs |

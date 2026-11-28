@@ -1,4 +1,4 @@
-"""Pin the shard assignment and the workflow's shard matrix (plan 227 T1)."""
+"""Pin the shard assignment and the workflow's shard/check job split (plan 227 T1)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,29 @@ SCRIPT = ROOT / "scripts" / "check-test-shards.py"
 DURATIONS = BACKEND / "tests" / "ci_durations.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 PROTECTED_BACKEND_CHECK = "Backend (ruff + pytest)"
+SQLITE_GATE = "backend-sqlite-gate"
+SQLITE_CHECKS = "backend-sqlite-checks"
+SQLITE_CHECKS_NAME = "Backend on SQLite (desktop profile) — checks"
+POSTGRES_GATE = "backend-gate"
+POSTGRES_CHECKS = "backend-checks"
+POSTGRES_CHECKS_NAME = "Backend checks (static + contract)"
+# Plan 227 T1 follow-up: these read the tree, not the shard artifacts, so they
+# run in their own job alongside the matrix instead of behind it in the gate.
+TREE_ONLY_SQLITE_STEPS = (
+    "Partition integrity (no test lost, none doubled)",
+    "Spawner teardown gate (unraisable leaks fatal)",
+    "Contract drift gate (identity-auth §18)",
+)
+POSTGRES_STATIC_STEPS = (
+    "Tracing suite with the otel extra installed (plan 168)",
+    "Contract drift gate (identity-auth §18)",
+    "OpenAPI contract diff",
+    "Type check (mypy)",
+    "Type ratchet (app/services wall)",
+    "Dependency audit (pip-audit, blocking with reviewed allowlist)",
+)
+SQLITE_REQUIRED_UPSTREAM_GUARD = "Require the shards and the tree-only checks"
+POSTGRES_REQUIRED_UPSTREAM_GUARD = "Require the shards and the static checks"
 
 
 def _shard_module() -> ModuleType:
@@ -27,6 +50,17 @@ def _shard_module() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _jobs() -> dict[str, dict]:
+    """The workflow's job mapping."""
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+
+def _needs(spec: dict) -> set[str]:
+    """A job's ``needs`` as a set, accepting the scalar and list YAML forms."""
+    needs = spec.get("needs", [])
+    return {needs} if isinstance(needs, str) else set(needs)
 
 
 @functools.lru_cache(maxsize=1)
@@ -84,22 +118,106 @@ def test_an_empty_shard_fails_the_assignment() -> None:
 
 def test_the_workflow_matches_the_committed_shard_count() -> None:
     module = _shard_module()
-    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    jobs = _jobs()
     expected = list(range(1, module.SHARD_COUNT + 1))
     for job in ("backend", "backend-sqlite"):
         matrix = jobs[job]["strategy"]["matrix"]
         assert matrix["shard"] == expected, (job, matrix["shard"], expected)
         assert jobs[job]["strategy"]["fail-fast"] is False
-    assert jobs["backend-gate"]["needs"] == "backend"
-    assert jobs["backend-sqlite-gate"]["needs"] == "backend-sqlite"
+    assert _needs(jobs[POSTGRES_GATE]) == {"backend", POSTGRES_CHECKS}
+    assert _needs(jobs[SQLITE_GATE]) == {"backend-sqlite", SQLITE_CHECKS}
+
+
+def test_the_postgres_static_checks_overlap_the_shards() -> None:
+    jobs = _jobs()
+    checks = jobs[POSTGRES_CHECKS]
+    assert checks["name"] == POSTGRES_CHECKS_NAME
+    # No `needs`: the static gates must overlap the shard matrix, not queue
+    # after it.
+    assert "needs" not in checks, checks.get("needs")
+    # Same lane service/env as the shards, so the moved commands keep working.
+    assert checks["env"] == jobs["backend"]["env"]
+    assert checks["services"] == jobs["backend"]["services"]
+    step_names = [step.get("name") for step in checks["steps"]]
+    for name in POSTGRES_STATIC_STEPS:
+        assert name in step_names, name
+    # The independence is the point: no shard artifact is downloaded here.
+    assert not any("download-artifact" in str(step.get("uses", "")) for step in checks["steps"])
+
+    gate = jobs[POSTGRES_GATE]
+    assert _needs(gate) == {"backend", POSTGRES_CHECKS}
+    gate_steps = [step.get("name") for step in gate["steps"]]
+    for name in POSTGRES_STATIC_STEPS:
+        assert name not in gate_steps, name
+    # The protected context fails closed when a dependency failed; without this
+    # step `if: always()` would report green while mypy/contract were red.
+    assert POSTGRES_REQUIRED_UPSTREAM_GUARD in gate_steps
+
+
+def test_the_gate_jobs_run_only_the_coverage_tail_and_the_sqlite_serial_lane() -> None:
+    jobs = _jobs()
+    serial_lane = "Run tests — serial lane (whole tree, single process)"
+    postgres_runs = [str(step.get("run", "")) for step in jobs[POSTGRES_GATE]["steps"]]
+    assert not any("pytest" in run for run in postgres_runs)
+
+    sqlite_pytest_steps = [
+        step.get("name")
+        for step in jobs[SQLITE_GATE]["steps"]
+        if "pytest" in str(step.get("run", ""))
+    ]
+    assert sqlite_pytest_steps == [serial_lane], sqlite_pytest_steps
+    sqlite_gate_steps = [step.get("name") for step in jobs[SQLITE_GATE]["steps"]]
+    assert SQLITE_REQUIRED_UPSTREAM_GUARD in sqlite_gate_steps
+
+
+def test_the_sqlite_checks_job_overlaps_the_shards() -> None:
+    jobs = _jobs()
+    checks = jobs[SQLITE_CHECKS]
+    assert checks["name"] == SQLITE_CHECKS_NAME
+    # No `needs`: the tree-only checks must overlap the shard matrix, not queue
+    # after it (that serial tail is the cost this job exists to remove).
+    assert "needs" not in checks, checks.get("needs")
+    assert checks["env"] == jobs[SQLITE_GATE]["env"]
+    step_names = [step.get("name") for step in checks["steps"]]
+    for name in TREE_ONLY_SQLITE_STEPS:
+        assert name in step_names, name
+    # The independence is the point: no shard artifact is downloaded here.
+    assert not any("download-artifact" in str(step.get("uses", "")) for step in checks["steps"])
+
+    gate = jobs[SQLITE_GATE]
+    assert _needs(gate) == {"backend-sqlite", SQLITE_CHECKS}
+    gate_steps = [step.get("name") for step in gate["steps"]]
+    for name in TREE_ONLY_SQLITE_STEPS:
+        assert name not in gate_steps, name
+    # The gate keeps the whole-tree serial lane and the one coverage floor.
+    assert "Run tests — serial lane (whole tree, single process)" in gate_steps
+    assert "Coverage floor (whole suite, both shards)" in gate_steps
+
+
+def test_the_sqlite_tree_only_gates_run_in_exactly_one_job() -> None:
+    jobs = _jobs()
+    sqlite_jobs = {
+        job: spec
+        for job, spec in jobs.items()
+        if str(spec.get("name", "")).startswith("Backend on SQLite")
+    }
+    for name in TREE_ONLY_SQLITE_STEPS:
+        holders = [
+            job
+            for job, spec in sqlite_jobs.items()
+            if any(step.get("name") == name for step in spec["steps"])
+        ]
+        assert holders == [SQLITE_CHECKS], (name, holders)
 
 
 def test_the_protected_backend_context_is_owned_by_one_gate_job() -> None:
-    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    jobs = _jobs()
     holders = [job for job, spec in jobs.items() if spec.get("name") == PROTECTED_BACKEND_CHECK]
-    assert holders == ["backend-gate"], holders
+    assert holders == [POSTGRES_GATE], holders
     gate = jobs[holders[0]]
-    assert gate["needs"] == "backend"
+    # The required check subsumes the static checks: a red mypy/contract job
+    # must fail the protected context, not run beside it.
+    assert _needs(gate) == {"backend", POSTGRES_CHECKS}
     assert gate.get("if") == "always()"
     assert jobs["backend"]["strategy"]["matrix"]["shard"] == list(
         range(1, _shard_module().SHARD_COUNT + 1)
