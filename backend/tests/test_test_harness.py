@@ -7,6 +7,7 @@ routing branches, the exemptions and the worker-scoped cleanup.
 """
 
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -143,3 +144,79 @@ def test_unrouted_session_skips_the_isolation_assertion(tmp_path, monkeypatch) -
     )
 
     harness._assert_worker_state_isolation()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, 0),
+        (0, 0),
+        (1, 1),
+        (2, 2),
+        ("auto", os.cpu_count() or 1),
+        ("logical", os.cpu_count() or 1),
+        ("4", 4),
+    ],
+)
+def test_worker_count_normalisation(raw, expected, monkeypatch) -> None:
+    monkeypatch.delenv("PYTEST_XDIST_WORKER_COUNT", raising=False)
+    config = SimpleNamespace(getoption=lambda _name, default=None: raw)
+    assert harness._resolved_worker_count(config) == expected
+
+
+def test_worker_count_reads_the_xdist_worker_environment(monkeypatch) -> None:
+    monkeypatch.setenv("PYTEST_XDIST_WORKER_COUNT", "4")
+    config = SimpleNamespace(getoption=lambda _name, default=None: None)
+    assert harness._resolved_worker_count(config) == 4
+
+
+def test_worker_count_zero_is_not_parallel(monkeypatch) -> None:
+    monkeypatch.setenv("PYTEST_XDIST_WORKER_COUNT", "4")
+    config = SimpleNamespace(getoption=lambda _name, default=None: 0)
+    assert harness._resolved_worker_count(config) == 0
+
+
+def _guard_config(raw_workers):
+    return SimpleNamespace(getoption=lambda _name, default=None: raw_workers)
+
+
+def test_serial_guard_trips_in_a_parallel_sqlite_session(monkeypatch) -> None:
+    monkeypatch.delenv("PYTEST_XDIST_WORKER_COUNT", raising=False)
+    monkeypatch.setattr(harness, "IS_SQLITE", True)
+    for workers in (2, 4, "auto"):
+        violation = harness._serial_guard_violation(_guard_config(workers), ["tests/test_x.py::t"])
+        assert '-m "not serial"' in violation
+        assert "serial test" not in violation
+
+
+def test_serial_guard_ignores_the_postgres_profile(monkeypatch) -> None:
+    monkeypatch.delenv("PYTEST_XDIST_WORKER_COUNT", raising=False)
+    monkeypatch.setattr(harness, "IS_SQLITE", False)
+    assert harness._serial_guard_violation(_guard_config(4), ["tests/test_x.py::t"]) == ""
+
+
+def test_serial_guard_ignores_a_single_or_absent_worker(monkeypatch) -> None:
+    monkeypatch.delenv("PYTEST_XDIST_WORKER_COUNT", raising=False)
+    monkeypatch.setattr(harness, "IS_SQLITE", True)
+    for workers in (None, 0, 1):
+        assert harness._serial_guard_violation(_guard_config(workers), ["tests/test_x.py::t"]) == ""
+
+
+def test_serial_guard_ignores_unmarked_sessions(monkeypatch) -> None:
+    monkeypatch.delenv("PYTEST_XDIST_WORKER_COUNT", raising=False)
+    monkeypatch.setattr(harness, "IS_SQLITE", True)
+    assert harness._serial_guard_violation(_guard_config(4), []) == ""
+
+
+def test_routed_worker_points_at_its_own_database_and_trees() -> None:
+    worker_root = routing.routed_worker_root()
+    if worker_root is None:
+        assert "_xdist" not in harness.TEST_DB_URL
+        return
+    root = worker_root.resolve()
+    if harness.IS_SQLITE:
+        assert f"tests/_xdist/{worker_root.name}/" in harness.TEST_DB_URL
+    else:
+        assert harness.TEST_DB_URL.endswith(f"_test_{worker_root.name}")
+    assert Path(str(harness.settings.data_dir)).resolve().is_relative_to(root)
+    assert Path(harness.settings.upload_root).resolve().is_relative_to(root)

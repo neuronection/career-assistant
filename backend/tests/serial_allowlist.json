@@ -1,0 +1,4 @@
+{
+  "$comment": "Tests that are not parallel-safe on the SQLite desktop profile (the `serial` marker; tests/conftest.py enforces this file). Every entry names the criterion (H2 = a child process must meet a wall-clock barrier; H3 = the test asserts an elapsed-time bound) and the resource at `path:line` that makes it true. A marked test without an entry, and an entry matching nothing on a full-suite run, both fail; the resource line must exist. The Postgres lane keeps these tests in its parallel pool.",
+  "entries": []
+}

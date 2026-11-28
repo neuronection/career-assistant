@@ -42,18 +42,31 @@ Key points:
 ### Parallel databases (pytest-xdist)
 
 Parallel runs are the default. Each worker gets its **own** database —
-`neuronection_career_test_gw0`, `neuronection_career_test_gw1`, … — created and migrated automatically
-by `tests/xdist_routing.py` **before** the app's engines exist. This removes
-cross-worker contention and makes the real-Alembic migration tests safe to
-distribute.
+`neuronection_career_test_gw0`, `neuronection_career_test_gw1`, … — and its
+own data/upload trees under `backend/tests/_xdist/<worker>/{data,uploads}`,
+created and migrated automatically by `tests/xdist_routing.py` **before** the
+app's engines exist. This removes cross-worker contention and makes the
+real-Alembic migration tests safe to distribute.
 
 - Never hand-run migrations for an `-n` run; the routing bootstrap does it.
-- **SQLite workers** (the desktop profile) write isolated files under
-  `backend/tests/_xdist/<worker>/` (gitignored). The CI SQLite job stays
-  **serial** on one file by design.
+- **SQLite workers** (the desktop profile) write isolated files and state
+  trees under `backend/tests/_xdist/<worker>/` (gitignored).
+- **Two lanes.** `./scripts/run-tests.sh` runs `pytest -m "not serial" -n <workers>`
+  and then `pytest -m serial` in one process; the CI SQLite job does the same
+  two passes. A test is marked `serial` only when it is not parallel-safe on
+  the SQLite desktop profile (a child-process wall-clock barrier, or an
+  asserted elapsed bound), and every marked test needs an entry in
+  `tests/serial_allowlist.json` naming its criterion (`H2`/`H3`) and the
+  `path:line` resource that justifies it — a marker without an entry, and an
+  entry matching nothing on a full run, both fail. The Postgres lane keeps
+  these tests in its parallel pool.
+- **The `serial` pass is the final lane.** It fails closed when the
+  `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
+  so a partial run must go through `./scripts/run-tests.sh` or pass
+  `--no-skip-wall` (which skips the skip-wall completeness half only).
 - `PYTEST_XDIST_WORKERS=N` overrides the worker count; `PYTEST_XDIST=0` opts
-  out and uses the plain `neuronection_career_test` database (which needs its one-shot
-  `alembic upgrade head`).
+  out of both lanes and uses the plain `neuronection_career_test` database
+  (which needs its one-shot `alembic upgrade head`).
 
 ```bash
 cd backend && PYTEST_XDIST=0 uv run pytest tests -q   # serial
