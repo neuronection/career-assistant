@@ -27,11 +27,64 @@ All notable changes to **Career Assistant** are documented here.
 - **A family chip's count now matches the results it yields.** The catalogue
   family facet counted jobs by their exact `family_id` while the family filter
   includes the whole subtree, so a parent chip could read 0 while its children
-  had jobs — and a 0 chip is disabled, so the drill-down disappeared. The count
-  now uses the same predicate as the filter (#54).
+  had jobs — and the old local chip disabled a 0 value, so the drill-down
+  disappeared. The count now uses the same predicate as the filter (#54).
+- **Filter rails stop inventing counts.** When a page of companies is too large
+  for facet counts, the rail says so and keeps every selected filter removable;
+  the explanation sits above its section, so it stays on screen with the
+  section collapsed. After a failed refetch the counts are cleared and the
+  sheet returns to `Done` instead of describing a query that did not run.
+  `/postings` shows a localized error instead of the raw exception, and
+  `/catalog` no longer keeps stale data silently (#53, #55).
 
 
 ### Changed
+
+- **Every filter surface now uses the shared filter module.** The rail, its
+  sections, the tri-state value chips and the applied-filter row render
+  `FilterRail` / `FilterSection` / `FacetChip variant="inline"` /
+  `FilterPills` from `@neuronection/assistant-ui@0.93.0`; the local
+  `FilterRail`, `Section`, `TriStateChips`, `ActiveFilterChips` and
+  `FilterChips` components are gone. The rail layout is explicit
+  (`band==='wide'` → `rail`, otherwise `compact`, the compact form using the
+  library `PanelModal`), active sections are allowed to stay collapsed,
+  exclude is reachable from the keyboard and the per-row menu (right-click is
+  no longer the only path), a zero-count value stays selectable, a selected
+  value missing from the option list still renders as a removable chip with
+  no count, and section headers no longer put an active-value count in a
+  facet-count slot. The three URL encodings (csv, repeated keys via
+  `getAll`, `skills=key:level`) and every `parseFilters` allowlist are
+  unchanged; `lib/filterFacets.ts` is the only translation layer.
+
+- **The compact filter sheet shows a real total again, and never a stale
+  facet count.** `@neuronection/assistant-ui@0.93.0` lets a host `footer`
+  receive the sheet's `close`, so `/postings` and `/catalog` render the
+  localized `Show N jobs` from their real result total; it closes the sheet
+  through the library callback and returns focus to the trigger, while
+  `/companies` and `/autopilot` (no total) keep the library `Done`. Facets
+  now carry `countsState`: while a facet fetch is in flight the chip
+  withholds every number and sets `aria-busy`, and a failed refetch withholds
+  them too. The include-only plain-click cycle (include → clear) is fixed at
+  the source, so career's `triStateMode` intent rewrite is gone.
+
+- **CV templates can now be installed from a seed pack.** The `cv_templates`
+  bank format creates a published row per immutable `(key, version)`, adopts
+  fresh-install rows without duplicating them, retires removed versions
+  instead of deleting them, and refuses a changed body at an already-applied
+  version as a conflict. Retired versions leave the template picker while
+  existing CVs keep rendering the template they reference; the CV Studio and
+  assessment empty states now point to the Data providers seed-pack lane.
+
+- **Assessment questions can now be installed from a seed pack.** The
+  `assessment_questions` bank format upserts by stored `seed_key` (options,
+  audience stages and time split included), adopts fresh-install rows without
+  duplicating them, and retires removed questions instead of deleting them so
+  completed runs keep their clones and answers. Battery templates still
+  upsert by `(key, version)`, and a published version is immutable: a content
+  change under the same version is refused as a conflict instead of
+  overwriting it. Starting an assessment run before the question bank is
+  applied now answers 409 naming the `neuronection-reference-banks` pack, and
+  a bank phase with no eligible question is skipped with a typed notice.
 
 - **The remaining seed banks now carry a stored pack identity.** Assessment
   questions and templates, CV templates, metric dimensions and skill packs
@@ -47,7 +100,7 @@ All notable changes to **Career Assistant** are documented here.
   `FilterPills`), so keyboard handling, screen-reader semantics and styling
   match the other Neuronection apps. The tri-state include/exclude logic stays
   app-side and no call site changed; `@neuronection/assistant-ui` moves to
-  `^0.91.1`.
+  `^0.91.1` here and to `^0.93.0` with the rail adoption described above.
 - **Filter counts are shown only when the payload has one.** Company facets
   now carry `truncated` (the industry/location lists were cut) and are
   omitted (`facets: null`) for a full page of companies, whose counts could

@@ -30,6 +30,8 @@ PHASE_TITLES = {
     4: "Personalized selection",
 }
 
+BANK_PHASE_NUMBERS: frozenset[int] = frozenset({2})
+
 
 class Phase:
     """Contract: phase_number, build_questions(run, ctx), score(run, answers)."""

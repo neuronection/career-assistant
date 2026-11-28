@@ -9,7 +9,9 @@ import { WeightsEditor } from "@/features/catalog/components/WeightsEditor";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
-import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
+import { FilterRail } from "@neuronection/assistant-ui/filters";
+import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
+import { railLabels, railLayout } from "@/lib/filterFacets";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { CatalogEmptyNotice } from "@/components/CatalogEmptyNotice";
 import { useCompareStore } from "@/stores/compareStore";
@@ -147,13 +149,12 @@ export function Rankings() {
       <CatalogEmptyNotice />
       <div className="ca-rail-cols">
         <FilterRail
+          layout={railLayout()}
           title={t("filters.title")}
-          activeCount={activeCount}
-          onClear={clearFilters}
-          countTestId="rankings-filter-count"
-          clearTestId="rankings-filter-clear"
-          asideTestId="filter-bar"
-          testId="rankings-filter-rail"
+          labels={railLabels(t)}
+          activeCount={activeCount === 0 ? undefined : activeCount}
+          onClear={activeCount === 0 ? undefined : clearFilters}
+          data-testid="filter-bar"
         >
           <FilterRailSearch
             label={t("rankings.search")}

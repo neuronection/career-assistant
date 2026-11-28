@@ -123,6 +123,7 @@ beforeEach(() => {
     total: 0,
     facets: {},
     loading: false,
+    error: false,
     filters: {},
   });
   vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
@@ -144,24 +145,34 @@ describe("catalog filter rail", () => {
 
     await user.click(hot);
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent("demand=hot"));
-    expect(hot).toHaveAttribute("aria-pressed", "true");
+    expect(hot).toHaveAttribute("aria-checked", "true");
 
     await user.click(screen.getByTestId("catalog-demand-hot"));
     await waitFor(() =>
       expect(screen.getByTestId("search-probe")).toHaveTextContent("demand_exclude=hot")
     );
+    expect(hot).toHaveAccessibleName(/\(excluded\)$/);
 
-    await user.click(screen.getByTestId("catalog-demand-hot-clear"));
+    await user.click(screen.getByTestId("catalog-demand-hot"));
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent(""));
   });
 
-  it("disables a zero-count facet value", async () => {
+  it("keeps a zero-count facet value selectable, shows its real zero and says why", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
-    await user.click(await screen.findByRole("button", { name: "Demand" }));
-    expect(await screen.findByTestId("catalog-demand-stable")).toBeDisabled();
-    expect(screen.getByTestId("catalog-demand-hot")).not.toBeDisabled();
+    await user.click(await screen.findByRole("button", { name: /Demand/ }));
+    const stable = await screen.findByTestId("catalog-demand-stable");
+    // 0 is information, not a reason to disable a control …
+    expect(stable).not.toHaveAttribute("aria-disabled");
+    expect(stable).toHaveTextContent("0");
+    // … and the shared chip appends the "no matches" phrase to its name.
+    expect(stable).toHaveAccessibleName(/none match now/);
+    expect(screen.getByTestId("catalog-demand-hot")).toHaveAccessibleName(/, 2$/);
+    await user.click(stable);
+    await waitFor(() =>
+      expect(screen.getByTestId("search-probe")).toHaveTextContent("demand=stable")
+    );
   });
 
   it("never invents a family count from the unfiltered job total", async () => {
@@ -200,7 +211,7 @@ describe("catalog filter rail", () => {
       expect(screen.getByTestId("search-probe")).toHaveTextContent("family=technology")
     );
     expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true"
     );
 
@@ -228,7 +239,7 @@ describe("catalog filter rail", () => {
     expect(await screen.findByTestId("catalog-chip-demand-hot")).toBeInTheDocument();
     expect(await screen.findByTestId("catalog-chip-education-bachelor")).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("catalog-clear-all"));
+    await user.click(screen.getByRole("button", { name: /Clear all/ }));
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent(""));
     expect(screen.queryByTestId("catalog-chip-demand-hot")).not.toBeInTheDocument();
     expect(screen.queryByTestId("catalog-chip-education-bachelor")).not.toBeInTheDocument();
@@ -280,10 +291,68 @@ describe("catalog filter rail", () => {
     await waitFor(() => expect(screen.getByTestId("search-probe")).toHaveTextContent(""));
   });
 
+  it("replays a pre-plan URL: csv axes and the catalog skills@level encoding", async () => {
+    renderCatalog([
+      "/catalog?family=technology&demand=hot&demand_exclude=stable&skills=programming@2&skill_exclude=design",
+    ]);
+
+    await waitFor(() =>
+      expect(jobsApi.fetchJobs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          family_key: "technology",
+          demand: "hot",
+          demand_exclude: "stable",
+          skills: "programming@2",
+          skill_exclude: "design",
+        })
+      )
+    );
+
+    expect(screen.getByTestId("catalog-demand-hot")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("catalog-demand-stable")).toHaveAccessibleName(
+      /\(excluded\)$/
+    );
+    expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("catalog-skill-programming")).toHaveTextContent("programming");
+  });
+
   it("shows the active chip row only when something is filtered", async () => {
     renderCatalog();
     await screen.findByTestId("catalog-result-count");
     expect(screen.queryByTestId("catalog-active-chips")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of silently keeping the previous results", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/catalog"]}>
+        <Routes>
+          <Route path="/catalog" element={<CatalogTree band="compact" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("catalog-result-count")).toBeInTheDocument();
+
+    vi.mocked(jobsApi.fetchJobs).mockRejectedValue(new Error("boom"));
+    await user.selectOptions(screen.getByTestId("catalog-sort"), "open_roles");
+
+    expect(await screen.findByTestId("catalog-error")).toHaveTextContent(
+      "Couldn't load the catalogue. Try again."
+    );
+    // the previous grid stays as stale context, but no count describes the
+    // query that did not run
+    expect(screen.getByTestId("catalog-grid")).toBeInTheDocument();
+    expect(screen.getByText("Software Developer")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-result-count")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    // stale total: the sheet offers the library Done, never "Show N jobs"
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Show \d+ jobs?/ })).not.toBeInTheDocument();
   });
 
   it("collapses the rail into a Filters sheet on a narrow page", async () => {
@@ -305,15 +374,15 @@ describe("catalog filter rail", () => {
     );
 
     const aside = await screen.findByTestId("catalog-filter-aside");
-    expect(aside).toHaveAttribute("data-band", "compact");
+    expect(aside).toHaveAttribute("data-layout", "compact");
 
     const search = screen.getByTestId("catalog-search");
-    expect(screen.getByTestId("catalog-filters-open")).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Filters (1)" })).toBeInTheDocument();
     expect(await screen.findByTestId("catalog-chip-demand-hot")).toBeInTheDocument();
     expect(screen.queryByTestId("catalog-demand-hot")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("catalog-filters-open"));
-    const sheet = await screen.findByTestId("catalog-filters-sheet");
+    await user.click(screen.getByRole("button", { name: "Filters (1)" }));
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
     expect(within(sheet).queryByTestId("catalog-search")).not.toBeInTheDocument();
 
     await user.click(within(sheet).getByRole("button", { name: /Demand/ }));
@@ -322,10 +391,10 @@ describe("catalog filter rail", () => {
       expect(screen.getByTestId("search-probe")).toHaveTextContent("demand_exclude=hot")
     );
 
-    expect(screen.getByTestId("catalog-filters-sheet-done")).toHaveTextContent("Show 1 job");
-    await user.click(screen.getByTestId("catalog-filters-sheet-done"));
+    const done = within(sheet).getByRole("button", { name: "Show 1 job" });
+    await user.click(done);
     await waitFor(() =>
-      expect(screen.queryByTestId("catalog-filters-sheet")).not.toBeInTheDocument()
+      expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument()
     );
     expect(screen.getByTestId("catalog-search")).toBe(search);
   });

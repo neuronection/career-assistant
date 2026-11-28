@@ -73,14 +73,19 @@ class CvTemplateService:
     # ------------------------------------------------------------ queries
 
     async def list_templates(self, user_id: uuid.UUID) -> list[CvTemplate]:
-        """Bank + the caller's own templates (public stays unreachable)."""
+        """Bank + the caller's own templates (public stays unreachable).
+
+        Retired versions are not selectable: removal retires a bank row but
+        existing CVs keep rendering it by id through ``get_readable``.
+        """
         rows = await self.db.execute(
             select(CvTemplate)
             .where(
+                CvTemplate.status != CvTemplateStatus.RETIRED.value,
                 or_(
                     CvTemplate.author_key == "bank",
                     CvTemplate.author_user_id == user_id,
-                )
+                ),
             )
             .order_by(CvTemplate.key, CvTemplate.version.desc())
         )
@@ -88,9 +93,11 @@ class CvTemplateService:
 
     @staticmethod
     def _latest_per_key(templates: list[CvTemplate]) -> list[CvTemplate]:
-        """One row per (author_key, key): the highest version."""
+        """One row per (author_key, key): the highest non-retired version."""
         latest: dict[tuple[str, str], CvTemplate] = {}
         for template in templates:
+            if template.status == CvTemplateStatus.RETIRED.value:
+                continue
             slot = (template.author_key, template.key)
             if slot not in latest or template.version > latest[slot].version:
                 latest[slot] = template

@@ -370,14 +370,14 @@ describe("Autopilot workspace feed", () => {
     });
     renderPage();
     await screen.findByTestId("finding-title-f1");
-    expect(screen.getByTestId("findings-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("autopilot-filters")).toBeInTheDocument();
     expect(screen.getByTestId("autopilot-filters")).toHaveClass("ca-stats-rail");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Source" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /Source/ }));
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: /Seniority/ }));
-    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("· 2");
-    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("· 1");
+    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("2");
+    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("1");
   });
 
   it("keeps a facet count out of the section's active slot", async () => {
@@ -394,11 +394,11 @@ describe("Autopilot workspace feed", () => {
     renderPage("/autopilot?source=board-postings&seniority=junior");
     await screen.findByTestId("finding-title-f1");
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Source" }));
+    await user.click(screen.getByRole("button", { name: /Source/ }));
     await user.click(screen.getByRole("button", { name: /Seniority/ }));
-    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("· 2");
-    expect(screen.getByTestId("seniority-junior")).toHaveTextContent("· 2");
-    expect(screen.queryAllByTestId("section-count")).toHaveLength(0);
+    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("2");
+    expect(screen.getByTestId("seniority-junior")).toHaveTextContent("2");
+    expect(document.querySelector('[data-as="filter-section-count"]')).toBeNull();
   });
 
   it("shows no count at all for a seniority the facets do not include", async () => {
@@ -424,7 +424,7 @@ describe("Autopilot workspace feed", () => {
     renderPage(
       "/autopilot?state=all&latest=0&min_score=7&org=acme&seniority=junior&posted_within=7d&sort=score"
     );
-    await screen.findByTestId("findings-rail");
+    await screen.findByTestId("autopilot-filters");
     await waitFor(() =>
       expect(mockFeed).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -438,29 +438,31 @@ describe("Autopilot workspace feed", () => {
         })
       )
     );
-    expect(screen.getByTestId("findings-filter-count")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("autopilot-filters").querySelector('[data-as="filter-rail-count"]')
+    ).toBeInTheDocument();
   });
 
   it("collapses the findings rail into a toolbar and filter sheet on a narrow page", async () => {
     const user = userEvent.setup();
     renderPage("/autopilot?min_score=7", "compact");
     await screen.findByTestId("findings-chip-min-score");
-    expect(screen.getByTestId("autopilot-filters")).toHaveAttribute("data-band", "compact");
-    expect(screen.getByTestId("findings-filters-open")).toBeInTheDocument();
+    expect(screen.getByTestId("autopilot-filters")).toHaveAttribute("data-layout", "compact");
+    const trigger = screen.getByRole("button", { name: "Filters (1)" });
     expect(screen.queryByTestId("findings-latest-toggle")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("findings-filters-open"));
-    const sheet = await screen.findByTestId("findings-filters-sheet");
+    await user.click(trigger);
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
     await user.click(within(sheet).getByRole("button", { name: /State/ }));
     expect(within(sheet).getByTestId("findings-latest-toggle")).toBeInTheDocument();
-    expect(screen.getByTestId("findings-filters-sheet-done")).toHaveTextContent("Done");
+    expect(within(sheet).getByRole("button", { name: "Done" })).toBeInTheDocument();
   });
 
   it("toggles dedupe, hide-applied and remote from the rail", async () => {
     const user = userEvent.setup();
     renderPage();
-    await screen.findByTestId("findings-rail");
-    await user.click(screen.getByRole("button", { name: "State" }));
+    await screen.findByTestId("autopilot-filters");
+    await user.click(screen.getByRole("button", { name: /State/ }));
     await user.click(screen.getByTestId("findings-latest-toggle"));
     await waitFor(() =>
       expect(mockFeed).toHaveBeenCalledWith(

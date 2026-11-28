@@ -6,7 +6,7 @@
  */
 
 import type { Filters } from "@/features/catalog/exploreParams";
-import type { TriStateMode } from "@/components/filters/filterBits";
+import type { TriStateMode } from "@/lib/filterFacets";
 
 export type CardFilterAxis =
   | "skills"

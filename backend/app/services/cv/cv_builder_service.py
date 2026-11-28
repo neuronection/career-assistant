@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.errors import ValidationError
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.cv_template_model import CvTemplate
-from app.models.enums import CvVersionCreator
+from app.models.enums import CvTemplateStatus, CvVersionCreator
 from app.schemas.cv import CvContextSelection
 from app.schemas.cv_template import TemplateContent
 from app.services.cv.cv_context_service import CvResolution, apply_overrides, resolve
@@ -191,7 +191,10 @@ class CvBuilderService:
             return await CvTemplateService(self.db).get_readable(cv.template_id, cv.user_id)
         rows = await self.db.execute(
             select(CvTemplate)
-            .where(CvTemplate.author_key == "bank")
+            .where(
+                CvTemplate.author_key == "bank",
+                CvTemplate.status != CvTemplateStatus.RETIRED.value,
+            )
             .order_by(
                 CvTemplate.key != "ats-classic",
                 CvTemplate.title.asc(),

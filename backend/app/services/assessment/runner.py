@@ -16,7 +16,13 @@ from app.models.assessment_model import (
     AssessmentRun,
 )
 from app.models.enums import AssessmentKind, AssessmentStatus, UserMetricSource
+from app.services.assessment.bank_state import (
+    AssessmentBankNotLoadedError,
+    assessment_bank_state,
+    bank_phase_notice,
+)
 from app.services.assessment.phases import (
+    BANK_PHASE_NUMBERS,
     phase_title_for,
     resolve_phase,
 )
@@ -54,6 +60,10 @@ class AssessmentService:
                 raise ValidationError("A template run needs template_content")
         else:
             order = list(DEFAULT_ORDER)
+        if any(phase in BANK_PHASE_NUMBERS for phase in order):
+            bank = await assessment_bank_state(self.db)
+            if not bank.loaded:
+                raise AssessmentBankNotLoadedError(bank)
         existing = (
             (
                 await self.db.execute(
@@ -121,6 +131,7 @@ class AssessmentService:
             "current_phase": run.current_phase,
             "phase_title": phase_title_for(run, run.current_phase),
             "progress": progress,
+            "phase_notices": (run.context or {}).get("phase_notices") or {},
             "context": run.context,
             "phase_one_form": run.current_phase == 1,
             "questions": [self._question_out(q) for q in questions],
@@ -282,24 +293,47 @@ class AssessmentService:
         return None
 
     async def _materialize_phase(self, run: AssessmentRun, phase_number: int) -> None:
-        """Questions for a phase exist exactly once per run."""
-        existing = (
-            await self.db.execute(
-                select(AssessmentQuestion.id)
-                .where(
-                    AssessmentQuestion.run_id == run.id,
-                    AssessmentQuestion.phase == phase_number,
+        """Questions for a phase exist exactly once per run.
+
+        A bank phase that yields no eligible question is skipped with a typed
+        notice so a run never sits on an empty phase; the notice rides
+        ``run.context.phase_notices`` and the public state.
+        """
+        position = list(run.phase_order).index(phase_number)
+        while True:
+            existing = (
+                await self.db.execute(
+                    select(AssessmentQuestion.id)
+                    .where(
+                        AssessmentQuestion.run_id == run.id,
+                        AssessmentQuestion.phase == phase_number,
+                    )
+                    .limit(1)
                 )
-                .limit(1)
-            )
-        ).scalar()
-        if existing:
-            return
-        phase = resolve_phase(phase_number, run.context)
-        built = await phase.build_questions(self.db, run, run.context or {})
-        for question in built:
-            self.db.add(question)
-        await self.db.flush()
+            ).scalar()
+            if existing:
+                return
+            phase = resolve_phase(phase_number, run.context)
+            built = await phase.build_questions(self.db, run, run.context or {})
+            if built:
+                for question in built:
+                    self.db.add(question)
+                await self.db.flush()
+                return
+            if phase_number not in BANK_PHASE_NUMBERS:
+                return
+            self._note_empty_bank_phase(run, phase_number)
+            position += 1
+            if position >= len(run.phase_order):
+                return
+            phase_number = run.phase_order[position]
+            run.current_phase = phase_number
+
+    @staticmethod
+    def _note_empty_bank_phase(run: AssessmentRun, phase_number: int) -> None:
+        notices = dict((run.context or {}).get("phase_notices") or {})
+        notices[str(phase_number)] = bank_phase_notice(phase_number)
+        run.context = {**(run.context or {}), "phase_notices": notices}
 
     async def _apply_results(self, run: AssessmentRun, derived: dict) -> dict:
         """Completion effects: skills upsert (conflict-aware), interests,

@@ -1,11 +1,18 @@
-"""Bank entity adapters for the seed lane (plan 225 S0).
+"""Bank entity adapters for the seed lane (plan 225 S0-S2).
 
 The six bank formats ride the same parse → plan → apply lane as the catalog:
 identity is the stored ``seed_key``, content is compared by the item digest,
-and removal retires the stored row instead of deleting it. S0 ships only the
-assessment-template adapter; the other five formats are registered with
-``adapter=None`` so the planner refuses them with ``BANK_UNSUPPORTED`` instead
-of silently skipping a registered format (the catalog lane's rule).
+and removal retires the stored row instead of deleting it. S0 ships the
+assessment-template adapter; S1 adds the assessment-question adapter; S2
+adds the CV-template adapter. The remaining formats stay registered with
+``adapter=None`` so the planner refuses them with ``BANK_UNSUPPORTED``
+instead of silently skipping a registered format (the catalog lane's rule).
+
+Versioned templates publish immutable rows: a new pack version creates a new
+row, a removal retires the row, and a changed body at an already-applied
+version is a plan-time conflict. The lane's canonical item digest
+(``ParsedItem.content_hash``) drives no-op/update detection through
+``SeedItemProvenance``; CV templates also keep their own content hash.
 """
 
 from __future__ import annotations
@@ -95,6 +102,55 @@ async def load_current(db: AsyncSession) -> dict[tuple[str, str], Any]:
     return current
 
 
+async def apply_assessment_question(
+    db: AsyncSession, payload: dict[str, Any], row: AssessmentQuestion | None, *, seed_key: str
+) -> AssessmentQuestion:
+    """Upsert one bank question with its options, stages and time split.
+
+    Questions publish as ``active`` (their lifecycle is active/retired and the
+    phase reader selects active bank rows); removal retires them.
+    """
+    fields = {
+        "phase": int(payload["phase"]),
+        "kind": str(payload["kind"]),
+        "prompt": str(payload["prompt"]),
+        "help": str(payload.get("help") or ""),
+        "options": list(payload.get("options") or []),
+        "time_split": payload.get("time_split"),
+        "audience_stages": list(payload.get("audience_stages") or []),
+        "source": "bank",
+        "status": "active",
+        "sort_index": int(payload.get("sort_index") or 0),
+    }
+    if row is None:
+        row = AssessmentQuestion(run_id=None, **fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
+def template_content_hash(payload: dict[str, Any]) -> str:
+    """Canonical hash of a battery's validated content (the row's hash column)."""
+    from app.schemas.assessment_template import TemplateContent
+    from app.services.assessment.assessment_templates import _canonical_hash
+
+    content = TemplateContent.model_validate(payload["content"])
+    return _canonical_hash(content.model_dump(mode="json"))
+
+
+def cv_template_content_hash(payload: dict[str, Any]) -> str:
+    """Canonical hash of a CV template's validated content (the row's hash column)."""
+    from app.schemas.cv_template import TemplateContent
+    from app.services.postings.engagement_service import canonical_hash
+
+    content = TemplateContent.model_validate(payload["content"])
+    return canonical_hash(content.model_dump(mode="json"))
+
+
 async def apply_assessment_template(
     db: AsyncSession, payload: dict[str, Any], row: AssessmentTemplate | None, *, seed_key: str
 ) -> AssessmentTemplate:
@@ -133,10 +189,49 @@ async def apply_assessment_template(
     return row
 
 
+async def apply_cv_template(
+    db: AsyncSession, payload: dict[str, Any], row: CvTemplate | None, *, seed_key: str
+) -> CvTemplate:
+    """Upsert one immutable CV template version as a published bank row."""
+    from app.models.enums import CvTemplateSource, CvTemplateStatus
+    from app.schemas.cv_template import TemplateContent
+    from app.services.cv.cv_template_service import TEMPLATE_SCHEMA_VERSION
+    from app.services.postings.engagement_service import canonical_hash
+
+    content = TemplateContent.model_validate(payload["content"])
+    dumped = content.model_dump(mode="json")
+    fields = {
+        "key": str(payload["key"]),
+        "version": int(payload["version"]),
+        "title": str(payload["title"]),
+        "description": str(payload.get("description") or ""),
+        "author_user_id": None,
+        "author_key": "bank",
+        "source": CvTemplateSource.BANK.value,
+        "visibility": "private",
+        "language": str(payload.get("language") or "en"),
+        "page_size": str(payload.get("page_size") or "a4"),
+        "ats_safe": bool(payload.get("ats_safe", False)),
+        "schema_version": TEMPLATE_SCHEMA_VERSION,
+        "content_hash": canonical_hash(dumped),
+        "status": CvTemplateStatus.PUBLISHED.value,
+        "content": dumped,
+    }
+    if row is None:
+        row = CvTemplate(**fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
 BANK_FORMATS: dict[str, Callable[..., Any] | None] = {
-    "assessment_questions": None,
+    "assessment_questions": apply_assessment_question,
     "assessment_templates": apply_assessment_template,
-    "cv_templates": None,
+    "cv_templates": apply_cv_template,
     "metric_dimensions": None,
     "metric_category_anchors": None,
     "skill_packs": None,
@@ -240,10 +335,14 @@ __all__ = [
     "RETIRE_ORDER",
     "adapter_for",
     "adapter_for_entity",
+    "apply_assessment_question",
     "apply_assessment_template",
+    "apply_cv_template",
+    "cv_template_content_hash",
     "load_current",
     "preview_fields",
     "require_adapter",
     "retire",
     "stage",
+    "template_content_hash",
 ]

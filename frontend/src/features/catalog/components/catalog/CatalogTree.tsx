@@ -9,14 +9,17 @@ import { useCatalogStore } from "@/stores/catalogStore";
 import { useAuthStore } from "@/stores/authStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { CatalogFilterRail } from "@/features/catalog/components/catalog/CatalogFilterRail";
+import { FilterSheetFooter } from "@/components/filters/FilterSheetFooter";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { countsState, railLayout } from "@/lib/filterFacets";
 import {
   CATALOG_SORT_OPTIONS,
   catalogActiveChips,
   catalogApiParams,
   catalogParams,
+  countActiveCatalogFilters,
   parseCatalogParams,
   removeCatalogChip,
 } from "@/features/catalog/catalogParams";
@@ -25,7 +28,8 @@ import type { JobFamilyNode } from "@/types";
 
 export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {}) {
   const { t } = useTranslation();
-  const { families, jobs, total, facets, loading, loadFamilies, loadJobs } = useCatalogStore();
+  const { families, jobs, total, facets, loading, error, loadFamilies, loadJobs } =
+    useCatalogStore();
   const { ref: bandRef, band } = useContainerBand(bandOverride);
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseCatalogParams(searchParams), [searchParams]);
@@ -60,6 +64,7 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
 
   useEffect(() => {
     if (filters.q.trim().length < 2 && !filters.family) return;
+    if (error) return;  // the total describes a query that did not run
     recordSearch(filters.q, { family_key: filters.family || null }, total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.q, filters.family, total]);
@@ -87,6 +92,9 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
   const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState("");
+  const counts = countsState({ loading, failed: error });
+  const compact = railLayout(band) === "compact";
+  const activeFilterCount = countActiveCatalogFilters(filters);
   const catalogEmpty =
     !loading && total === 0 && jobs.length === 0 && families.length === 0;
 
@@ -158,8 +166,21 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
           filters={filters}
           facets={facets}
           families={families}
-          total={total}
           band={band}
+          counts={counts}
+          footer={
+            compact && !error && total > 0
+              ? (close) => (
+                  <FilterSheetFooter
+                    onClose={close}
+                    onClear={activeFilterCount === 0 ? undefined : clearAll}
+                    clearLabel={t("filters.clearAll")}
+                    doneLabel={t("filters.showResults", { count: total })}
+                    testId="catalog-filters-done"
+                  />
+                )
+              : undefined
+          }
           onChange={patch}
           onClear={clearAll}
         />
@@ -182,10 +203,21 @@ export function CatalogTree({ band: bandOverride }: { band?: ContainerBand } = {
             </div>
           )}
 
+          {error ? (
+            <p
+              className="text-sm text-[var(--as-danger)]"
+              role="alert"
+              data-testid="catalog-error"
+            >
+              {t("catalog.filters.loadFailed")}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--as-muted-fg)]">
-            <span data-testid="catalog-result-count">
-              {t("catalog.filters.resultCount", { count: total })}
-            </span>
+            {!error ? (
+              <span data-testid="catalog-result-count">
+                {t("catalog.filters.resultCount", { count: total })}
+              </span>
+            ) : null}
             <label className="ml-auto flex items-center gap-1">
               {t("catalog.filters.sort")}
               <select

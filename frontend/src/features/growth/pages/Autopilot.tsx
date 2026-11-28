@@ -24,7 +24,7 @@ import {
   Spinner,
 } from "@/components/ui";
 import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
-import { ActiveFilterChips } from "@/components/filters/ActiveFilterChips";
+import { FilterPills } from "@neuronection/assistant-ui/filters";
 import { useContainerBand, type ContainerBand } from "@/hooks/useContainerBand";
 import {
   ChipTogglesRow,
@@ -74,6 +74,7 @@ import {
   toFindingsSearchParams,
   type FindingsFilters,
 } from "@/features/growth/findingsFilterState";
+import { countsState } from "@/lib/filterFacets";
 
 const SENIORITY_OPTIONS = [
   { value: "intern", labelKey: "autopilot.seniority.intern" },
@@ -683,6 +684,7 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
   const [goals, setGoals] = useState<AutopilotGoal[] | null>(null);
   const [rail, setRail] = useState<RunsRailRow[] | null>(null);
   const [feed, setFeed] = useState<FindingFeedResponse | null>(null);
+  const [feedFailed, setFeedFailed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AutopilotGoal | null>(null);
   const [deleting, setDeleting] = useState<AutopilotGoal | null>(null);
@@ -709,6 +711,7 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
 
   const loadFeed = useCallback(
     (cursor?: string) => {
+      setFeedFailed(false);
       void fetchFindingsFeed({ ...toFeedParams(filters), limit: 20, cursor })
         .then((page) =>
           setFeed((prev) =>
@@ -717,13 +720,14 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
               : page,
           ),
         )
-        .catch(() =>
+        .catch(() => {
+          setFeedFailed(true);
           setFeed({
             items: [],
             next_cursor: null,
             facets: { goal: {}, source: {}, seniority: {}, state: { open: 0, dismissed: 0 } },
-          }),
-        );
+          });
+        });
     },
     [filters],
   );
@@ -1002,6 +1006,7 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
             <FindingsRail
               filters={filters}
               facets={feed?.facets ?? null}
+              counts={countsState({ loading: feed === null, failed: feedFailed })}
               sources={Object.entries(feed?.facets.source ?? {}).map(([key, count]) => ({
                 key,
                 label: `${key} (${count})`,
@@ -1061,14 +1066,14 @@ export function Autopilot({ band: bandOverride }: { band?: ContainerBand } = {})
                 </div>
               </div>
 
-              <ActiveFilterChips
-                chips={chips}
+              <FilterPills
+                items={chips}
                 onRemove={(key) => {
                   const chip = chips.find((entry) => entry.key === key);
                   if (chip) writeFilters({ ...filters, ...chip.patch });
                 }}
                 testId="findings-active-chips"
-                chipTestId={(key) => `findings-chip-${key}`}
+                itemTestId={(key) => `findings-chip-${key}`}
               />
 
               {goals !== null && (goals ?? []).length === 0 ? null : feed === null ? (
