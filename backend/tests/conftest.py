@@ -1128,9 +1128,9 @@ def _load_skip_observations() -> dict[str, dict[str, str]]:
 
 
 def _merge_skip_observations(markexpr: str, observed: dict[str, str]) -> dict[str, dict[str, str]]:
-    """Merge this session's skips under its exact ``-m`` expression and persist them."""
+    """Record this session's skips under its exact ``-m`` expression, replacing an earlier run."""
     merged = _load_skip_observations()
-    merged.setdefault(markexpr, {}).update(observed)
+    merged[markexpr] = dict(observed)
     _SKIP_OBSERVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     _SKIP_OBSERVATIONS_PATH.write_text(
         json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1177,12 +1177,16 @@ def _completeness_scope(
 ) -> tuple[dict[str, str] | None, str]:
     """What the completeness half judges: ``(observations, failure message)``.
 
-    A full run judges this session's observations merged with every recorded
-    lane (today's whole-suite behaviour). The ``serial`` pass finishes the
+    A full run judges this session's own observations (today's whole-suite
+    behaviour), not a union of every lane an earlier run recorded. A
+    ``--collect-only`` session runs no tests, so it has no observations to
+    judge and never evaluates completeness. The ``serial`` pass finishes the
     partition, so it needs the ``not serial`` lane's observations and fails
     closed without them. Any other selector — and a narrowed path — never
     evaluates completeness.
     """
+    if getattr(config.option, "collectonly", False):
+        return None, ""
     if markexpr == _SERIAL_LANE:
         if not _selects_whole_tree(config):
             return None, ""
@@ -1195,10 +1199,7 @@ def _completeness_scope(
         union.update(_observed_skips)
         return union, ""
     if _targets_full_suite(config):
-        union: dict[str, str] = {}
-        for observations in merged.values():
-            union.update(observations)
-        return union, ""
+        return dict(_observed_skips), ""
     return None, ""
 
 
@@ -1221,11 +1222,12 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     reason) instead of silently shrinking the suite.
 
     Every non-worker session records its skips in
-    ``tests/_xdist/skip_observations.json`` under its exact ``-m`` expression.
-    The completeness half (every ``when: always`` entry actually fired) then
-    holds for a full run over the merged observations, and the ``-m serial``
-    pass is the partition's final lane: it fails closed when the ``not serial``
-    pass never ran, so a forgotten flag cannot switch the gate off.
+    ``tests/_xdist/skip_observations.json`` under its exact ``-m`` expression,
+    replacing an earlier run's entry for that lane. The completeness half
+    (every ``when: always`` entry actually fired) then holds for a full run
+    over this session's observations, and the ``-m serial`` pass is the
+    partition's final lane: it fails closed when the ``not serial`` pass never
+    ran, so a forgotten flag cannot switch the gate off.
     ``--no-skip-wall`` is the only opt-out, and it disables completeness only.
     """
     if hasattr(session.config, "workerinput"):
@@ -1394,6 +1396,9 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     problems = _serial_registry_problems(marked, full_run=_serial_registry_covers_the_tree(config))
     if problems:
         raise pytest.UsageError("serial partition FAILED:\n  " + "\n  ".join(problems))
+    violation = _serial_guard_violation(config, marked)
+    if violation:
+        raise pytest.UsageError(violation)
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:

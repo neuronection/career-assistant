@@ -9,6 +9,7 @@ routing branches, the exemptions and the worker-scoped cleanup.
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -217,6 +218,6 @@ def test_routed_worker_points_at_its_own_database_and_trees() -> None:
     if harness.IS_SQLITE:
         assert f"tests/_xdist/{worker_root.name}/" in harness.TEST_DB_URL
     else:
-        assert harness.TEST_DB_URL.endswith(f"_test_{worker_root.name}")
+        assert urlsplit(harness.TEST_DB_URL).path.endswith(f"_test_{worker_root.name}")
     assert Path(str(harness.settings.data_dir)).resolve().is_relative_to(root)
     assert Path(harness.settings.upload_root).resolve().is_relative_to(root)

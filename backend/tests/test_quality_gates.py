@@ -44,7 +44,7 @@ def _fake_session(
         option=SimpleNamespace(markexpr=markexpr, keyword=""),
         args=["tests"] if full_suite else ["tests/test_jobs.py"],
         pluginmanager=_PluginManager(),
-        getoption=lambda _name, default=None: no_skip_wall,
+        getoption=lambda name, default=None: no_skip_wall if name == "--no-skip-wall" else default,
     )
     return SimpleNamespace(config=config, exitstatus=0)
 
@@ -227,16 +227,60 @@ def test_partial_selector_keeps_todays_behaviour(monkeypatch) -> None:
     assert session.exitstatus == 0
 
 
-def test_full_run_judges_the_merged_journal(monkeypatch) -> None:
+def test_full_run_judges_this_runs_observations(monkeypatch) -> None:
+    monkeypatch.setattr(
+        skip_wall,
+        "_skip_allowlist",
+        lambda: [{"id": "tests/test_x.py::a", "reason_contains": "dialect", "when": "always"}],
+    )
+    monkeypatch.setattr(skip_wall, "_observed_skips", {"tests/test_x.py::a": "dialect only"})
+    _write_journal({"not serial": {"tests/test_x.py::stale": "an earlier lane"}})
+    lines: list[str] = []
+    session = _fake_session(full_suite=True, reporter_lines=lines)
+    skip_wall.pytest_sessionfinish(session, 0)
+    assert session.exitstatus == 0, lines
+
+
+def test_full_run_ignores_an_earlier_runs_observations(monkeypatch) -> None:
     monkeypatch.setattr(
         skip_wall,
         "_skip_allowlist",
         lambda: [{"id": "tests/test_x.py::a", "reason_contains": "dialect", "when": "always"}],
     )
     monkeypatch.setattr(skip_wall, "_observed_skips", {})
-    _write_journal({"not serial": {"tests/test_x.py::a": "dialect only"}})
+    _write_journal(
+        {
+            "": {"tests/test_x.py::a": "dialect only"},
+            "not serial": {"tests/test_x.py::a": "dialect only"},
+        }
+    )
     lines: list[str] = []
     session = _fake_session(full_suite=True, reporter_lines=lines)
+    skip_wall.pytest_sessionfinish(session, 0)
+    assert session.exitstatus == 1
+    assert any("allowlisted skip did not fire: tests/test_x.py::a" in line for line in lines)
+
+
+def test_journal_replaces_the_lane_key(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "_skip_allowlist", lambda: [])
+    monkeypatch.setattr(skip_wall, "_observed_skips", {"tests/test_x.py::new": "now"})
+    _write_journal({"not serial": {"tests/test_x.py::old": "an earlier run"}})
+    session = _fake_session(full_suite=False, reporter_lines=[], markexpr="not serial")
+    skip_wall.pytest_sessionfinish(session, 0)
+    journal = json.loads(skip_wall._SKIP_OBSERVATIONS_PATH.read_text(encoding="utf-8"))
+    assert journal["not serial"] == {"tests/test_x.py::new": "now"}
+
+
+def test_collect_only_does_not_judge_completeness(monkeypatch) -> None:
+    monkeypatch.setattr(
+        skip_wall,
+        "_skip_allowlist",
+        lambda: [{"id": "tests/test_x.py::gone", "reason_contains": "dialect", "when": "always"}],
+    )
+    monkeypatch.setattr(skip_wall, "_observed_skips", {})
+    lines: list[str] = []
+    session = _fake_session(full_suite=True, reporter_lines=lines)
+    session.config.option.collectonly = True
     skip_wall.pytest_sessionfinish(session, 0)
     assert session.exitstatus == 0, lines
 
@@ -346,6 +390,46 @@ def test_collection_refuses_an_unregistered_serial_marker(monkeypatch) -> None:
     config = SimpleNamespace(option=SimpleNamespace(markexpr="", keyword=""), args=["tests"])
     with pytest.raises(pytest.UsageError, match="not in the registry"):
         skip_wall.pytest_collection_modifyitems(config, [item])
+
+
+def _serial_item(nodeid: str = "tests/test_extension_sandbox.py::test_x") -> SimpleNamespace:
+    return SimpleNamespace(
+        nodeid=nodeid,
+        get_closest_marker=lambda name: object() if name == skip_wall.SERIAL_MARKER else None,
+    )
+
+
+def _collection_config(raw_workers):
+    return SimpleNamespace(
+        option=SimpleNamespace(markexpr="", keyword=""),
+        args=["tests/test_extension_sandbox.py"],
+        getoption=lambda _name, default=None: raw_workers,
+    )
+
+
+def test_collection_guard_refuses_a_parallel_sqlite_collection(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    for raw_workers in (2, "auto"):
+        with pytest.raises(pytest.UsageError, match='-m "not serial"'):
+            skip_wall.pytest_collection_modifyitems(
+                _collection_config(raw_workers), [_serial_item()]
+            )
+
+
+def test_collection_guard_allows_a_single_worker(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    skip_wall.pytest_collection_modifyitems(_collection_config(1), [_serial_item()])
+
+
+def test_setup_guard_refuses_a_worker_side_serial_item(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    item = SimpleNamespace(
+        nodeid="tests/test_extension_sandbox.py::test_x",
+        config=SimpleNamespace(getoption=lambda _name, default=None: 2),
+        get_closest_marker=lambda name: object() if name == skip_wall.SERIAL_MARKER else None,
+    )
+    with pytest.raises(pytest.fail.Exception, match='-m "not serial"'):
+        skip_wall.pytest_runtest_setup(item)
 
 
 def test_serial_lane_on_a_narrowed_path_has_no_completeness(monkeypatch) -> None:

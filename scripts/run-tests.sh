@@ -29,7 +29,12 @@ else
   selection="tests/$target"
 fi
 if uv run python -c "import xdist" >/dev/null 2>&1 && [[ ${PYTEST_XDIST:-1} != 0 ]]; then
-  uv run pytest "$selection" -m "not serial" -n "${PYTEST_XDIST_WORKERS:-auto}"
+  rm -f tests/_xdist/skip_observations.json
+  parallel_status=0
+  uv run pytest "$selection" -m "not serial" -n "${PYTEST_XDIST_WORKERS:-auto}" --dist loadfile || parallel_status=$?
+  if [[ $parallel_status -ne 0 && $parallel_status -ne 5 ]]; then
+    exit $parallel_status
+  fi
   serial_status=0
   uv run pytest "$selection" -m serial || serial_status=$?
   if [[ $serial_status -ne 0 && $serial_status -ne 5 ]]; then

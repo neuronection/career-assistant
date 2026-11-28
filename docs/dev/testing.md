@@ -72,9 +72,11 @@ real-Alembic migration tests safe to distribute.
   fail. The marker is SQLite-profile-scoped; the Postgres lane keeps these
   tests in its parallel pool.
 - **The guard is SQLite-only.** Collecting a `serial`-marked test with
-  `-n > 1` on the SQLite profile fails it in `pytest_runtest_setup` with a
-  message naming `-m "not serial"` and the separate serial pass (or
-  `./scripts/run-tests.sh`). `-n 1`/`-n 0` and the Postgres lane never trip it.
+  `-n > 1` on the SQLite profile fails: a single-process/collection session
+  raises at collection, and an xdist run fails each item in
+  `pytest_runtest_setup`, both with a message naming `-m "not serial"` and the
+  separate serial pass (or `./scripts/run-tests.sh`). `-n 1`/`-n 0` and the
+  Postgres lane never trip it.
 - **The `serial` pass is the final lane.** It fails closed when the
   `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
   so a partial run must go through `./scripts/run-tests.sh` or pass

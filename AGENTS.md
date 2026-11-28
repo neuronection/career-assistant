@@ -69,7 +69,7 @@ health-assistant. Core rules:
 ./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
 ./scripts/run-tests.sh                                     # pytest: two passes — parallel-safe (xdist), then `serial` (tests/serial_allowlist.json)
-cd backend && uv run pytest tests -q -n auto           # equivalent ONLY in the primary checkout
+cd backend && uv run pytest tests -q -n auto           # Postgres profile only; SQLite: ./scripts/run-tests.sh
 cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 ```
