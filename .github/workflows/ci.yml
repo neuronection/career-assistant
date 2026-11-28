@@ -120,15 +120,63 @@ jobs:
           uv run ruff format --check .
       - name: Migrate test database
         run: uv run alembic upgrade head
-      - name: Run tests (coverage floor parity with the Postgres lane)
-        # Unraisable warnings stay VISIBLE here but not fatal: one
-        # order-dependent transport (reported at tests/test_cv_polish) has no
-        # identified owner yet — see docs/dev/testing.md, residual 1. The
-        # spawner gate below makes the class fatal for the paths we can prove
-        # deterministic, so a regression in those cannot hide.
-        run: >
-          uv run pytest tests/
-          --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+      # Two-lane pytest (plan 226): the parallel-safe tests run under xdist,
+      # then the `serial` registry (wall-clock-bound on the SQLite desktop
+      # profile) runs in one process. `serial` is SQLite-profile-scoped — the
+      # Postgres lane keeps those tests in its `-n auto` pool.
+      - name: Run tests — parallel-safe lane (xdist)
+        run: |
+          uv run coverage erase
+          # `-n 4` is pinned. Measured on the same job (plan 226 §13):
+          #   -n 4 → 1,282 s parallel pass · 25 m 29 s job
+          #   -n 8 → 1,453 s parallel pass · 28 m 20 s job
+          # Four workers on a GitHub-hosted `ubuntu-latest` deliver ~1.35x over
+          # the serial lane; oversubscribing makes it worse, so the wall is the
+          # runner, not the worker count. Shard across runners (Phase B) rather
+          # than raise `-n`.
+          uv run pytest tests -m "not serial" -n 4 --dist loadfile \
+            --cov=app --cov-append --cov-report= --durations=25
+      - name: Run tests — serial lane (single process)
+        run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
+      - name: Partition integrity (no test lost, none doubled)
+        # `-o addopts=""` pins the collection format: the repo's addopts
+        # ("-v --tb=short --strict-markers") prints a tree, and grepping a tree
+        # would let this check pass while a lane lost its tests.
+        run: |
+          set -o pipefail
+          uv run pytest tests --collect-only -q -o addopts="" | grep '::' | sort > /tmp/all.txt
+          uv run pytest tests -m "not serial" --collect-only -q -o addopts="" | grep '::' | sort > /tmp/par.txt
+          # The serial lane may legitimately select nothing (pytest exit 5);
+          # every other failure of the serial collection must stop the step.
+          ser_status=0
+          uv run pytest tests -m serial --collect-only -q -o addopts="" > /tmp/ser.collect || ser_status=$?
+          if [[ "$ser_status" -ne 0 && "$ser_status" -ne 5 ]]; then
+            echo "serial collection failed with exit $ser_status" >&2
+            cat /tmp/ser.collect >&2
+            exit "$ser_status"
+          fi
+          if grep -q '::' /tmp/ser.collect; then
+            grep '::' /tmp/ser.collect | sort > /tmp/ser.txt
+          else
+            : > /tmp/ser.txt
+          fi
+          test -s /tmp/par.txt || { echo "the parallel lane collected nothing" >&2; exit 1; }
+          test -s /tmp/all.txt || { echo "the full collection is empty" >&2; exit 1; }
+          if ! cat /tmp/par.txt /tmp/ser.txt | sort | diff - /tmp/all.txt; then
+            echo "partition integrity failed: parallel + serial must cover the full collection exactly once" >&2
+            exit 1
+          fi
+      - name: Coverage floor (whole suite, both lanes)
+        # The floor is enforced here and only here: neither pass carries
+        # --cov-fail-under, so a selectable pass cannot take it with it.
+        # pytest-cov already merges each --cov-append pass into `.coverage`;
+        # parallel shards are left only by an interrupted pass, so combine
+        # runs when they exist.
+        run: |
+          if compgen -G ".coverage.*" > /dev/null; then
+            uv run coverage combine
+          fi
+          uv run coverage report --fail-under=79 --skip-covered
       - name: Spawner teardown gate (unraisable leaks fatal)
         run: >
           uv run pytest

@@ -16,15 +16,40 @@ schema). Under sqlite, each worker gets an isolated file in its own
 directory — that also isolates the checkpointer's sibling
 ``checkpoints.db`` (``app/ai/checkpointer.py`` derives it from the DB's
 parent directory).
+
+A worker owns more than its database: extension/import/preview/mail state
+lives under ``CAREER_DATA_DIR`` and document uploads under
+``CAREER_UPLOAD_DIR``, both shared trees by default. Routing also points
+those two settings at ``<worker root>/data`` and ``<worker root>/uploads``
+so everything mutable a worker writes is process-private.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 _XDIST_ROOT = "tests/_xdist"
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+_worker_root: Path | None = None
+
+
+def worker_root_for(worker: str) -> Path:
+    """The state directory the given xdist worker owns."""
+    return _BACKEND_ROOT / _XDIST_ROOT / worker
+
+
+def routed_worker_root() -> Path | None:
+    """The worker root this process was routed to, or ``None`` when it was not routed.
+
+    Serial runs, the xdist controller, a missing ``CAREER_DATABASE_URL`` and
+    in-memory databases never reach the routing below, so consumers can use
+    this to tell "routed worker" from "not routed" instead of re-deriving the
+    preconditions.
+    """
+    return _worker_root
 
 
 def _migrate_worker_db() -> None:
@@ -73,16 +98,71 @@ def _create_postgres_database(worker_url: str) -> None:
     asyncio.run(_create())
 
 
+def _worker_sqlite_url(base_url: str, worker_root: Path) -> str | None:
+    """This worker's SQLite URL inside its own directory, ``None`` for memory databases."""
+    scheme, _, rest = base_url.partition("://")
+    file_part = rest.split("?", 1)[0].lstrip("/")
+    if file_part in ("", ":memory:"):
+        return None
+    return f"{scheme}:///{worker_root / Path(file_part).name}"
+
+
+def _worker_postgres_url(base_url: str, worker: str) -> str | None:
+    """This worker's own copy of the base Postgres database, ``None`` without a name."""
+    parts = urlsplit(base_url)
+    last = parts.path.rpartition("/")[2]
+    if not last or last == ":memory:":
+        return None
+    parent = parts.path.rpartition("/")[0]
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            f"{parent}/{last}_{worker}",
+            parts.query,
+            "",
+        )
+    )
+
+
+def _route_worker_state(worker_root: Path) -> None:
+    """Point ``CAREER_DATA_DIR``/``CAREER_UPLOAD_DIR`` at this worker's own trees.
+
+    The job/import/preview/mail state and the upload store are shared trees
+    by default, so every routed worker gets its own copies. Cleanup is
+    worker-scoped by construction: only ``<worker_root>/data`` and
+    ``<worker_root>/uploads`` are recreated, never anything else in
+    ``tests/_xdist`` — every worker runs this at import, so a wider delete
+    would remove a peer's live database.
+    """
+    data_dir = worker_root / "data"
+    upload_dir = worker_root / "uploads"
+    for path in (data_dir, upload_dir):
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+    os.environ["CAREER_DATA_DIR"] = str(data_dir)
+    os.environ["CAREER_UPLOAD_DIR"] = str(upload_dir)
+
+
 def route_worker_database() -> None:
-    """Point this process at its own database copy (xdist workers only).
+    """Point this process at its own database and state trees (xdist workers only).
 
     The worker id comes from ``PYTEST_XDIST_WORKER`` (set by pytest-xdist
     before the conftest is imported), so serial runs and the xdist
     controller are no-ops and keep the original ``CAREER_DATABASE_URL``.
     """
+    global _worker_root
     worker = os.environ.get("PYTEST_XDIST_WORKER")
     base = os.environ.get("CAREER_DATABASE_URL")
     if not worker or not base:
+        return
+    worker_root = worker_root_for(worker)
+    if base.startswith("sqlite"):
+        worker_url = _worker_sqlite_url(base, worker_root)
+    else:
+        worker_url = _worker_postgres_url(base, worker)
+    if worker_url is None:
         return
     if "app.core.config" in sys.modules:
         raise RuntimeError(
@@ -90,29 +170,9 @@ def route_worker_database() -> None:
             "settings are already cached, so workers would share one database. "
             "Route in tests/__init__.py before any app import."
         )
-    if base.startswith("sqlite"):
-        scheme, _, rest = base.partition("://")
-        file_part = rest.split("?", 1)[0]
-        if file_part in ("", ":memory:"):
-            return
-        worker_root = _BACKEND_ROOT / _XDIST_ROOT / worker
-        worker_root.mkdir(parents=True, exist_ok=True)
-        os.environ["CAREER_DATABASE_URL"] = f"{scheme}:///{worker_root / Path(file_part).name}"
-    else:
-        parts = urlsplit(base)
-        last = parts.path.rpartition("/")[2]
-        if not last or last == ":memory:":
-            return
-        parent = parts.path.rpartition("/")[0]
-        worker_url = urlunsplit(
-            (
-                parts.scheme,
-                parts.netloc,
-                f"{parent}/{last}_{worker}",
-                parts.query,
-                "",
-            )
-        )
+    if not base.startswith("sqlite"):
         _create_postgres_database(worker_url)
-        os.environ["CAREER_DATABASE_URL"] = worker_url
+    _route_worker_state(worker_root)
+    os.environ["CAREER_DATABASE_URL"] = worker_url
+    _worker_root = worker_root
     _migrate_worker_db()

@@ -68,8 +68,8 @@ health-assistant. Core rules:
 ./scripts/run-dev.sh                                       # desktop dev: SQLite profile, backend :8100 + frontend :3100 (no Docker)
 ./scripts/run-dev.sh --web                                 # server dev: Postgres dev-db + login UI
 docker compose -f docker/docker-compose.dev-db.yml up -d   # once — needed for --web and pytest
-./scripts/run-tests.sh                                     # pytest, parallel by default (xdist)
-cd backend && uv run pytest tests -q -n auto           # equivalent ONLY in the primary checkout
+./scripts/run-tests.sh                                     # pytest: two passes — parallel-safe (xdist), then `serial` (tests/serial_allowlist.json)
+cd backend && uv run pytest tests -q -n auto           # Postgres profile only; SQLite: ./scripts/run-tests.sh
 cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run
 ```
@@ -94,9 +94,12 @@ Parallel tests (pytest-xdist): `PYTEST_XDIST_WORKERS=N` overrides the
 worker count, `PYTEST_XDIST=0` opts out. Each xdist worker gets its OWN
 database — `neuronection_career_test_gw0`… (created + migrated automatically by
 `tests/xdist_routing.py` before the app engines exist), so never hand-run
-migrations for a `-n` run. SQLite workers write isolated files under
-`backend/tests/_xdist/<worker>/` (gitignored); the CI SQLite (desktop
-profile) job stays serial on one file by design. Serial runs keep plain
+migrations for a `-n` run. SQLite workers write isolated files and
+data/upload trees under `backend/tests/_xdist/<worker>/` (gitignored); the
+SQLite (desktop profile) lane runs two passes — `-m "not serial"` in
+parallel, then `-m serial` sequentially — because a few tests are not
+parallel-safe there (they carry the `serial` marker and a
+`tests/serial_allowlist.json` entry). Serial runs keep plain
 `neuronection_career_test` and need their one-shot `alembic upgrade head` as before.
 Test isolation is dialect-split: Postgres wraps each test in one outer
 transaction and rolls it back, while SQLite truncates between tests and

@@ -1,8 +1,11 @@
 #!/bin/bash
 # Backend test runner. Full suite by default, or pass a path.
-# Runs in parallel via pytest-xdist (per-worker databases are created by
-# tests/conftest.py automatically); PYTEST_XDIST=0 opts out, and
-# PYTEST_XDIST_WORKERS overrides the worker count.
+# Runs two passes via pytest-xdist: the parallel-safe tests (`-m "not serial"`)
+# concurrently, then the `serial` ones (not parallel-safe on the SQLite desktop
+# profile) in one process. PYTEST_XDIST=0 opts out of both and keeps today's
+# single serial pass; PYTEST_XDIST_WORKERS overrides the worker count.
+# Per-worker databases and data/upload trees are created by
+# tests/xdist_routing.py automatically.
 set -e
 cd "$(dirname "$0")/.."
 # Fresh clones carry only the tracked example (plan 126) — recreate the
@@ -17,8 +20,26 @@ cd backend
 if [[ -n "${DATABASE_URL_TEST:-}" ]]; then
   export CAREER_DATABASE_URL="$DATABASE_URL_TEST"
 fi
-args=(tests/"${1:-}")
-if uv run python -c "import xdist" >/dev/null 2>&1 && [[ ${PYTEST_XDIST:-1} != 0 ]]; then
-  args+=(-n "${PYTEST_XDIST_WORKERS:-auto}")
+target="${1:-}"
+if [[ -z "$target" ]]; then
+  selection="tests/"
+elif [[ -e "$target" ]]; then
+  selection="$target"
+else
+  selection="tests/$target"
 fi
-uv run pytest "${args[@]}"
+if uv run python -c "import xdist" >/dev/null 2>&1 && [[ ${PYTEST_XDIST:-1} != 0 ]]; then
+  rm -f tests/_xdist/skip_observations.json
+  parallel_status=0
+  uv run pytest "$selection" -m "not serial" -n "${PYTEST_XDIST_WORKERS:-auto}" --dist loadfile || parallel_status=$?
+  if [[ $parallel_status -ne 0 && $parallel_status -ne 5 ]]; then
+    exit $parallel_status
+  fi
+  serial_status=0
+  uv run pytest "$selection" -m serial || serial_status=$?
+  if [[ $serial_status -ne 0 && $serial_status -ne 5 ]]; then
+    exit $serial_status
+  fi
+else
+  uv run pytest "$selection"
+fi

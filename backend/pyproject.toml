@@ -247,7 +247,7 @@ packages = {}
 testpaths = ["tests"]
 pythonpath = ["."]
 env_files = [".env.test", ".env"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
@@ -262,4 +262,8 @@ markers = [
     # Plan 120: p95 Explore budgets on synthetic 1k/10k fixtures.
     # On-demand only — never a PR gate (CAREER_PERF_BENCH=1).
     "benchmark: on-demand performance benchmark (skipped unless CAREER_PERF_BENCH=1)",
+    # Plan 226: not parallel-safe on the SQLite desktop profile (the Postgres
+    # lane keeps them in its parallel pool). Every marked test needs an entry
+    # in tests/serial_allowlist.json naming its criterion and resource.
+    "serial: not parallel-safe on the SQLite desktop profile (tests/serial_allowlist.json)",
 ]

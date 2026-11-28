@@ -1,8 +1,9 @@
 import contextlib
 import fnmatch
 import json
+import os
 import secrets
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Iterable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
@@ -11,6 +12,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import pytest_asyncio
+from _pytest.mark.expression import Expression
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -31,9 +33,38 @@ from app.extensions.sdk import (
 )
 from app.main import app
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
+from tests.xdist_routing import routed_worker_root
 
 TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
+
+
+def _assert_worker_state_isolation() -> None:
+    """Fail when a routed worker's data/upload roots escaped its worker directory.
+
+    ``tests/xdist_routing.py`` routes a worker's database *and* its
+    ``CAREER_DATA_DIR``/``CAREER_UPLOAD_DIR``; a test that hard-codes the
+    shared ``tests/_data``/``tests/_uploads`` trees would silently reintroduce
+    cross-worker sharing. Routing is a no-op for serial runs, the xdist
+    controller, a missing ``CAREER_DATABASE_URL`` and in-memory databases, so
+    this only applies to processes that were actually routed.
+    """
+    worker_root = routed_worker_root()
+    if worker_root is None:
+        return
+    root = worker_root.expanduser().resolve()
+    scopes = (("data_dir", settings.data_dir), ("upload_root", settings.upload_root))
+    for label, path in scopes:
+        resolved = Path(path).expanduser().resolve()
+        if not resolved.is_relative_to(root):
+            raise RuntimeError(
+                f"xdist worker state escaped its worker directory: {label}={resolved} "
+                f"is outside {root}. Tests must not hard-code tests/_data or "
+                "tests/_uploads — route the path through tests/xdist_routing.py."
+            )
+
+
+_assert_worker_state_isolation()
 
 _engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True, json_serializer=json_serializer)
 if IS_SQLITE:
@@ -248,16 +279,6 @@ async def _stop_pdf_engine():
 
     with contextlib.suppress(Exception):
         await shutdown_engine()
-
-
-def pytest_collection_modifyitems(items):
-    """Run the driver cleanup only for async tests (it needs their loop)."""
-    import inspect
-
-    for item in items:
-        obj = getattr(item, "obj", None)
-        if obj is not None and inspect.iscoroutinefunction(obj):
-            item.add_marker(pytest.mark.usefixtures("_stop_pdf_engine"))
 
 
 @pytest.fixture(autouse=True)
@@ -1087,6 +1108,9 @@ async def grant_tool(db, user, key: str) -> None:
 
 
 _SKIP_ALLOWLIST_PATH = Path(__file__).with_name("skip_allowlist.json")
+_SKIP_OBSERVATIONS_PATH = Path(__file__).with_name("_xdist") / "skip_observations.json"
+_PARALLEL_LANE = "not serial"
+_SERIAL_LANE = "serial"
 _observed_skips: dict[str, str] = {}
 
 
@@ -1095,11 +1119,103 @@ def _skip_allowlist() -> list[dict[str, str]]:
     return data.get("sqlite" if IS_SQLITE else "postgres", [])
 
 
-def _targets_full_suite(config: pytest.Config) -> bool:
-    if getattr(config.option, "markexpr", "") or getattr(config.option, "keyword", ""):
+def _selects_whole_tree(config: pytest.Config) -> bool:
+    """Whether this session selects every test in the tree (no ``-k``, no path narrowing)."""
+    if getattr(config.option, "keyword", ""):
         return False
     targets = [str(arg).rstrip("/") for arg in config.args] or ["tests"]
     return targets == ["tests"]
+
+
+def _targets_full_suite(config: pytest.Config) -> bool:
+    if getattr(config.option, "markexpr", ""):
+        return False
+    return _selects_whole_tree(config)
+
+
+def _load_skip_observations() -> dict[str, dict[str, str]]:
+    """The per-lane skip observations merged by earlier non-worker sessions."""
+    try:
+        data = json.loads(_SKIP_OBSERVATIONS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _merge_skip_observations(markexpr: str, observed: dict[str, str]) -> dict[str, dict[str, str]]:
+    """Record this session's skips under its exact ``-m`` expression, replacing an earlier run."""
+    merged = _load_skip_observations()
+    merged[markexpr] = dict(observed)
+    _SKIP_OBSERVATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SKIP_OBSERVATIONS_PATH.write_text(
+        json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return merged
+
+
+def _matching_allowlist_entry(
+    nodeid: str, reason: str, allowlist: list[dict[str, str]]
+) -> int | None:
+    for index, entry in enumerate(allowlist):
+        if not fnmatch.fnmatch(nodeid, entry["id"]):
+            continue
+        if entry["reason_contains"] in reason:
+            return index
+    return None
+
+
+def _unlisted_skip_problems(observed: dict[str, str], allowlist: list[dict[str, str]]) -> list[str]:
+    return [
+        f"unlisted skip: {nodeid} ({reason})"
+        for nodeid, reason in observed.items()
+        if _matching_allowlist_entry(nodeid, reason, allowlist) is None
+    ]
+
+
+def _missing_allowlisted_skip_problems(
+    observed: dict[str, str], allowlist: list[dict[str, str]]
+) -> list[str]:
+    matched = {
+        index
+        for nodeid, reason in observed.items()
+        if (index := _matching_allowlist_entry(nodeid, reason, allowlist)) is not None
+    }
+    return [
+        f"allowlisted skip did not fire: {entry['id']} ({entry['reason_contains']})"
+        for index, entry in enumerate(allowlist)
+        if entry.get("when", "always") == "always" and index not in matched
+    ]
+
+
+def _completeness_scope(
+    config: pytest.Config, markexpr: str, merged: dict[str, dict[str, str]]
+) -> tuple[dict[str, str] | None, str]:
+    """What the completeness half judges: ``(observations, failure message)``.
+
+    A full run judges this session's own observations (today's whole-suite
+    behaviour), not a union of every lane an earlier run recorded. A
+    ``--collect-only`` session runs no tests, so it has no observations to
+    judge and never evaluates completeness. The ``serial`` pass finishes the
+    partition, so it needs the ``not serial`` lane's observations and fails
+    closed without them. Any other selector — and a narrowed path — never
+    evaluates completeness.
+    """
+    if getattr(config.option, "collectonly", False):
+        return None, ""
+    if markexpr == _SERIAL_LANE:
+        if not _selects_whole_tree(config):
+            return None, ""
+        if _PARALLEL_LANE not in merged:
+            return None, (
+                "final lane without the parallel lane's observations — run "
+                "./scripts/run-tests.sh (or --no-skip-wall)"
+            )
+        union = dict(merged[_PARALLEL_LANE])
+        union.update(_observed_skips)
+        return union, ""
+    if _targets_full_suite(config):
+        return dict(_observed_skips), ""
+    return None, ""
 
 
 def pytest_runtest_logreport(report) -> None:
@@ -1118,31 +1234,29 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     Skips are intentional coverage gaps: a dialect-only case, a missing
     optional engine, or a documented environment limitation. A new skip
     must be reviewed and added to ``tests/skip_allowlist.json`` (with a
-    reason) instead of silently shrinking the suite. The completeness
-    half (every ``when: always`` entry actually fired) only applies to a
-    full-suite run.
+    reason) instead of silently shrinking the suite.
+
+    Every non-worker session records its skips in
+    ``tests/_xdist/skip_observations.json`` under its exact ``-m`` expression,
+    replacing an earlier run's entry for that lane. The completeness half
+    (every ``when: always`` entry actually fired) then holds for a full run
+    over this session's observations, and the ``-m serial`` pass is the
+    partition's final lane: it fails closed when the ``not serial`` pass never
+    ran, so a forgotten flag cannot switch the gate off.
+    ``--no-skip-wall`` is the only opt-out, and it disables completeness only.
     """
     if hasattr(session.config, "workerinput"):
         return
+    markexpr = getattr(session.config.option, "markexpr", "") or ""
+    merged = _merge_skip_observations(markexpr, _observed_skips)
     allowlist = _skip_allowlist()
-    problems: list[str] = []
-    matched: set[int] = set()
-    for nodeid, reason in _observed_skips.items():
-        for index, entry in enumerate(allowlist):
-            if not fnmatch.fnmatch(nodeid, entry["id"]):
-                continue
-            if entry["reason_contains"] not in reason:
-                continue
-            matched.add(index)
-            break
-        else:
-            problems.append(f"unlisted skip: {nodeid} ({reason})")
-    if _targets_full_suite(session.config):
-        for index, entry in enumerate(allowlist):
-            if entry.get("when", "always") == "always" and index not in matched:
-                problems.append(
-                    f"allowlisted skip did not fire: {entry['id']} ({entry['reason_contains']})"
-                )
+    problems = _unlisted_skip_problems(_observed_skips, allowlist)
+    if not session.config.getoption("--no-skip-wall", default=False):
+        scope, failure = _completeness_scope(session.config, markexpr, merged)
+        if failure:
+            problems.append(failure)
+        elif scope is not None:
+            problems.extend(_missing_allowlisted_skip_problems(scope, allowlist))
     if not problems:
         return
     session.exitstatus = 1
@@ -1153,6 +1267,185 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         for problem in problems:
             reporter.write_line(f"  {problem}", red=True)
         reporter.write_line(f"  update {_SKIP_ALLOWLIST_PATH} (documented skips only)")
+
+
+SERIAL_MARKER = "serial"
+_SERIAL_ALLOWLIST_PATH = Path(__file__).with_name("serial_allowlist.json")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SERIAL_CRITERIA = frozenset({"H2", "H3"})
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register the explicit, visible opt-out from the skip wall's completeness half."""
+    parser.addoption(
+        "--no-skip-wall",
+        action="store_true",
+        default=False,
+        help=(
+            "skip only the skip-wall completeness half (every allowlisted skip must "
+            "fire); unlisted skips still fail the run"
+        ),
+    )
+
+
+def _serial_allowlist() -> list[dict[str, str]]:
+    data = json.loads(_SERIAL_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+    return data.get("entries", [])
+
+
+def _serial_entry_matches(entry_id: str, nodeid: str) -> bool:
+    """A registry id is an exact node id or a ``tests/<file>.py`` prefix form."""
+    if entry_id.endswith(".py"):
+        return nodeid.startswith(f"{entry_id}::")
+    return nodeid == entry_id
+
+
+def _resource_problem(resource: str) -> str:
+    path_part, _, line_part = resource.rpartition(":")
+    if not path_part or not line_part.isdigit():
+        return f"resource must be a path:line reference, got {resource!r}"
+    path = _REPO_ROOT / path_part
+    if not path.is_file():
+        return f"resource file does not exist: {resource}"
+    if len(path.read_text(encoding="utf-8").splitlines()) < int(line_part):
+        return f"resource line is past the end of {path_part}: {resource}"
+    return ""
+
+
+def _serial_registry_problems(marked_ids: Iterable[str], *, full_run: bool) -> list[str]:
+    """Registry drift for the collected ``serial`` items, as human-readable problems."""
+    entries = _serial_allowlist()
+    problems: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        entry_id = str(entry.get("id", "")).strip()
+        if not entry_id:
+            problems.append(f"serial registry entry without an id: {entry}")
+            continue
+        if entry_id in seen:
+            problems.append(f"duplicate serial registry id: {entry_id}")
+        seen.add(entry_id)
+        if entry.get("criterion") not in _SERIAL_CRITERIA:
+            problems.append(f"serial registry entry {entry_id}: criterion must be H2 or H3")
+        if not str(entry.get("why", "")).strip():
+            problems.append(f"serial registry entry {entry_id}: why must be non-empty")
+        problem = _resource_problem(str(entry.get("resource", "")).strip())
+        if problem:
+            problems.append(f"serial registry entry {entry_id}: {problem}")
+    marked = sorted(set(marked_ids))
+    for nodeid in marked:
+        if not any(_serial_entry_matches(str(entry.get("id", "")), nodeid) for entry in entries):
+            problems.append(
+                f"serial test not in the registry: {nodeid} — add it to "
+                "tests/serial_allowlist.json with its criterion and the resource that justifies it"
+            )
+    if full_run:
+        for entry in entries:
+            entry_id = str(entry.get("id", "")).strip()
+            if entry_id and not any(_serial_entry_matches(entry_id, nodeid) for nodeid in marked):
+                problems.append(f"serial registry entry matches nothing on a full run: {entry_id}")
+    return problems
+
+
+def _resolved_worker_count(config: pytest.Config) -> int:
+    """The effective xdist worker count, normalised across ``-n`` spellings.
+
+    pytest-xdist clears ``numprocesses`` inside a worker process, so there the
+    count comes from the ``PYTEST_XDIST_WORKER_COUNT`` it exports instead.
+    """
+    raw = config.getoption("numprocesses", default=None)
+    if isinstance(raw, str) and raw in {"auto", "logical"}:
+        return os.cpu_count() or 1
+    if raw is not None:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return 0
+    count = os.environ.get("PYTEST_XDIST_WORKER_COUNT", "")
+    return int(count) if count.isdigit() else 0
+
+
+def _serial_guard_violation(config: pytest.Config, marked_ids: list[str]) -> str:
+    """The refusal message when ``serial`` items would run in a parallel SQLite session."""
+    if not IS_SQLITE or not marked_ids:
+        return ""
+    workers = _resolved_worker_count(config)
+    if workers <= 1:
+        return ""
+    return (
+        f"{len(marked_ids)} serial-marked test(s) collected with {workers} xdist workers on "
+        "the SQLite desktop profile — they are not parallel-safe there. Run "
+        'pytest -m "not serial" -n <workers> and then pytest -m serial separately, '
+        "or use ./scripts/run-tests.sh (which runs both passes)."
+    )
+
+
+def _serial_registry_covers_the_tree(config: pytest.Config) -> bool:
+    """Whether this session sees the registry's whole subject (full run or the serial lane)."""
+    if _targets_full_suite(config):
+        return True
+    markexpr = getattr(config.option, "markexpr", "") or ""
+    return markexpr == _SERIAL_LANE and _selects_whole_tree(config)
+
+
+def _serial_marker_selected(config: pytest.Config) -> bool:
+    """Whether the active ``-m`` expression keeps a bare ``serial`` marker in.
+
+    The expression is compiled with pytest's own engine and evaluated against a
+    matcher that is true only for the bare ``serial`` marker, so every spelling
+    that excludes the serial lane (``not serial``, ``contract or not serial``,
+    ``not (serial or benchmark)``) is recognised, while no selector, ``serial``
+    and ``not benchmark`` keep the guard armed. A malformed expression fails
+    closed (the guard applies); pytest reports the parse error itself.
+    """
+    markexpr = getattr(config.option, "markexpr", "") or ""
+    if not markexpr:
+        return True
+    try:
+        expression = Expression.compile(markexpr)
+    except SyntaxError:
+        return True
+    return expression.evaluate(lambda name, **kwargs: name == SERIAL_MARKER and not kwargs)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Attach the driver cleanup, then enforce the serial partition at collection.
+
+    The per-test Playwright cleanup is attached to async tests here because it
+    needs their loop. The registry and the controller-layer guard are skipped in
+    xdist workers: pytest-xdist turns an exception raised in a worker's
+    collection hooks into an internal error, so the harness would lose the
+    message. The serial lane and every single-process run do both checks here;
+    the guard in :func:`pytest_runtest_setup` covers the rest. The
+    controller-layer guard is skipped when the active ``-m`` expression excludes
+    ``serial``: pytest deselects those items after this hook, so a legitimate
+    ``-m "not serial" -n N --collect-only`` must not be refused.
+    """
+    import inspect
+
+    for item in items:
+        obj = getattr(item, "obj", None)
+        if obj is not None and inspect.iscoroutinefunction(obj):
+            item.add_marker(pytest.mark.usefixtures("_stop_pdf_engine"))
+    if hasattr(config, "workerinput"):
+        return
+    marked = [item.nodeid for item in items if item.get_closest_marker(SERIAL_MARKER)]
+    problems = _serial_registry_problems(marked, full_run=_serial_registry_covers_the_tree(config))
+    if problems:
+        raise pytest.UsageError("serial partition FAILED:\n  " + "\n  ".join(problems))
+    violation = _serial_guard_violation(config, marked)
+    if violation and _serial_marker_selected(config):
+        raise pytest.UsageError(violation)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Refuse to run a ``serial`` test inside a parallel SQLite session."""
+    if item.get_closest_marker(SERIAL_MARKER) is None:
+        return
+    violation = _serial_guard_violation(item.config, [item.nodeid])
+    if violation:
+        pytest.fail(violation, pytrace=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
