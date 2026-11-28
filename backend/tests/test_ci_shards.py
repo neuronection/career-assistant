@@ -210,6 +210,39 @@ def test_the_sqlite_tree_only_gates_run_in_exactly_one_job() -> None:
         assert holders == [SQLITE_CHECKS], (name, holders)
 
 
+def test_the_gate_dependency_guards_run_before_checkout_outside_backend() -> None:
+    jobs = _jobs()
+    gates = {
+        POSTGRES_GATE: POSTGRES_REQUIRED_UPSTREAM_GUARD,
+        SQLITE_GATE: SQLITE_REQUIRED_UPSTREAM_GUARD,
+    }
+    for job, guard_name in gates.items():
+        steps = jobs[job]["steps"]
+        run_steps = [step for step in steps if "run" in step]
+        guard = next(step for step in steps if step.get("name") == guard_name)
+        assert run_steps[0] is guard, (job, [step.get("name") for step in run_steps[:2]])
+        # The job default is `backend/`, which checkout has not created yet:
+        # a guard that inherits it makes GitHub fail to start the process.
+        assert guard.get("working-directory") not in (None, "backend"), job
+
+    # The same failure class for any later pre-checkout run step in the gate
+    # and checks jobs: it must opt out of the `backend/` job default.
+    for job in (POSTGRES_GATE, POSTGRES_CHECKS, SQLITE_GATE, SQLITE_CHECKS):
+        steps = jobs[job]["steps"]
+        checkout = next(
+            index
+            for index, step in enumerate(steps)
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        for step in steps[:checkout]:
+            if "run" not in step:
+                continue
+            assert step.get("working-directory") not in (None, "backend"), (
+                job,
+                step.get("name"),
+            )
+
+
 def test_the_protected_backend_context_is_owned_by_one_gate_job() -> None:
     jobs = _jobs()
     holders = [job for job, spec in jobs.items() if spec.get("name") == PROTECTED_BACKEND_CHECK]

@@ -138,6 +138,9 @@ jobs:
         # otherwise moving mypy/contract out of this job would silently drop
         # them from the required check.
         if: always()
+        # The job default is `backend/`, which checkout has not created yet:
+        # without this override GitHub cannot even start the process.
+        working-directory: .
         env:
           SHARDS: ${{ needs.backend.result }}
           CHECKS: ${{ needs.backend-checks.result }}
@@ -420,6 +423,9 @@ jobs:
         # tree-only gates moved out of this job, so a red one has to fail this
         # job even though `if: always()` keeps it reachable.
         if: always()
+        # The job default is `backend/`, which checkout has not created yet:
+        # without this override GitHub cannot even start the process.
+        working-directory: .
         env:
           SHARDS: ${{ needs.backend-sqlite.result }}
           CHECKS: ${{ needs.backend-sqlite-checks.result }}
