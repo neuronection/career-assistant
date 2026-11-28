@@ -1,4 +1,17 @@
 {
   "$comment": "Tests that are not parallel-safe on the SQLite desktop profile (the `serial` marker; tests/conftest.py enforces this file). Every entry names the criterion (H2 = a child process must meet a wall-clock barrier; H3 = the test asserts an elapsed-time bound) and the resource at `path:line` that makes it true. A marked test without an entry, and an entry matching nothing on a full-suite run, both fail; the resource line must exist. The Postgres lane keeps these tests in its parallel pool.",
-  "entries": []
+  "entries": [
+    {
+      "id": "tests/test_extension_sandbox.py",
+      "criterion": "H2",
+      "resource": "backend/tests/test_extension_sandbox.py:730",
+      "why": "a child process must meet the sandbox's 1.0 s liveness barrier and the host watchdog budgets, which a loaded box can miss"
+    },
+    {
+      "id": "tests/test_storage_health.py::test_slow_probe_times_out_as_degraded",
+      "criterion": "H3",
+      "resource": "backend/tests/test_storage_health.py:187",
+      "why": "asserts elapsed < 0.5 s against a 0.05 s probe timeout"
+    }
+  ]
 }

@@ -53,6 +53,8 @@ SAMPLE_ROWS = [
     {"external_id": "row-2", "title": "Data Engineer", "url": "https://example.jobs/2"},
 ]
 
+pytestmark = pytest.mark.serial
+
 
 # ----------------------------------------------------------------- fixtures
 

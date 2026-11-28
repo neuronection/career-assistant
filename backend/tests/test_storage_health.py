@@ -170,6 +170,7 @@ def test_recovery_clears_the_sustained_failure_window() -> None:
     assert probe.snapshot().status == STATUS_DEGRADED
 
 
+@pytest.mark.serial
 def test_slow_probe_times_out_as_degraded() -> None:
     store = _Store(delay=1.0)
     probe = StorageHealthProbe(
