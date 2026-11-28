@@ -29,6 +29,7 @@ canonical copy is drift-checked and exercised too.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -374,6 +375,53 @@ async def test_template_server_feeds_postings_end_to_end(
     )
     assert len(audit) == 2, "one audit row per tool call"
     assert all(row.prompt == "mcp:template:fetch_postings" for row in audit)
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # alive, owned by another user
+        return True
+    return True
+
+
+async def test_stdio_source_reaps_its_server_process_before_returning(
+    db, seeded_catalog, mcp_connector, tmp_path
+):
+    """A per-call stdio client must not orphan the server it spawned.
+
+    Regression for the CI ``PytestUnraisableExceptionWarning`` on
+    ``BaseSubprocessTransport.__del__`` (``RuntimeError: Event loop is
+    closed``): the SDK transport defaults to ``keep_alive=True``, so a
+    transport built for one call left its subprocess running when the client
+    was dropped, and the asyncio transport was only reaped by the GC — after
+    the session loop had closed. ``keep_alive=False`` makes the session exit
+    stop the process and close the transport before the sync returns.
+    """
+    pid_file = tmp_path / "server.pid"
+    wrapper = tmp_path / "pid_server.py"
+    wrapper.write_text(
+        "import os, runpy\n"
+        f"open({str(pid_file)!r}, 'w', encoding='utf-8').write(str(os.getpid()))\n"
+        f"runpy.run_path({str(FIXTURE_SERVER)!r}, run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    source = await _make_source(
+        db,
+        key="reaped",
+        config={"transport": "stdio", "command": _stdio_command(wrapper)},
+    )
+
+    result = await sync_source(db, source)
+    assert result["errors"] == [], result
+    assert result["synced"] == 3
+    pid = int(pid_file.read_text())
+    assert not _process_alive(pid), (
+        "the spawned MCP server outlived its client — its subprocess transport "
+        "is orphaned and will be reaped after the event loop closes"
+    )
 
 
 async def test_slow_tool_times_out_typed_and_source_keeps_going(

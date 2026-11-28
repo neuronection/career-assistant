@@ -173,6 +173,12 @@ jobs:
             uv run coverage combine
           fi
           uv run coverage report --fail-under=79 --skip-covered
+      - name: Spawner teardown gate (unraisable leaks fatal)
+        run: >
+          uv run pytest
+          tests/test_extension_sources.py tests/test_mcp_connector.py
+          tests/test_subprocess_teardown.py tests/test_ai_tools.py
+          -W error::pytest.PytestUnraisableExceptionWarning
       - name: Contract drift gate (identity-auth §18)
         run: uv run pytest -m contract
 

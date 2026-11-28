@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -258,6 +259,25 @@ async def warm_checkpointer():
         await get_checkpointer()
     yield
     await aclose_checkpointer()
+
+
+@pytest_asyncio.fixture
+async def _stop_pdf_engine():
+    """Stop the cached Playwright driver on the test's own loop.
+
+    The test HTTP client bypasses the app lifespan, so shutdown_engine() never
+    ran under pytest, and pytest-asyncio closes the loop after each test. The
+    driver's node subprocess was then left to the garbage collector; when GC
+    landed on a later test it raised ``RuntimeError: Event loop is closed``
+    inside ``BaseSubprocessTransport.__del__`` — a
+    PytestUnraisableExceptionWarning attributed to whichever test triggered GC,
+    not the one that started the driver.
+    """
+    yield
+    from app.services.cv.cv_pdf_service import shutdown_engine
+
+    with contextlib.suppress(Exception):
+        await shutdown_engine()
 
 
 @pytest.fixture(autouse=True)
@@ -1353,13 +1373,21 @@ def _serial_registry_covers_the_tree(config: pytest.Config) -> bool:
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Enforce the serial registry at collection, before any ``-m`` deselection.
+    """Attach the driver cleanup, then enforce the serial partition at collection.
 
-    xdist workers are exempt: pytest-xdist turns an exception raised in a
-    worker's collection hooks into an internal error, so the harness would
-    lose the message. The serial lane and every single-process run do the
-    check here; the guard in :func:`pytest_runtest_setup` covers the rest.
+    The per-test Playwright cleanup is attached to async tests here because it
+    needs their loop. The registry and the controller-layer guard are skipped in
+    xdist workers: pytest-xdist turns an exception raised in a worker's
+    collection hooks into an internal error, so the harness would lose the
+    message. The serial lane and every single-process run do both checks here;
+    the guard in :func:`pytest_runtest_setup` covers the rest.
     """
+    import inspect
+
+    for item in items:
+        obj = getattr(item, "obj", None)
+        if obj is not None and inspect.iscoroutinefunction(obj):
+            item.add_marker(pytest.mark.usefixtures("_stop_pdf_engine"))
     if hasattr(config, "workerinput"):
         return
     marked = [item.nodeid for item in items if item.get_closest_marker(SERIAL_MARKER)]

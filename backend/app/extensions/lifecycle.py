@@ -59,6 +59,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
+from app.core.subprocess import communicate_and_reap
 from app.extensions import contract
 from app.models.extension_model import ExtensionInstall, ExtensionSource
 
@@ -420,12 +421,10 @@ class GitTransport:
         except FileNotFoundError as exc:
             raise _git_spawn_error(exc, cwd) from exc
         try:
-            out, err = await asyncio.wait_for(
-                proc.communicate(), timeout=settings.extension_fetch_timeout_seconds
+            out, err = await communicate_and_reap(
+                proc, timeout=settings.extension_fetch_timeout_seconds
             )
         except TimeoutError:
-            proc.kill()
-            await proc.wait()
             raise LifecycleError("unreachable", f"git {' '.join(args[:2])} timed out") from None
         if proc.returncode != 0:
             detail = (err or b"").decode("utf-8", "replace").strip().splitlines()

@@ -478,6 +478,13 @@ class _SandboxSession:
             self._kill()
         with contextlib.suppress(Exception):
             await asyncio.wait_for(self.proc.wait(), timeout=2.0)
+        # The reader drains stdout to EOF; closing stdin releases the last
+        # pipe so the subprocess transport closes here, inside the loop,
+        # instead of being reaped by the GC after the loop is gone.
+        stdin = self.proc.stdin
+        if stdin is not None and not stdin.is_closing():
+            with contextlib.suppress(Exception):
+                stdin.close()
 
     def _kill(self) -> None:
         with contextlib.suppress(ProcessLookupError, OSError):
