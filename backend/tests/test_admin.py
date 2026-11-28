@@ -6,24 +6,18 @@ from sqlalchemy import select
 from app.models.taxonomy_model import Skill
 from app.models.user_model import User
 from app.services.job_worker import JobWorker
-from tests.conftest import session_headers
+from tests.conftest import mint_session_headers, session_headers
 
 
 @pytest.fixture
 async def _admin_and_user(client, db):
-    """First user = admin, second = regular. Returns (admin_headers, user_headers)."""
-    first = await client.post(
-        "/api/v1/auth/register",
-        json={"email": "admin@example.com", "password": "supersecret1"},
-    )
-    assert first.status_code == 201
-    admin = session_headers(first)
-    second = await client.post(
-        "/api/v1/auth/register",
-        json={"email": "user@example.com", "password": "supersecret1"},
-    )
-    assert second.status_code == 201
-    user = session_headers(second)
+    """An admin and a regular user, minted through the kit (no HTTP bcrypt).
+
+    One test in this file still exercises the real register path
+    (`test_user_management_guards`).
+    """
+    admin = mint_session_headers(email="admin@example.com", is_admin=True)
+    user = mint_session_headers(email="user@example.com", is_admin=False)
     return admin, user
 
 
@@ -196,7 +190,7 @@ async def test_update_skill_refuses_a_cycle_through_an_approved_is_a_edge(
     assert refreshed.parent_id is None, "a refused re-parent writes nothing"
 
 
-async def test_taxonomy_delete_guard_and_success(client, db, _admin_and_user, seeded_catalog):
+async def test_taxonomy_delete_guard_and_success(client, db, _admin_and_user, catalog_min):
     admin, _ = _admin_and_user
     tags = (await client.get("/api/v1/taxonomy/interests", headers=admin)).json()
     tag = next(t for t in tags if t["key"] == "technology-software")
@@ -241,7 +235,7 @@ async def test_deprecated_tags_hidden_on_request(client, _admin_and_user):
     assert all(r["key"] != "old-tag" for r in filtered)
 
 
-async def test_moderation_queue_and_bulk_actions(client, db, _admin_and_user, seeded_catalog):
+async def test_moderation_queue_and_bulk_actions(client, db, _admin_and_user, catalog_min):
     admin, user = _admin_and_user
     mine = (
         await client.post(
@@ -290,8 +284,16 @@ async def test_moderation_queue_and_bulk_actions(client, db, _admin_and_user, se
 
 
 @pytest.mark.contract  # §18.7 — user-management guard rails (self/last admin)
-async def test_user_management_guards(client, _admin_and_user, db):
-    admin, user = _admin_and_user
+async def test_user_management_guards(client, db):
+    """The file's real register case: the first user is the instance admin."""
+    registered = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "admin@example.com", "password": "supersecret1", "full_name": "Admin"},
+    )
+    assert registered.status_code == 201, registered.text
+    assert registered.json()["is_admin"] is True, "the first user is the instance admin (§12)"
+    admin = session_headers(registered)
+    user = mint_session_headers(email="user@example.com", is_admin=False)
     listing = (await client.get("/api/v1/admin/users", headers=admin)).json()
     emails = {u["email"] for u in listing}
     assert {"admin@example.com", "user@example.com"} <= emails
@@ -351,7 +353,7 @@ async def test_reset_password_and_force_logout(client, _admin_and_user, db):
     assert killed.status_code == 401
 
 
-async def test_audit_viewer_filters(client, db, _admin_and_user, seeded_catalog):
+async def test_audit_viewer_filters(client, db, _admin_and_user, catalog_min):
     admin, user = _admin_and_user
     await client.post("/api/v1/jobs/generate", json={"count": 1}, headers=user)
     worker = JobWorker(db)
