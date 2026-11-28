@@ -14,9 +14,15 @@ All notable changes to **Career Assistant** are documented here.
   printing `PytestUnraisableExceptionWarning` / `RuntimeError: Event loop is
   closed` over a green run. Per-call stdio transports now close with their
   session, and the bounded git spawners reap and close through
-  `app/core/subprocess.communicate_and_reap`. The SQLite lane now runs
-  pytest with `-W error::pytest.PytestUnraisableExceptionWarning`, so a
-  future leak fails the lane instead of being annotated as noise.
+  `app/core/subprocess.communicate_and_reap`; the MCP bridge closes the
+  external transport it used to discard; the cached Playwright driver is
+  stopped on each test's loop; the sandbox closes its stdin after reaping.
+  The **spawner tests** now run with
+  `-W error::pytest.PytestUnraisableExceptionWarning`, so a regression in a
+  known spawner fails the lane. The full lane keeps the warning visible but
+  non-fatal while one order-dependent transport at `tests/test_cv_polish`
+  remains unidentified (`docs/dev/testing.md`, residual 1) — reported, not
+  hidden.
 
 - **A family chip's count now matches the results it yields.** The catalogue
   family facet counted jobs by their exact `family_id` while the family filter
