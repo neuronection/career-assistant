@@ -245,3 +245,35 @@ def test_routed_worker_points_at_its_own_database_and_trees() -> None:
         assert urlsplit(harness.TEST_DB_URL).path.endswith(f"_test_{worker_root.name}")
     assert Path(str(harness.settings.data_dir)).resolve().is_relative_to(root)
     assert Path(harness.settings.upload_root).resolve().is_relative_to(root)
+
+
+def test_catalog_min_pack_is_referentially_closed() -> None:
+    """The narrowed fixture pack parses and every kept job resolves its refs."""
+    from app.core.seed_pack.manifest import parse_pack
+    from tests.seed_pack_fixture import CATALOG_MIN_JOBS, catalog_min_files
+
+    parsed = parse_pack(catalog_min_files())
+    by_type: dict[str, list[dict]] = {}
+    for item in parsed.items:
+        by_type.setdefault(item.item_type, []).append(item.payload)
+
+    jobs = by_type["job_types"]
+    assert {job["code"] for job in jobs} == set(CATALOG_MIN_JOBS)
+    families = {row["key"] for row in by_type["job_families"]}
+    skills = {row["key"] for row in by_type["skills"]}
+    interests = {row["key"] for row in by_type["interest_tags"]}
+    for job in jobs:
+        assert job["family_key"] in families
+        assert {ref["skill_key"] for ref in job.get("skills") or []} <= skills
+        assert set(job.get("interests") or []) <= interests
+    codes = {job["code"] for job in jobs}
+    for relation in by_type["job_relations"]:
+        assert relation["from"] in codes and relation["to"] in codes
+    for path in by_type["career_paths"]:
+        assert path["job"] in codes
+        for step in path.get("steps") or []:
+            if step.get("family_key"):
+                assert step["family_key"] in families, (path["job"], step)
+            if step.get("skill_key"):
+                assert step["skill_key"] in skills, (path["job"], step)
+    assert parsed.digest.startswith("sha256:")

@@ -16,6 +16,54 @@ whole suite trips the `serial` guard — those tests are wall-clock-bound there
 and must not run concurrently. On Postgres the marker is inert, so the whole
 suite may run in the pool.
 
+### Fast iteration (never a gate)
+
+CI and the merge gate always run the full suite; these shortcuts are for the
+loop between commits and are not wired into CI:
+
+```bash
+./scripts/run-tests.sh --changed                # tests importing the changed app modules + always-run set
+./scripts/run-tests.sh --changed origin/main    # diff against an explicit base
+./scripts/run-tests.sh tests/test_jobs.py       # one module
+cd backend && uv run pytest tests -q -m "not serial" -n auto --lf -k "posting or cv"
+```
+
+`--changed` takes `git diff <base>...HEAD` plus uncommitted/untracked files
+and selects:
+
+- test modules whose static imports name a changed `app.*` module **or any
+  parent package below `app`** (`backend/app/a/b.py` matches imports of
+  `app.a.b` and `app.a`; a bare `app` import is not treated as proof that the
+  submodule loads);
+- a changed `backend/tests/test_*.py` itself;
+- the always-run set: `test_quality_gates`, `test_docs_claims`,
+  `test_config_contract`, `test_test_harness`, `test_ci_shards`,
+  `test_ci_selection`, `test_no_private_integration_mentions`.
+
+A changed `backend/alembic/**`, `backend/pyproject.toml`, the repo-root
+`pyproject.toml`, `uv.lock`, `contracts/**`, `docs/user/**`, `docs/dev/**`,
+`docs/capabilities.json`, `docs/docs-tree.json`, `README.md`, `backend/tests/conftest.py`,
+`backend/tests/seed_pack_fixture.py`, `.github/workflows/ci.yml`,
+`frontend/src/App.tsx`, `frontend/src/config/features.json`, any `scripts/**`,
+`docker/**`, `packaging/**` or `assets/**` file, any test-support file, or any
+unmapped backend path prints its reason and selects the full suite. A changed
+app module that no test imports, and any path no rule claims, prints a warning
+and keeps the always-run set — selection never silently drops a change.
+Dynamic imports (`importlib`, monkeypatched module strings) are not visible to
+the static scan.
+
+`scripts/changed-paths.py` classifies a diff into backend/frontend/docs/infra
+classes and fails closed on unknown paths. Its backend-read set is derived
+from what `backend/tests` actually reads — `README.md`,
+`frontend/src/App.tsx`, `frontend/src/config/features.json`,
+`docs/capabilities.json`, `contracts/`, `docker/`, `packaging/` and the CI
+workflows — and a regression test scans the test sources for those literals.
+It **never certifies a backend skip**: `tests/test_no_private_integration_mentions.py`
+reads every tracked file, so no non-empty diff is provably backend-disjoint,
+and the tool reports that reason instead of a false green. It is **not wired
+into any workflow**: a skipped required check would be a false green, so
+path-aware CI skipping stays a deferred ruleset decision.
+
 `.env.test` (loaded by the test config) pins the test environment:
 
 ```
@@ -56,15 +104,25 @@ real-Alembic migration tests safe to distribute.
 - Never hand-run migrations for an `-n` run; the routing bootstrap does it.
 - **SQLite workers** (the desktop profile) write isolated files and state
   trees under `backend/tests/_xdist/<worker>/` (gitignored).
-- **Two lanes.** `./scripts/run-tests.sh` runs
+- **Two lanes, sharded in CI.** `./scripts/run-tests.sh` runs
   `pytest -m "not serial" -n <workers> --dist loadfile` and then
-  `pytest -m serial` in one process; the CI SQLite job runs the same
-  two passes at `-n 4 --dist loadfile`, then a partition-integrity step
-  (`--collect-only` ×3 with `-o addopts=""`; the parallel and serial node-id
-  sets must cover the full collection exactly once, and an empty serial
-  selection exits 5), then `coverage report --fail-under=79 --skip-covered`
-  over the combined data (the floor lives only in that step, never inside a
-  selectable pass), then `-m contract`. A test is marked `serial` only when it
+  `pytest -m serial` in one process. CI splits the parallel pass into two
+  duration-balanced matrix jobs at `-n 4 --dist loadfile`; the
+  `backend-sqlite-gate` job then runs the serial pass once over the whole
+  tree, after downloading the shard coverage and merging the shard skip
+  observations, and closes with `coverage combine` + one
+  `coverage report --fail-under=79 --skip-covered` (the floor lives only in
+  that step, never inside a selectable pass). A separate
+  `backend-sqlite-checks` job with no `needs` overlaps the shards with the
+  tree-only gates — partition integrity (`--collect-only` ×3 with
+  `-o addopts=""`; the parallel and serial node-id sets must cover the full
+  collection exactly once, and an empty serial selection exits 5), the
+  spawner teardown gate and `-m contract` — so they are not serialised
+  behind the matrix. The Postgres lane follows the same shape: two shards plus
+  a `backend-checks` job (tracing, contract, OpenAPI diff, mypy, type ratchet,
+  pip-audit) that `backend-gate` needs, so the protected `Backend (ruff +
+  pytest)` context still subsumes every static gate while the gate itself only
+  downloads, combines and reports coverage. A test is marked `serial` only when it
   is not parallel-safe on the SQLite desktop profile (a child-process
   wall-clock barrier, or an asserted elapsed bound), and every marked test
   needs an entry in `tests/serial_allowlist.json` naming its criterion
@@ -86,6 +144,20 @@ real-Alembic migration tests safe to distribute.
   `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
   so a partial run must go through `./scripts/run-tests.sh` or pass
   `--no-skip-wall` (which skips the skip-wall completeness half only).
+- **The Postgres lane restores the same completeness check.** Its shards run
+  without `-m`, record their skips under the empty lane, and
+  `backend-gate` merges them (`check-test-shards.py --merge-observations
+  --lane ""`) before `scripts/check-skip-wall.py --dialect postgres --lane ""`
+  asserts every `when: always` Postgres entry fired. A collection session
+  never writes the journal, so the gate's `--collect-only` steps cannot
+  clobber the shard union.
+- **The shard JUnit union is verified, not just uploaded.** Each gate downloads
+  the whole-tree node manifest produced by the global partition step (shard 1
+  on Postgres, `backend-sqlite-checks` on SQLite) and runs
+  `check-test-shards.py --verify-junit` over the shard reports (plus the SQLite
+  serial lane's report): every collected node must execute exactly once. JUnit
+  counts skipped cases, so a lost node is a shortfall and a duplicated
+  assignment an overrun. The gate itself needs no database service.
 - `PYTEST_XDIST_WORKERS=N` overrides the worker count (read by
   `./scripts/run-tests.sh`); `PYTEST_XDIST=0` opts out of both lanes and uses
   the plain `neuronection_career_test` database (which needs its one-shot
@@ -207,8 +279,10 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 
 | Gate | Command | Wall |
 |---|---|---|
-| Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=79` | coverage 79% |
-| Backend (SQLite profile) | two passes (`-m "not serial" -n 4 --dist loadfile`, then `-m serial`), a partition-integrity check, a separate `coverage report --fail-under=79` step over the combined data, and the spawner tests with `-W error::pytest.PytestUnraisableExceptionWarning` | coverage 79% (separate step); no leaked asyncio subprocess transports in the spawner tests |
+| Backend (Postgres) | sharded parallel passes (`-n auto --dist loadfile`); the gate combines the shard coverage and runs one `coverage report --fail-under=79` step over the combined data | coverage 79% (separate step) |
+| Backend (Postgres) — checks | own job, no `needs` (overlaps the shards); the protected gate needs it: tracing with the otel extra, contract, OpenAPI diff, mypy, type ratchet, pip-audit | the required context subsumes every static gate |
+| Backend (SQLite profile) | sharded parallel passes (`-m "not serial" -n 4 --dist loadfile`), then one whole-tree serial pass; the gate combines the shard coverage and runs a separate `coverage report --fail-under=79` step over the combined data | coverage 79% (separate step) |
+| Backend (SQLite profile) — checks | own job, no `needs` (overlaps the shards): partition-integrity check, the spawner tests with `-W error::pytest.PytestUnraisableExceptionWarning`, `-m contract` | partition is parallel + serial exactly once; no leaked asyncio subprocess transports in the spawner tests |
 | Contract (both dialects) | `uv run pytest -m contract` | identity-auth §18 |
 | Types | `uv run mypy` | `[tool.mypy] files` — clean packages only |
 | Type ratchet | `uv run python ../scripts/check-mypy-ratchet.py` | `[tool.career-mypy-ratchet]` pegs |
