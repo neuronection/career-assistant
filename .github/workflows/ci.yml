@@ -146,7 +146,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -169,7 +169,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
       - name: assistant-ui drift audit (required on every PR)
@@ -198,7 +198,7 @@ jobs:
           if apt-cache show libgirepository-2.0-dev >/dev/null 2>&1; then
             sudo apt-get install -y --no-install-recommends libgirepository-2.0-dev
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
@@ -338,7 +338,7 @@ jobs:
       CAREER_SCHEDULER_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
