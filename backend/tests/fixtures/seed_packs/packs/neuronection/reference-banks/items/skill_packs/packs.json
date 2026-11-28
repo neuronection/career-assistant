@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "item_type": "skill_packs",
+    "format": "skill_packs",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-28",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "skill-pack:interview-prep-style/v1",
+      "key": "interview-prep-style",
+      "version": 1,
+      "title": "Interview coaching style guide",
+      "task": "interview_turn",
+      "instructions": "Structure every coaching reply in this order: what worked, one improvement, evidence the candidate already has and could have cited. Keep feedback specific to the answer just given — quote the candidate's own phrasing when it works. For behavioral answers, name the STAR element that is missing rather than rewriting their story. Frame alternatives as options ('you could also…'), never as the model answer."
+    },
+    {
+      "seed_key": "skill-pack:cover-letter-voice/v1",
+      "key": "cover-letter-voice",
+      "version": 1,
+      "title": "Cover letter voice",
+      "task": "cv_cover_letter",
+      "instructions": "Write confident, concrete, unhedged sentences — no 'I believe I may be a good fit'. Open with the role's core problem, not with the applicant's biography. One idea per paragraph; the strongest evidence paragraph goes second. Never invent employers, dates, numbers or achievements; cite the evidence refs each claim rests on."
+    },
+    {
+      "seed_key": "skill-pack:autopilot-curation-rubric/v1",
+      "key": "autopilot-curation-rubric",
+      "version": 1,
+      "title": "Autopilot curation rubric",
+      "task": "autopilot_run",
+      "instructions": "Curate the shortlist for spread, not volume: prefer findings that differ in family, seniority or location over near-duplicates. Every 'why' must rest on the posting's extracted requirements and the candidate's measured fit — explain the one strongest match reason, not five weak ones. Drop anything that only clears a hard filter by accident of wording."
+    }
+  ]
+}

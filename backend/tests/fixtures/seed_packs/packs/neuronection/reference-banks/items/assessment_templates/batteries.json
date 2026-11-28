@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "item_type": "assessment_templates",
+    "format": "assessment_templates",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-28",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "assessment-template:riasec-interest-battery/v1",
+      "key": "riasec-interest-battery",
+      "version": 1,
+      "title": "RIASEC interest battery",
+      "description": "Six self-ratings that map your interests onto the registry's RIASEC dimensions.",
+      "audience_stages": [],
+      "language": "en",
+      "schema_version": 1,
+      "content": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "title": "RIASEC interest battery",
+            "questions": [
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in hands-on, equipment and outdoors work.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.realistic",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in analysing, researching and figuring things out.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.investigative",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in creative, expressive and design work.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.artistic",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in teaching, helping and caring for people.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.social",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in leading, selling and persuading.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.enterprising",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "Rate your interest in organising data, processes and details.",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "interest.conventional",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              }
+            ]
+          }
+        ],
+        "normalization": {
+          "multiplier": 1.0,
+          "clamp_min": 1.0,
+          "clamp_max": 10.0,
+          "bands": []
+        }
+      }
+    },
+    {
+      "seed_key": "assessment-template:work-values-battery/v1",
+      "key": "work-values-battery",
+      "version": 1,
+      "title": "Work values battery",
+      "description": "Eight self-ratings over the registry's work-value dimensions.",
+      "audience_stages": [],
+      "language": "en",
+      "schema_version": 1,
+      "content": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "title": "Work values battery",
+            "questions": [
+              {
+                "kind": "slider",
+                "prompt": "How much do you value deciding how you do your work?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.autonomy",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value a stable, predictable position?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.security",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value maximising your pay?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.compensation",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value work that helps others?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.altruism",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value varied, changing tasks?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.variety",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value protected time outside work?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.work_life_balance",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value a prestigious title or employer?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.prestige",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              },
+              {
+                "kind": "slider",
+                "prompt": "How much do you value visible impact on a mission?",
+                "help": "",
+                "options": [],
+                "statements": [],
+                "min_select": null,
+                "max_select": null,
+                "numeric_min": 1.0,
+                "numeric_max": 10.0,
+                "numeric_unit": "",
+                "skill_key": null,
+                "dimension_key": "values.impact",
+                "per_unit": 1.0,
+                "cap": 10.0,
+                "constraint_key": null
+              }
+            ]
+          }
+        ],
+        "normalization": {
+          "multiplier": 1.0,
+          "clamp_min": 1.0,
+          "clamp_max": 10.0,
+          "bands": []
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,315 @@
+{
+  "metadata": {
+    "item_type": "metric_dimensions",
+    "format": "metric_dimensions",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-28",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "metric-dimension:interest.realistic",
+      "key": "interest.realistic",
+      "label": "Realistic",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:interest.investigative",
+      "key": "interest.investigative",
+      "label": "Investigative",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:interest.artistic",
+      "key": "interest.artistic",
+      "label": "Artistic",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:interest.social",
+      "key": "interest.social",
+      "label": "Social",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:interest.enterprising",
+      "key": "interest.enterprising",
+      "label": "Enterprising",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:interest.conventional",
+      "key": "interest.conventional",
+      "label": "Conventional",
+      "group": "interest",
+      "description": "Vocational interest affinity (RIASEC) derived from your interest tags; sharpened by interest batteries.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.interests",
+        "assessment.forced_choice",
+        "behavior.engagement"
+      ],
+      "consumers": [
+        "fit.interests",
+        "filter.explore"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.autonomy",
+      "key": "values.autonomy",
+      "label": "Autonomy",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.security",
+      "key": "values.security",
+      "label": "Security",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.compensation",
+      "key": "values.compensation",
+      "label": "Compensation",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.altruism",
+      "key": "values.altruism",
+      "label": "Altruism",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.variety",
+      "key": "values.variety",
+      "label": "Variety",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.work_life_balance",
+      "key": "values.work_life_balance",
+      "label": "Work-life balance",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.prestige",
+      "key": "values.prestige",
+      "label": "Prestige",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:values.impact",
+      "key": "values.impact",
+      "label": "Impact",
+      "group": "value",
+      "description": "Work value measured against the others via trade-off items; feeds the values fit dimension once a job-side signal exists.",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "assessment.tradeoff"
+      ],
+      "consumers": [
+        "fit.values"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:workstyle.teamwork",
+      "key": "workstyle.teamwork",
+      "label": "Teamwork",
+      "group": "workstyle",
+      "description": "Work-style preference (1-5 sliders write through as self_report evidence).",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.work_preferences"
+      ],
+      "consumers": [
+        "fit.interests"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:workstyle.environment",
+      "key": "workstyle.environment",
+      "label": "Environment",
+      "group": "workstyle",
+      "description": "Work-style preference (1-5 sliders write through as self_report evidence).",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.work_preferences"
+      ],
+      "consumers": [
+        "fit.interests"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:workstyle.structure",
+      "key": "workstyle.structure",
+      "label": "Structure",
+      "group": "workstyle",
+      "description": "Work-style preference (1-5 sliders write through as self_report evidence).",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.work_preferences"
+      ],
+      "consumers": [
+        "fit.interests"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:workstyle.pace",
+      "key": "workstyle.pace",
+      "label": "Pace",
+      "group": "workstyle",
+      "description": "Work-style preference (1-5 sliders write through as self_report evidence).",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.work_preferences"
+      ],
+      "consumers": [
+        "fit.interests"
+      ]
+    },
+    {
+      "seed_key": "metric-dimension:workstyle.leadership",
+      "key": "workstyle.leadership",
+      "label": "Leadership",
+      "group": "workstyle",
+      "description": "Work-style preference (1-5 sliders write through as self_report evidence).",
+      "scale": "scalar",
+      "reverse_score": false,
+      "sources": [
+        "profile.work_preferences"
+      ],
+      "consumers": [
+        "fit.interests"
+      ]
+    }
+  ]
+}

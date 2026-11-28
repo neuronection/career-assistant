@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Internal
+
+- **The reference banks are published as the `neuronection-reference-banks`
+  seed pack.** The official seeds repository now carries the eight assessment
+  questions, the two batteries, the ten CV layouts, the metric registry with
+  its RIASEC category anchors, and the skill-pack instructions as one
+  versioned pack (six formats, digest-pinned). The code banks still ship and
+  seed this release; the app's fixture lane installs the released bytes and
+  proves they reproduce today's banks, adopt an already-seeded database
+  without duplicates or re-created rows, and apply as a no-op the second time.
+
 ### Added
 
 - **Skill packs now arrive as data and go live only when an admin publishes

@@ -1,0 +1,1316 @@
+{
+  "metadata": {
+    "item_type": "cv_templates",
+    "format": "cv_templates",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-28",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "cv-template:ats-classic/v2",
+      "key": "ats-classic",
+      "version": 2,
+      "title": "ATS-Safe Classic",
+      "description": "Single-column, standard headings, maximal parser compatibility.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": true,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 10
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "skills",
+            "props": {
+              "display": "list",
+              "max_items": 20
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {}
+          }
+        ],
+        "design": {
+          "accent_color": "#1d4ed8",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "serif",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:ats-classic-work-projects/v2",
+      "key": "ats-classic-work-projects",
+      "version": 2,
+      "title": "ATS Classic — Work & Projects",
+      "description": "The ATS classic with real-CV separation: a Work Experience section (jobs, internships, freelance) and its own Projects section.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": true,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 8
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "max_items": 6,
+              "show_org": false
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "skills",
+            "props": {
+              "display": "list",
+              "max_items": 20
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {}
+          }
+        ],
+        "design": {
+          "accent_color": "#1d4ed8",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "serif",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:modern-two-column/v4",
+      "key": "modern-two-column",
+      "version": 4,
+      "title": "Modern Two-Column",
+      "description": "Accent-colored headings with skills grouped by category, skill levels, CEFR languages and a certifications section.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": false,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 8
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Certifications",
+              "source_key": "certifications",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false,
+              "show_description": false
+            }
+          },
+          {
+            "kind": "skills",
+            "props": {
+              "display": "grouped",
+              "max_items": 18,
+              "show_levels": true
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 4,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "interests",
+            "props": {
+              "max_items": 6
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#0f766e",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "compact",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "accent",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:compact-onepage/v3",
+      "key": "compact-onepage",
+      "version": 3,
+      "title": "Compact One-Page",
+      "description": "Tight spacing that squeezes a full profile onto one page.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": true,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "props": {
+              "max_chars": 400
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 6
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "max_items": 4,
+              "show_skills": true,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "skills",
+            "props": {
+              "display": "chips",
+              "max_items": 14
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 3,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#1d4ed8",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "compact",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "shrink"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:academic/v3",
+      "key": "academic",
+      "version": 3,
+      "title": "Academic",
+      "description": "Serif typography with publications and achievements up front.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": true,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 6,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "achievements",
+            "props": {
+              "title": "Publications & Awards",
+              "kinds": [
+                "publication",
+                "award",
+                "honor"
+              ]
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 8
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {
+              "display": "list",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Certifications",
+              "source_key": "certifications",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false,
+              "show_description": false
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#111827",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "serif",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "roomy",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 2,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:student-first/v3",
+      "key": "student-first",
+      "version": 3,
+      "title": "Student First",
+      "description": "Leads with projects and skills — built for light work history.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": true,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "max_items": 6,
+              "show_skills": true,
+              "show_achievements": true
+            }
+          },
+          {
+            "kind": "skills",
+            "props": {
+              "display": "chips",
+              "max_items": 16,
+              "show_levels": true
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "max_items": 4
+            }
+          },
+          {
+            "kind": "items",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 3,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "achievements",
+            "props": {
+              "title": "Awards & Activities"
+            }
+          },
+          {
+            "kind": "languages",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "interests",
+            "props": {
+              "max_items": 6
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#7c3aed",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#0f172a",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": false,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": null,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 22,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "single",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": null,
+          "sidebar_padding_mm": null
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {
+            "summary": "Students: lead with what you have built and learned."
+          },
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:navy-sidebar/v4",
+      "key": "navy-sidebar",
+      "version": 4,
+      "title": "Navy Sidebar",
+      "description": "Two-column magazine layout: dark navy sidebar with photo, education and skills; heading glyphs and a running name footer on page 2+.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": false,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "area": "main",
+            "props": {}
+          },
+          {
+            "kind": "summary",
+            "area": "main",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "date_format": "mon_yyyy",
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "date_format": "mon_yyyy",
+              "show_org": false,
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "sidebar",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "show_description": false
+            }
+          },
+          {
+            "kind": "skills",
+            "area": "sidebar",
+            "props": {
+              "display": "chips",
+              "show_levels": true,
+              "max_items": 10
+            }
+          },
+          {
+            "kind": "languages",
+            "area": "sidebar",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "items",
+            "area": "sidebar",
+            "props": {
+              "title": "Certifications",
+              "source_key": "certifications",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false,
+              "show_description": false
+            }
+          },
+          {
+            "kind": "interests",
+            "area": "sidebar",
+            "props": {
+              "max_items": 6
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#1e3a8a",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#16324f",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": false,
+          "name_style": "plain",
+          "show_heading_icons": true,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "name",
+          "margin_mm": 0,
+          "section_style": "flat",
+          "corner_radius": 2,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 24,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "sidebar",
+          "sidebar_side": "left",
+          "sidebar_color": "#16324f",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": 8,
+          "sidebar_padding_mm": 6
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:teal-sidebar/v4",
+      "key": "teal-sidebar",
+      "version": 4,
+      "title": "Teal Sidebar",
+      "description": "Modern teal two-column layout with skill bars, a rounded photo and heading glyphs.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": false,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "area": "main",
+            "props": {}
+          },
+          {
+            "kind": "summary",
+            "area": "main",
+            "props": {}
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Work Experience",
+              "source_key": "experience",
+              "date_format": "mon_yyyy",
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "date_format": "mon_yyyy",
+              "show_org": false,
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "sidebar",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "show_description": false
+            }
+          },
+          {
+            "kind": "skills",
+            "area": "sidebar",
+            "props": {
+              "display": "bars",
+              "show_levels": true,
+              "max_items": 10
+            }
+          },
+          {
+            "kind": "languages",
+            "area": "sidebar",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "items",
+            "area": "sidebar",
+            "props": {
+              "title": "Certifications",
+              "source_key": "certifications",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false,
+              "show_description": false
+            }
+          },
+          {
+            "kind": "interests",
+            "area": "sidebar",
+            "props": {
+              "max_items": 6
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#0f766e",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#134e4a",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": true,
+          "name_style": "plain",
+          "show_heading_icons": true,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": 0,
+          "section_style": "flat",
+          "corner_radius": 2,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 600,
+          "heading_rule": "line",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 24,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "sidebar",
+          "sidebar_side": "left",
+          "sidebar_color": "#0f766e",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": 8,
+          "sidebar_padding_mm": 6
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:coral-banner/v2",
+      "key": "coral-banner",
+      "version": 2,
+      "title": "Coral Banner",
+      "description": "Warm coral header band with an arch photo and accent surname; soft gray sidebar for profile, skill bars and languages.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": false,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "area": "main",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "summary",
+            "area": "sidebar",
+            "props": {
+              "title": "Profile",
+              "max_chars": 500
+            }
+          },
+          {
+            "kind": "skills",
+            "area": "sidebar",
+            "props": {
+              "title": "Tech Skills",
+              "display": "bars",
+              "show_levels": true,
+              "max_items": 8
+            }
+          },
+          {
+            "kind": "languages",
+            "area": "sidebar",
+            "props": {
+              "display": "list",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "interests",
+            "area": "sidebar",
+            "props": {
+              "max_items": 6
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Experience",
+              "source_key": "experience",
+              "date_format": "mon_yyyy",
+              "show_skills": false,
+              "style": "timeline"
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "date_format": "mon_yyyy",
+              "show_org": false,
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "max_items": 4,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Certifications",
+              "source_key": "certifications",
+              "max_items": 5,
+              "show_skills": false,
+              "show_achievements": false,
+              "show_description": false
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#e2793f",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#7c2d12",
+          "background_color": "#ffffff",
+          "font_stack": "geometric",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "band",
+          "show_photo": true,
+          "name_style": "accent_surname",
+          "show_heading_icons": true,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": 0,
+          "section_style": "flat",
+          "corner_radius": 3,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 700,
+          "heading_rule": "none",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "arch",
+          "photo_size_mm": 24,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "sidebar",
+          "sidebar_side": "left",
+          "sidebar_color": "#f2efeb",
+          "sidebar_text_color": "#4b4236",
+          "sidebar_width_pct": 34,
+          "main_padding_mm": 8,
+          "sidebar_padding_mm": 6
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    },
+    {
+      "seed_key": "cv-template:charcoal-amber/v2",
+      "key": "charcoal-amber",
+      "version": 2,
+      "title": "Charcoal & Amber",
+      "description": "Dark charcoal sidebar with the photo, contact, skill bars and a link QR; amber heading glyphs and accent surname over a timeline main column.",
+      "language": "en",
+      "page_size": "a4",
+      "ats_safe": false,
+      "content": {
+        "blocks": [
+          {
+            "kind": "header",
+            "area": "sidebar",
+            "props": {
+              "show_links": true,
+              "show_location": true
+            }
+          },
+          {
+            "kind": "items",
+            "area": "sidebar",
+            "props": {
+              "title": "Education",
+              "source_key": "education",
+              "show_description": false,
+              "show_skills": false,
+              "show_achievements": false
+            }
+          },
+          {
+            "kind": "skills",
+            "area": "sidebar",
+            "props": {
+              "title": "Tech Skills",
+              "display": "bars",
+              "show_levels": true,
+              "max_items": 8
+            }
+          },
+          {
+            "kind": "languages",
+            "area": "sidebar",
+            "props": {
+              "display": "chips",
+              "show_cefr": true
+            }
+          },
+          {
+            "kind": "qr",
+            "area": "sidebar",
+            "props": {
+              "link_kind": "web",
+              "size_mm": 22
+            }
+          },
+          {
+            "kind": "interests",
+            "area": "sidebar",
+            "props": {
+              "max_items": 6
+            }
+          },
+          {
+            "kind": "summary",
+            "area": "main",
+            "props": {
+              "title": "About Me",
+              "max_chars": 500
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Job Experience",
+              "source_key": "experience",
+              "date_format": "mon_yyyy",
+              "show_skills": false,
+              "style": "timeline"
+            }
+          },
+          {
+            "kind": "items",
+            "area": "main",
+            "props": {
+              "title": "Projects",
+              "source_key": "projects",
+              "date_format": "mon_yyyy",
+              "show_org": false,
+              "show_skills": false
+            }
+          },
+          {
+            "kind": "achievements",
+            "area": "main",
+            "props": {
+              "title": "Awards"
+            }
+          }
+        ],
+        "design": {
+          "accent_color": "#d99a2b",
+          "text_color": "#111827",
+          "muted_color": "#6b7280",
+          "heading_color": "#1f2937",
+          "background_color": "#ffffff",
+          "font_stack": "sans",
+          "base_size_pt": 10,
+          "line_height": 1.35,
+          "spacing_scale": 1.0,
+          "header_style": "left",
+          "show_photo": true,
+          "name_style": "accent_surname",
+          "show_heading_icons": true,
+          "main_columns": 1,
+          "sidebar_columns": 1,
+          "density": "normal",
+          "running_footer": "none",
+          "margin_mm": 0,
+          "section_style": "flat",
+          "corner_radius": 0,
+          "elevation": "none",
+          "chip_style": "tint",
+          "chip_tint_pct": 12,
+          "chip_text_color": null,
+          "heading_case": "uppercase",
+          "heading_weight": 700,
+          "heading_rule": "none",
+          "show_icons": true,
+          "icon_size_mm": 3.2,
+          "photo_shape": "circle",
+          "photo_size_mm": 24,
+          "section_gap_mm": null,
+          "item_gap_mm": null,
+          "border_color": "#e5e7eb",
+          "layout": "sidebar",
+          "sidebar_side": "left",
+          "sidebar_color": "#26262b",
+          "sidebar_text_color": "#ffffff",
+          "sidebar_width_pct": 38,
+          "main_padding_mm": 8,
+          "sidebar_padding_mm": 6
+        },
+        "pages": {
+          "default_max_pages": 1,
+          "overflow_policy": "warn"
+        },
+        "prompts": {
+          "field_prompts": {},
+          "field_handling": ""
+        }
+      }
+    }
+  ]
+}

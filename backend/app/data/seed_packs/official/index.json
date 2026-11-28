@@ -2,8 +2,8 @@
   "contract": "career-official-seed-index",
   "schema": 1,
   "repository": "https://github.com/neuronection/career-assistant-seeds.git",
-  "ref": "v2026.11.25.3",
-  "commit": "a80923fa63f7226c76adf08646b5d31e992cd54f",
+  "ref": "v2026.11.28",
+  "commit": "53421930c123f90a3828918888e2ccd7c7e8ee19",
   "publisher": {
     "id": "neuronection",
     "name": "Neuronection"
@@ -23,6 +23,11 @@
       "id": "neuronection-job-catalog",
       "name": "Neuronection official — Job catalog",
       "path": "packs/neuronection/job-catalog"
+    },
+    {
+      "id": "neuronection-reference-banks",
+      "name": "Neuronection official — Reference banks",
+      "path": "packs/neuronection/reference-banks"
     }
   ]
 }

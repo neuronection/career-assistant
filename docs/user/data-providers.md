@@ -13,11 +13,12 @@ approve that exact digest and apply it.
 preset gallery is empty until you add a pack, so there is one source of truth
 for listings and no app release is needed to refresh them.
 
-- **Official Neuronection provider** — three disabled Git tiles pinned to a
+- **Official Neuronection provider** — four disabled Git tiles pinned to a
   released tag of the public
   [career-assistant-seeds](https://github.com/neuronection/career-assistant-seeds)
-  repository: Greece ATS, worldwide remote boards, and the curated job
-  catalog. **Sync now**, approve and apply a pack to populate the gallery or
+  repository: Greece ATS, worldwide remote boards, the curated job catalog,
+  and the reference banks (assessment questions/batteries, CV layouts, metric
+  dimensions and AI skill packs). **Sync now**, approve and apply a pack to populate the gallery or
   the catalog — or use the empty catalog page's **Load the official catalog**
   button, which does the same in one click.
 
@@ -43,9 +44,9 @@ counts the job families, jobs, relations, career paths, skills and interests
 it supplied. Catalog rows an admin edited directly are flagged as edited, and
 a row a newer version dropped is shown as retired, never deleted.
 
-One provider owns one pack. The official repository publishes three — Greece
-ATS, worldwide remote boards and the job catalog — so it arrives as three
-separate tiles, each disabled until you enable it. Any other pack in the same
+One provider owns one pack. The official repository publishes four — Greece
+ATS, worldwide remote boards, the job catalog and the reference banks — so it
+arrives as four separate tiles, each disabled until you enable it. Any other pack in the same
 repository is added as another Git provider with that pack's subpath.
 
 To add a repository's packs in one step, choose **Repository (all packs)**,
