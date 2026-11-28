@@ -124,7 +124,7 @@ jobs:
           if-no-files-found: ignore
 
   backend-gate:
-    name: Backend gate (coverage floor + static checks)
+    name: Backend (ruff + pytest)
     needs: backend
     if: always()
     runs-on: ubuntu-latest

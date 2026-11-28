@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ ROOT = BACKEND.parent
 SCRIPT = ROOT / "scripts" / "check-test-shards.py"
 DURATIONS = BACKEND / "tests" / "ci_durations.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+PROTECTED_BACKEND_CHECK = "Backend (ruff + pytest)"
 
 
 def _shard_module() -> ModuleType:
@@ -30,12 +32,14 @@ def _shard_module() -> ModuleType:
 @functools.lru_cache(maxsize=1)
 def _collected_files() -> tuple[str, ...]:
     """The file list pytest collects from ``tests`` right now."""
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_XDIST_")}
     completed = subprocess.run(
         [sys.executable, "-m", "pytest", "tests", "--collect-only", "-q", "-o", "addopts="],
         cwd=BACKEND,
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     nodeids = {line.split("::", 1)[0] for line in completed.stdout.splitlines() if "::" in line}
@@ -88,3 +92,15 @@ def test_the_workflow_matches_the_committed_shard_count() -> None:
         assert jobs[job]["strategy"]["fail-fast"] is False
     assert jobs["backend-gate"]["needs"] == "backend"
     assert jobs["backend-sqlite-gate"]["needs"] == "backend-sqlite"
+
+
+def test_the_protected_backend_context_is_owned_by_one_gate_job() -> None:
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    holders = [job for job, spec in jobs.items() if spec.get("name") == PROTECTED_BACKEND_CHECK]
+    assert holders == ["backend-gate"], holders
+    gate = jobs[holders[0]]
+    assert gate["needs"] == "backend"
+    assert gate.get("if") == "always()"
+    assert jobs["backend"]["strategy"]["matrix"]["shard"] == list(
+        range(1, _shard_module().SHARD_COUNT + 1)
+    )
