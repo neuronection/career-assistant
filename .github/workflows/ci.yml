@@ -10,8 +10,12 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (ruff + pytest)
+    name: Backend (ruff + pytest) — shard ${{ matrix.shard }}/2
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     defaults:
       run:
         working-directory: backend
@@ -76,8 +80,123 @@ jobs:
 
           asyncio.run(main())
           PY
-      - name: Run tests (coverage floor, xdist-parallel)
-        run: uv run pytest tests/ -n auto --dist loadfile --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+      # Shards are assigned by measured file duration (plan 227), never by
+      # count. The manifest is exactly what pytest collects, so the shards
+      # cover the tree; `--check` proves every file is assigned once.
+      - name: Collect the test-file manifest
+        run: |
+          set -o pipefail
+          uv run pytest tests --collect-only -q -o addopts="" \
+            | grep '::' | cut -d: -f1 | sort -u > /tmp/files.txt
+          test -s /tmp/files.txt
+      - name: Select shard ${{ matrix.shard }}/2
+        run: >
+          python3 ../scripts/check-test-shards.py
+          --files /tmp/files.txt --of 2 --shard ${{ matrix.shard }}
+          --out /tmp/shard.txt
+      - name: Verify the partition (global, once)
+        if: matrix.shard == 1
+        run: python3 ../scripts/check-test-shards.py --check --files /tmp/files.txt --of 2
+      - name: Run tests (shard ${{ matrix.shard }}/2, xdist-parallel)
+        run: >
+          uv run pytest $(cat /tmp/shard.txt)
+          -n auto --dist loadfile
+          --cov=app --cov-append --cov-report=
+          --junitxml=junit-shard-${{ matrix.shard }}.xml
+      - name: Keep the shard coverage database
+        if: always()
+        run: |
+          if [[ -f .coverage ]]; then cp .coverage .coverage.shard-${{ matrix.shard }}; fi
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-coverage-${{ matrix.shard }}
+          path: backend/.coverage.shard-${{ matrix.shard }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Upload shard JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-junit-${{ matrix.shard }}
+          path: backend/junit-shard-${{ matrix.shard }}.xml
+          if-no-files-found: ignore
+
+  backend-gate:
+    name: Backend gate (coverage floor + static checks)
+    needs: backend
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: neuronection_career_test
+          POSTGRES_USER: neuronection_career_owner
+          POSTGRES_PASSWORD: career_dev_pw
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U neuronection_career_owner -d neuronection_career_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+      CAREER_MOCK_AI: "1"
+      CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Migrate test database
+        run: uv run alembic upgrade head
+      - name: Enable pgvector
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+          import os
+
+          import asyncpg
+
+
+          async def main() -> None:
+              url = os.environ["CAREER_DATABASE_URL"].replace(
+                  "postgresql+asyncpg://", "postgresql://"
+              )
+              conn = await asyncpg.connect(url)
+              try:
+                  await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+              finally:
+                  await conn.close()
+
+
+          asyncio.run(main())
+          PY
+      - name: Download shard coverage
+        uses: actions/download-artifact@v7
+        with:
+          pattern: postgres-coverage-*
+          path: backend
+          merge-multiple: true
+      - name: Combine shard coverage
+        # Explicit inputs: a missing shard artifact is an error, not a pass.
+        run: uv run coverage combine .coverage.shard-1 .coverage.shard-2
+      - name: Coverage floor (whole suite, both shards)
+        run: uv run coverage report --fail-under=79 --skip-covered
       - name: Tracing suite with the otel extra installed (plan 168)
         run: uv run --extra otel pytest tests/test_tracing.py
       - name: Contract drift gate (identity-auth §18)
@@ -92,8 +211,12 @@ jobs:
         run: uv run --with pip-audit python ../scripts/check-dependency-audit.py --ecosystem pip
 
   backend-sqlite:
-    name: Backend on SQLite (desktop profile)
+    name: Backend on SQLite (desktop profile) — shard ${{ matrix.shard }}/2
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     defaults:
       run:
         working-directory: backend
@@ -120,28 +243,90 @@ jobs:
           uv run ruff format --check .
       - name: Migrate test database
         run: uv run alembic upgrade head
-      # Two-lane pytest (plan 226): the parallel-safe tests run under xdist,
-      # then the `serial` registry (wall-clock-bound on the SQLite desktop
-      # profile) runs in one process. `serial` is SQLite-profile-scoped — the
-      # Postgres lane keeps those tests in its `-n auto` pool.
-      - name: Run tests — parallel-safe lane (xdist)
+      # Plan 227: the SQLite lane is sharded by measured file duration. Each
+      # shard runs the parallel-safe lane over its own files; the serial lane
+      # (not parallel-safe on the desktop profile) runs once in the gate job.
+      - name: Collect the test-file manifest
         run: |
-          uv run coverage erase
-          # `-n 4` is pinned. Measured on the same job (plan 226 §13):
-          #   -n 4 → 1,282 s parallel pass · 25 m 29 s job
-          #   -n 8 → 1,453 s parallel pass · 28 m 20 s job
-          # Four workers on a GitHub-hosted `ubuntu-latest` deliver ~1.35x over
-          # the serial lane; oversubscribing makes it worse, so the wall is the
-          # runner, not the worker count. Shard across runners (Phase B) rather
-          # than raise `-n`.
-          uv run pytest tests -m "not serial" -n 4 --dist loadfile \
-            --cov=app --cov-append --cov-report= --durations=25
-      - name: Run tests — serial lane (single process)
-        run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
+          set -o pipefail
+          uv run pytest tests --collect-only -q -o addopts="" \
+            | grep '::' | cut -d: -f1 | sort -u > /tmp/files.txt
+          test -s /tmp/files.txt
+      - name: Select shard ${{ matrix.shard }}/2
+        run: >
+          python3 ../scripts/check-test-shards.py
+          --files /tmp/files.txt --of 2 --shard ${{ matrix.shard }}
+          --out /tmp/shard.txt
+      - name: Verify the partition (global, once)
+        if: matrix.shard == 1
+        run: python3 ../scripts/check-test-shards.py --check --files /tmp/files.txt --of 2
+      - name: Run tests — parallel-safe lane (shard ${{ matrix.shard }}/2)
+        # `-n 4` is pinned (plan 226 §13): four workers on a GitHub-hosted
+        # `ubuntu-latest` deliver ~1.35x over the serial lane; oversubscribing
+        # makes it worse. Sharding divides the work across runners instead.
+        run: >
+          uv run pytest $(cat /tmp/shard.txt)
+          -m "not serial" -n 4 --dist loadfile
+          --cov=app --cov-append --cov-report=
+          --junitxml=junit-shard-${{ matrix.shard }}.xml
+      - name: Keep the shard coverage database
+        if: always()
+        run: |
+          if [[ -f .coverage ]]; then cp .coverage .coverage.shard-${{ matrix.shard }}; fi
+      - name: Upload shard coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-coverage-${{ matrix.shard }}
+          path: backend/.coverage.shard-${{ matrix.shard }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Upload shard JUnit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-junit-${{ matrix.shard }}
+          path: backend/junit-shard-${{ matrix.shard }}.xml
+          if-no-files-found: ignore
+      - name: Upload shard skip observations
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-observations-${{ matrix.shard }}
+          path: backend/tests/_xdist/skip_observations.json
+          if-no-files-found: ignore
+
+  backend-sqlite-gate:
+    name: Backend on SQLite (desktop profile) — gate
+    needs: backend-sqlite
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+      CAREER_MOCK_AI: "1"
+      CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Migrate test database
+        run: uv run alembic upgrade head
       - name: Partition integrity (no test lost, none doubled)
-        # `-o addopts=""` pins the collection format: the repo's addopts
-        # ("-v --tb=short --strict-markers") prints a tree, and grepping a tree
-        # would let this check pass while a lane lost its tests.
+        # Global, never per shard: `-o addopts=""` pins the collection format
+        # (the repo's addopts print a tree, and grepping a tree would let this
+        # step pass while a lane lost its tests).
         run: |
           set -o pipefail
           uv run pytest tests --collect-only -q -o addopts="" | grep '::' | sort > /tmp/all.txt
@@ -166,17 +351,36 @@ jobs:
             echo "partition integrity failed: parallel + serial must cover the full collection exactly once" >&2
             exit 1
           fi
-      - name: Coverage floor (whole suite, both lanes)
-        # The floor is enforced here and only here: neither pass carries
+      - name: Download shard coverage
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sqlite-coverage-*
+          path: backend
+          merge-multiple: true
+      - name: Download shard skip observations
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sqlite-observations-*
+          path: /tmp/observations
+      - name: Merge shard skip observations
+        # The serial lane finishes the partition, so its completeness check
+        # needs the union of every shard's parallel observations. The union is
+        # a dict merge per shard; a missing fragment fails closed.
+        run: >
+          python3 ../scripts/check-test-shards.py --merge-observations
+          /tmp/observations/sqlite-observations-1/skip_observations.json
+          /tmp/observations/sqlite-observations-2/skip_observations.json
+      - name: Combine shard coverage
+        # Explicit inputs: a missing shard artifact is an error, not a pass.
+        run: uv run coverage combine .coverage.shard-1 .coverage.shard-2
+      - name: Run tests — serial lane (whole tree, single process)
+        # `tests` (the whole tree) is required: the conftest judges skip-wall
+        # completeness only for a whole-tree selection with no `-k`.
+        run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
+      - name: Coverage floor (whole suite, both shards)
+        # The floor is enforced here and only here: no shard pass carries
         # --cov-fail-under, so a selectable pass cannot take it with it.
-        # pytest-cov already merges each --cov-append pass into `.coverage`;
-        # parallel shards are left only by an interrupted pass, so combine
-        # runs when they exist.
-        run: |
-          if compgen -G ".coverage.*" > /dev/null; then
-            uv run coverage combine
-          fi
-          uv run coverage report --fail-under=79 --skip-covered
+        run: uv run coverage report --fail-under=79 --skip-covered
       - name: Spawner teardown gate (unraisable leaks fatal)
         run: >
           uv run pytest
