@@ -56,8 +56,9 @@ real-Alembic migration tests safe to distribute.
 - Never hand-run migrations for an `-n` run; the routing bootstrap does it.
 - **SQLite workers** (the desktop profile) write isolated files and state
   trees under `backend/tests/_xdist/<worker>/` (gitignored).
-- **Two lanes.** `./scripts/run-tests.sh` runs `pytest -m "not serial" -n <workers>`
-  and then `pytest -m serial` in one process; the CI SQLite job runs the same
+- **Two lanes.** `./scripts/run-tests.sh` runs
+  `pytest -m "not serial" -n <workers> --dist loadfile` and then
+  `pytest -m serial` in one process; the CI SQLite job runs the same
   two passes at `-n 4 --dist loadfile`, then a partition-integrity step
   (`--collect-only` ×3 with `-o addopts=""`; the parallel and serial node-id
   sets must cover the full collection exactly once, and an empty serial
@@ -75,8 +76,12 @@ real-Alembic migration tests safe to distribute.
   `-n > 1` on the SQLite profile fails: a single-process/collection session
   raises at collection, and an xdist run fails each item in
   `pytest_runtest_setup`, both with a message naming `-m "not serial"` and the
-  separate serial pass (or `./scripts/run-tests.sh`). `-n 1`/`-n 0` and the
-  Postgres lane never trip it.
+  separate serial pass (or `./scripts/run-tests.sh`). A selection that
+  excludes the marker (`-m "not serial"`, including composed forms such as
+  `not (serial or benchmark)`) is exempt from the collection-time check —
+  pytest deselects those items after collection, so a serial-excluding
+  `--collect-only` is legitimate. `-n 1`/`-n 0` and the Postgres lane never
+  trip the guard.
 - **The `serial` pass is the final lane.** It fails closed when the
   `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
   so a partial run must go through `./scripts/run-tests.sh` or pass

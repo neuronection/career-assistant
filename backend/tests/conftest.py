@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import pytest_asyncio
+from _pytest.mark.expression import Expression
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -1373,6 +1374,26 @@ def _serial_registry_covers_the_tree(config: pytest.Config) -> bool:
     return markexpr == _SERIAL_LANE and _selects_whole_tree(config)
 
 
+def _serial_marker_selected(config: pytest.Config) -> bool:
+    """Whether the active ``-m`` expression keeps a bare ``serial`` marker in.
+
+    The expression is compiled with pytest's own engine and evaluated against a
+    matcher that is true only for the bare ``serial`` marker, so every spelling
+    that excludes the serial lane (``not serial``, ``contract or not serial``,
+    ``not (serial or benchmark)``) is recognised, while no selector, ``serial``
+    and ``not benchmark`` keep the guard armed. A malformed expression fails
+    closed (the guard applies); pytest reports the parse error itself.
+    """
+    markexpr = getattr(config.option, "markexpr", "") or ""
+    if not markexpr:
+        return True
+    try:
+        expression = Expression.compile(markexpr)
+    except SyntaxError:
+        return True
+    return expression.evaluate(lambda name, **kwargs: name == SERIAL_MARKER and not kwargs)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Attach the driver cleanup, then enforce the serial partition at collection.
@@ -1382,7 +1403,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     xdist workers: pytest-xdist turns an exception raised in a worker's
     collection hooks into an internal error, so the harness would lose the
     message. The serial lane and every single-process run do both checks here;
-    the guard in :func:`pytest_runtest_setup` covers the rest.
+    the guard in :func:`pytest_runtest_setup` covers the rest. The
+    controller-layer guard is skipped when the active ``-m`` expression excludes
+    ``serial``: pytest deselects those items after this hook, so a legitimate
+    ``-m "not serial" -n N --collect-only`` must not be refused.
     """
     import inspect
 
@@ -1397,7 +1421,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if problems:
         raise pytest.UsageError("serial partition FAILED:\n  " + "\n  ".join(problems))
     violation = _serial_guard_violation(config, marked)
-    if violation:
+    if violation and _serial_marker_selected(config):
         raise pytest.UsageError(violation)
 
 

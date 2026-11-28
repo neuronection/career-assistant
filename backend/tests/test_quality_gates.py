@@ -399,9 +399,9 @@ def _serial_item(nodeid: str = "tests/test_extension_sandbox.py::test_x") -> Sim
     )
 
 
-def _collection_config(raw_workers):
+def _collection_config(raw_workers, markexpr=""):
     return SimpleNamespace(
-        option=SimpleNamespace(markexpr="", keyword=""),
+        option=SimpleNamespace(markexpr=markexpr, keyword=""),
         args=["tests/test_extension_sandbox.py"],
         getoption=lambda _name, default=None: raw_workers,
     )
@@ -414,6 +414,27 @@ def test_collection_guard_refuses_a_parallel_sqlite_collection(monkeypatch) -> N
             skip_wall.pytest_collection_modifyitems(
                 _collection_config(raw_workers), [_serial_item()]
             )
+
+
+@pytest.mark.parametrize("raw_workers", [2, "auto"])
+def test_collection_guard_allows_a_serial_excluding_select(monkeypatch, raw_workers) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    for markexpr in ("not serial", "contract or not serial", "not (serial or benchmark)"):
+        skip_wall.pytest_collection_modifyitems(
+            _collection_config(raw_workers, markexpr), [_serial_item()]
+        )
+
+
+def test_collection_guard_refuses_a_parallel_collection_without_a_selector(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    with pytest.raises(pytest.UsageError, match='-m "not serial"'):
+        skip_wall.pytest_collection_modifyitems(_collection_config(2), [_serial_item()])
+
+
+def test_collection_guard_refuses_the_serial_lane_in_parallel(monkeypatch) -> None:
+    monkeypatch.setattr(skip_wall, "IS_SQLITE", True)
+    with pytest.raises(pytest.UsageError, match='-m "not serial"'):
+        skip_wall.pytest_collection_modifyitems(_collection_config(2, "serial"), [_serial_item()])
 
 
 def test_collection_guard_allows_a_single_worker(monkeypatch) -> None:

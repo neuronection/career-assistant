@@ -209,6 +209,30 @@ def test_serial_guard_ignores_unmarked_sessions(monkeypatch) -> None:
     assert harness._serial_guard_violation(_guard_config(4), []) == ""
 
 
+def _markexpr_config(markexpr):
+    return SimpleNamespace(option=SimpleNamespace(markexpr=markexpr))
+
+
+@pytest.mark.parametrize(
+    "markexpr",
+    ["", "serial", "serial or benchmark", "not benchmark", "contract or serial"],
+)
+def test_serial_marker_selection_keeps_the_guard_armed(markexpr) -> None:
+    assert harness._serial_marker_selected(_markexpr_config(markexpr))
+
+
+@pytest.mark.parametrize(
+    "markexpr",
+    ["not serial", "contract or not serial", "not (serial or benchmark)", "serial(foo=1)"],
+)
+def test_serial_marker_selection_excludes_the_serial_lane(markexpr) -> None:
+    assert not harness._serial_marker_selected(_markexpr_config(markexpr))
+
+
+def test_serial_marker_selection_fails_closed_on_a_malformed_expression() -> None:
+    assert harness._serial_marker_selected(_markexpr_config("not ("))
+
+
 def test_routed_worker_points_at_its_own_database_and_trees() -> None:
     worker_root = routing.routed_worker_root()
     if worker_root is None:
