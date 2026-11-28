@@ -20,6 +20,7 @@ from app.services.seeds.applier import SeedApplyService
 from app.services.seeds.banks import REFERENCE_BANK_SUBPATH
 from app.services.seeds.provider_service import ProviderService
 from app.services.seeds.service import ProviderSyncService
+from tests.seed_pack_fixture import apply_bank_pack, bank_items
 from tests.test_seed_apply import _service, _source, _store, _version
 from tests.test_seed_pack import _envelope, _pack
 
@@ -231,13 +232,8 @@ async def test_a_pack_apply_invalidates_the_metric_registry(db, tmp_path):
     assert "interest.investigative" in fresh.dimension_keys
 
 
-async def test_a_pack_adopts_the_stamped_metric_bank_without_duplicates(db, tmp_path):
-    from app.seeds.bank_stamp import stamp_bank_identities
-    from app.seeds.metrics import CATEGORY_RIASEC, DIMENSIONS, seed_metric_dimensions
-
-    await seed_metric_dimensions(db)
-    await stamp_bank_identities(db)
-    await db.commit()
+async def test_a_pack_adopts_the_reference_metric_bank_without_duplicates(db, tmp_path):
+    fixture = await apply_bank_pack(db)
     before_dimensions = {
         row.seed_key: row.id for row in (await db.execute(select(MetricDimension))).scalars().all()
     }
@@ -245,36 +241,32 @@ async def test_a_pack_adopts_the_stamped_metric_bank_without_duplicates(db, tmp_
         row.seed_key: row.id
         for row in (await db.execute(select(MetricCategoryAnchor))).scalars().all()
     }
-    assert len(before_dimensions) == len(DIMENSIONS)
-    assert len(before_anchors) == len(CATEGORY_RIASEC)
+    dimension_items = list(bank_items("metric_dimensions"))
+    anchor_items = list(bank_items("metric_category_anchors"))
+    assert len(before_dimensions) == len(dimension_items)
+    assert len(before_anchors) == len(anchor_items)
     assert None not in before_dimensions and None not in before_anchors
 
-    dimension_items = [
-        {"seed_key": f"metric-dimension:{spec['key']}", **spec} for spec in DIMENSIONS
-    ]
-    anchor_items = [
-        {"seed_key": f"interest-category:{category}", "category": category, "letter": letter}
-        for category, letter in CATEGORY_RIASEC.items()
-    ]
-    store = _store(tmp_path)
-    source = await _operator_source(db)
-    version = await _version(db, store, source, _metric_pack(dimension_items, anchor_items))
+    version = await _version(
+        db, fixture.store, fixture.source, _metric_pack(dimension_items, anchor_items)
+    )
 
-    plan = await _service(db, store).build_plan(source, version)
+    plan = await _service(db, fixture.store).build_plan(fixture.source, version)
     assert not [item for item in plan.items if item.action in ("create", "retire", "delete")]
-    assert {item.action for item in plan.items if item.entity_type.startswith("metric_")} == {
-        "update"
+    assert {item.action for item in plan.items if item.entity_type.startswith("metric_")} <= {
+        "update",
+        "noop",
     }
 
-    applied = await _service(db, store).apply(source, version)
-    assert applied.status == "applied", applied.error
-    again = await _service(db, store).apply(source, version)
+    applied = await _service(db, fixture.store).apply(fixture.source, version)
+    assert applied.status in ("applied", "noop"), applied.error
+    again = await _service(db, fixture.store).apply(fixture.source, version)
     assert again.status == "noop"
 
     dimensions = (await db.execute(select(MetricDimension))).scalars().all()
     anchors = (await db.execute(select(MetricCategoryAnchor))).scalars().all()
-    assert len(dimensions) == len(DIMENSIONS)
-    assert len(anchors) == len(CATEGORY_RIASEC)
+    assert len(dimensions) == len(dimension_items)
+    assert len(anchors) == len(anchor_items)
     assert {row.id for row in dimensions} == set(before_dimensions.values())
     assert {row.id for row in anchors} == set(before_anchors.values())
     assert {row.status for row in dimensions} == {"published"}

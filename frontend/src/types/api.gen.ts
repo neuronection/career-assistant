@@ -12556,6 +12556,7 @@ export interface components {
             /** Notification Channels */
             notification_channels?: string[];
             onboarding_path?: components["schemas"]["OnboardingPath"] | null;
+            reference_banks?: components["schemas"]["ReferenceBanksOut"];
             /** Refit Job Id */
             refit_job_id?: string | null;
             /** Refit Queued */
@@ -21297,6 +21298,36 @@ export interface components {
              * @default 128
              */
             window_documents: number;
+        };
+        /**
+         * ReferenceBanksOut
+         * @description Which reference banks are absent (``true`` = empty), read from the DB.
+         *
+         *     ``skill_packs`` is empty only when no pack row exists at all: an applied
+         *     pack sits in ``draft`` until an admin publishes it, and that state is
+         *     shown by the provider hub, not as an unloaded bank.
+         */
+        ReferenceBanksOut: {
+            /**
+             * Assessment
+             * @default false
+             */
+            assessment: boolean;
+            /**
+             * Cv Templates
+             * @default false
+             */
+            cv_templates: boolean;
+            /**
+             * Metrics
+             * @default false
+             */
+            metrics: boolean;
+            /**
+             * Skill Packs
+             * @default false
+             */
+            skill_packs: boolean;
         };
         /** RegisterIn */
         RegisterIn: {

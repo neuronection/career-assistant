@@ -68,7 +68,9 @@ filters and by your own status. Rankings combine AI score, your score and
 interest status. Catalog **job cards** link their title to the type page, so
 a ranked type opens directly; the posting-side match card stays on the
 posting, and the Explore **Job** facet labels types by title while keeping the
-code as the tooltip/fallback.
+code as the tooltip/fallback. Until the reference-banks pack supplies the
+metric dimensions, the page shows a metric-bank notice with a Data providers
+action and the interest-affinity terms of the fit stay neutral.
 
 ## Compare tray
 

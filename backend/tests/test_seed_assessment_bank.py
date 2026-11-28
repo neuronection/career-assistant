@@ -9,9 +9,7 @@ from sqlalchemy import select
 
 from app.models.assessment_model import AssessmentAnswer, AssessmentQuestion
 from app.models.seed_model import SeedItemProvenance
-from app.seeds.assessment import BANK_QUESTIONS, seed_assessment_bank
-from app.seeds.bank_keys import question_seed_key
-from app.seeds.bank_stamp import stamp_bank_identities
+from tests.seed_pack_fixture import apply_bank_pack, bank_items
 from tests.test_seed_apply import _service, _source, _store, _version
 from tests.test_seed_pack import _envelope, _pack
 
@@ -86,23 +84,7 @@ def _question_pack(
 
 
 def _bank_items() -> list[dict]:
-    items = []
-    for spec in BANK_QUESTIONS:
-        item = {
-            "seed_key": question_seed_key(spec["prompt"]),
-            "prompt": spec["prompt"],
-            "help": spec.get("help", ""),
-            "phase": spec["phase"],
-            "kind": spec["kind"],
-            "options": spec["options"],
-            "sort_index": spec.get("sort_index", 0),
-            "audience_stages": spec.get("audience_stages") or [],
-        }
-        if spec.get("time_split") is not None:
-            item["time_split"] = spec["time_split"]
-        items.append(item)
-    assert None not in {item["seed_key"] for item in items}
-    return items
+    return [dict(item) for item in bank_items("assessment_questions")]
 
 
 async def _operator_source(db):
@@ -223,10 +205,8 @@ async def test_question_pack_parses_plans_applies_noops_updates_and_retires(db, 
     assert {row.status for row in retired} == {"retired"}
 
 
-async def test_a_pack_adopts_the_stamped_seed_bank_without_duplicates(db, tmp_path):
-    await seed_assessment_bank(db)
-    await stamp_bank_identities(db)
-    await db.commit()
+async def test_a_pack_adopts_the_reference_bank_without_duplicates(db, tmp_path):
+    fixture = await apply_bank_pack(db)
     before = {
         row.seed_key: row.id
         for row in (
@@ -235,29 +215,28 @@ async def test_a_pack_adopts_the_stamped_seed_bank_without_duplicates(db, tmp_pa
         .scalars()
         .all()
     }
-    assert len(before) == len(BANK_QUESTIONS)
+    assert len(before) == len(_bank_items())
     assert None not in before
 
-    store = _store(tmp_path)
-    source = await _operator_source(db)
-    version = await _version(db, store, source, _question_pack(_bank_items()))
+    version = await _version(db, fixture.store, fixture.source, _question_pack(_bank_items()))
 
-    plan = await _service(db, store).build_plan(source, version)
+    plan = await _service(db, fixture.store).build_plan(fixture.source, version)
     assert not [item for item in plan.items if item.action in ("create", "retire", "delete")]
-    assert {item.action for item in plan.items if item.entity_type == "assessment_question"} == {
-        "update"
+    assert {item.action for item in plan.items if item.entity_type == "assessment_question"} <= {
+        "update",
+        "noop",
     }
 
-    applied = await _service(db, store).apply(source, version)
-    assert applied.status == "applied", applied.error
-    again = await _service(db, store).apply(source, version)
+    applied = await _service(db, fixture.store).apply(fixture.source, version)
+    assert applied.status in ("applied", "noop"), applied.error
+    again = await _service(db, fixture.store).apply(fixture.source, version)
     assert again.status == "noop"
     rows = (
         (await db.execute(select(AssessmentQuestion).where(AssessmentQuestion.run_id.is_(None))))
         .scalars()
         .all()
     )
-    assert len(rows) == len(BANK_QUESTIONS)
+    assert len(rows) == len(_bank_items())
     assert {row.id for row in rows} == set(before.values())
     assert {row.seed_key for row in rows} == set(before)
     assert {row.source for row in rows} == {"bank"}
@@ -266,16 +245,10 @@ async def test_a_pack_adopts_the_stamped_seed_bank_without_duplicates(db, tmp_pa
 
 
 async def test_a_completed_run_survives_question_retirement(
-    client, db, auth_headers, profile_ready, tmp_path
+    client, db, auth_headers, profile_ready, fixture_banks
 ):
-    await seed_assessment_bank(db)
-    await stamp_bank_identities(db)
-    await db.commit()
-    store = _store(tmp_path)
-    source = await _operator_source(db)
-    version = await _version(db, store, source, _question_pack(_bank_items()))
-    applied = await _service(db, store).apply(source, version)
-    assert applied.status == "applied", applied.error
+    store = fixture_banks.store
+    source = fixture_banks.source
 
     created = await client.post(
         "/api/v1/assessments",
@@ -382,8 +355,18 @@ async def test_a_pack_without_questions_does_not_retire_the_bank(db, tmp_path):
 async def test_a_zero_question_bank_phase_is_skipped_with_a_notice(
     client, db, auth_headers, profile_ready
 ):
+    from sqlalchemy import update
+
     from app.models.enums import QuestionStatus
 
+    await db.execute(
+        update(AssessmentQuestion)
+        .where(
+            AssessmentQuestion.run_id.is_(None),
+            AssessmentQuestion.phase == BANK_PHASE,
+        )
+        .values(status=QuestionStatus.RETIRED.value)
+    )
     db.add(
         AssessmentQuestion(
             run_id=None,

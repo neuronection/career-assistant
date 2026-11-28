@@ -1,8 +1,8 @@
-"""Idempotent reference seeding: banks, notifications and official provider tiles.
+"""Idempotent system-data seeding: notifications and official provider tiles.
 
-The job catalog and taxonomy are **not** bundled; they arrive as a reviewed,
-digest-pinned seed pack (plan 224). Run via ``scripts/seed.sh`` (which also
-installs the fixture pack for local development).
+No catalog, taxonomy or reference-bank content is bundled; it all arrives as
+reviewed, digest-pinned seed packs. Run via ``scripts/seed.sh`` (which also
+installs the fixture packs for local development).
 """
 
 import asyncio
@@ -364,14 +364,6 @@ async def run() -> None:
     """Seed everything (idempotent)."""
     logging.basicConfig(level=logging.INFO)
     async with AsyncSessionLocal() as db:
-        from app.seeds.assessment import seed_assessment_bank
-
-        q = await seed_assessment_bank(db)
-        logger.info("assessment: +%d bank questions", q)
-        from app.seeds.cv_templates import seed_cv_template_bank
-
-        t = await seed_cv_template_bank(db)
-        logger.info("cv: +%d bank templates", t)
         k = await seed_notification_kinds(db)
         logger.info("notifications: +%d kinds", k)
         from app.services.seeds.boot import ensure_seed_providers
@@ -383,36 +375,10 @@ async def run() -> None:
             len(official),
             ", ".join(entry["subpath"] for entry in official),
         )
-        from app.seeds.metrics import (
-            seed_metric_dimensions,
-            seed_metric_templates,
-            unmapped_categories,
-        )
-
-        m = await seed_metric_dimensions(db)
-        logger.info("metrics: +%d dimension rows", m)
-        batteries = await seed_metric_templates(db)
-        if batteries:
-            logger.info("metrics: +%d bank assessment batteries", batteries)
-        from app.seeds.skill_packs import seed_skill_packs
-
-        packs = await seed_skill_packs(db)
-        logger.info("ai: +%d bank skill packs", packs)
-        from app.seeds.bank_stamp import stamp_bank_identities
-
-        identified = await stamp_bank_identities(db)
-        await db.commit()
-        logger.info("banks: %d rows stamped with seed identity", identified)
         from app.seeds.econ_regions import seed_econ_regions
 
         regions = await seed_econ_regions(db)
         logger.info("econ: +%d gazetteer regions", regions)
-        gaps = await unmapped_categories(db)
-        if gaps:
-            logger.warning(
-                "metrics: interest categories without RIASEC anchor: %s",
-                ", ".join(gaps),
-            )
     await engine.dispose()
 
 

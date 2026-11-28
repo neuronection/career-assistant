@@ -187,16 +187,19 @@ docker compose -f docker/docker-compose.dev-db.yml up -d   # Postgres :5433 + Re
 ./scripts/run-dev.sh                                # backend :8100 + frontend :3100
 ```
 
-Seed the reference banks and install the released job catalog from its pinned pack (idempotent):
+Seed system data and install the released reference-banks and job-catalog packs from their pinned copies (idempotent):
 
 ```bash
 ./scripts/seed.sh
 ```
 
-**No job catalog ships with the app.** A deployed instance starts empty; the
-admin loads the official catalog with one click on the catalog page (or adds a
-downloaded pack under Settings → Data providers). `seed.sh` is the
-dev/demo shortcut that applies the same pack locally.
+**No catalog or reference-bank content ships with the app.** A deployed
+instance starts empty; the admin loads the official catalog with one click on
+the catalog page — which applies the reference-banks tile first (assessment
+questions/batteries, CV layouts, metric dimensions and anchors, skill packs as
+drafts) and then the catalog — or adds a downloaded pack under
+Settings → Data providers. `seed.sh` is the dev/demo shortcut that applies the
+same packs locally.
 
 Open **http://localhost:3100**, register, complete the onboarding wizard, then explore the catalog, generate jobs with AI and score your matches. Interactive API docs: **http://localhost:8100/docs**.
 
@@ -210,7 +213,7 @@ uv sync --extra desktop
 uv run python -m careerassistant              # window + tray (default mode)
 uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
 uv run python -m careerassistant web          # loopback server + system browser
-uv run python -m careerassistant seed         # migrations + reference banks (no catalog)
+uv run python -m careerassistant seed         # migrations + system data (banks arrive as packs)
 ```
 
 **Prebuilt packages** (no Python needed) are published on the
@@ -224,7 +227,7 @@ background, native toasts arrive through the desktop notification
 channel, and quitting happens from the tray menu. A second launch focuses
 the running window; auto-start on login is opt-in from the tray menu.
 
-First launch creates a strong `secret.key`, applies migrations and seeds the reference banks automatically (opt out with `CAREER_SKIP_SEED=1`); the catalog arrives as a reviewed pack (one click online, or upload a zip offline). AI providers are configured in-app (Settings → My AI Configuration; admins also get Instance AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
+First launch creates a strong `secret.key`, applies migrations, and seeds system data (opt out with `CAREER_SKIP_SEED=1`); the reference banks and catalog arrive as reviewed packs (one click online — the catalog chain installs the banks first — or upload zips offline). AI providers are configured in-app (Settings → My AI Configuration; admins also get Instance AI Configuration) — for a fully local setup point a provider at Ollama (`http://localhost:11434/v1`) or LM Studio. Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (tray degrades gracefully without one).
 
 ### Prerequisites
 

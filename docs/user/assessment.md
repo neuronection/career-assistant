@@ -17,7 +17,9 @@ four-phase profiling pipeline:
    situation.
 
 Runs are **resumable** — you can stop and continue later — and you can
-re-run with a custom selection.
+re-run with a custom selection. Before the reference-banks pack is applied the
+page shows an assessment-bank notice with a Data providers action instead of
+starting an empty run.
 
 ### Evidence reconciliation
 

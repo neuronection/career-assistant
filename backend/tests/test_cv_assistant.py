@@ -18,11 +18,11 @@ from app.schemas.cv_assistant import (
     UpdateBlockPropsOp,
     UpdateDesignOp,
 )
-from app.seeds.cv_templates import seed_cv_template_bank
 from app.services.cv.cv_builder_service import CvBuilderService
 from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 from app.services.cv.cv_service import CvService
 from tests.conftest import session_headers
+from tests.seed_pack_fixture import apply_bank_pack
 
 
 async def _raise_engine_unavailable(*_args, **_kwargs):
@@ -59,7 +59,7 @@ async def _owned_cv(db, client, auth_headers, **overrides) -> tuple[object, dict
 
 
 async def _seed_bank(db) -> None:
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
 
 
 # ------------------------------------------------------------- registry

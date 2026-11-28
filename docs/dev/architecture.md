@@ -164,7 +164,7 @@ There is no side door around it.
   `sidebar_padding_mm` (unset = legacy defaults); sidebar templates pair
   them with `margin_mm: 0` so each area owns its spacing instead of the
   page; `header_style: "band"` paints the name/contact header as a
-  filled accent panel. The bank (`app/seeds/cv_templates.py`) ships
+  filled accent panel. The reference-banks pack ships
   photo + skill-bar magazine layouts (`coral-banner`, `charcoal-amber`)
   alongside the classic/sidebar rows. Later token additions (all
   additive, default = today's rendering): real `grouped` skills
@@ -268,8 +268,8 @@ There is no side door around it.
   linked-source reference material — degrading silently when items
   carry no links or fetching is unavailable.
 - **Skill packs** are versioned instruction data in
-  `ai_skill_packs` (37-style immutable versions; bank seeds in
-  `app/seeds/skill_packs.py`). `app/ai/packs.py` resolves the latest
+  `ai_skill_packs` (37-style immutable versions; the reference-banks pack
+  carries them and an apply writes drafts). `app/ai/packs.py` resolves the latest
   published bank pack per task; the gateway appends it to the system
   prompt and pins `pack_key`/`pack_version` on every `ai_generations`
   row. Packs steer tone/structure only — validators are untouched.
@@ -414,10 +414,15 @@ There is no side door around it.
   version and content hash per entity; the preset/endpoint `state` remains
   the one liveness authority. Retirement flips `state` and a referencing
   `job_sources.support_status` — rows are never deleted.
-- **Boot provisions no catalog content.** The app ships no presets; a fresh
-  instance's gallery is empty until an admin uploads a pack or applies one
-  from a Git/index provider. An applied pack's presets start enabled (the
-  approval is the gate; per-item switches remain the override). The official
+- **Boot provisions no content.** The app ships no catalog, taxonomy or
+  reference-bank rows; a fresh instance's surfaces are empty until an admin
+  uploads a pack or applies one from a Git/index provider. An applied pack's
+  presets start enabled (the approval is the gate; per-item switches remain
+  the override). `GET /me/bootstrap` reports which reference banks are still
+  empty (`catalog_empty` plus `reference_banks.{assessment,cv_templates,
+  metrics,skill_packs}`) and the assessment, CV gallery, rankings and
+  provider-hub surfaces render the matching empty notice with a Data
+  providers action. The official
   repository is registered as one disabled tile per pack, read from the
   shipped snapshot
   `backend/app/data/seed_packs/official/index.json` (pinned ref and publisher

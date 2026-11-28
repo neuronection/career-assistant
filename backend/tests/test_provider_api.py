@@ -312,11 +312,10 @@ async def test_admin_detail_reports_catalog_counts_and_edit_state(
     client, auth_headers, db, tmp_path, monkeypatch
 ):
     import app.services.seeds.provider_service as provider_module
-    from app.seeds.bank_stamp import stamp_bank_identities
     from app.services.seeds.catalog import mark_user_modified
+    from tests.seed_pack_fixture import seed_category_anchors
 
-    await stamp_bank_identities(db)
-    await db.commit()
+    await seed_category_anchors(db)
     store = _store(tmp_path)
     monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
 
@@ -411,12 +410,10 @@ async def test_official_catalog_install_syncs_applies_and_enables(
     from app.core.seed_pack.archive import build_pack_archive
     from app.core.seed_pack.manifest import compute_files_digest
     from app.models.seed_model import SeedSource, SeedSourceVersion
-    from app.seeds.bank_stamp import stamp_bank_identities
     from app.services.seeds.service import ProviderSyncService
-    from tests.seed_pack_fixture import catalog_pack_files, fixture_store
+    from tests.seed_pack_fixture import catalog_pack_files, fixture_store, seed_category_anchors
 
-    await stamp_bank_identities(db)
-    await db.commit()
+    await seed_category_anchors(db)
     store = fixture_store(tmp_path)
     monkeypatch.setattr(provider_module, "SeedPackStore", lambda: store)
 

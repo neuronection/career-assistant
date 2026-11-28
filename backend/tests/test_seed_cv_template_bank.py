@@ -8,9 +8,8 @@ import uuid
 from sqlalchemy import select
 
 from app.models.cv_template_model import CvTemplate
-from app.seeds.bank_stamp import stamp_bank_identities
-from app.seeds.cv_templates import BANK_TEMPLATES, seed_cv_template_bank
 from app.services.cv.cv_template_service import CvTemplateService
+from tests.seed_pack_fixture import apply_bank_pack, bank_items
 from tests.test_seed_apply import _service, _source, _store, _version
 from tests.test_seed_pack import _envelope, _pack
 
@@ -47,8 +46,8 @@ def _cv_pack(items: list | None, *, version: str = "1.0.0") -> dict[str, bytes]:
 
 def _bank_items() -> list[dict]:
     items = []
-    for spec in BANK_TEMPLATES:
-        version = spec.get("version", 1)
+    for spec in bank_items("cv_templates"):
+        version = spec["version"]
         items.append(
             {
                 "seed_key": f"cv-template:{spec['key']}/v{version}",
@@ -191,46 +190,45 @@ async def test_a_new_version_is_created_and_the_old_stays_readable(db, tmp_path)
     assert readable.id == old_id and readable.status == "retired"
 
 
-async def test_a_pack_adopts_the_stamped_seed_bank_without_duplicates(db, tmp_path):
-    await seed_cv_template_bank(db)
-    await stamp_bank_identities(db)
-    await db.commit()
+async def test_a_pack_adopts_the_reference_bank_without_duplicates(db, tmp_path):
+    fixture = await apply_bank_pack(db)
     before = {
         row.seed_key: row.id
         for row in (await db.execute(select(CvTemplate).where(CvTemplate.author_key == "bank")))
         .scalars()
         .all()
     }
-    assert len(before) == len(BANK_TEMPLATES)
+    assert len(before) == len(_bank_items())
     assert None not in before
 
-    store = _store(tmp_path)
-    source = await _operator_source(db)
-    version = await _version(db, store, source, _cv_pack(_bank_items()))
+    version = await _version(db, fixture.store, fixture.source, _cv_pack(_bank_items()))
 
-    plan = await _service(db, store).build_plan(source, version)
+    plan = await _service(db, fixture.store).build_plan(fixture.source, version)
     assert not [item for item in plan.items if item.action in ("create", "retire", "delete")]
-    assert {item.action for item in plan.items if item.entity_type == "cv_template"} == {"update"}
+    assert {item.action for item in plan.items if item.entity_type == "cv_template"} <= {
+        "update",
+        "noop",
+    }
 
-    applied = await _service(db, store).apply(source, version)
-    assert applied.status == "applied", applied.error
-    again = await _service(db, store).apply(source, version)
+    applied = await _service(db, fixture.store).apply(fixture.source, version)
+    assert applied.status in ("applied", "noop"), applied.error
+    again = await _service(db, fixture.store).apply(fixture.source, version)
     assert again.status == "noop"
     rows = (
         (await db.execute(select(CvTemplate).where(CvTemplate.author_key == "bank")))
         .scalars()
         .all()
     )
-    assert len(rows) == len(BANK_TEMPLATES)
+    assert len(rows) == len(_bank_items())
     assert {row.id for row in rows} == set(before.values())
     assert {row.seed_key for row in rows} == set(before)
     assert {row.status for row in rows} == {"published"}
 
 
 async def test_a_retired_template_is_hidden_from_listing_but_still_renders(
-    client, db, auth_headers, profile_ready, tmp_path
+    client, db, auth_headers, profile_ready, fixture_banks
 ):
-    store = _store(tmp_path)
+    store = fixture_banks.store
     source = await _operator_source(db)
     row = await _applied_row(db, store, source)
     template_id = row.id

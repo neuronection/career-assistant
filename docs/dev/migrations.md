@@ -126,7 +126,8 @@ identity to the five remaining banks (assessment questions/templates, CV
 templates, metric dimensions, skill packs), adds `metric_dimensions.status`
 and the `metric_category_anchors` table, and backfills only embedded literal
 keys/prompts/categories — the migration imports no `app.seeds.*` module, so
-it stays runnable after the bank cutover removes those modules from code. Both
+it stays runnable now that the bank cutover has removed those modules from
+code. Both
 downgrades are runnable (`0021` maps retired paths back to published;
 `0022` drops the table/indexes/columns and the status). The historical list
 below starts at `0004`.

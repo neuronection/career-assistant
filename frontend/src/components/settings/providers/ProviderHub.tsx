@@ -36,6 +36,7 @@ import {
   Spinner,
 } from "@/components/ui";
 import { SwitchRow } from "@/components/ui/switch-row";
+import { ReferenceBankEmptyNotice } from "@/components/ReferenceBankEmptyNotice";
 import { apiDetail } from "@/api/client";
 import * as providersApi from "@/api/providers";
 import type {
@@ -167,6 +168,7 @@ export function ProviderHub() {
 
   return (
     <div className="space-y-3" data-testid="provider-hub">
+      <ReferenceBankEmptyNotice bank="skill_packs" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

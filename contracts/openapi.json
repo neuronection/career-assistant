@@ -2330,6 +2330,9 @@
               }
             ]
           },
+          "reference_banks": {
+            "$ref": "#/components/schemas/ReferenceBanksOut"
+          },
           "refit_job_id": {
             "anyOf": [
               {
@@ -24898,6 +24901,33 @@
           }
         },
         "title": "ReconcileRequest",
+        "type": "object"
+      },
+      "ReferenceBanksOut": {
+        "description": "Which reference banks are absent (``true`` = empty), read from the DB.\n\n``skill_packs`` is empty only when no pack row exists at all: an applied\npack sits in ``draft`` until an admin publishes it, and that state is\nshown by the provider hub, not as an unloaded bank.",
+        "properties": {
+          "assessment": {
+            "default": false,
+            "title": "Assessment",
+            "type": "boolean"
+          },
+          "cv_templates": {
+            "default": false,
+            "title": "Cv Templates",
+            "type": "boolean"
+          },
+          "metrics": {
+            "default": false,
+            "title": "Metrics",
+            "type": "boolean"
+          },
+          "skill_packs": {
+            "default": false,
+            "title": "Skill Packs",
+            "type": "boolean"
+          }
+        },
+        "title": "ReferenceBanksOut",
         "type": "object"
       },
       "RegisterIn": {

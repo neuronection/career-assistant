@@ -9,6 +9,19 @@ from app.schemas.ai_status import AiStatusOut
 from app.schemas.profile import ScoringWeights
 
 
+class ReferenceBanksOut(BaseModel):
+    """Which reference banks are absent (``true`` = empty), read from the DB.
+
+    ``skill_packs`` is empty only when no pack row exists at all: an applied
+    pack sits in ``draft`` until an admin publishes it, and that state is
+    shown by the provider hub, not as an unloaded bank."""
+
+    assessment: bool = False
+    cv_templates: bool = False
+    metrics: bool = False
+    skill_packs: bool = False
+
+
 class BootstrapOut(BaseModel):
     """Stage, feature flags, weights and locale state for one caller.
 
@@ -23,6 +36,7 @@ class BootstrapOut(BaseModel):
     effective_scoring_weights: ScoringWeights
     weights_overridden: bool
     catalog_empty: bool = False
+    reference_banks: ReferenceBanksOut = Field(default_factory=ReferenceBanksOut)
     fit_stale: bool = False
     refit_queued: bool | None = None
     refit_job_id: str | None = None

@@ -7,7 +7,8 @@ short version; this page is the reference. Statuses live in
 
 ## Data providers
 
-- **Versioned seed packs** — no catalog ships with the app. An admin adds the
+- **Versioned seed packs** — no catalog or reference-bank content ships with
+  the app. An admin adds the
   official Neuronection repository, any public Git repository, a static
   `seed-repo.json` index or an uploaded pack zip. A fetched pack becomes an
   immutable version with a digest; preview its plan, approve the exact digest,

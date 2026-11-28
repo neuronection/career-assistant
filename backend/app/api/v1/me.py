@@ -84,6 +84,54 @@ async def _fit_stale(db, user_id) -> bool:
     return off_version is not None
 
 
+async def _reference_bank_states(db) -> dict:
+    """Which reference banks a fresh instance is still missing.
+
+    Each flag is ``true`` when the bank has no usable row: an active
+    assessment question, a published bank CV layout, a published metric
+    dimension, or any skill-pack row (drafts count as loaded)."""
+    from sqlalchemy import select
+
+    from app.models.assessment_model import AssessmentQuestion
+    from app.models.cv_template_model import CvTemplate
+    from app.models.enums import CvTemplateStatus, QuestionStatus
+    from app.models.metric_model import MetricDimension
+    from app.models.skill_pack_model import AISkillPack
+
+    assessment = (
+        await db.scalar(
+            select(AssessmentQuestion.id)
+            .where(
+                AssessmentQuestion.run_id.is_(None),
+                AssessmentQuestion.status == QuestionStatus.ACTIVE.value,
+            )
+            .limit(1)
+        )
+    ) is None
+    cv_templates = (
+        await db.scalar(
+            select(CvTemplate.id)
+            .where(
+                CvTemplate.author_key == "bank",
+                CvTemplate.status == CvTemplateStatus.PUBLISHED.value,
+            )
+            .limit(1)
+        )
+    ) is None
+    metrics = (
+        await db.scalar(
+            select(MetricDimension.id).where(MetricDimension.status == "published").limit(1)
+        )
+    ) is None
+    skill_packs = (await db.scalar(select(AISkillPack.id).limit(1))) is None
+    return {
+        "assessment": assessment,
+        "cv_templates": cv_templates,
+        "metrics": metrics,
+        "skill_packs": skill_packs,
+    }
+
+
 async def _bootstrap_payload(db, profile) -> dict:
     """Shared shape for GET /me/bootstrap and PUT /me/stage (plans 25+27)."""
     from sqlalchemy import select
@@ -123,10 +171,12 @@ async def _bootstrap_payload(db, profile) -> dict:
     catalog_empty = (
         await db.scalar(select(Job.id).where(Job.status == "published").limit(1))
     ) is None
+    reference_banks = await _reference_bank_states(db)
     return {
         "career_stage": stage.value,
         "stage_source": source,
         "catalog_empty": catalog_empty,
+        "reference_banks": reference_banks,
         "onboarding_path": (profile.basics or {}).get("onboarding_path"),
         "features": feature_flags(stage),
         "suggested_scoring_weights": stage_preset(stage),

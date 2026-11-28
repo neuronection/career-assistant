@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { FileDown, FileUp, Library, Sparkles } from "lucide-react";
 import { ScaleSlider } from "@/components/ui";
+import { ReferenceBankEmptyNotice } from "@/components/ReferenceBankEmptyNotice";
 import { apiDetail } from "@/api/client";
 import {
   advanceAssessment,
@@ -180,7 +181,13 @@ export function Assessment() {
   };
   const [assistText, setAssistText] = useState<Record<string, string>>({});
 
-  if (error && !state && !results) return <p className="text-rose-600">{error}</p>;
+  if (error && !state && !results)
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto">
+        <ReferenceBankEmptyNotice bank="assessment" />
+        <p className="text-rose-600">{error}</p>
+      </div>
+    );
   if (busy && !state && !results) return <p className="text-slate-400">{t("common.loading")}</p>;
 
   if (results) {
@@ -257,6 +264,7 @@ export function Assessment() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto" data-testid="assessment">
+      <ReferenceBankEmptyNotice bank="assessment" />
       <section
         className="rounded-xl border border-slate-200 bg-white p-4"
         data-testid="templates-panel"

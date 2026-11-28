@@ -157,11 +157,15 @@ marker and boot with a loud warning at serve time.
    instead — no login at all (Desktop Identity Mode, implicit local
    owner). Modes are set once on an empty database (`CAREER_AUTH_MODE`)
    and are DB-authoritative afterwards.
-2. **Load the job catalog** (the app ships none): open the empty catalog
-   page as the admin and use **Load the official catalog** (sync → approve →
-   apply), or add an uploaded/official pack under Settings → Data providers.
+2. **Load the reference data** (the app ships no catalog and no reference
+   banks): open the empty catalog page as the admin and use **Load the
+   official catalog** — the one-click chain installs and applies the
+   `reference-banks` tile first (assessment questions/batteries, CV layouts,
+   metric dimensions/anchors, skill packs as drafts) and then the job catalog
+   — or add an uploaded/official pack under Settings → Data providers. Each
+   bank-fed surface shows what is still missing.
    For a bare-metal dev/demo database, `./scripts/seed.sh` also installs the
-   pinned fixture copy; `python -m careerassistant migrate` registers the
+   pinned fixture copies; `python -m careerassistant migrate` registers the
    official tiles but never fetches or applies them.
 3. **Configure AI** — Settings → Instance AI Configuration (admin) or My AI
    Configuration (personal). A fresh production install starts unconfigured:

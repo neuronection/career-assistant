@@ -7808,5 +7808,16 @@
     "megabytes": "{{value}} MB",
     "seconds": "{{value}} s",
     "readOnly": "Μόνο για ανάγνωση. Η αλλαγή backend εκτελεί migrate-objects· δεν είναι ποτέ κουμπί αποθήκευσης."
+  },
+  "referenceBanks": {
+    "label": {
+      "assessment": "τράπεζα ερωτήσεων αξιολόγησης",
+      "cv_templates": "τράπεζα προτύπων βιογραφικού",
+      "metrics": "τράπεζα μετρικών",
+      "skill_packs": "τράπεζα skill packs"
+    },
+    "adminNotice": "Η {{bank}} δεν έχει φορτωθεί — εφάρμοσε το επίσημο πακέτο reference banks για να γεμίσει αυτή η επιφάνεια.",
+    "memberBody": "Η {{bank}} δεν έχει φορτωθεί. Ζήτησε από τον διαχειριστή να εφαρμόσει το επίσημο πακέτο reference banks.",
+    "openProviders": "Πηγές δεδομένων"
   }
 }

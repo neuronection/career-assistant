@@ -18,12 +18,11 @@ deployment.md). **The seeder refuses anything else** — loudly, non-zero:
   refused.
 
 Reference data is not demo data: the assessment, CV-template, metric and
-skill-pack banks live in `backend/app/seeds/*` and stay reference data — this
-script only *ensures* they exist (the product's idempotent `app.seeds.run`).
-The job catalog and taxonomy arrive as the released seed pack (plan 224); the
-demo installs the pinned fixture copy so synthetic rows can link real skill
-ids, without network access. Catalog rows are
-never removed by `--reset`.
+skill-pack banks, the job catalog and the taxonomy all arrive as released
+seed packs; the demo installs their pinned fixture copies so synthetic rows
+can link real skill ids, without network access. The product's idempotent
+`app.seeds.run` seeds only system data (notification kinds, provider tiles,
+the econ-region gazetteer). Catalog rows are never removed by `--reset`.
 
 Usage (interpreter with the app's dependencies, e.g. `uv run --directory backend python`):
 
@@ -2276,19 +2275,20 @@ def has_schema(engine: Any) -> bool:
 def ensure_reference_catalog() -> None:
     """Ensure the reference banks and the job catalog exist.
 
-    Reference data ≠ demo data: the banks come from the product's idempotent
-    `app.seeds.run`; the catalog is the released pack, installed from its
-    pinned fixture copy so demo rows can link real skill ids offline.
+    Reference data ≠ demo data: every bank and the catalog arrive as the
+    released packs, installed from their pinned fixture copies so demo rows
+    can link real skill ids offline. The reference banks are applied first
+    because the catalog's interest tags need the published anchors.
     """
     from app.seeds.run import run as run_reference_seed
 
     scripts_dir = str(Path(__file__).resolve().parent)
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from seed_pack_fixture import install as install_catalog_fixture
+    from seed_pack_fixture import install as install_fixture_packs
 
     asyncio.run(run_reference_seed())
-    asyncio.run(install_catalog_fixture())
+    asyncio.run(install_fixture_packs())
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,5 +1,5 @@
 """— agent skill packs: resolution, gateway injection +
-audit pinning, bank seeds, API surface."""
+audit pinning, the reference-bank packs, API surface."""
 
 from uuid import UUID
 
@@ -10,58 +10,37 @@ from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.models.skill_pack_model import AISkillPack
 from app.schemas.interview import InterviewTurn
-from app.seeds.skill_packs import BANK_PACKS, seed_skill_packs
+from app.services.seeds.applier import SeedApplyService
+from app.services.seeds.provider_service import ProviderService
 from tests.conftest import _uid
+from tests.seed_pack_fixture import bank_items
 
 
-async def test_seed_is_idempotent_and_versioned(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
-    added = await seed_skill_packs(db)
-    assert added == len(BANK_PACKS)
-    again = await seed_skill_packs(db)
-    assert again == 0
+async def _publish_all(db, fixture) -> None:
+    service = ProviderService(db, packs=fixture.store)
+    for item in bank_items("skill_packs"):
+        await service.publish_skill_pack(fixture.source.id, item["seed_key"], actor="test")
 
-    # Changing a bank pack's instructions bumps the version instead of
-    # editing in place (versions are immutable rows, 37 discipline).
-    rows = (
-        (
-            await db.execute(
-                select(AISkillPack).where(
-                    AISkillPack.author_key == "bank",
-                    AISkillPack.key == "interview-prep-style",
-                )
-            )
-        )
-        .scalars()
-        .all()
+
+async def test_bank_skill_packs_apply_as_drafts_and_a_reapply_is_a_noop(db, fixture_banks):
+    rows = (await db.execute(select(AISkillPack))).scalars().all()
+    assert len(rows) == len(bank_items("skill_packs"))
+    assert {row.status for row in rows} == {"draft"}
+    assert {row.version for row in rows} == {1}
+    assert {row.author_key for row in rows} == {"bank"}
+
+    again = await SeedApplyService(db, packs=fixture_banks.store, side_effects=False).apply(
+        fixture_banks.source, fixture_banks.version
     )
-    assert len(rows) == 1 and rows[0].version == 1
-    rows[0].instructions = "Changed — this is now a different edition."
-    await db.commit()
-    bumped = await seed_skill_packs(db)
-    assert bumped == 1
-    versions = (
-        (
-            await db.execute(
-                select(AISkillPack.version).where(
-                    AISkillPack.author_key == "bank",
-                    AISkillPack.key == "interview-prep-style",
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert sorted(versions) == [1, 2]
+    assert again.status == "noop"
 
 
 async def test_resolution_prefers_latest_published(
-    client, auth_headers, profile_ready, seeded_catalog, db
+    client, auth_headers, profile_ready, fixture_banks, db
 ):
     from app.ai.packs import resolve_pack
 
-    assert await seed_skill_packs(db) == len(BANK_PACKS)
+    await _publish_all(db, fixture_banks)
     pack = await resolve_pack(db, AITaskType.INTERVIEW_TURN.value)
     assert pack is not None
     assert pack.key == "interview-prep-style"
@@ -103,11 +82,11 @@ async def test_resolution_prefers_latest_published(
 
 
 async def test_gateway_pins_pack_on_audit_rows(
-    client, auth_headers, profile_ready, seeded_catalog, db
+    client, auth_headers, profile_ready, fixture_banks, db
 ):
-    """A task WITH a bank pack gets pack_key/pack_version pinned on its
+    """A task WITH a reference pack gets pack_key/pack_version pinned on its
     audit row; a task without one keeps the columns null."""
-    await seed_skill_packs(db)
+    await _publish_all(db, fixture_banks)
     user_id = UUID(_uid(auth_headers))
 
     class Probe(BaseModel := __import__("pydantic").BaseModel):
@@ -158,14 +137,14 @@ async def test_gateway_pins_pack_on_audit_rows(
 
 
 async def test_pack_content_reaches_the_model_path(
-    client, auth_headers, profile_ready, seeded_catalog, db
+    client, auth_headers, profile_ready, fixture_banks, db
 ):
     """compose_system overlays the pack onto the code prompt — real
     providers receive it; the mock path (prompt-built) records which
     pack governed via the audit columns instead."""
     from app.ai.packs import compose_system, resolve_pack
 
-    await seed_skill_packs(db)
+    await _publish_all(db, fixture_banks)
     pack = await resolve_pack(db, AITaskType.INTERVIEW_TURN.value)
     composed = compose_system("Base system prompt.", pack)
     assert composed.startswith("Base system prompt.")
@@ -175,13 +154,13 @@ async def test_pack_content_reaches_the_model_path(
 
 
 async def test_skill_packs_api_lists_published_bank_packs(
-    client, auth_headers, profile_ready, seeded_catalog, db
+    client, auth_headers, profile_ready, fixture_banks, db
 ):
-    await seed_skill_packs(db)
+    await _publish_all(db, fixture_banks)
     response = await client.get("/api/v1/ai/skill-packs", headers=auth_headers)
     assert response.status_code == 200, response.text
     body = response.json()
     keys = {p["key"] for p in body}
-    assert keys == {p["key"] for p in BANK_PACKS}
+    assert keys == {p["key"] for p in bank_items("skill_packs")}
     tasks = {p["task"] for p in body}
     assert AITaskType.INTERVIEW_TURN.value in tasks

@@ -4,23 +4,21 @@ import pytest
 
 from app.core.errors import ValidationError
 from app.models.enums import UserMetricSource
-from app.seeds.metrics import seed_metric_dimensions
 from app.services.catalog.metric_service import MetricService
 from app.services.postings.fit.dimensions import (
     evaluate_gates,
     interests_dimension,
 )
 from tests.conftest import _uid
+from tests.seed_pack_fixture import apply_bank_pack
 
 
 def _interest_payload(tag_key: str, weight: int = 5) -> dict:
     return {"tag_key": tag_key, "weight": weight, "source": "self"}
 
 
-async def test_registry_seed_is_idempotent(db):
-    first = await seed_metric_dimensions(db)
-    second = await seed_metric_dimensions(db)
-    assert first > 0 and second == 0
+async def test_registry_comes_from_the_applied_bank(db, tmp_path):
+    await apply_bank_pack(db)
     service = MetricService(db)
     rows = await service.registry()
     keys = {row.key for row in rows}
@@ -83,7 +81,6 @@ async def test_riasec_mapping_covers_seeded_categories(db, fixture_catalog):
 async def test_interest_affinity_vector_and_recompute(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
-    await seed_metric_dimensions(db)
     await client.put(
         "/api/v1/profile",
         json={
@@ -111,11 +108,11 @@ async def test_interest_affinity_vector_and_recompute(
     assert [row for row in rows if row.dimension_key.startswith("interest.")] == []
 
 
-async def test_upsert_metric_rejects_unknown_key_and_bad_value(db, auth_headers):
+async def test_upsert_metric_rejects_unknown_key_and_bad_value(db, auth_headers, tmp_path):
     service = MetricService(db)
     with pytest.raises(ValidationError):
         await service.upsert_metric(_uid(auth_headers), "interest.wrong", 5)
-    await seed_metric_dimensions(db)
+    await apply_bank_pack(db)
     with pytest.raises(ValidationError):
         await service.upsert_metric(_uid(auth_headers), "interest.artistic", 11)
 
@@ -197,7 +194,6 @@ def test_salary_gate_semantics():
 async def test_fit_breakdown_carries_affinity_and_salary_gate(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
-    await seed_metric_dimensions(db)
     await client.put(
         "/api/v1/profile",
         json={
@@ -224,7 +220,6 @@ async def test_fit_breakdown_carries_affinity_and_salary_gate(
 
 
 async def test_metrics_api_surface(client, auth_headers, profile_ready, seeded_catalog, db):
-    await seed_metric_dimensions(db)
     registry = (await client.get("/api/v1/metrics/registry", headers=auth_headers)).json()
     keys = {row["key"] for row in registry["dimensions"]}
     assert "interest.social" in keys and "values.impact" in keys

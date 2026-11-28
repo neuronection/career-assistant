@@ -444,7 +444,15 @@ async def test_ai_draft_requires_review_before_publish(client, auth_headers, see
     )
     assert saved.status_code == 201
     assert saved.json()["status"] == "draft"
-    rows = (await db.execute(select(AssessmentTemplate))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(AssessmentTemplate).where(AssessmentTemplate.author_key != "bank")
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert all(r.status != "published" for r in rows)
 
 

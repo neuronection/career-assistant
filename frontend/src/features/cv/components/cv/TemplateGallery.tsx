@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { Check, GitCompare, Pencil, Sparkles, X } from "lucide-react";
 import { Button, Card, Modal, ModalContent, ModalHeader, ModalTitle } from "@/components/ui";
+import { ReferenceBankEmptyNotice } from "@/components/ReferenceBankEmptyNotice";
 import { apiDetail } from "@/api/client";
 import {
   draftTemplateAi,
@@ -356,6 +357,7 @@ export function TemplateGallery({
           </div>
         </ModalHeader>
         <div className="max-h-[82vh] space-y-4 overflow-y-auto">
+          <ReferenceBankEmptyNotice bank="cv_templates" />
           <div className="flex flex-wrap gap-1.5" data-testid="gallery-filters">
             {FILTERS.map((item) => (
               <button

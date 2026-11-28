@@ -207,7 +207,7 @@ class CvBuilderService:
         """The template package a CV renders with.
 
         Returns the content and the resolved template id (None for the
-        built-in fallback used on fresh installs without bank seeds).
+        built-in fallback used on fresh installs without the reference banks).
         """
         template = await self.template_row(cv)
         if template is not None:
