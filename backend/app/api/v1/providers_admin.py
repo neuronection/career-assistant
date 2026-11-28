@@ -24,9 +24,11 @@ from app.schemas.providers import (
     ProviderAdminOut,
     ProviderCreateIn,
     ProviderUpdateIn,
+    PublishedItemOut,
     RejectIn,
     RepositoryImportIn,
     RepositoryImportOut,
+    SeedKeyIn,
     SyncReportOut,
     SyncRunOut,
     VersionOut,
@@ -237,6 +239,31 @@ async def retire_provider_item(
     if not retired:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "item not found")
     return {"seed_key": seed_key, "retired": True}
+
+
+@router.post("/{source_id}/retire")
+async def retire_provider_bank_item(
+    source_id: uuid.UUID,
+    payload: SeedKeyIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    """Body-keyed retire for an applied bank row (skill-pack keys are path-hostile)."""
+    retired = await _service(db).retire_bank_item(source_id, payload.seed_key, actor=str(user.id))
+    if not retired:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "item not found")
+    return {"seed_key": payload.seed_key, "retired": True}
+
+
+@router.post("/{source_id}/publish", response_model=PublishedItemOut)
+async def publish_provider_skill_pack(
+    source_id: uuid.UUID,
+    payload: SeedKeyIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+) -> dict:
+    """Publish one drafted skill pack and retire its same-key predecessor."""
+    return await _service(db).publish_skill_pack(source_id, payload.seed_key, actor=str(user.id))
 
 
 @router.get("/{source_id}/sync-runs", response_model=list[SyncRunOut])

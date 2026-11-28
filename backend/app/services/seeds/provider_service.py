@@ -33,11 +33,23 @@ from app.models.seed_model import (
     SeedSourceVersion,
     SeedSyncRun,
 )
+from app.models.skill_pack_model import AISkillPack
 from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
+from app.services.catalog.metric_registry import metric_registry
 from app.services.integrations.webfetch import WebFetchBlocked, fetch_bytes
 from app.services.seeds.applier import SeedApplyService
-from app.services.seeds.banks import REFERENCE_BANK_SUBPATH
+from app.services.seeds.banks import (
+    BANK_ENTITY_MODELS,
+    ENTITY_METRIC_CATEGORY_ANCHOR,
+    ENTITY_METRIC_DIMENSION,
+    ENTITY_SKILL_PACK,
+    REFERENCE_BANK_SUBPATH,
+    entity_for_seed_key,
+)
+from app.services.seeds.banks import (
+    retire as retire_bank,
+)
 from app.services.seeds.catalog import (
     ENTITY_CAREER_PATH,
     ENTITY_FAMILY,
@@ -216,6 +228,20 @@ class ProviderService:
             .scalars()
             .all()
         )
+
+    async def _owned_by_source(self, source: SeedSource, entity_type: str, seed_key: str) -> bool:
+        """True when a stored bank row's provenance points at this provider."""
+        versions = await self._versions_for(source)
+        if not versions:
+            return False
+        found = await self.db.scalar(
+            select(SeedItemProvenance.id).where(
+                SeedItemProvenance.entity_type == entity_type,
+                SeedItemProvenance.seed_key == seed_key,
+                SeedItemProvenance.source_version_id.in_([version.id for version in versions]),
+            )
+        )
+        return found is not None
 
     async def _catalog_counts(
         self, version_id: uuid.UUID | None, version_ids: list[uuid.UUID]
@@ -682,6 +708,115 @@ class ProviderService:
             )
         except SeedPackError as exc:
             raise ValidationError(f"{exc.code}: {exc.detail}") from exc
+
+    async def publish_skill_pack(
+        self, source_id: uuid.UUID | str, seed_key: str, *, actor: str | uuid.UUID
+    ) -> dict[str, Any]:
+        """Make a stored draft skill pack live and retire its same-key predecessor.
+
+        Publishing is the only action that changes what a model reads. The
+        draft must belong to this provider; the predecessor is retired only
+        after the new version is published, so a key always resolves to one
+        published pack.
+        """
+        source = await self._source(source_id)
+        entity = entity_for_seed_key(seed_key)
+        if entity != ENTITY_SKILL_PACK:
+            raise ValidationError("only skill packs are published from this action")
+        row = await self.db.scalar(select(AISkillPack).where(AISkillPack.seed_key == seed_key))
+        if row is None or row.status != "draft":
+            raise ValidationError("seed key is not a draft skill pack")
+        if not await self._owned_by_source(source, entity, seed_key):
+            raise ValidationError("seed key is not a skill pack of this provider")
+        row.status = "published"
+        await audit_emit(
+            self.db,
+            actor=actor,
+            action="provider.item.published",
+            resource_ref=audit_resource(
+                f"provider:{source.id}",
+                f"skill-pack:{row.key}",
+                f"version:{row.version}",
+                f"content_hash:{row.content_hash}",
+            ),
+        )
+        predecessors = list(
+            (
+                await self.db.execute(
+                    select(AISkillPack).where(
+                        AISkillPack.key == row.key,
+                        AISkillPack.author_key == "bank",
+                        AISkillPack.status == "published",
+                        AISkillPack.id != row.id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for predecessor in predecessors:
+            predecessor.status = "retired"
+        await self.db.commit()
+        return {
+            "seed_key": seed_key,
+            "key": row.key,
+            "version": row.version,
+            "content_hash": row.content_hash,
+            "status": "published",
+            "retired": [predecessor.seed_key for predecessor in predecessors],
+        }
+
+    async def retire_bank_item(
+        self, source_id: uuid.UUID | str, seed_key: str, *, actor: str | uuid.UUID
+    ) -> bool:
+        """Retire one applied bank row of this provider (body-keyed).
+
+        Skill packs also enforce the last-published rule: retiring the only
+        published version of a key would silently disable a live instruction
+        without a replacement, so it is refused.
+        """
+        source = await self._source(source_id)
+        entity = entity_for_seed_key(seed_key)
+        model = BANK_ENTITY_MODELS.get(entity or "")
+        if entity is None or model is None:
+            raise ValidationError("seed key is not a bank item")
+        row = await self.db.scalar(select(model).where(model.seed_key == seed_key))
+        if row is None or not await self._owned_by_source(source, entity, seed_key):
+            return False
+        if entity == ENTITY_SKILL_PACK:
+            if row.status != "published":
+                return False
+            other = await self.db.scalar(
+                select(AISkillPack.id)
+                .where(
+                    AISkillPack.key == row.key,
+                    AISkillPack.author_key == "bank",
+                    AISkillPack.status == "published",
+                    AISkillPack.id != row.id,
+                )
+                .limit(1)
+            )
+            if other is None:
+                raise ValidationError("cannot retire the last published version of a skill pack")
+        await retire_bank(self.db, entity, row)
+        if entity in (ENTITY_METRIC_DIMENSION, ENTITY_METRIC_CATEGORY_ANCHOR):
+            metric_registry.invalidate()
+        provenance = await self.db.scalar(
+            select(SeedItemProvenance).where(
+                SeedItemProvenance.entity_type == entity,
+                SeedItemProvenance.entity_id == row.id,
+            )
+        )
+        if provenance is not None:
+            provenance.state = "retired"
+        await audit_emit(
+            self.db,
+            actor=actor,
+            action="provider.item.retired",
+            resource_ref=audit_resource(f"provider:{source.id}", f"{entity}:{seed_key}"),
+        )
+        await self.db.commit()
+        return True
 
     async def sync_runs(
         self, source_id: uuid.UUID | str, *, limit: int = 50

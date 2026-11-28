@@ -46,6 +46,8 @@ from app.services.catalog.metric_registry import metric_registry
 from app.services.seeds.banks import (
     BANK_ENTITY_MODELS,
     adapter_for_entity,
+    restore_published_skill_packs_for_version,
+    retire_published_skill_packs_for_version,
 )
 from app.services.seeds.banks import (
     retire as retire_bank,
@@ -243,8 +245,6 @@ class SeedApplyService:
     ) -> ApplyResult:
         if version.status != "approved":
             raise SeedPackError(VERSION_STATE_INVALID, f"cannot revoke a {version.status} version")
-        version.status = "revoked"
-        version.reason = "revoked"
         previous = (
             await self.db.execute(
                 select(SeedSourceVersion)
@@ -257,6 +257,11 @@ class SeedApplyService:
                 .limit(1)
             )
         ).scalar_one_or_none()
+        if previous is not None:
+            await restore_published_skill_packs_for_version(self.db, previous.id)
+        await retire_published_skill_packs_for_version(self.db, version.id)
+        version.status = "revoked"
+        version.reason = "revoked"
         source.current_version_id = previous.id if previous is not None else None
         await audit_emit(
             self.db,

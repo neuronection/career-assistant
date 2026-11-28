@@ -2587,6 +2587,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/providers/{source_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Provider Skill Pack
+         * @description Publish one drafted skill pack and retire its same-key predecessor.
+         */
+        post: operations["publish_provider_skill_pack_api_v1_admin_providers__source_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{source_id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retire Provider Bank Item
+         * @description Body-keyed retire for an applied bank row (skill-pack keys are path-hostile).
+         */
+        post: operations["retire_provider_bank_item_api_v1_admin_providers__source_id__retire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/providers/{source_id}/sync": {
         parameters: {
             query?: never;
@@ -20964,6 +21004,24 @@ export interface components {
             /** Trust Tier */
             trust_tier?: ("official" | "operator" | "community" | "local") | null;
         };
+        /** PublishedItemOut */
+        PublishedItemOut: {
+            /** Content Hash */
+            content_hash: string;
+            /** Key */
+            key: string;
+            /** Retired */
+            retired?: string[];
+            /** Seed Key */
+            seed_key: string;
+            /**
+             * Status
+             * @default published
+             */
+            status: string;
+            /** Version */
+            version: number;
+        };
         /**
          * QualityCompareRequest
          * @description Score the versioned golden set on the old and new space.
@@ -22129,6 +22187,14 @@ export interface components {
             message: string;
             /** Source Key */
             source_key: string;
+        };
+        /**
+         * SeedKeyIn
+         * @description Body-keyed admin item action (skill-pack seed keys carry ``/v<version>``).
+         */
+        SeedKeyIn: {
+            /** Seed Key */
+            seed_key: string;
         };
         /** SessionCreate */
         SessionCreate: {
@@ -28877,6 +28943,78 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_provider_skill_pack_api_v1_admin_providers__source_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeedKeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retire_provider_bank_item_api_v1_admin_providers__source_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeedKeyIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

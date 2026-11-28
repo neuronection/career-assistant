@@ -48,9 +48,12 @@ from app.services.seeds.banks import (
     ENTITY_CV_TEMPLATE,
     ENTITY_FORMATS,
     ENTITY_METRIC_CATEGORY_ANCHOR,
+    ENTITY_SKILL_PACK,
     REFERENCE_BANK_PACK,
     cv_template_content_hash,
     require_adapter,
+    skill_pack_content_hash,
+    skill_pack_key,
     template_content_hash,
 )
 from app.services.seeds.banks import (
@@ -676,6 +679,23 @@ async def build_plan(
                     }
                 )
                 continue
+            elif (
+                entity == ENTITY_SKILL_PACK
+                and getattr(row, "status", None) == "published"
+                and getattr(row, "content_hash", None)
+                and row.content_hash != skill_pack_content_hash(item.payload)
+            ):
+                plan.conflicts.append(
+                    {
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "priority": entry.source.priority,
+                        "reason": "published skill pack version is immutable; bump the version",
+                        "source_ids": [str(entry.source.id)],
+                        "content_hashes": [row.content_hash, item.content_hash],
+                    }
+                )
+                continue
             elif getattr(row, "status", None) == "retired" or bool(
                 getattr(row, "deprecated", False)
             ):
@@ -738,6 +758,9 @@ async def build_plan(
         and (entity, seed_key) not in renamed_old
         and getattr(row, "seed_key", None) is not None
     }
+    winner_skill_pack_keys = {
+        skill_pack_key(seed_key) for (entity, seed_key) in winners if entity == ENTITY_SKILL_PACK
+    }
 
     for (entity, seed_key), row in sorted(current.items()):
         if entity in TRACKED_ENTITY_MODELS:
@@ -752,6 +775,21 @@ async def build_plan(
             if entity in BANK_ENTITY_MODELS and ENTITY_FORMATS[entity] not in bank_scope:
                 continue
             if entity in BANK_ENTITY_MODELS and getattr(row, "status", None) == "retired":
+                continue
+            if entity == ENTITY_SKILL_PACK:
+                if skill_pack_key(seed_key) in winner_skill_pack_keys:
+                    continue
+                plan.warnings.append(
+                    {
+                        "code": "SKILL_PACK_REMOVAL",
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "detail": (
+                            "removed from the pack; publish a replacement or retire it "
+                            "explicitly to stop serving these instructions"
+                        ),
+                    }
+                )
                 continue
             if entity == ENTITY_METRIC_CATEGORY_ANCHOR and await _anchor_in_use(
                 db, str(getattr(row, "category", "")), retiring_categories

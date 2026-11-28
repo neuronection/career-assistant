@@ -20,6 +20,7 @@ export type ProviderDiscover = Schemas["DiscoverOut"];
 export type RepositoryImport = Schemas["RepositoryImportIn"];
 export type RepositoryImportResult = Schemas["RepositoryImportOut"];
 export type ProviderProbe = Schemas["ProbeOut"];
+export type ProviderPublishedItem = Schemas["PublishedItemOut"];
 export type UserProvider = Schemas["UserProviderOut"];
 export type UserProviderDetail = Schemas["UserProviderDetailOut"];
 export type UserProviderEndpoint = Schemas["UserEndpointOut"];
@@ -171,6 +172,17 @@ export async function setProviderItemEnabled(
 
 export async function retireProviderItem(id: string, seedKey: string): Promise<void> {
   await api.post(`${ADMIN}/${id}/items/${encoded(seedKey)}/retire`);
+}
+
+/** Publish a drafted skill pack; the same-key predecessor is retired. */
+export async function publishProviderItem(
+  id: string,
+  seedKey: string,
+): Promise<ProviderPublishedItem> {
+  const { data } = await api.post<ProviderPublishedItem>(`${ADMIN}/${id}/publish`, {
+    seed_key: seedKey,
+  });
+  return data;
 }
 
 export async function listProviderRuns(id: string, limit = 50): Promise<ProviderSyncRun[]> {
