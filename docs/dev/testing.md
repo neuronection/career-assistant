@@ -40,19 +40,29 @@ and selects:
   `test_config_contract`, `test_test_harness`, `test_ci_shards`,
   `test_ci_selection`, `test_no_private_integration_mentions`.
 
-A changed `backend/alembic/**`, `backend/pyproject.toml`, `uv.lock`,
-`contracts/**`, `docs/user/**`, `docs/dev/**`, `backend/tests/conftest.py`,
-`backend/tests/seed_pack_fixture.py`, `.github/workflows/ci.yml`, any
-`scripts/**` file, any test-support file, or any unmapped backend path prints
-its reason and selects the full suite. A changed app module that no test
-imports prints a warning and keeps the always-run set — selection never
-silently drops a change. Dynamic imports (`importlib`, monkeypatched module
-strings) are not visible to the static scan.
+A changed `backend/alembic/**`, `backend/pyproject.toml`, the repo-root
+`pyproject.toml`, `uv.lock`, `contracts/**`, `docs/user/**`, `docs/dev/**`,
+`docs/capabilities.json`, `docs/docs-tree.json`, `README.md`, `backend/tests/conftest.py`,
+`backend/tests/seed_pack_fixture.py`, `.github/workflows/ci.yml`,
+`frontend/src/App.tsx`, `frontend/src/config/features.json`, any `scripts/**`,
+`docker/**`, `packaging/**` or `assets/**` file, any test-support file, or any
+unmapped backend path prints its reason and selects the full suite. A changed
+app module that no test imports, and any path no rule claims, prints a warning
+and keeps the always-run set — selection never silently drops a change.
+Dynamic imports (`importlib`, monkeypatched module strings) are not visible to
+the static scan.
 
 `scripts/changed-paths.py` classifies a diff into backend/frontend/docs/infra
-classes and fails closed on unknown paths. It is **not wired into any
-workflow**: a skipped required check would be a false green, so path-aware CI
-skipping stays a deferred ruleset decision.
+classes and fails closed on unknown paths. Its backend-read set is derived
+from what `backend/tests` actually reads — `README.md`,
+`frontend/src/App.tsx`, `frontend/src/config/features.json`,
+`docs/capabilities.json`, `contracts/`, `docker/`, `packaging/` and the CI
+workflows — and a regression test scans the test sources for those literals.
+It **never certifies a backend skip**: `tests/test_no_private_integration_mentions.py`
+reads every tracked file, so no non-empty diff is provably backend-disjoint,
+and the tool reports that reason instead of a false green. It is **not wired
+into any workflow**: a skipped required check would be a false green, so
+path-aware CI skipping stays a deferred ruleset decision.
 
 `.env.test` (loaded by the test config) pins the test environment:
 
@@ -134,6 +144,20 @@ real-Alembic migration tests safe to distribute.
   `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
   so a partial run must go through `./scripts/run-tests.sh` or pass
   `--no-skip-wall` (which skips the skip-wall completeness half only).
+- **The Postgres lane restores the same completeness check.** Its shards run
+  without `-m`, record their skips under the empty lane, and
+  `backend-gate` merges them (`check-test-shards.py --merge-observations
+  --lane ""`) before `scripts/check-skip-wall.py --dialect postgres --lane ""`
+  asserts every `when: always` Postgres entry fired. A collection session
+  never writes the journal, so the gate's `--collect-only` steps cannot
+  clobber the shard union.
+- **The shard JUnit union is verified, not just uploaded.** Each gate downloads
+  the whole-tree node manifest produced by the global partition step (shard 1
+  on Postgres, `backend-sqlite-checks` on SQLite) and runs
+  `check-test-shards.py --verify-junit` over the shard reports (plus the SQLite
+  serial lane's report): every collected node must execute exactly once. JUnit
+  counts skipped cases, so a lost node is a shortfall and a duplicated
+  assignment an overrun. The gate itself needs no database service.
 - `PYTEST_XDIST_WORKERS=N` overrides the worker count (read by
   `./scripts/run-tests.sh`); `PYTEST_XDIST=0` opts out of both lanes and uses
   the plain `neuronection_career_test` database (which needs its one-shot

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import functools
 import importlib.util
+import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,7 +17,9 @@ import yaml
 BACKEND = Path(__file__).resolve().parents[1]
 ROOT = BACKEND.parent
 SCRIPT = ROOT / "scripts" / "check-test-shards.py"
+SKIP_WALL_SCRIPT = ROOT / "scripts" / "check-skip-wall.py"
 DURATIONS = BACKEND / "tests" / "ci_durations.json"
+ALLOWLIST = BACKEND / "tests" / "skip_allowlist.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 PROTECTED_BACKEND_CHECK = "Backend (ruff + pytest)"
 SQLITE_GATE = "backend-sqlite-gate"
@@ -41,6 +45,9 @@ POSTGRES_STATIC_STEPS = (
 )
 SQLITE_REQUIRED_UPSTREAM_GUARD = "Require the shards and the tree-only checks"
 POSTGRES_REQUIRED_UPSTREAM_GUARD = "Require the shards and the static checks"
+POSTGRES_OBSERVATIONS_SKIP_WALL = "Check the Postgres skip wall (merged shards)"
+MERGE_OBSERVATIONS = "Merge shard skip observations"
+VERIFY_JUNIT_UNION = "Verify the shard JUnit union"
 
 
 def _shard_module() -> ModuleType:
@@ -61,6 +68,28 @@ def _needs(spec: dict) -> set[str]:
     """A job's ``needs`` as a set, accepting the scalar and list YAML forms."""
     needs = spec.get("needs", [])
     return {needs} if isinstance(needs, str) else set(needs)
+
+
+def _step(job: str, name: str) -> dict:
+    """One named step of a workflow job."""
+    return next(step for step in _jobs()[job]["steps"] if step.get("name") == name)
+
+
+def _run_script(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run one repository script with the current interpreter."""
+    return subprocess.run(
+        [sys.executable, str(script), *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _always_entries() -> list[dict[str, str]]:
+    """The Postgres allowlist's ``when: always`` entries."""
+    data = json.loads(ALLOWLIST.read_text(encoding="utf-8"))
+    return [entry for entry in data["postgres"] if entry.get("when", "always") == "always"]
 
 
 @functools.lru_cache(maxsize=1)
@@ -157,15 +186,17 @@ def test_the_postgres_static_checks_overlap_the_shards() -> None:
 def test_the_gate_jobs_run_only_the_coverage_tail_and_the_sqlite_serial_lane() -> None:
     jobs = _jobs()
     serial_lane = "Run tests — serial lane (whole tree, single process)"
-    postgres_runs = [str(step.get("run", "")) for step in jobs[POSTGRES_GATE]["steps"]]
-    assert not any("pytest" in run for run in postgres_runs)
 
-    sqlite_pytest_steps = [
-        step.get("name")
-        for step in jobs[SQLITE_GATE]["steps"]
-        if "pytest" in str(step.get("run", ""))
-    ]
-    assert sqlite_pytest_steps == [serial_lane], sqlite_pytest_steps
+    def executed_pytest_steps(job: str) -> list[str]:
+        return [
+            step.get("name")
+            for step in jobs[job]["steps"]
+            if "pytest" in str(step.get("run", ""))
+            and "--collect-only" not in str(step.get("run", ""))
+        ]
+
+    assert executed_pytest_steps(POSTGRES_GATE) == []
+    assert executed_pytest_steps(SQLITE_GATE) == [serial_lane]
     sqlite_gate_steps = [step.get("name") for step in jobs[SQLITE_GATE]["steps"]]
     assert SQLITE_REQUIRED_UPSTREAM_GUARD in sqlite_gate_steps
 
@@ -255,3 +286,157 @@ def test_the_protected_backend_context_is_owned_by_one_gate_job() -> None:
     assert jobs["backend"]["strategy"]["matrix"]["shard"] == list(
         range(1, _shard_module().SHARD_COUNT + 1)
     )
+
+
+def test_the_postgres_gate_restores_the_skip_wall_completeness() -> None:
+    jobs = _jobs()
+    uploads = [
+        str(step.get("with", {}).get("name", ""))
+        for step in jobs["backend"]["steps"]
+        if "upload-artifact" in str(step.get("uses", ""))
+    ]
+    assert any(name.startswith("postgres-observations-") for name in uploads), uploads
+
+    gate = jobs[POSTGRES_GATE]
+    downloads = [
+        str(step.get("with", {}).get("pattern", ""))
+        for step in gate["steps"]
+        if "download-artifact" in str(step.get("uses", ""))
+    ]
+    assert "postgres-observations-*" in downloads, downloads
+
+    merge = str(_step(POSTGRES_GATE, MERGE_OBSERVATIONS)["run"])
+    assert "--merge-observations" in merge
+    assert '--lane ""' in merge
+
+    wall = str(_step(POSTGRES_GATE, POSTGRES_OBSERVATIONS_SKIP_WALL)["run"])
+    assert "check-skip-wall.py --dialect postgres" in wall
+    assert '--lane ""' in wall
+
+
+def test_a_merged_journal_missing_an_always_entry_fails_the_postgres_wall(
+    tmp_path: Path,
+) -> None:
+    entries = _always_entries()
+    assert entries
+    observed = {
+        entry["id"].replace("*", "probe"): f"prefix {entry['reason_contains']} suffix"
+        for entry in entries
+    }
+    journal = tmp_path / "journal.json"
+    journal.write_text(json.dumps({"": observed}), encoding="utf-8")
+
+    def run() -> subprocess.CompletedProcess[str]:
+        return _run_script(
+            SKIP_WALL_SCRIPT,
+            "--dialect",
+            "postgres",
+            "--lane",
+            "",
+            "--journal",
+            str(journal),
+        )
+
+    complete = run()
+    assert complete.returncode == 0, complete.stderr
+    dropped = entries[0]
+    observed.pop(dropped["id"].replace("*", "probe"))
+    journal.write_text(json.dumps({"": observed}), encoding="utf-8")
+    short = run()
+    assert short.returncode == 1, short.stdout
+    assert f"allowlisted skip did not fire: {dropped['id']}" in short.stderr, short.stderr
+
+
+def test_the_skip_wall_self_test_passes() -> None:
+    completed = _run_script(SKIP_WALL_SCRIPT, "--self-test")
+    assert completed.returncode == 0, completed.stderr
+    assert "self-test ok" in completed.stdout
+
+
+def test_both_gates_verify_the_shard_junit_union() -> None:
+    expected_files = {POSTGRES_GATE: "/tmp/nodes.txt", SQLITE_GATE: "/tmp/all.txt"}
+    for gate, nodes in expected_files.items():
+        step = _step(gate, VERIFY_JUNIT_UNION)
+        run = str(step["run"])
+        assert "--verify-junit" in run, (gate, run)
+        assert f"--files {nodes}" in run, (gate, run)
+        downloads = [
+            str(entry.get("with", {}).get("name", ""))
+            for entry in _jobs()[gate]["steps"]
+            if "download-artifact" in str(entry.get("uses", ""))
+        ]
+        assert any(name.endswith("-nodes") for name in downloads), (gate, downloads)
+    sqlite_verify = str(_step(SQLITE_GATE, VERIFY_JUNIT_UNION)["run"])
+    assert "junit-serial.xml" in sqlite_verify
+    serial_run = str(
+        _step(SQLITE_GATE, "Run tests — serial lane (whole tree, single process)")["run"]
+    )
+    assert "--junitxml=junit-serial.xml" in serial_run
+
+
+def test_the_gates_use_the_partition_node_manifest() -> None:
+    jobs = _jobs()
+    uploads = {
+        POSTGRES_GATE: ("backend", "postgres-nodes"),
+        SQLITE_GATE: (SQLITE_CHECKS, "sqlite-nodes"),
+    }
+    for gate, (producer, artifact) in uploads.items():
+        names = [
+            str(step.get("with", {}).get("name", ""))
+            for step in jobs[producer]["steps"]
+            if "upload-artifact" in str(step.get("uses", ""))
+        ]
+        assert artifact in names, (producer, names)
+        downloads = [
+            str(step.get("with", {}).get("name", ""))
+            for step in jobs[gate]["steps"]
+            if "download-artifact" in str(step.get("uses", ""))
+        ]
+        assert artifact in downloads, (gate, downloads)
+
+
+def test_junit_union_verification_rejects_a_shortfall(tmp_path: Path) -> None:
+    module = _shard_module()
+    manifest = tmp_path / "nodes.txt"
+    manifest.write_text("tests/test_a.py::t1\ntests/test_a.py::t2\n", encoding="utf-8")
+    complete = tmp_path / "complete.xml"
+    complete.write_text(
+        '<testsuite><testcase classname="tests.test_a" name="t1" file="tests/test_a.py"/>'
+        '<testcase classname="tests.test_a" name="t2" file="tests/test_a.py"/></testsuite>',
+        encoding="utf-8",
+    )
+    assert module.verify_junit([complete], manifest) == []
+    short = tmp_path / "short.xml"
+    short.write_text(
+        '<testsuite><testcase classname="tests.test_a" name="t1" file="tests/test_a.py"/>'
+        "</testsuite>",
+        encoding="utf-8",
+    )
+    problems = module.verify_junit([short], manifest)
+    assert any("shortfall" in problem for problem in problems), problems
+
+
+def test_every_shard_count_literal_in_the_workflow_matches_the_constant() -> None:
+    module = _shard_module()
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    counts = {int(value) for value in re.findall(r"--of (\d+)", workflow)}
+    assert counts == {module.SHARD_COUNT}, counts
+    for job in ("backend", "backend-sqlite"):
+        assert _jobs()[job]["strategy"]["matrix"]["shard"] == list(
+            range(1, module.SHARD_COUNT + 1)
+        ), job
+
+
+def test_the_gate_guards_map_every_dependency_into_their_env() -> None:
+    jobs = _jobs()
+    guards = {
+        POSTGRES_GATE: {"SHARDS": "backend", "CHECKS": POSTGRES_CHECKS},
+        SQLITE_GATE: {"SHARDS": "backend-sqlite", "CHECKS": SQLITE_CHECKS},
+    }
+    for gate, mapping in guards.items():
+        guard = _step(gate, jobs[gate]["steps"][0]["name"])
+        env = guard["env"]
+        assert set(env) == set(mapping), (gate, env)
+        assert _needs(jobs[gate]) == set(mapping.values()), gate
+        for key, job in mapping.items():
+            assert env[key] == f"${{{{ needs.{job}.result }}}}", (gate, key, env[key])

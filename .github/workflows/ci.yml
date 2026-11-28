@@ -96,7 +96,17 @@ jobs:
           --out /tmp/shard.txt
       - name: Verify the partition (global, once)
         if: matrix.shard == 1
-        run: python3 ../scripts/check-test-shards.py --check --files /tmp/files.txt --of 2
+        run: |
+          python3 ../scripts/check-test-shards.py --check --files /tmp/files.txt --of 2
+          set -o pipefail
+          uv run pytest tests --collect-only -q -o addopts="" | grep '::' | sort > /tmp/nodes.txt
+          test -s /tmp/nodes.txt
+      - name: Upload the whole-tree node manifest
+        if: matrix.shard == 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-nodes
+          path: /tmp/nodes.txt
       - name: Run tests (shard ${{ matrix.shard }}/2, xdist-parallel)
         run: >
           uv run pytest $(cat /tmp/shard.txt)
@@ -121,6 +131,13 @@ jobs:
         with:
           name: postgres-junit-${{ matrix.shard }}
           path: backend/junit-shard-${{ matrix.shard }}.xml
+          if-no-files-found: ignore
+      - name: Upload shard skip observations
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-observations-${{ matrix.shard }}
+          path: backend/tests/_xdist/skip_observations.json
           if-no-files-found: ignore
 
   backend-gate:
@@ -163,6 +180,41 @@ jobs:
           pattern: postgres-coverage-*
           path: backend
           merge-multiple: true
+      - name: Download shard JUnit reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: postgres-junit-*
+          path: /tmp/junit
+      - name: Download shard skip observations
+        uses: actions/download-artifact@v7
+        with:
+          pattern: postgres-observations-*
+          path: /tmp/observations
+      - name: Download the whole-tree node manifest
+        uses: actions/download-artifact@v7
+        with:
+          name: postgres-nodes
+          path: /tmp
+      - name: Merge shard skip observations
+        # The Postgres shards run without `-m`, so they record under the empty
+        # lane; the union is what the completeness check judges.
+        run: >
+          python3 ../scripts/check-test-shards.py --lane ""
+          --merge-observations
+          /tmp/observations/postgres-observations-1/skip_observations.json
+          /tmp/observations/postgres-observations-2/skip_observations.json
+      - name: Check the Postgres skip wall (merged shards)
+        # No whole-tree Postgres session exists under sharding; this is the
+        # 226 completeness half restored over the union of both shards.
+        run: python3 ../scripts/check-skip-wall.py --dialect postgres --lane ""
+      - name: Verify the shard JUnit union
+        # The manifest is uploaded by shard 1's global partition step, so the
+        # gate needs no database service of its own.
+        run: >
+          python3 ../scripts/check-test-shards.py --verify-junit
+          /tmp/junit/postgres-junit-1/junit-shard-1.xml
+          /tmp/junit/postgres-junit-2/junit-shard-2.xml
+          --files /tmp/nodes.txt
       - name: Combine shard coverage
         # Explicit inputs: a missing shard artifact is an error, not a pass.
         run: uv run coverage combine .coverage.shard-1 .coverage.shard-2
@@ -390,6 +442,11 @@ jobs:
             echo "partition integrity failed: parallel + serial must cover the full collection exactly once" >&2
             exit 1
           fi
+      - name: Upload the whole-tree node manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-nodes
+          path: /tmp/all.txt
       - name: Spawner teardown gate (unraisable leaks fatal)
         run: >
           uv run pytest
@@ -450,11 +507,21 @@ jobs:
           pattern: sqlite-coverage-*
           path: backend
           merge-multiple: true
+      - name: Download shard JUnit reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: sqlite-junit-*
+          path: /tmp/junit
       - name: Download shard skip observations
         uses: actions/download-artifact@v7
         with:
           pattern: sqlite-observations-*
           path: /tmp/observations
+      - name: Download the whole-tree node manifest
+        uses: actions/download-artifact@v7
+        with:
+          name: sqlite-nodes
+          path: /tmp
       - name: Merge shard skip observations
         # The serial lane finishes the partition, so its completeness check
         # needs the union of every shard's parallel observations. The union is
@@ -469,7 +536,20 @@ jobs:
       - name: Run tests — serial lane (whole tree, single process)
         # `tests` (the whole tree) is required: the conftest judges skip-wall
         # completeness only for a whole-tree selection with no `-k`.
-        run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
+        run: >
+          uv run pytest tests -m serial
+          --cov=app --cov-append --cov-report=
+          --junitxml=junit-serial.xml
+      - name: Verify the shard JUnit union
+        # The serial lane's report is part of the union: the two shard reports
+        # alone cover only `not serial`. The manifest comes from the checks
+        # job's global partition step.
+        run: >
+          python3 ../scripts/check-test-shards.py --verify-junit
+          /tmp/junit/sqlite-junit-1/junit-shard-1.xml
+          /tmp/junit/sqlite-junit-2/junit-shard-2.xml
+          junit-serial.xml
+          --files /tmp/all.txt
       - name: Coverage floor (whole suite, both shards)
         # The floor is enforced here and only here: no shard pass carries
         # --cov-fail-under, so a selectable pass cannot take it with it.

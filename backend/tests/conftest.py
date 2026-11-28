@@ -1,5 +1,4 @@
 import contextlib
-import fnmatch
 import json
 import os
 import secrets
@@ -33,6 +32,11 @@ from app.extensions.sdk import (
 )
 from app.main import app
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
+from tests.skip_wall import (
+    load_allowlist,
+    missing_allowlisted_skip_problems,
+    unlisted_skip_problems,
+)
 from tests.xdist_routing import routed_worker_root
 
 TEST_DB_URL = settings.database_url
@@ -1116,8 +1120,7 @@ _observed_skips: dict[str, str] = {}
 
 
 def _skip_allowlist() -> list[dict[str, str]]:
-    data = json.loads(_SKIP_ALLOWLIST_PATH.read_text(encoding="utf-8"))
-    return data.get("sqlite" if IS_SQLITE else "postgres", [])
+    return load_allowlist(_SKIP_ALLOWLIST_PATH, "sqlite" if IS_SQLITE else "postgres")
 
 
 def _selects_whole_tree(config: pytest.Config) -> bool:
@@ -1154,55 +1157,18 @@ def _merge_skip_observations(markexpr: str, observed: dict[str, str]) -> dict[st
     return merged
 
 
-def _matching_allowlist_entry(
-    nodeid: str, reason: str, allowlist: list[dict[str, str]]
-) -> int | None:
-    for index, entry in enumerate(allowlist):
-        if not fnmatch.fnmatch(nodeid, entry["id"]):
-            continue
-        if entry["reason_contains"] in reason:
-            return index
-    return None
-
-
-def _unlisted_skip_problems(observed: dict[str, str], allowlist: list[dict[str, str]]) -> list[str]:
-    return [
-        f"unlisted skip: {nodeid} ({reason})"
-        for nodeid, reason in observed.items()
-        if _matching_allowlist_entry(nodeid, reason, allowlist) is None
-    ]
-
-
-def _missing_allowlisted_skip_problems(
-    observed: dict[str, str], allowlist: list[dict[str, str]]
-) -> list[str]:
-    matched = {
-        index
-        for nodeid, reason in observed.items()
-        if (index := _matching_allowlist_entry(nodeid, reason, allowlist)) is not None
-    }
-    return [
-        f"allowlisted skip did not fire: {entry['id']} ({entry['reason_contains']})"
-        for index, entry in enumerate(allowlist)
-        if entry.get("when", "always") == "always" and index not in matched
-    ]
-
-
 def _completeness_scope(
     config: pytest.Config, markexpr: str, merged: dict[str, dict[str, str]]
 ) -> tuple[dict[str, str] | None, str]:
     """What the completeness half judges: ``(observations, failure message)``.
 
     A full run judges this session's own observations (today's whole-suite
-    behaviour), not a union of every lane an earlier run recorded. A
-    ``--collect-only`` session runs no tests, so it has no observations to
-    judge and never evaluates completeness. The ``serial`` pass finishes the
-    partition, so it needs the ``not serial`` lane's observations and fails
-    closed without them. Any other selector — and a narrowed path — never
-    evaluates completeness.
+    behaviour), not a union of every lane an earlier run recorded. The
+    ``serial`` pass finishes the partition, so it needs the ``not serial``
+    lane's observations and fails closed without them. Any other selector —
+    and a narrowed path — never evaluates completeness. A ``--collect-only``
+    session never reaches this function: it observes no tests.
     """
-    if getattr(config.option, "collectonly", False):
-        return None, ""
     if markexpr == _SERIAL_LANE:
         if not _selects_whole_tree(config):
             return None, ""
@@ -1243,21 +1209,25 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     (every ``when: always`` entry actually fired) then holds for a full run
     over this session's observations, and the ``-m serial`` pass is the
     partition's final lane: it fails closed when the ``not serial`` pass never
-    ran, so a forgotten flag cannot switch the gate off.
+    ran, so a forgotten flag cannot switch the gate off. A ``--collect-only``
+    session observes no tests and never writes the journal (writing an empty
+    lane would clobber the shard observations the CI gate merges).
     ``--no-skip-wall`` is the only opt-out, and it disables completeness only.
     """
     if hasattr(session.config, "workerinput"):
         return
+    if getattr(session.config.option, "collectonly", False):
+        return
     markexpr = getattr(session.config.option, "markexpr", "") or ""
     merged = _merge_skip_observations(markexpr, _observed_skips)
     allowlist = _skip_allowlist()
-    problems = _unlisted_skip_problems(_observed_skips, allowlist)
+    problems = unlisted_skip_problems(_observed_skips, allowlist)
     if not session.config.getoption("--no-skip-wall", default=False):
         scope, failure = _completeness_scope(session.config, markexpr, merged)
         if failure:
             problems.append(failure)
         elif scope is not None:
-            problems.extend(_missing_allowlisted_skip_problems(scope, allowlist))
+            problems.extend(missing_allowlisted_skip_problems(scope, allowlist))
     if not problems:
         return
     session.exitstatus = 1

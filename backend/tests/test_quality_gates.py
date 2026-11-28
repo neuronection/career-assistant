@@ -285,6 +285,16 @@ def test_collect_only_does_not_judge_completeness(monkeypatch) -> None:
     assert session.exitstatus == 0, lines
 
 
+def test_collect_only_never_writes_the_journal(monkeypatch) -> None:
+    """A collection observes no tests; an empty lane must not clobber the shard union."""
+    monkeypatch.setattr(skip_wall, "_skip_allowlist", lambda: [])
+    monkeypatch.setattr(skip_wall, "_observed_skips", {})
+    session = _fake_session(full_suite=True, reporter_lines=[])
+    session.config.option.collectonly = True
+    skip_wall.pytest_sessionfinish(session, 0)
+    assert not skip_wall._SKIP_OBSERVATIONS_PATH.exists()
+
+
 def test_no_skip_wall_disables_completeness_only(monkeypatch) -> None:
     monkeypatch.setattr(skip_wall, "_skip_allowlist", lambda: [])
     monkeypatch.setattr(skip_wall, "_observed_skips", {})
