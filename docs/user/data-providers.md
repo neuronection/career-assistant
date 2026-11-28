@@ -9,9 +9,11 @@ approve that exact digest and apply it.
 
 ## What ships with the app
 
-**No catalog content.** The app bundles no presets — a fresh instance's
-preset gallery is empty until you add a pack, so there is one source of truth
-for listings and no app release is needed to refresh them.
+**No catalog or reference-bank content.** The app bundles no presets and no
+bank rows — a fresh instance's preset gallery, assessment, CV gallery, metric
+surfaces and skill-pack list are empty until you add a pack, so there is one
+source of truth for listings and no app release is needed to refresh them.
+Each empty surface names what is missing and links here.
 
 - **Official Neuronection provider** — four disabled Git tiles pinned to a
   released tag of the public
@@ -20,7 +22,9 @@ for listings and no app release is needed to refresh them.
   and the reference banks (assessment questions/batteries, CV layouts, metric
   dimensions and AI skill packs). **Sync now**, approve and apply a pack to populate the gallery or
   the catalog — or use the empty catalog page's **Load the official catalog**
-  button, which does the same in one click.
+  button, which installs the reference-banks tile first and the catalog after
+  it. Skill packs apply as drafts; publish one from the provider hub to make
+  it govern a task.
 
 ## Add your own provider
 

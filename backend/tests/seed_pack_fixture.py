@@ -1,4 +1,4 @@
-"""Plan 224 S4 / plan 225 S5a: the published packs as shared test fixtures.
+"""Plan 224 S4 / plan 225 S5: the published packs as shared test fixtures.
 
 The app bundles no catalog and no reference bank, so tests that need jobs,
 taxonomy, starter paths or the reference banks apply the released packs
@@ -9,6 +9,7 @@ inside each test's own transaction.
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache, lru_cache
@@ -28,11 +29,31 @@ BANK_PACK_DIR = (
     Path(__file__).parent / "fixtures" / "seed_packs" / "packs" / "neuronection" / "reference-banks"
 )
 
+BANK_ITEM_FILES = {
+    "assessment_questions": "items/assessment_questions/questions.json",
+    "assessment_templates": "items/assessment_templates/batteries.json",
+    "cv_templates": "items/cv_templates/templates.json",
+    "metric_dimensions": "items/metric_dimensions/dimensions.json",
+    "metric_category_anchors": "items/metric_category_anchors/anchors.json",
+    "skill_packs": "items/skill_packs/packs.json",
+}
+
 
 @cache
 def pack_items(relative: str) -> tuple[dict, ...]:
     """One item envelope of the fixture pack (e.g. ``job_relations/relations.json``)."""
     envelope = json.loads((PACK_DIR / "items" / relative).read_text(encoding="utf-8"))
+    return tuple(envelope["items"])
+
+
+@cache
+def bank_items(item_type: str) -> tuple[dict, ...]:
+    """One item type of the reference-banks fixture pack, by item type."""
+    return _envelope_items(BANK_PACK_DIR, BANK_ITEM_FILES[item_type])
+
+
+def _envelope_items(root: Path, relative: str) -> tuple[dict, ...]:
+    envelope = json.loads((root / relative).read_text(encoding="utf-8"))
     return tuple(envelope["items"])
 
 
@@ -85,8 +106,25 @@ def fixture_store(root: Path) -> SeedPackStore:
     )
 
 
-async def _apply_pack(db, root: Path, files: dict[str, bytes], *, name: str) -> FixtureCatalog:
-    store = fixture_store(root)
+def _scratch_root(root: Path | None) -> Path:
+    """One process-wide store root so every fixture apply sees earlier archives.
+
+    The provider lane resolves other approved sources' current versions while
+    planning claims; a per-call temporary store made those archives invisible
+    once a second fixture pack was applied.
+    """
+    if root is not None:
+        return root
+    return _SHARED_ROOT
+
+
+_SHARED_ROOT = Path(tempfile.mkdtemp(prefix="career-pack-fixtures-"))
+
+
+async def _apply_pack(
+    db, root: Path | None, files: dict[str, bytes], *, name: str
+) -> FixtureCatalog:
+    store = fixture_store(_scratch_root(root))
     digest = compute_files_digest(files)
     manifest = json.loads(files["manifest.json"])
     source = SeedSource(
@@ -114,32 +152,47 @@ async def _apply_pack(db, root: Path, files: dict[str, bytes], *, name: str) -> 
     await db.flush()
     result = await SeedApplyService(db, packs=store, side_effects=False).apply(source, version)
     if result.status not in ("applied", "noop"):
-        raise AssertionError(f"fixture catalog pack failed to apply: {result.as_dict()}")
+        raise AssertionError(f"fixture pack failed to apply: {result.as_dict()}")
     return FixtureCatalog(source=source, version=version, store=store)
 
 
-async def _seed_category_anchors(db) -> None:
-    """The pack carries interest tags, so the planner needs published anchors.
+async def seed_category_anchors(db) -> None:
+    """The catalog pack carries interest tags, so the planner needs anchors.
 
     On a real install the reference-banks pack publishes them; the fixture
-    seeds the same anchors directly so a catalog-first test fixture is not a
-    manual-out-of-order install.
+    seeds the same anchor rows directly so a catalog-first test fixture is not
+    a manual-out-of-order install.
     """
-    from app.seeds.bank_stamp import stamp_bank_identities
+    from sqlalchemy import select
 
-    await stamp_bank_identities(db)
+    from app.models.metric_model import MetricCategoryAnchor
+
+    existing = {
+        category for (category,) in (await db.execute(select(MetricCategoryAnchor.category))).all()
+    }
+    for item in bank_items("metric_category_anchors"):
+        if item["category"] in existing:
+            continue
+        db.add(
+            MetricCategoryAnchor(
+                category=item["category"],
+                letter=item["letter"],
+                status="published",
+                seed_key=item["seed_key"],
+            )
+        )
     await db.commit()
 
 
-async def apply_catalog_pack(db, root: Path) -> FixtureCatalog:
+async def apply_catalog_pack(db, root: Path | None = None) -> FixtureCatalog:
     """Apply the whole job-catalog fixture pack as an operator file provider."""
-    await _seed_category_anchors(db)
+    await seed_category_anchors(db)
     return await _apply_pack(db, root, catalog_pack_files(), name="Fixture job catalog")
 
 
-async def apply_taxonomy_pack(db, root: Path) -> FixtureCatalog:
+async def apply_taxonomy_pack(db, root: Path | None = None) -> FixtureCatalog:
     """Apply only the pack's skills and interest tags (profile fixtures)."""
-    await _seed_category_anchors(db)
+    await seed_category_anchors(db)
     return await _apply_pack(db, root, taxonomy_pack_files(), name="Fixture job taxonomy")
 
 
@@ -152,10 +205,32 @@ def bank_pack_files() -> dict[str, bytes]:
     }
 
 
-async def apply_bank_pack(db, root: Path) -> FixtureCatalog:
+@lru_cache(maxsize=1)
+def assessment_questions_pack_files() -> dict[str, bytes]:
+    """The bank pack restricted to the assessment questions.
+
+    A test that needs questions but not a metric bank (the no-pack contract)
+    applies this subset instead of the whole reference banks.
+    """
+    files = dict(bank_pack_files())
+    keep = {BANK_ITEM_FILES["assessment_questions"]}
+    manifest = json.loads(files["manifest.json"])
+    manifest["item_files"] = [ref for ref in manifest["item_files"] if ref["path"] in keep]
+    files["manifest.json"] = json.dumps(manifest, sort_keys=True).encode()
+    return files
+
+
+async def apply_bank_pack(db, root: Path | None = None) -> FixtureCatalog:
     """Apply the reference-banks fixture pack as an operator file provider.
 
     Carries the assessment questions and batteries, the CV layouts, the metric
-    dimensions and category anchors, and the skill packs.
+    dimensions and category anchors, and the skill packs (installed as drafts).
     """
     return await _apply_pack(db, root, bank_pack_files(), name="Fixture reference banks")
+
+
+async def apply_assessment_questions_pack(db, root: Path | None = None) -> FixtureCatalog:
+    """Apply only the reference-banks questions (no metric bank)."""
+    return await _apply_pack(
+        db, root, assessment_questions_pack_files(), name="Fixture assessment questions"
+    )

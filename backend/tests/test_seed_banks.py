@@ -12,7 +12,6 @@ from sqlalchemy import select
 from app.core.seed_pack.errors import SeedPackError
 from app.models.assessment_template_model import AssessmentTemplate
 from app.models.metric_model import MetricCategoryAnchor
-from app.seeds.bank_keys import QUESTION_KEYS
 from app.services.seeds.banks import (
     APPLY_ORDER,
     BANK_ENTITY_MODELS,
@@ -21,6 +20,7 @@ from app.services.seeds.banks import (
     ITEM_ENTITY,
     RETIRE,
 )
+from tests.seed_pack_fixture import apply_bank_pack, bank_items
 from tests.test_seed_apply import _service, _source, _store, _version
 from tests.test_seed_pack import _envelope, _pack
 
@@ -247,45 +247,40 @@ def _migration_module():
     return module
 
 
-def test_question_keys_match_the_bank_and_the_migration():
-    from app.seeds.assessment import BANK_QUESTIONS
-
-    prompts = [question["prompt"] for question in BANK_QUESTIONS]
+def test_question_keys_match_the_pack_and_the_migration():
+    questions = bank_items("assessment_questions")
+    prompts = [question["prompt"] for question in questions]
+    keys = {question["prompt"]: question["seed_key"].split(":", 1)[1] for question in questions}
     assert len(prompts) == len(set(prompts)) == 8
-    assert set(prompts) == set(QUESTION_KEYS)
-    assert len(set(QUESTION_KEYS.values())) == len(QUESTION_KEYS)
+    assert len(set(keys.values())) == len(keys)
 
     migration = _migration_module()
-    assert dict(migration.QUESTION_KEYS) == QUESTION_KEYS
+    assert dict(migration.QUESTION_KEYS) == keys
 
 
 def test_dimension_anchor_and_version_keys_match_the_migration():
-    from app.seeds.cv_templates import BANK_TEMPLATES
-    from app.seeds.metrics import CATEGORY_RIASEC, DIMENSIONS
-    from app.seeds.skill_packs import BANK_PACKS
-
     migration = _migration_module()
-    assert tuple(spec["key"] for spec in DIMENSIONS) == migration.DIMENSION_KEYS
-    assert dict(migration.CATEGORY_ANCHORS) == CATEGORY_RIASEC
+    assert tuple(item["key"] for item in bank_items("metric_dimensions")) == (
+        migration.DIMENSION_KEYS
+    )
+    assert {
+        item["category"]: item["letter"] for item in bank_items("metric_category_anchors")
+    } == dict(migration.CATEGORY_ANCHORS)
     assert (
-        tuple((spec["key"], spec.get("version", 1)) for spec in BANK_TEMPLATES)
+        tuple((item["key"], item["version"]) for item in bank_items("cv_templates"))
         == migration.CV_TEMPLATE_KEYS
     )
-    assert tuple((spec["key"], 1) for spec in BANK_PACKS) == migration.SKILL_PACK_KEYS
+    assert (
+        tuple((item["key"], item["version"]) for item in bank_items("skill_packs"))
+        == migration.SKILL_PACK_KEYS
+    )
 
 
-async def test_assessment_template_keys_match_the_migration(db):
-    from app.seeds.metrics import seed_metric_templates
-
-    await seed_metric_templates(db)
-    rows = (
-        await db.execute(
-            select(AssessmentTemplate.key, AssessmentTemplate.version).where(
-                AssessmentTemplate.author_key == "bank"
-            )
-        )
-    ).all()
-    assert sorted(rows) == sorted(_migration_module().ASSESSMENT_TEMPLATE_KEYS)
+def test_assessment_template_keys_match_the_migration():
+    assert (
+        tuple((item["key"], item["version"]) for item in bank_items("assessment_templates"))
+        == _migration_module().ASSESSMENT_TEMPLATE_KEYS
+    )
 
 
 def test_bank_registries_are_total():
@@ -322,7 +317,7 @@ async def test_an_empty_bank_file_still_requires_the_official_trust_tier(db, tmp
     assert excinfo.value.code == BANK_TRUST_DENIED
 
 
-async def test_fresh_bank_rows_get_their_pack_identity(db):
+async def test_fresh_bank_rows_get_their_pack_identity(db, tmp_path):
     from sqlalchemy import func
 
     from app.models.assessment_model import AssessmentQuestion
@@ -330,20 +325,9 @@ async def test_fresh_bank_rows_get_their_pack_identity(db):
     from app.models.cv_template_model import CvTemplate
     from app.models.metric_model import MetricDimension
     from app.models.skill_pack_model import AISkillPack
-    from app.seeds.assessment import seed_assessment_bank
-    from app.seeds.bank_stamp import stamp_bank_identities
-    from app.seeds.cv_templates import seed_cv_template_bank
-    from app.seeds.metrics import seed_metric_dimensions, seed_metric_templates
-    from app.seeds.skill_packs import seed_skill_packs
+    from app.services.seeds.applier import SeedApplyService
 
-    await seed_metric_dimensions(db)
-    await seed_metric_templates(db)
-    await seed_assessment_bank(db)
-    await seed_cv_template_bank(db)
-    await seed_skill_packs(db)
-
-    assert await stamp_bank_identities(db) > 0
-    await db.commit()
+    fixture = await apply_bank_pack(db)
 
     for model in (
         AssessmentQuestion,
@@ -357,4 +341,7 @@ async def test_fresh_bank_rows_get_their_pack_identity(db):
         )
         assert missing == 0, model.__tablename__
     assert await db.scalar(select(func.count()).select_from(MetricCategoryAnchor)) == 14
-    assert await stamp_bank_identities(db) == 0
+    again = await SeedApplyService(db, packs=fixture.store, side_effects=False).apply(
+        fixture.source, fixture.version
+    )
+    assert again.status == "noop"

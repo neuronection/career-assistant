@@ -10,8 +10,8 @@ from sqlalchemy import select
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
-from app.seeds.cv_templates import seed_cv_template_bank
 from app.services.cv.cv_service import CvService
+from tests.seed_pack_fixture import apply_bank_pack
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -25,7 +25,7 @@ async def builder_env(db, monkeypatch):
         "app.ai.agents.cv_builder_chat.measure_pages",
         _raise_engine_unavailable,
     )
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     return db
 
 

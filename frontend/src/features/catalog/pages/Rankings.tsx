@@ -14,6 +14,7 @@ import { FilterRailSearch } from "@/components/filters/FilterRailSearch";
 import { railLabels, railLayout } from "@/lib/filterFacets";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { CatalogEmptyNotice } from "@/components/CatalogEmptyNotice";
+import { ReferenceBankEmptyNotice } from "@/components/ReferenceBankEmptyNotice";
 import { useCompareStore } from "@/stores/compareStore";
 import type { RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
 
@@ -147,6 +148,7 @@ export function Rankings() {
         <ScoreLegend align="start" />
       </div>
       <CatalogEmptyNotice />
+      <ReferenceBankEmptyNotice bank="metrics" />
       <div className="ca-rail-cols">
         <FilterRail
           layout={railLayout()}

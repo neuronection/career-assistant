@@ -79,10 +79,10 @@ async def test_basics_save_preserves_path(client, auth_headers):
 # --------------------------------------------------------- completeness v2
 
 
-async def test_explore_scope_progression(client, auth_headers, db, fixture_catalog):
-    from app.seeds.metrics import seed_metric_dimensions
+async def test_explore_scope_progression(client, auth_headers, db, fixture_catalog, tmp_path):
+    from tests.seed_pack_fixture import apply_bank_pack
 
-    await seed_metric_dimensions(db)
+    await apply_bank_pack(db)
 
     await client.put("/api/v1/me/onboarding-path", json={"path": "explore"}, headers=auth_headers)
     empty = (await client.get("/api/v1/profile", headers=auth_headers)).json()["completeness"]

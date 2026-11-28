@@ -358,10 +358,10 @@ async def _builder_env(db, monkeypatch):
 async def test_chat_proposes_and_approval_applies_cv_bullets(client, db, auth_headers, monkeypatch):
     """The full plan-107 flow: attached CV + bullet edit intent → builder
     loop → set_bullets op → override lands (no HITL card on this path)."""
-    from app.seeds.cv_templates import seed_cv_template_bank
+    from tests.seed_pack_fixture import apply_bank_pack
     from tests.test_chat_builder_handoff import _session
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     await _builder_env(db, monkeypatch)
     user = await _auth_user(db)
     cv = await _cv(db, user)

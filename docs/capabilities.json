@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-25",
+  "updated": "2026-11-28",
   "capabilities": [
     {
       "id": "update-checks",
@@ -871,14 +871,14 @@
     },
     {
       "id": "source-providers",
-      "verb": "Keep job sources fresh from versioned data packs",
-      "summary": "Admins add public seed repositories, index URLs or uploaded packs. Every version is digest-pinned and reviewed before it touches the catalog; retirement keeps existing sources.",
+      "verb": "Keep job sources and reference banks fresh from versioned data packs",
+      "summary": "Admins add public seed repositories, index URLs or uploaded packs. Every version is digest-pinned and reviewed before it touches the catalog or a reference bank; retirement keeps existing sources.",
       "category": "integrate",
       "status": "shipped",
       "proofs": [
-        "Exact-digest approval; sync never applies, and applying a pack is the admin’s choice (its presets start enabled, per-item switches override)",
+        "Exact-digest approval; sync never applies, and applying a pack is the admin’s choice (skill packs stay draft until published)",
         "Priority-aware plan preview with typed equal-priority conflicts; one transaction per apply",
-        "No catalog ships in the app: one-click official load, uploaded packs or public Git/index providers",
+        "No catalog or reference-bank content ships: one-click official load installs the banks first; uploaded or Git packs otherwise",
         "Provenance per catalog row; retirement never deletes; provider detail counts each entity and flags retired or edited rows",
         "User follow/hide: a hidden source is denied across Explore, radar, digests, RSS and chat"
       ],

@@ -20,8 +20,8 @@ Design tokens include per-area paddings (`main_padding_mm` /
 `name_style: "accent_surname"`, `main_columns` / `sidebar_columns` newspaper
 flow, and `font_stack: "embedded-sans" / "embedded-serif"` (vendored OFL WOFF2
 subsets inlined by `app/services/cv/cv_fonts.py`; missing files fall back to the
-system stack — capability-detected). The template bank seeds live in
-`app/seeds/cv_templates.py`.
+system stack — capability-detected). The template bank rows arrive in the
+reference-banks pack.
 
 ## Context and sources
 

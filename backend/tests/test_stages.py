@@ -346,6 +346,26 @@ async def test_bootstrap_reports_a_loaded_catalog(client, auth_headers, db, fixt
     assert body["catalog_empty"] is False
 
 
+async def test_bootstrap_reports_empty_reference_banks(client, auth_headers, db):
+    body = (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).json()
+    assert body["reference_banks"] == {
+        "assessment": True,
+        "cv_templates": True,
+        "metrics": True,
+        "skill_packs": True,
+    }
+
+
+async def test_bootstrap_reports_loaded_reference_banks(client, auth_headers, db, fixture_banks):
+    body = (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).json()
+    assert body["reference_banks"] == {
+        "assessment": False,
+        "cv_templates": False,
+        "metrics": False,
+        "skill_packs": False,
+    }
+
+
 async def test_bootstrap_flags_gate_universities_for_non_students(
     client, auth_headers, profile_ready
 ):

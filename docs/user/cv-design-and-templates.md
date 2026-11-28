@@ -7,7 +7,8 @@ preview exactly.
 
 ## The template bank
 
-Templates live in a versioned bank. The bank ships a range of layouts
+Templates live in a versioned bank. The reference-banks pack ships a range of
+layouts
 (classic, sidebar, and magazine-style photo + skill-bar layouts such as
 `coral-banner` and `charcoal-amber`) and you can customize any of them into
 your own copy.

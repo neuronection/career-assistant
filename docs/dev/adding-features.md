@@ -75,7 +75,8 @@ them.
    (`cv_export_service.py` `_visible_blocks`) so every format matches.
 3. Add any icons to `cv_icons.py`; any tokens to the `DesignTokens` schema and
    the builder's Design tab.
-4. Seed a template that uses it in `app/seeds/cv_templates.py` if relevant.
+4. Ship a template that uses it in the reference-banks pack fixture
+   (`backend/tests/fixtures/seed_packs/.../reference-banks`) if relevant.
 5. Tests + docs ([cv-engine.md](cv-engine.md), [ui-conventions.md](ui-conventions.md)).
 
 ## Add a registry tool (chat / MCP)

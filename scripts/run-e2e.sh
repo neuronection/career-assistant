@@ -80,10 +80,10 @@ fi
 echo ">>> migrating scratch DB"
 (cd backend && "${ALEMBIC_BIN[@]}" upgrade head)
 
-echo ">>> seeding reference banks (idempotent)"
+echo ">>> seeding system data (idempotent)"
 (cd backend && PYTHONPATH="$(pwd)" "${PY_BIN[@]}" -m app.seeds.run)
 
-echo ">>> installing the job-catalog fixture pack"
+echo ">>> installing the reference-banks and job-catalog fixture packs"
 (cd backend && PYTHONPATH="$(pwd)" "${PY_BIN[@]}" ../scripts/seed_pack_fixture.py)
 
 echo ">>> seeding the e2e posting"

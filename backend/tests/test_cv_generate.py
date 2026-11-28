@@ -643,9 +643,6 @@ async def test_template_pick_ai_resolves_in_the_run(
 ):
     """`template_pick: "ai"` picks the template inside the background
     run — the enqueue itself carries no template id (instant submit)."""
-    from app.seeds.cv_templates import seed_cv_template_bank
-
-    await seed_cv_template_bank(db)
     await _experience(client, auth_headers)
     request = CvGenerateRequest(template_pick="ai")
     result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())
@@ -660,6 +657,12 @@ async def test_template_pick_ai_without_templates_falls_back(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     """No readable candidates → studio default, run still completes."""
+    from sqlalchemy import delete
+
+    from app.models.cv_template_model import CvTemplate
+
+    await db.execute(delete(CvTemplate))
+    await db.commit()
     await _experience(client, auth_headers)
     request = CvGenerateRequest(template_pick="ai")
     result = await _service(db).generate(UUID(_uid(auth_headers)), request, run_id=uuid.uuid4())

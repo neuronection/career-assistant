@@ -1,5 +1,5 @@
 #!/bin/bash
-# Seed the reference banks, then install the released job-catalog pack (idempotent).
+# Seed system data, then install the released reference-banks and job-catalog packs (idempotent).
 set -e
 cd "$(dirname "$0")/../backend"
 uv run python -m app.seeds.run

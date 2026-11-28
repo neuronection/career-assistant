@@ -7809,5 +7809,16 @@
     "megabytes": "{{value}} MB",
     "seconds": "{{value}} s",
     "readOnly": "Read-only. A backend switch runs migrate-objects; it is never a save button."
+  },
+  "referenceBanks": {
+    "label": {
+      "assessment": "assessment question bank",
+      "cv_templates": "CV template bank",
+      "metrics": "metric bank",
+      "skill_packs": "skill-pack bank"
+    },
+    "adminNotice": "The {{bank}} is not loaded — apply the official reference-banks pack to fill this surface.",
+    "memberBody": "The {{bank}} is not loaded. Ask your administrator to apply the official reference-banks pack.",
+    "openProviders": "Data providers"
   }
 }

@@ -452,11 +452,11 @@ executor. Tools declare an **audience** (`chat`, `cv_builder`, `mcp`) and a
 
 ## Skill packs
 
-Versioned instruction data in `ai_skill_packs` (immutable versions; bank seeds
-in `app/seeds/skill_packs.py`). `app/ai/packs.py` resolves the latest
-published bank pack per task; the gateway appends it to the system prompt and
-pins `pack_key`/`pack_version` on every `ai_generations` row. Packs steer
-**tone and structure only** — validators are untouched.
+Versioned instruction data in `ai_skill_packs` (immutable versions; the
+reference-banks pack carries them and an apply writes drafts). `app/ai/packs.py`
+resolves the latest published bank pack per task; the gateway appends it to the
+system prompt and pins `pack_key`/`pack_version` on every `ai_generations` row.
+Packs steer **tone and structure only** — validators are untouched.
 
 ## Vector retrieval
 

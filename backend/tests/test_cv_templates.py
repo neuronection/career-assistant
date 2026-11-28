@@ -12,12 +12,12 @@ from sqlalchemy import select
 from app.models.cv_model import CvDocument
 from app.models.cv_template_model import CvTemplate
 from app.schemas.cv_template import CvTemplateExport, TemplateContent
-from app.seeds.cv_templates import BANK_TEMPLATES, seed_cv_template_bank
 from app.services.cv.cv_blocks import REGISTRY, SAMPLE_SNAPSHOT, validate_blocks
 from app.services.cv.cv_renderer import render_cv
 from app.services.cv.cv_template_service import CvTemplateService
 from app.services.postings.engagement_service import canonical_hash
 from tests.conftest import _uid, session_headers
+from tests.seed_pack_fixture import apply_bank_pack, bank_items
 
 VALID_CONTENT = {
     "blocks": [
@@ -260,7 +260,7 @@ async def test_template_public_visibility_unreachable(client, db, auth_headers):
 
 async def test_suggest_templates_via_mock(client, db, auth_headers):
     """Deterministic candidate scores, then AI ranks refs best-first."""
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     response = await client.post(
         "/api/v1/cv/templates/suggest",
         json={"language": "en"},
@@ -325,10 +325,15 @@ async def test_visual_review_lint_and_mock_vision(client, db, auth_headers):
 
 
 async def test_bank_templates_seed_and_preview(client, db, auth_headers):
-    added = await seed_cv_template_bank(db)
-    assert added == len(BANK_TEMPLATES)
-    again = await seed_cv_template_bank(db)
-    assert again == 0, "seeding must be idempotent"
+    from app.services.seeds.applier import SeedApplyService
+
+    fixture = await apply_bank_pack(db)
+    rows = (await db.execute(select(CvTemplate).where(CvTemplate.author_key == "bank"))).scalars()
+    assert len(list(rows)) == len(bank_items("cv_templates"))
+    again = await SeedApplyService(db, packs=fixture.store, side_effects=False).apply(
+        fixture.source, fixture.version
+    )
+    assert again.status == "noop", "applying the pack again must be idempotent"
 
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
     bank = [t for t in listing.json() if t["source"] == "bank"]
@@ -452,7 +457,7 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
     )
     await db.commit()
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     rows = {
         (row.key, row.version): row
         for row in (
@@ -478,7 +483,7 @@ async def test_bank_seed_bumps_insert_new_versions_and_list_dedupes(db):
 
 
 async def test_sidebar_bank_template_uses_area_paddings(db):
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     rows = (
         (
             await db.execute(
@@ -549,7 +554,7 @@ async def test_new_reference_templates_seed_and_render(db):
     charcoal-amber split (header living inside the dark sidebar)."""
     from app.services.cv.cv_renderer import render_cv
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     for key in ("coral-banner", "charcoal-amber"):
         rows = (
             (
@@ -575,11 +580,11 @@ async def test_new_reference_templates_seed_and_render(db):
 
     snapshot = copy.deepcopy(SAMPLE_SNAPSHOT)
     snapshot["basics"]["photo"] = "data:image/svg+xml,svg"
-    coral = next(t for t in BANK_TEMPLATES if t["key"] == "coral-banner")
+    coral = next(t for t in bank_items("cv_templates") if t["key"] == "coral-banner")
     html = render_cv(TemplateContent.model_validate(coral["content"]), snapshot).html
     assert "padding: 4mm 5mm" in html, "band header paints its accent panel"
     assert "<img class='cv-photo'" in html
-    charcoal = next(t for t in BANK_TEMPLATES if t["key"] == "charcoal-amber")
+    charcoal = next(t for t in bank_items("cv_templates") if t["key"] == "charcoal-amber")
     html = render_cv(TemplateContent.model_validate(charcoal["content"]), snapshot).html
     sidebar = html.split("<aside class='cv-sidebar'>", 1)[1].split("</aside>", 1)[0]
     assert "<img class='cv-photo'" in sidebar, "photo lives in the dark sidebar"
@@ -645,7 +650,7 @@ async def test_suggest_passes_candidate_thumbnails_when_engine_available(
     import app.services.cv.cv_pdf_service as pdf_service
     from tests.conftest import _uid
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     real_rank = advisor.rank_templates
     seen: dict[str, object] = {}
 
@@ -685,7 +690,7 @@ async def test_suggest_carries_the_emphasis_notes_into_the_ranking(
     not metadata alone."""
     import app.ai.agents.cv_template_advisor as advisor
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     seen: dict[str, object] = {}
     real_rank = advisor.rank_templates
 
@@ -707,7 +712,7 @@ async def test_suggest_layout_hint_boosts_sidebar_candidates(client, db, auth_he
     """A 'modern / sidebar' brief is a layout preference: the
     deterministic baseline promotes sidebar-layout candidates to the
     top instead of the ATS-safe single-column default."""
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     result = await CvTemplateService(db).suggest(
         UUID(_uid(auth_headers)),
         language="en",
@@ -726,7 +731,7 @@ async def test_suggest_demotes_recently_used_templates(client, db, auth_headers,
     baseline, and the advisor target names them for the AI ranking."""
     from app.models.cv_model import CvDocument
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     template = await db.execute(select(CvTemplate).where(CvTemplate.author_key == "bank"))
     template = template.scalars().first()
     db.add(
@@ -765,7 +770,7 @@ async def test_suggest_never_ranks_the_user_s_own_templates(client, db, auth_hea
     only: private copies (tests, one-offs, older styled duplicates)
     must not win by recency luck when the brief asks for a look they
     don't express. The explicit picker reaches them instead."""
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     own = await _make_template(client, auth_headers)
     result = await CvTemplateService(db).suggest(
         UUID(_uid(auth_headers)), language="en", notes="modern and elegant"
@@ -782,7 +787,7 @@ async def test_preview_with_uses_the_own_snapshot(client, db, auth_headers):
     from app.models.user_model import Profile
     from app.services.cv.cv_builder_service import CvBuilderService
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
     template = next(t for t in listing.json() if t["source"] == "bank")
 
@@ -880,7 +885,7 @@ async def test_refreshed_bank_lints_and_prints_within_budget(db):
     from app.services.cv.cv_pdf_service import PDFEngineUnavailable, measure_pages
 
     refreshed = {"navy-sidebar", "teal-sidebar", "coral-banner", "charcoal-amber"}
-    for spec in BANK_TEMPLATES:
+    for spec in bank_items("cv_templates"):
         content = TemplateContent.model_validate(spec["content"])
         result = render_cv(content, SAMPLE_SNAPSHOT)
         assert not result.metrics.overflow, (
@@ -995,7 +1000,7 @@ async def test_preview_png_cached_and_capability_gated(client, db, auth_headers,
     from app.services.cv.cv_pdf_service import PDFEngineUnavailable
     from app.services.cv.cv_template_service import CvTemplateService
 
-    await seed_cv_template_bank(db)
+    await apply_bank_pack(db)
     listing = await client.get("/api/v1/cv/templates", headers=auth_headers)
     template = next(t for t in listing.json() if t["key"] == "ats-classic")
 

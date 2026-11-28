@@ -107,8 +107,8 @@ provenance.
 | `metric_category_anchors` | `metric_model.py` | Interest category → Holland letter (RIASEC) anchors |
 | `user_metric_profile` | `metric_model.py` | Measured values with provenance |
 | `skill_transferability` | `metric_model.py` | Per-skill transferability across families |
-| `assessment_templates` | `assessment_template_model.py` | Bank batteries |
-| `assessment_runs`, `assessment_questions`, `assessment_answers` | `assessment_model.py` | Resumable assessment runs |
+| `assessment_templates` | `assessment_template_model.py` | Bank batteries (pack identity in `seed_key`; a published version is immutable) |
+| `assessment_runs`, `assessment_questions`, `assessment_answers` | `assessment_model.py` | Resumable assessment runs; bank question rows are pack-owned (`seed_key`) and retire, never delete |
 
 ## Postings and market
 
@@ -241,7 +241,7 @@ model ⇄ baseline drift check.
 |---|---|---|
 | `cv_documents` | `cv_model.py` | A CV: working content, context, design tokens, template ref |
 | `cv_versions` | `cv_model.py` | Immutable versions (payloads, diffs, page counts) |
-| `cv_templates` | `cv_template_model.py` | The versioned template bank |
+| `cv_templates` | `cv_template_model.py` | The versioned template bank (pack identity in `seed_key`; retired versions stay readable) |
 | `cv_synth_items` | `cv_synth_model.py` | The variant library (typed source refs + content hashes) |
 | `cv_parse_drafts`, `cv_intake_applied` | `cv_intake_model.py` | Intake drafts and the applied ledger |
 
@@ -257,7 +257,7 @@ model ⇄ baseline drift check.
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text). Call-time cost provenance: `cost_micros`, `usage_source` (`provider`/`estimated`/`partial`/`unknown`), `estimate_method`, `price_source` (`user`/`builtin`/`local`/`unknown`) and `price_version`; an unknown price stays NULL, never zero |
 | `ai_price_overrides` | `ai_model.py` | System-scoped price rows (provider preset key or product `provider_ref`, model, `exact`/`prefix` match, input/output micros per million, `tokens`/`input_only`/`output_only` metering). Read/write through the admin-only `/ai/prices` surface; the resolver order is user row → override → built-in list price → local zero → unknown |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
-| `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
+| `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data (pack identity `seed_key`, lifecycle `status`; applies write drafts) |
 | `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store: versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens/source provenance) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
 | `retrieval_query_rollups`, `retrieval_coverage_snapshots` | `vector_model.py` | Bounded operational telemetry (first written by the reconcile pass): query-health buckets and per-kind coverage points (`total`/`missing`/`stale`/`failed`/`embedded` + the sampled ANN recall) |
 | `ai_mcp_servers` | `mcp_bridge_model.py` | External MCP server registrations |

@@ -62,13 +62,11 @@ async def test_retired_rows_leave_the_registry(db):
     assert empty.letter_for("synthetic-science") is None
 
 
-async def test_riasec_vocabulary_is_total_both_directions(db):
-    from app.seeds.bank_stamp import stamp_bank_identities
-    from app.seeds.metrics import RIASEC_LETTERS, seed_metric_dimensions
+async def test_riasec_vocabulary_is_total_both_directions(db, tmp_path):
+    from app.seeds.metrics import RIASEC_LETTERS
+    from tests.seed_pack_fixture import apply_bank_pack
 
-    await seed_metric_dimensions(db)
-    await stamp_bank_identities(db)
-    await db.commit()
+    await apply_bank_pack(db)
 
     snapshot = await metric_registry.snapshot(db)
     assert snapshot.available
@@ -134,8 +132,11 @@ async def _answers_for(questions: list[dict]) -> list[dict]:
 
 
 async def test_assessment_completion_succeeds_without_the_metric_bank(
-    client, auth_headers, seeded_catalog, db
+    client, auth_headers, fixture_taxonomy, db, tmp_path
 ):
+    from tests.seed_pack_fixture import apply_assessment_questions_pack
+
+    await apply_assessment_questions_pack(db)
     created = await client.post(
         "/api/v1/assessments",
         json={"kind": "custom", "context": {"phase_order": [2]}},

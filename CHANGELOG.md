@@ -7,13 +7,14 @@ All notable changes to **Career Assistant** are documented here.
 ### Internal
 
 - **The reference banks are published as the `neuronection-reference-banks`
-  seed pack.** The official seeds repository now carries the eight assessment
+  seed pack.** The official seeds repository carries the eight assessment
   questions, the two batteries, the ten CV layouts, the metric registry with
   its RIASEC category anchors, and the skill-pack instructions as one
-  versioned pack (six formats, digest-pinned). The code banks still ship and
-  seed this release; the app's fixture lane installs the released bytes and
-  proves they reproduce today's banks, adopt an already-seeded database
-  without duplicates or re-created rows, and apply as a no-op the second time.
+  versioned pack (six formats, digest-pinned). The app's bundled bank JSON,
+  the four code seeders and the fresh-install stamping pass are deleted in
+  this release; every test, dev/demo/e2e seed and a fresh instance now get the
+  banks from the released pack through the normal upload → approve → apply
+  lane.
 
 ### Added
 
@@ -62,6 +63,16 @@ All notable changes to **Career Assistant** are documented here.
 
 
 ### Changed
+
+- **The remaining reference banks ship only as the `neuronection-reference-banks`
+  pack.** The bundled assessment, CV-template, metric and skill-pack JSON, the
+  code seeders and the boot stamping pass are gone; a fresh instance's
+  assessment, CV gallery, metric/rankings surfaces and provider hub start
+  empty and show a bank-specific notice with a Data providers action
+  (`bootstrap.reference_banks`). The official one-click catalog load installs
+  the reference-banks tile first, dev/demo/e2e seeders install both pinned
+  fixture packs, and skill packs still apply as drafts until an admin
+  publishes them.
 
 - **The metric vocabulary is reference data, not code.** Dimensions and the
   interest-category → Holland-letter anchors arrive through the seed-pack lane;

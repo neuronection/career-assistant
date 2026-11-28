@@ -3,8 +3,8 @@
 The seeder (`scripts/seed-demo.py`) must refuse anything that is not a
 demo target *and* a demo instance — loudly, non-zero — seed idempotent
 synthetic-only content, and land rows nowhere but the demo instance.
-Reference banks (`backend/app/seeds/*`) stay reference data; the job
-catalog comes from the released seed pack (plan 224). The
+Reference banks are release packs, like the job catalog (plan 225); the demo
+installs their pinned fixture copies from the released seed packs. The
 public `GET /api/v1/instance/config` endpoint (product-owned) feeds the
 SPA's "Demo — synthetic data" badge before login, and the kit's demo
 rules hold through career's real app: the `demo` principal only on demo

@@ -15,7 +15,6 @@ from app.models.metric_model import MetricCategoryAnchor, UserMetricProfile
 from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.taxonomy_model import InterestTag
 from app.models.user_model import Profile
-from app.seeds.metrics import seed_metric_templates
 from app.services.catalog.metric_service import MetricService, revealed_prefs
 from tests.conftest import _make_posting, _uid
 
@@ -240,14 +239,9 @@ async def test_engine_dimensions_endpoint(client, auth_headers, profile_ready, s
     }
 
 
-async def test_metric_bank_templates_seed_idempotent(
+async def test_metric_bank_templates_come_from_the_pack(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
-    added = await seed_metric_templates(db)
-    assert added == 2
-    again = await seed_metric_templates(db)
-    assert again == 0
-
     rows = (
         (
             await db.execute(

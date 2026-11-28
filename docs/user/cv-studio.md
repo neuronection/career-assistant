@@ -11,7 +11,9 @@ where every AI action is grounded in your structured profile. Open it at
 
 1. **From templates.** Start with a template from the versioned bank and edit
    it in the builder. See
-   [Templates and design](cv-design-and-templates.md).
+   [Templates and design](cv-design-and-templates.md). Before the
+   reference-banks pack is applied, the gallery shows a template-bank notice
+   with a Data providers action.
 2. **From an existing CV.** Upload your CV (PDF, text or photo). The original
    is preserved byte-for-byte and an OCR text layer is added; the AI intake
    pipeline turns it into a **review-first draft** you confirm item by item

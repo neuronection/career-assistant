@@ -7808,5 +7808,16 @@
     "megabytes": "{{value}} MB",
     "seconds": "{{value}} s",
     "readOnly": "Schreibgeschützt. Ein Backend-Wechsel läuft über migrate-objects; er ist nie ein Speichern-Knopf."
+  },
+  "referenceBanks": {
+    "label": {
+      "assessment": "Bewertungs-Fragenbank",
+      "cv_templates": "CV-Vorlagenbank",
+      "metrics": "Metrik-Bank",
+      "skill_packs": "Skill-Pack-Bank"
+    },
+    "adminNotice": "Die {{bank}} ist nicht geladen — wende das offizielle Reference-Banks-Paket an, um diese Oberfläche zu füllen.",
+    "memberBody": "Die {{bank}} ist nicht geladen. Bitte deine Administration, das offizielle Reference-Banks-Paket anzuwenden.",
+    "openProviders": "Datenquellen"
   }
 }

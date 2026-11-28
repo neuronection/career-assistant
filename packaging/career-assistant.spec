@@ -65,8 +65,6 @@ datas = [
     *builtin_data_entries(Path(ROOT)),
     # Family language catalog (ADR-0024) — cv_languages.py json-loads it at
     # import time, so the frozen bundle must carry it at app/data/catalogs.
-    # Plan 123.5: the seed data (app/data/seeds/*.json) rides the same
-    # directory — the seed loaders resolve it relative to the package.
     (os.path.join(ROOT, "backend", "app", "data"), "app/data"),
     # Vendored family extension-contract set (ADR-0040 / plan 32): the
     # registry validates manifests against the envelope schema at
