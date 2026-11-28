@@ -1,0 +1,35 @@
+{
+  "id": "neuronection-reference-banks",
+  "schema_version": "1.0",
+  "version": "1.0.0",
+  "license": "CC-BY-4.0",
+  "scope": "system",
+  "priority": 100,
+  "description": "Neuronection reference banks: assessment questions and batteries, CV layouts, metric dimensions and RIASEC category anchors, and skill-pack instructions.",
+  "item_files": [
+    {
+      "path": "items/assessment_questions/questions.json",
+      "sha256": "820b2add586bac150ae11248b8a97c13f190ce597728ea4aafc93ae3407f3619"
+    },
+    {
+      "path": "items/assessment_templates/batteries.json",
+      "sha256": "00b413aa380015c1c317f28465b9f8f668f25c5ff75150e255afcdd77a1b3f22"
+    },
+    {
+      "path": "items/cv_templates/templates.json",
+      "sha256": "f9f586fa225fe9db71259fc545fac263f51076bc622a8631e7d34fc3528c44eb"
+    },
+    {
+      "path": "items/metric_dimensions/dimensions.json",
+      "sha256": "a13d8752f858b6d126a80c1131b29e6a6760a19da9d49b9c297b8414fb2334c3"
+    },
+    {
+      "path": "items/metric_category_anchors/anchors.json",
+      "sha256": "46e99d61c6e84c6247d44ea72c2fecf48be973bd0bb91a26df746646f61118e6"
+    },
+    {
+      "path": "items/skill_packs/packs.json",
+      "sha256": "2d4d7c48fb956d55abc098143534635cc7bac89e181573355a162552827c0e27"
+    }
+  ]
+}

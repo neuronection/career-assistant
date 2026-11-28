@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "item_type": "metric_category_anchors",
+    "format": "metric_category_anchors",
+    "format_version": 1,
+    "dataset_vintage": "2026-11-28",
+    "license": "CC-BY-4.0",
+    "attribution": "Neuronection"
+  },
+  "items": [
+    {
+      "seed_key": "interest-category:science",
+      "category": "science",
+      "letter": "investigative"
+    },
+    {
+      "seed_key": "interest-category:technology",
+      "category": "technology",
+      "letter": "investigative"
+    },
+    {
+      "seed_key": "interest-category:cognitive",
+      "category": "cognitive",
+      "letter": "investigative"
+    },
+    {
+      "seed_key": "interest-category:technical",
+      "category": "technical",
+      "letter": "investigative"
+    },
+    {
+      "seed_key": "interest-category:arts",
+      "category": "arts",
+      "letter": "artistic"
+    },
+    {
+      "seed_key": "interest-category:creative",
+      "category": "creative",
+      "letter": "artistic"
+    },
+    {
+      "seed_key": "interest-category:people",
+      "category": "people",
+      "letter": "social"
+    },
+    {
+      "seed_key": "interest-category:interpersonal",
+      "category": "interpersonal",
+      "letter": "social"
+    },
+    {
+      "seed_key": "interest-category:business",
+      "category": "business",
+      "letter": "enterprising"
+    },
+    {
+      "seed_key": "interest-category:communication",
+      "category": "communication",
+      "letter": "enterprising"
+    },
+    {
+      "seed_key": "interest-category:society",
+      "category": "society",
+      "letter": "enterprising"
+    },
+    {
+      "seed_key": "interest-category:sports",
+      "category": "sports",
+      "letter": "realistic"
+    },
+    {
+      "seed_key": "interest-category:physical",
+      "category": "physical",
+      "letter": "realistic"
+    },
+    {
+      "seed_key": "interest-category:hands-on",
+      "category": "hands-on",
+      "letter": "realistic"
+    }
+  ]
+}

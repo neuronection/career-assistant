@@ -50,6 +50,23 @@
       "version": "1.0.0",
       "digest": "sha256:c5fd50ad28ba3e1980e8fc0d015d93bcca599e424f0edca3c0d6ddc971d23b80",
       "signature": null
+    },
+    {
+      "id": "neuronection-reference-banks",
+      "path": "packs/neuronection/reference-banks",
+      "manifest": "packs/neuronection/reference-banks/manifest.json",
+      "itemTypes": [
+        "assessment_questions",
+        "assessment_templates",
+        "cv_templates",
+        "metric_dimensions",
+        "metric_category_anchors",
+        "skill_packs"
+      ],
+      "license": "CC-BY-4.0",
+      "version": "1.0.0",
+      "digest": "sha256:3d326f27d0929b591902f029dd375e8bb86a874fe8bc6b01db9ed044c2e06895",
+      "signature": null
     }
   ]
 }

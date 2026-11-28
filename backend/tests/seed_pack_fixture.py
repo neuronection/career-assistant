@@ -1,8 +1,9 @@
-"""Plan 224 S4: the published job-catalog pack as the shared test fixture.
+"""Plan 224 S4 / plan 225 S5a: the published packs as shared test fixtures.
 
-The app bundles no catalog, so tests that need jobs, taxonomy or starter
-paths apply the released pack instead. The pack bytes are read once per
-worker process; rows are written inside each test's own transaction.
+The app bundles no catalog and no reference bank, so tests that need jobs,
+taxonomy, starter paths or the reference banks apply the released packs
+instead. The pack bytes are read once per worker process; rows are written
+inside each test's own transaction.
 """
 
 from __future__ import annotations
@@ -22,6 +23,9 @@ from app.storage.object_storage import LocalObjectStore, StorageConfig
 
 PACK_DIR = (
     Path(__file__).parent / "fixtures" / "seed_packs" / "packs" / "neuronection" / "job-catalog"
+)
+BANK_PACK_DIR = (
+    Path(__file__).parent / "fixtures" / "seed_packs" / "packs" / "neuronection" / "reference-banks"
 )
 
 
@@ -137,3 +141,21 @@ async def apply_taxonomy_pack(db, root: Path) -> FixtureCatalog:
     """Apply only the pack's skills and interest tags (profile fixtures)."""
     await _seed_category_anchors(db)
     return await _apply_pack(db, root, taxonomy_pack_files(), name="Fixture job taxonomy")
+
+
+@lru_cache(maxsize=1)
+def bank_pack_files() -> dict[str, bytes]:
+    """The reference-banks fixture pack's files, parsed once per worker process."""
+    return {
+        path.relative_to(BANK_PACK_DIR).as_posix(): path.read_bytes()
+        for path in sorted(BANK_PACK_DIR.rglob("*.json"))
+    }
+
+
+async def apply_bank_pack(db, root: Path) -> FixtureCatalog:
+    """Apply the reference-banks fixture pack as an operator file provider.
+
+    Carries the assessment questions and batteries, the CV layouts, the metric
+    dimensions and category anchors, and the skill packs.
+    """
+    return await _apply_pack(db, root, bank_pack_files(), name="Fixture reference banks")
