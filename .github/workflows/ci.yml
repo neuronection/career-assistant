@@ -127,13 +127,14 @@ jobs:
       - name: Run tests — parallel-safe lane (xdist)
         run: |
           uv run coverage erase
-          # `-n 8` is a measured experiment (plan 226 §3.3): four workers on a
-          # GitHub-hosted `ubuntu-latest` deliver only ~1.35x, and the suite is
-          # partly I/O-wait bound, so oversubscribing the runner may overlap
-          # better than it slows down. The 120 s per-test watchdog is the guard
-          # against oversubscription; revert to `-n 4` if a test trips it or the
-          # pass slows down.
-          uv run pytest tests -m "not serial" -n 8 --dist loadfile \
+          # `-n 4` is pinned. Measured on the same job (plan 226 §13):
+          #   -n 4 → 1,282 s parallel pass · 25 m 29 s job
+          #   -n 8 → 1,453 s parallel pass · 28 m 20 s job
+          # Four workers on a GitHub-hosted `ubuntu-latest` deliver ~1.35x over
+          # the serial lane; oversubscribing makes it worse, so the wall is the
+          # runner, not the worker count. Shard across runners (Phase B) rather
+          # than raise `-n`.
+          uv run pytest tests -m "not serial" -n 4 --dist loadfile \
             --cov=app --cov-append --cov-report= --durations=25
       - name: Run tests — serial lane (single process)
         run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
