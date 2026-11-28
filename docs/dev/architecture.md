@@ -213,9 +213,14 @@ There is no side door around it.
   derived matcher). Templates select presentation props only; the merge
   logic is shared.
 - **Metric dimensions** are a curated registry
-  (`metric_dimensions` table, code spec in `app/seeds/metrics.py`):
-  `user_metric_profile` stores measured values with provenance; the fit
-  engine, filters and weight sliders read the same dimension keys.
+  (`metric_dimensions` + `metric_category_anchors`, delivered by the
+  reference-banks seed pack): `user_metric_profile` stores measured values
+  with provenance; the fit engine, filters and weight sliders read the same
+  dimension keys. `MetricRegistry` caches the published vocabulary in-process
+  (invalidated on every pack apply) and the interest categories map to Holland
+  letters through the anchor table — no code map. Before the bank is
+  installed, profile saves and assessment completion skip metric writes and a
+  direct recompute answers `METRIC_BANK_NOT_LOADED` (409).
 - **The extraction feature map** lives in
   `app/services/feature_map.py`: rows bind every `PostingExtract` field
   to its real consumers, and the AI extraction prompt is generated from

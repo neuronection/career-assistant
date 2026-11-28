@@ -132,13 +132,24 @@ async def seed_metric_dimensions(db) -> int:
 
 
 async def unmapped_categories(db) -> list[str]:
-    """Seeded interest categories with no RIASEC anchor (registry drift alarm)."""
+    """Non-deprecated interest categories with no published anchor row."""
+    from app.models.metric_model import MetricCategoryAnchor
+
+    anchored = set(
+        (
+            await db.execute(
+                select(MetricCategoryAnchor.category).where(
+                    MetricCategoryAnchor.status == "published"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     rows = await db.execute(
         select(InterestTag.category).where(InterestTag.deprecated.is_(False)).distinct()
     )
-    return sorted(
-        category for (category,) in rows.all() if category and riasec_of_category(category) is None
-    )
+    return sorted(category for (category,) in rows.all() if category and category not in anchored)
 
 
 RIASEC_QUESTION_PROMPTS = {

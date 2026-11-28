@@ -11,11 +11,11 @@ from app.models.application_model import Application
 from app.models.assessment_template_model import AssessmentTemplate
 from app.models.enums import TemplateSource, TemplateStatus
 from app.models.job_model import Job, JobTag
-from app.models.metric_model import UserMetricProfile
+from app.models.metric_model import MetricCategoryAnchor, UserMetricProfile
 from app.models.posting_model import JobPosting, PostingInteraction
 from app.models.taxonomy_model import InterestTag
 from app.models.user_model import Profile
-from app.seeds.metrics import riasec_of_category, seed_metric_templates
+from app.seeds.metrics import seed_metric_templates
 from app.services.catalog.metric_service import MetricService, revealed_prefs
 from tests.conftest import _make_posting, _uid
 
@@ -23,9 +23,20 @@ from tests.conftest import _make_posting, _uid
 async def _catalog_job_with_tag(db) -> tuple[Job, InterestTag]:
     job = (await db.execute(select(Job).limit(1))).scalars().first()
     assert job is not None
+    anchored = set(
+        (
+            await db.execute(
+                select(MetricCategoryAnchor.category).where(
+                    MetricCategoryAnchor.status == "published"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     tags = (await db.execute(select(InterestTag).limit(20))).scalars().all()
-    tag = next((t for t in tags if riasec_of_category(t.category) is not None), None)
-    assert tag is not None, "seeded taxonomy must carry RIASEC-mapped categories"
+    tag = next((t for t in tags if t.category in anchored), None)
+    assert tag is not None, "seeded taxonomy must carry anchored categories"
     return job, tag
 
 

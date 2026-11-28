@@ -298,6 +298,20 @@ def reset_embedding_model_cache() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def reset_metric_registry() -> Iterator[None]:
+    """Plan 225 S3: the metric registry is a process-wide cache.
+
+    A snapshot loaded in a previous test would hide a just-applied pack (or
+    leak a rolled-back one), so every test starts and ends with a cold cache.
+    """
+    from app.services.catalog.metric_registry import reset_metric_registry
+
+    reset_metric_registry()
+    yield
+    reset_metric_registry()
+
+
+@pytest.fixture(autouse=True)
 def clean_vector_store() -> Iterator[None]:
     """Drop vector-store state left behind by a previous test's sync writes.
 

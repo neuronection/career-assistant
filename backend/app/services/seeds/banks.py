@@ -1,12 +1,13 @@
-"""Bank entity adapters for the seed lane (plan 225 S0-S2).
+"""Bank entity adapters for the seed lane (plan 225 S0-S3).
 
 The six bank formats ride the same parse → plan → apply lane as the catalog:
 identity is the stored ``seed_key``, content is compared by the item digest,
 and removal retires the stored row instead of deleting it. S0 ships the
-assessment-template adapter; S1 adds the assessment-question adapter; S2
-adds the CV-template adapter. The remaining formats stay registered with
-``adapter=None`` so the planner refuses them with ``BANK_UNSUPPORTED``
-instead of silently skipping a registered format (the catalog lane's rule).
+assessment-template adapter; S1 the assessment-question adapter; S2 the
+CV-template adapter; S3 the metric-dimension and category-anchor adapters.
+The remaining format stays registered with ``adapter=None`` so the planner
+refuses it with ``BANK_UNSUPPORTED`` instead of silently skipping a
+registered format (the catalog lane's rule).
 
 Versioned templates publish immutable rows: a new pack version creates a new
 row, a removal retires the row, and a changed body at an already-applied
@@ -29,6 +30,9 @@ from app.models.assessment_template_model import AssessmentTemplate
 from app.models.cv_template_model import CvTemplate
 from app.models.metric_model import MetricCategoryAnchor, MetricDimension
 from app.models.skill_pack_model import AISkillPack
+
+REFERENCE_BANK_PACK = "neuronection-reference-banks"
+REFERENCE_BANK_SUBPATH = "packs/neuronection/reference-banks"
 
 ENTITY_ASSESSMENT_QUESTION = "assessment_question"
 ENTITY_ASSESSMENT_TEMPLATE = "assessment_template"
@@ -228,12 +232,58 @@ async def apply_cv_template(
     return row
 
 
+async def apply_metric_dimension(
+    db: AsyncSession, payload: dict[str, Any], row: MetricDimension | None, *, seed_key: str
+) -> MetricDimension:
+    """Upsert one published metric dimension."""
+    fields = {
+        "key": str(payload["key"]),
+        "label": str(payload["label"]),
+        "group": str(payload["group"]),
+        "description": str(payload.get("description") or ""),
+        "scale": str(payload.get("scale") or "scalar"),
+        "reverse_score": bool(payload.get("reverse_score", False)),
+        "sources": list(payload.get("sources") or []),
+        "consumers": list(payload.get("consumers") or []),
+        "status": "published",
+    }
+    if row is None:
+        row = MetricDimension(**fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
+async def apply_metric_category_anchor(
+    db: AsyncSession, payload: dict[str, Any], row: MetricCategoryAnchor | None, *, seed_key: str
+) -> MetricCategoryAnchor:
+    """Upsert one active interest-category → Holland-letter anchor."""
+    fields = {
+        "category": str(payload["category"]),
+        "letter": str(payload["letter"]),
+        "status": "published",
+    }
+    if row is None:
+        row = MetricCategoryAnchor(**fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
 BANK_FORMATS: dict[str, Callable[..., Any] | None] = {
     "assessment_questions": apply_assessment_question,
     "assessment_templates": apply_assessment_template,
     "cv_templates": apply_cv_template,
-    "metric_dimensions": None,
-    "metric_category_anchors": None,
+    "metric_dimensions": apply_metric_dimension,
+    "metric_category_anchors": apply_metric_category_anchor,
     "skill_packs": None,
 }
 
@@ -331,6 +381,8 @@ __all__ = [
     "ENTITY_METRIC_DIMENSION",
     "ENTITY_SKILL_PACK",
     "ITEM_ENTITY",
+    "REFERENCE_BANK_PACK",
+    "REFERENCE_BANK_SUBPATH",
     "RETIRE",
     "RETIRE_ORDER",
     "adapter_for",
@@ -338,6 +390,8 @@ __all__ = [
     "apply_assessment_question",
     "apply_assessment_template",
     "apply_cv_template",
+    "apply_metric_category_anchor",
+    "apply_metric_dimension",
     "cv_template_content_hash",
     "load_current",
     "preview_fields",

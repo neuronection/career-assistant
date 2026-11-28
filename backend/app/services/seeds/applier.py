@@ -42,6 +42,7 @@ from app.models.seed_model import (
 )
 from app.services.audit.provider import emit as audit_emit
 from app.services.audit.provider import resource as audit_resource
+from app.services.catalog.metric_registry import metric_registry
 from app.services.seeds.banks import (
     BANK_ENTITY_MODELS,
     adapter_for_entity,
@@ -604,6 +605,7 @@ class SeedApplyService:
                 ),
             )
             await self.db.commit()
+            metric_registry.invalidate()
             mutations = sum(
                 plan.counts[action]
                 for action in (ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE, ACTION_RETIRE)

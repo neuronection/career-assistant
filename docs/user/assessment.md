@@ -31,6 +31,11 @@ Underneath sits a dimension registry that stores what assessments, profile
 sections and behaviour measure — with provenance. The fit engine, the filters
 and the weight sliders all speak this one language.
 
+The registry ships as reference data (the reference-banks pack), not as code.
+Until that pack is installed, saving your profile and completing an assessment
+still work; the derived metric values are simply skipped, and a manual
+recompute explains that the metric bank is not loaded.
+
 ### Per-user metric profile
 
 - **RIASEC interest affinities** — the interest vectors that blend into

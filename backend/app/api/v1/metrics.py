@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models.metric_model import UserMetricProfile
-from app.services.catalog.metric_service import MetricService
+from app.services.catalog.metric_service import (
+    MetricBankNotLoadedError,
+    MetricService,
+)
 from app.services.deps import get_current_user
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -51,8 +54,8 @@ def _dimension_out(row) -> MetricDimensionOut:
         description=row.description,
         scale=row.scale,
         reverse_score=row.reverse_score,
-        sources=row.sources or [],
-        consumers=row.consumers or [],
+        sources=list(row.sources or []),
+        consumers=list(row.consumers or []),
     )
 
 
@@ -80,8 +83,10 @@ async def recompute_interest_affinity(
     user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Re-derive the RIASEC vector from the caller's current interest tags."""
-    count = await MetricService(db).recompute_interest_affinity(user.id)
-    return {"dimensions": count}
+    result = await MetricService(db).recompute_interest_affinity(user.id)
+    if result.metrics_unavailable:
+        raise MetricBankNotLoadedError()
+    return {"dimensions": result.dimensions}
 
 
 @router.post("/me/revealed/recompute", response_model=dict)

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.seed_pack.archive import extract_pack_archive
 from app.core.seed_pack.errors import (
     BANK_TRUST_DENIED,
+    CATALOG_REF_UNRESOLVED,
     CATALOG_TRUST_DENIED,
     PACK_ARCHIVE_MISSING,
     PLAN_EMPTY,
@@ -46,6 +47,8 @@ from app.services.seeds.banks import (
     ENTITY_ASSESSMENT_TEMPLATE,
     ENTITY_CV_TEMPLATE,
     ENTITY_FORMATS,
+    ENTITY_METRIC_CATEGORY_ANCHOR,
+    REFERENCE_BANK_PACK,
     cv_template_content_hash,
     require_adapter,
     template_content_hash,
@@ -342,10 +345,33 @@ async def _check_catalog_constraints(
     plan: Plan,
     current: dict[tuple[str, str], Any],
 ) -> None:
-    """Plan-time title uniqueness and the RIASEC category law."""
+    """Plan-time title uniqueness and the RIASEC anchor law.
+
+    Interest categories validate against the anchors already published in the
+    database plus the anchors carried by the candidate pack itself (they are
+    applied in the same run). With no anchor at all, a pack that carries
+    interest tags is refused and names the reference-banks pack.
+    """
     from app.core.job_titles import job_type_key
     from app.models.job_model import Job
-    from app.seeds.metrics import CATEGORY_RIASEC
+    from app.models.metric_model import MetricCategoryAnchor
+
+    anchors: dict[str, str] = {
+        str(category): str(letter)
+        for category, letter in (
+            await db.execute(
+                select(MetricCategoryAnchor.category, MetricCategoryAnchor.letter).where(
+                    MetricCategoryAnchor.status == "published"
+                )
+            )
+        ).all()
+    }
+    for (entity, _seed_key), (_entry, item) in winners.items():
+        if entity == ENTITY_METRIC_CATEGORY_ANCHOR:
+            category = str(item.payload.get("category") or "")
+            letter = str(item.payload.get("letter") or "")
+            if category and letter:
+                anchors[category] = letter
 
     titles: dict[str, str] = {}
     for (entity, seed_key), (_entry, item) in winners.items():
@@ -397,13 +423,19 @@ async def _check_catalog_constraints(
                     )
         if entity == ENTITY_INTEREST:
             category = str(item.payload.get("category") or "")
-            if category not in CATEGORY_RIASEC:
+            if not anchors:
+                raise SeedPackError(
+                    CATALOG_REF_UNRESOLVED,
+                    f"interest tags need category anchors; apply the "
+                    f"{REFERENCE_BANK_PACK} pack first",
+                )
+            if category not in anchors:
                 plan.conflicts.append(
                     {
                         "entity_type": entity,
                         "seed_key": seed_key,
                         "priority": 0,
-                        "reason": f"interest category {category!r} has no RIASEC anchor",
+                        "reason": f"interest category {category!r} has no published RIASEC anchor",
                         "source_ids": [],
                         "content_hashes": [],
                     }
@@ -697,6 +729,16 @@ async def build_plan(
             )
         )
 
+    retiring_categories = {
+        str(getattr(row, "category", ""))
+        for (entity, seed_key), row in current.items()
+        if entity == ENTITY_INTEREST
+        and (entity, seed_key) not in winners
+        and (entity, seed_key) not in claimed
+        and (entity, seed_key) not in renamed_old
+        and getattr(row, "seed_key", None) is not None
+    }
+
     for (entity, seed_key), row in sorted(current.items()):
         if entity in TRACKED_ENTITY_MODELS:
             if (
@@ -708,6 +750,25 @@ async def build_plan(
             if getattr(row, "seed_key", None) is None:
                 continue
             if entity in BANK_ENTITY_MODELS and ENTITY_FORMATS[entity] not in bank_scope:
+                continue
+            if entity in BANK_ENTITY_MODELS and getattr(row, "status", None) == "retired":
+                continue
+            if entity == ENTITY_METRIC_CATEGORY_ANCHOR and await _anchor_in_use(
+                db, str(getattr(row, "category", "")), retiring_categories
+            ):
+                plan.conflicts.append(
+                    {
+                        "entity_type": entity,
+                        "seed_key": seed_key,
+                        "priority": 0,
+                        "reason": (
+                            f"interest category {getattr(row, 'category', '')!r} is still "
+                            "used by an active interest tag"
+                        ),
+                        "source_ids": [],
+                        "content_hashes": [],
+                    }
+                )
                 continue
             action = ACTION_DELETE if entity == "job_relation" else ACTION_RETIRE
             plan.items.append(
@@ -748,6 +809,27 @@ async def build_plan(
 
     plan.items.extend(losers)
     return plan
+
+
+async def _anchor_in_use(db: AsyncSession, category: str, retiring_categories: set[str]) -> bool:
+    """True when a category anchor is still referenced after this plan applies.
+
+    Tags the same plan retires are not a blocker — the guard protects the
+    categories that remain active once the plan lands.
+    """
+    from app.models.taxonomy_model import InterestTag
+
+    if not category or category in retiring_categories:
+        return False
+    exists = await db.scalar(
+        select(InterestTag.id)
+        .where(
+            InterestTag.category == category,
+            InterestTag.deprecated.is_(False),
+        )
+        .limit(1)
+    )
+    return exists is not None
 
 
 def _skip_item(entry: _Entry, item: ParsedItem, reason: str) -> PlannedItem:

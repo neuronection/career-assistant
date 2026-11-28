@@ -40,6 +40,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed
 
+- **The metric vocabulary is reference data, not code.** Dimensions and the
+  interest-category → Holland-letter anchors arrive through the seed-pack lane;
+  a single in-process registry serves both and refreshes after every pack
+  apply. Before the reference banks are installed, profile saves and
+  assessment completion still succeed but skip metric writes, and a manual
+  metric recompute answers `METRIC_BANK_NOT_LOADED` (409) instead of inventing
+  values. A catalog pack that carries interest tags is refused until the
+  anchor bank is installed, and an anchor still used by an active interest tag
+  cannot be retired. The one-click official catalog install installs the
+  reference-banks tile first.
+
 - **Every filter surface now uses the shared filter module.** The rail, its
   sections, the tri-state value chips and the applied-filter row render
   `FilterRail` / `FilterSection` / `FacetChip variant="inline"` /

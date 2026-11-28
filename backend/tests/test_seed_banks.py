@@ -52,15 +52,6 @@ TEMPLATE = {
         "normalization": {},
     },
 }
-DIMENSION = {
-    "seed_key": "metric-dimension:interest.social",
-    "key": "interest.social",
-    "label": "Social",
-    "group": "interest",
-    "description": "Helping people.",
-    "sources": ["profile.interests"],
-    "consumers": ["fit.interests"],
-}
 
 
 def _bank_pack(items: list | None, *, version: str = "1.0.0", replaces=None) -> dict[str, bytes]:
@@ -202,9 +193,7 @@ async def test_a_bank_pack_requires_operator_or_official_trust(db, tmp_path):
 async def test_a_registered_bank_format_without_an_adapter_is_refused(db, tmp_path):
     store = _store(tmp_path)
     source = await _operator_source(db)
-    files = _pack(
-        {"items/metric_dimensions/dimensions.json": _envelope("metric_dimensions", [DIMENSION])}
-    )
+    files = _pack({"items/skill_packs/packs.json": _envelope("skill_packs", [])})
     version = await _version(db, store, source, files)
 
     with pytest.raises(SeedPackError) as exc:
@@ -321,11 +310,9 @@ def test_bank_registries_are_total():
     assert BANK_FORMATS["assessment_templates"] is not None
     assert BANK_FORMATS["assessment_questions"] is not None
     assert BANK_FORMATS["cv_templates"] is not None
-    assert all(
-        adapter is None
-        for name, adapter in BANK_FORMATS.items()
-        if name not in {"assessment_questions", "assessment_templates", "cv_templates"}
-    )
+    assert BANK_FORMATS["metric_dimensions"] is not None
+    assert BANK_FORMATS["metric_category_anchors"] is not None
+    assert BANK_FORMATS["skill_packs"] is None
 
 
 async def test_an_empty_bank_file_still_requires_the_official_trust_tier(db, tmp_path):
@@ -354,7 +341,7 @@ async def test_an_empty_unadapted_bank_file_is_refused_not_silently_planned(db, 
     source.trust_tier = "operator"
     await db.commit()
     files = _pack(
-        {"items/metric_dimensions/dimensions.json": _envelope("metric_dimensions", [])},
+        {"items/skill_packs/packs.json": _envelope("skill_packs", [])},
         manifest={"version": "1.0.0", "replaces": []},
     )
     version = await _version(db, store, source, files)
