@@ -585,6 +585,13 @@ function ProviderDetail({
                       t("toolsSettings.providers.revoked"),
                     )
                   }
+                  onPublish={(seedKey) =>
+                    void run(
+                      `publish-${seedKey}`,
+                      () => providersApi.publishProviderItem(providerId, seedKey),
+                      t("toolsSettings.providers.published"),
+                    )
+                  }
                   onReject={(versionId) => {
                     setRejectFor(versionId);
                     setRejectReason("");
@@ -833,6 +840,7 @@ function VersionsTab({
   onApprove,
   onApply,
   onRevoke,
+  onPublish,
   onReject,
 }: {
   detail: AdminProviderDetail;
@@ -844,6 +852,7 @@ function VersionsTab({
   onApprove: (versionId: string) => void;
   onApply: (versionId: string) => void;
   onRevoke: (versionId: string) => void;
+  onPublish: (seedKey: string) => void;
   onReject: (versionId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -948,7 +957,9 @@ function VersionsTab({
                 ) : null}
               </div>
             </div>
-            {plan && planFor === version.id ? <PlanPreview plan={plan} /> : null}
+            {plan && planFor === version.id ? (
+              <PlanPreview plan={plan} busy={busy} onPublish={onPublish} />
+            ) : null}
           </div>
         );
       })}
@@ -956,7 +967,15 @@ function VersionsTab({
   );
 }
 
-function PlanPreview({ plan }: { plan: ProviderPlan }) {
+function PlanPreview({
+  plan,
+  busy,
+  onPublish,
+}: {
+  plan: ProviderPlan;
+  busy: string | null;
+  onPublish: (seedKey: string) => void;
+}) {
   const { t } = useTranslation();
   const actionVariant: Record<string, BadgeVariant> = {
     create: "success",
@@ -1015,22 +1034,56 @@ function PlanPreview({ plan }: { plan: ProviderPlan }) {
         </div>
       ) : null}
       <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[11px]">
-        {(plan.items ?? []).slice(0, 40).map((item) => (
-          <li
-            key={`${item.action}-${item.seed_key}`}
-            className="flex items-center gap-2"
-          >
-            <Badge variant={actionVariant[item.action] ?? "secondary"}>
-              {t(`toolsSettings.providers.action.${item.action}`, {
-                defaultValue: item.action,
-              })}
-            </Badge>
-            <code className="min-w-0 flex-1 truncate text-[var(--as-fg)]">
-              {item.seed_key}
-            </code>
-            <span className="shrink-0 text-[var(--as-muted-fg)]">{item.reason}</span>
-          </li>
-        ))}
+        {(plan.items ?? []).slice(0, 40).map((item) => {
+          const preview = item.preview ?? {};
+          const skillPack = item.entity_type === "skill_pack";
+          const publishable = skillPack && item.action !== "retire" && item.action !== "delete";
+          return (
+            <li key={`${item.action}-${item.seed_key}`} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge variant={actionVariant[item.action] ?? "secondary"}>
+                  {t(`toolsSettings.providers.action.${item.action}`, {
+                    defaultValue: item.action,
+                  })}
+                </Badge>
+                <code className="min-w-0 flex-1 truncate text-[var(--as-fg)]">
+                  {item.seed_key}
+                </code>
+                <span className="shrink-0 text-[var(--as-muted-fg)]">{item.reason}</span>
+              </div>
+              {publishable ? (
+                <div
+                  className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] p-2"
+                  data-testid={`provider-skill-pack-${item.seed_key}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                      {t("toolsSettings.providers.skillPackInstructions")}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={busy === `publish-${item.seed_key}`}
+                      disabled={busy !== null}
+                      onClick={() => onPublish(item.seed_key)}
+                      data-testid={`provider-publish-${item.seed_key}`}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />{" "}
+                      {t("toolsSettings.providers.publish")}
+                    </Button>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-[11px] text-[var(--as-fg)]">
+                    {String(preview.instructions ?? "")}
+                  </p>
+                  <code className="mt-1 block truncate text-[10px] text-[var(--as-muted-fg)]">
+                    {t("toolsSettings.providers.contentHash")}:{" "}
+                    {String(preview.content_hash ?? "")}
+                  </code>
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

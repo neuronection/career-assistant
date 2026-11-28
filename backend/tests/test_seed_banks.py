@@ -190,17 +190,6 @@ async def test_a_bank_pack_requires_operator_or_official_trust(db, tmp_path):
     assert exc.value.code == "BANK_TRUST_DENIED"
 
 
-async def test_a_registered_bank_format_without_an_adapter_is_refused(db, tmp_path):
-    store = _store(tmp_path)
-    source = await _operator_source(db)
-    files = _pack({"items/skill_packs/packs.json": _envelope("skill_packs", [])})
-    version = await _version(db, store, source, files)
-
-    with pytest.raises(SeedPackError) as exc:
-        await _service(db, store).build_plan(source, version)
-    assert exc.value.code == "BANK_UNSUPPORTED"
-
-
 async def test_replaces_renames_a_bank_row_and_keeps_its_uuid(db, tmp_path):
     store = _store(tmp_path)
     source = await _operator_source(db)
@@ -312,7 +301,7 @@ def test_bank_registries_are_total():
     assert BANK_FORMATS["cv_templates"] is not None
     assert BANK_FORMATS["metric_dimensions"] is not None
     assert BANK_FORMATS["metric_category_anchors"] is not None
-    assert BANK_FORMATS["skill_packs"] is None
+    assert BANK_FORMATS["skill_packs"] is not None
 
 
 async def test_an_empty_bank_file_still_requires_the_official_trust_tier(db, tmp_path):
@@ -331,24 +320,6 @@ async def test_an_empty_bank_file_still_requires_the_official_trust_tier(db, tmp
     with pytest.raises(SeedPackError) as excinfo:
         await _service(db, store).build_plan(source, version)
     assert excinfo.value.code == BANK_TRUST_DENIED
-
-
-async def test_an_empty_unadapted_bank_file_is_refused_not_silently_planned(db, tmp_path):
-    from app.core.seed_pack.errors import BANK_UNSUPPORTED
-
-    store = _store(tmp_path)
-    source = await _source(db)
-    source.trust_tier = "operator"
-    await db.commit()
-    files = _pack(
-        {"items/skill_packs/packs.json": _envelope("skill_packs", [])},
-        manifest={"version": "1.0.0", "replaces": []},
-    )
-    version = await _version(db, store, source, files)
-
-    with pytest.raises(SeedPackError) as excinfo:
-        await _service(db, store).build_plan(source, version)
-    assert excinfo.value.code == BANK_UNSUPPORTED
 
 
 async def test_fresh_bank_rows_get_their_pack_identity(db):

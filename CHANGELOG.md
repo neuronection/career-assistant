@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Skill packs now arrive as data and go live only when an admin publishes
+  them.** A pack apply stores each instruction version as a draft, so an
+  official-install or version apply never changes what a model reads; the
+  provider hub shows the full instruction preview and content hash, and an
+  explicit publish makes the draft visible and retires the same-key
+  predecessor. Revoking a version restores the previous version's published
+  pack, and the last published version of a key cannot be retired. A key
+  dropped from a pack is reported as a plan warning instead of being retired
+  automatically.
+
 ### Fixed
 
 - **The SQLite CI lane no longer hides a leaked subprocess transport.** The

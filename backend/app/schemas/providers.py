@@ -76,6 +76,23 @@ class AdoptIn(BaseModel):
     seed_keys: list[str] | None = None
 
 
+class SeedKeyIn(BaseModel):
+    """Body-keyed admin item action (skill-pack seed keys carry ``/v<version>``)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    seed_key: str = Field(min_length=1, max_length=200)
+
+
+class PublishedItemOut(BaseModel):
+    seed_key: str
+    key: str
+    version: int
+    content_hash: str
+    status: str = "published"
+    retired: list[str] = Field(default_factory=list)
+
+
 class VersionSummaryOut(BaseModel):
     id: str
     pack_version: str
@@ -343,7 +360,9 @@ __all__ = [
     "ProviderAdminOut",
     "ProviderCreateIn",
     "ProviderUpdateIn",
+    "PublishedItemOut",
     "RejectIn",
+    "SeedKeyIn",
     "SyncReportOut",
     "SyncRunOut",
     "UserEndpointOut",

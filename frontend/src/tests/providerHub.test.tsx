@@ -188,6 +188,7 @@ vi.mock("@/api/providers", () => ({
   adoptProviderVersion: vi.fn(),
   setProviderItemEnabled: vi.fn(),
   retireProviderItem: vi.fn(),
+  publishProviderItem: vi.fn(),
   listProviderRuns: vi.fn(),
   probeProviderEndpoint: vi.fn(),
   listUserProviders: vi.fn(),
@@ -316,6 +317,56 @@ describe("ProviderHub", () => {
     await user.click(await screen.findByText("Versions"));
     await user.click(await screen.findByTestId("provider-plan-version-2"));
     expect(await screen.findByText("Delete 2")).toBeInTheDocument();
+  });
+
+  it("previews a skill pack's instructions and publishes the draft", async () => {
+    const seedKey = "skill-pack:interview-prep-style/v2";
+    mocked.planProviderVersion.mockResolvedValue({
+      ...PLAN,
+      items: [
+        {
+          entity_type: "skill_pack",
+          seed_key: seedKey,
+          action: "create",
+          content_hash: "lane-hash",
+          source_id: "provider-1",
+          version_id: "version-2",
+          priority: 100,
+          current_id: null,
+          reason: "new seed key",
+          preview: {
+            key: "interview-prep-style",
+            title: "Interview coaching style guide",
+            version: 2,
+            task: "interview_turn",
+            instructions: "v2: name the missing STAR element before any rewrite.",
+            content_hash: "abc123def456",
+          },
+        },
+      ],
+    } as providersApi.ProviderPlan);
+    mocked.publishProviderItem.mockResolvedValue({
+      seed_key: seedKey,
+      key: "interview-prep-style",
+      version: 2,
+      content_hash: "abc123def456",
+      status: "published",
+      retired: [],
+    });
+    const user = userEvent.setup();
+    render(<ProviderHub />);
+    await user.click(await screen.findByTestId("provider-card-provider-1"));
+    await user.click(await screen.findByText("Versions"));
+    await user.click(await screen.findByTestId("provider-plan-version-2"));
+
+    expect(
+      await screen.findByText("v2: name the missing STAR element before any rewrite."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/abc123def456/)).toBeInTheDocument();
+    await user.click(screen.getByTestId(`provider-publish-${seedKey}`));
+    await waitFor(() =>
+      expect(mocked.publishProviderItem).toHaveBeenCalledWith("provider-1", seedKey),
+    );
   });
 
   it("creates a git provider from the add dialog", async () => {

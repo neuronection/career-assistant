@@ -1,19 +1,24 @@
-"""Bank entity adapters for the seed lane (plan 225 S0-S3).
+"""Bank entity adapters for the seed lane (plan 225 S0-S4).
 
 The six bank formats ride the same parse → plan → apply lane as the catalog:
 identity is the stored ``seed_key``, content is compared by the item digest,
 and removal retires the stored row instead of deleting it. S0 ships the
 assessment-template adapter; S1 the assessment-question adapter; S2 the
-CV-template adapter; S3 the metric-dimension and category-anchor adapters.
-The remaining format stays registered with ``adapter=None`` so the planner
-refuses it with ``BANK_UNSUPPORTED`` instead of silently skipping a
-registered format (the catalog lane's rule).
+CV-template adapter; S3 the metric-dimension and category-anchor adapters;
+S4 the skill-pack adapter.
 
 Versioned templates publish immutable rows: a new pack version creates a new
 row, a removal retires the row, and a changed body at an already-applied
 version is a plan-time conflict. The lane's canonical item digest
 (``ParsedItem.content_hash``) drives no-op/update detection through
-``SeedItemProvenance``; CV templates also keep their own content hash.
+``SeedItemProvenance``; CV templates and skill packs also keep their own
+content hash.
+
+Skill packs are the one bank whose apply never takes effect: a new version
+lands ``draft`` so no model ever sees unreviewed instructions. An admin
+publishes a draft explicitly, which retires the same-key predecessor; revoke
+restores the previous version's published state. A key dropped from a pack is
+left untouched (a plan warning) rather than auto-retired.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from app.models.assessment_model import AssessmentQuestion
 from app.models.assessment_template_model import AssessmentTemplate
 from app.models.cv_template_model import CvTemplate
 from app.models.metric_model import MetricCategoryAnchor, MetricDimension
+from app.models.seed_model import SeedItemProvenance
 from app.models.skill_pack_model import AISkillPack
 
 REFERENCE_BANK_PACK = "neuronection-reference-banks"
@@ -40,6 +46,27 @@ ENTITY_CV_TEMPLATE = "cv_template"
 ENTITY_METRIC_DIMENSION = "metric_dimension"
 ENTITY_METRIC_CATEGORY_ANCHOR = "metric_category_anchor"
 ENTITY_SKILL_PACK = "skill_pack"
+
+SEED_PREFIX_ENTITY: dict[str, str] = {
+    "assessment-question": ENTITY_ASSESSMENT_QUESTION,
+    "assessment-template": ENTITY_ASSESSMENT_TEMPLATE,
+    "cv-template": ENTITY_CV_TEMPLATE,
+    "metric-dimension": ENTITY_METRIC_DIMENSION,
+    "interest-category": ENTITY_METRIC_CATEGORY_ANCHOR,
+    "skill-pack": ENTITY_SKILL_PACK,
+}
+
+
+def entity_for_seed_key(seed_key: str) -> str | None:
+    """The bank entity type a stored seed key belongs to, by its prefix."""
+    return SEED_PREFIX_ENTITY.get(seed_key.split(":", 1)[0])
+
+
+def skill_pack_key(seed_key: str) -> str:
+    """The skill-pack ``key`` of a ``skill-pack:<key>/v<version>`` seed key."""
+    body = seed_key.split(":", 1)[1] if ":" in seed_key else seed_key
+    return body.rsplit("/v", 1)[0]
+
 
 BANK_ENTITY_MODELS: dict[str, Any] = {
     ENTITY_ASSESSMENT_QUESTION: AssessmentQuestion,
@@ -278,13 +305,50 @@ async def apply_metric_category_anchor(
     return row
 
 
+def skill_pack_content_hash(payload: dict[str, Any]) -> str:
+    """Canonical hash of a skill pack's instructions (the row's hash column)."""
+    from app.services.postings.engagement_service import canonical_hash
+
+    return canonical_hash({"instructions": str(payload["instructions"])})
+
+
+async def apply_skill_pack(
+    db: AsyncSession, payload: dict[str, Any], row: AISkillPack | None, *, seed_key: str
+) -> AISkillPack:
+    """Upsert one skill-pack version as a ``draft`` (never published).
+
+    The apply lane may create or restore a row, but it never makes an
+    instruction live: publishing is the explicit admin step.
+    """
+    fields = {
+        "key": str(payload["key"]),
+        "version": int(payload["version"]),
+        "title": str(payload["title"]),
+        "task": str(payload["task"]),
+        "instructions": str(payload["instructions"]),
+        "author_user_id": None,
+        "author_key": "bank",
+        "content_hash": skill_pack_content_hash(payload),
+        "status": "draft",
+    }
+    if row is None:
+        row = AISkillPack(**fields)
+        db.add(row)
+    else:
+        for key, value in fields.items():
+            setattr(row, key, value)
+    row.seed_key = seed_key
+    await db.flush()
+    return row
+
+
 BANK_FORMATS: dict[str, Callable[..., Any] | None] = {
     "assessment_questions": apply_assessment_question,
     "assessment_templates": apply_assessment_template,
     "cv_templates": apply_cv_template,
     "metric_dimensions": apply_metric_dimension,
     "metric_category_anchors": apply_metric_category_anchor,
-    "skill_packs": None,
+    "skill_packs": apply_skill_pack,
 }
 
 
@@ -311,6 +375,67 @@ async def retire(db: AsyncSession, entity: str, row: Any) -> None:
     field, value = RETIRE[entity]
     setattr(row, field, value)
     await db.flush()
+
+
+async def skill_pack_seed_keys_for_version(
+    db: AsyncSession, version_id, *, status: str
+) -> list[str]:
+    """Seed keys of the skill packs a source version owns in ``status``."""
+    version_keys = (
+        (
+            await db.execute(
+                select(SeedItemProvenance.seed_key).where(
+                    SeedItemProvenance.entity_type == ENTITY_SKILL_PACK,
+                    SeedItemProvenance.source_version_id == version_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not version_keys:
+        return []
+    found = (
+        (
+            await db.execute(
+                select(AISkillPack.seed_key).where(
+                    AISkillPack.seed_key.in_(version_keys),
+                    AISkillPack.status == status,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [seed_key for seed_key in found if seed_key is not None]
+
+
+async def retire_published_skill_packs_for_version(db: AsyncSession, version_id) -> list[str]:
+    """Retire the skill packs a revoked version had published.
+
+    Revoking a source version must stop serving the behavior it published;
+    the previous version's rows are republished by the revoke path.
+    """
+    seed_keys = await skill_pack_seed_keys_for_version(db, version_id, status="published")
+    for seed_key in seed_keys:
+        row = await db.scalar(select(AISkillPack).where(AISkillPack.seed_key == seed_key))
+        if row is not None:
+            row.status = "retired"
+    if seed_keys:
+        await db.flush()
+    return seed_keys
+
+
+async def restore_published_skill_packs_for_version(db: AsyncSession, version_id) -> list[str]:
+    """Republish the skill packs a restored version had published before."""
+    seed_keys = await skill_pack_seed_keys_for_version(db, version_id, status="retired")
+    for seed_key in seed_keys:
+        row = await db.scalar(select(AISkillPack).where(AISkillPack.seed_key == seed_key))
+        if row is not None:
+            row.status = "published"
+    if seed_keys:
+        await db.flush()
+    return seed_keys
 
 
 def preview_fields(entity: str, payload: dict[str, Any], row: Any = None) -> dict[str, Any]:
@@ -352,11 +477,17 @@ def preview_fields(entity: str, payload: dict[str, Any], row: Any = None) -> dic
     if entity == ENTITY_METRIC_CATEGORY_ANCHOR:
         return {"category": _get(source, "category"), "letter": _get(source, "letter")}
     if entity == ENTITY_SKILL_PACK:
+        instructions = _get(source, "instructions")
+        content_hash = _get(source, "content_hash")
+        if not content_hash and isinstance(instructions, str):
+            content_hash = skill_pack_content_hash({"instructions": instructions})
         return {
+            "key": _get(source, "key"),
             "title": _get(source, "title"),
             "version": _get(source, "version"),
             "task": _get(source, "task"),
-            "instructions": _get(source, "instructions"),
+            "instructions": instructions,
+            "content_hash": content_hash,
         }
     return {}
 
@@ -385,6 +516,7 @@ __all__ = [
     "REFERENCE_BANK_SUBPATH",
     "RETIRE",
     "RETIRE_ORDER",
+    "SEED_PREFIX_ENTITY",
     "adapter_for",
     "adapter_for_entity",
     "apply_assessment_question",
@@ -392,11 +524,18 @@ __all__ = [
     "apply_cv_template",
     "apply_metric_category_anchor",
     "apply_metric_dimension",
+    "apply_skill_pack",
     "cv_template_content_hash",
+    "entity_for_seed_key",
     "load_current",
     "preview_fields",
     "require_adapter",
+    "restore_published_skill_packs_for_version",
     "retire",
+    "retire_published_skill_packs_for_version",
+    "skill_pack_content_hash",
+    "skill_pack_key",
+    "skill_pack_seed_keys_for_version",
     "stage",
     "template_content_hash",
 ]

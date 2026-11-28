@@ -24115,6 +24115,46 @@
         "title": "ProviderUpdateIn",
         "type": "object"
       },
+      "PublishedItemOut": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "retired": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Retired",
+            "type": "array"
+          },
+          "seed_key": {
+            "title": "Seed Key",
+            "type": "string"
+          },
+          "status": {
+            "default": "published",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed_key",
+          "key",
+          "version",
+          "content_hash"
+        ],
+        "title": "PublishedItemOut",
+        "type": "object"
+      },
       "QualityCompareRequest": {
         "description": "Score the versioned golden set on the old and new space.",
         "properties": {
@@ -26961,6 +27001,23 @@
           "candidate_count"
         ],
         "title": "SectionGap",
+        "type": "object"
+      },
+      "SeedKeyIn": {
+        "additionalProperties": false,
+        "description": "Body-keyed admin item action (skill-pack seed keys carry ``/v<version>``).",
+        "properties": {
+          "seed_key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Seed Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seed_key"
+        ],
+        "title": "SeedKeyIn",
         "type": "object"
       },
       "SessionCreate": {
@@ -39505,6 +39562,116 @@
           }
         },
         "summary": "Retire Provider Item",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/publish": {
+      "post": {
+        "description": "Publish one drafted skill pack and retire its same-key predecessor.",
+        "operationId": "publish_provider_skill_pack_api_v1_admin_providers__source_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeedKeyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Provider Skill Pack",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{source_id}/retire": {
+      "post": {
+        "description": "Body-keyed retire for an applied bank row (skill-pack keys are path-hostile).",
+        "operationId": "retire_provider_bank_item_api_v1_admin_providers__source_id__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeedKeyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retire Provider Bank Item Api V1 Admin Providers  Source Id  Retire Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retire Provider Bank Item",
         "tags": [
           "admin"
         ]
