@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -228,6 +229,35 @@ async def warm_checkpointer():
         await get_checkpointer()
     yield
     await aclose_checkpointer()
+
+
+@pytest_asyncio.fixture
+async def _stop_pdf_engine():
+    """Stop the cached Playwright driver on the test's own loop.
+
+    The test HTTP client bypasses the app lifespan, so shutdown_engine() never
+    ran under pytest, and pytest-asyncio closes the loop after each test. The
+    driver's node subprocess was then left to the garbage collector; when GC
+    landed on a later test it raised ``RuntimeError: Event loop is closed``
+    inside ``BaseSubprocessTransport.__del__`` — a
+    PytestUnraisableExceptionWarning attributed to whichever test triggered GC,
+    not the one that started the driver.
+    """
+    yield
+    from app.services.cv.cv_pdf_service import shutdown_engine
+
+    with contextlib.suppress(Exception):
+        await shutdown_engine()
+
+
+def pytest_collection_modifyitems(items):
+    """Run the driver cleanup only for async tests (it needs their loop)."""
+    import inspect
+
+    for item in items:
+        obj = getattr(item, "obj", None)
+        if obj is not None and inspect.iscoroutinefunction(obj):
+            item.add_marker(pytest.mark.usefixtures("_stop_pdf_engine"))
 
 
 @pytest.fixture(autouse=True)

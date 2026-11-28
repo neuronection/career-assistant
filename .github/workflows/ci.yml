@@ -121,7 +121,20 @@ jobs:
       - name: Migrate test database
         run: uv run alembic upgrade head
       - name: Run tests (coverage floor parity with the Postgres lane)
-        run: uv run pytest tests/ --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+        # Unraisable warnings stay VISIBLE here but not fatal: one
+        # order-dependent transport (reported at tests/test_cv_polish) has no
+        # identified owner yet — see docs/dev/testing.md, residual 1. The
+        # spawner gate below makes the class fatal for the paths we can prove
+        # deterministic, so a regression in those cannot hide.
+        run: >
+          uv run pytest tests/
+          --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+      - name: Spawner teardown gate (unraisable leaks fatal)
+        run: >
+          uv run pytest
+          tests/test_extension_sources.py tests/test_mcp_connector.py
+          tests/test_subprocess_teardown.py tests/test_ai_tools.py
+          -W error::pytest.PytestUnraisableExceptionWarning
       - name: Contract drift gate (identity-auth §18)
         run: uv run pytest -m contract
 
