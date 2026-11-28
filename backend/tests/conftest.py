@@ -823,6 +823,21 @@ async def seeded_catalog(db, fixture_catalog) -> dict:
 
 
 @pytest.fixture
+async def catalog_min(db, tmp_path) -> dict:
+    """A handful of catalog jobs plus the assessment bank.
+
+    Same return shape as `seeded_catalog`; for tests that only need "a job
+    exists" (and the taxonomy their postings resolve against).
+    """
+    from app.seeds.assessment import seed_assessment_bank
+    from tests.seed_pack_fixture import apply_catalog_min
+
+    await apply_catalog_min(db, tmp_path)
+    questions = await seed_assessment_bank(db)
+    return {"questions": questions}
+
+
+@pytest.fixture
 async def profile_ready(client: AsyncClient, auth_headers: dict, db, fixture_taxonomy) -> dict:
     """A user with a filled profile; returns the profile payload."""
     from app.seeds.metrics import seed_metric_dimensions

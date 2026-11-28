@@ -149,7 +149,7 @@ class TestSyntheticConnector(ConnectorConformanceTests):
 
 
 async def test_unknown_connector_key_rejected_at_source_creation(
-    client, auth_headers, seeded_catalog, db, profile_ready
+    client, auth_headers, catalog_min, db, profile_ready
 ):
     await _admin(client, auth_headers, db)
     response = await client.post(
@@ -162,7 +162,7 @@ async def test_unknown_connector_key_rejected_at_source_creation(
 
 
 async def test_plugin_allowlist_gates_registration(
-    client, auth_headers, seeded_catalog, db, monkeypatch
+    client, auth_headers, catalog_min, db, monkeypatch
 ):
     from app.core.config import settings
     from app.core.errors import ValidationError
@@ -229,7 +229,7 @@ def test_builtin_manifests_conform_to_the_envelope():
 
 
 async def test_sync_upserts_and_dedups(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     first = await sync_source(db, source)
     assert first["synced"] == 1
@@ -245,7 +245,7 @@ async def test_sync_upserts_and_dedups(
 
 
 async def test_connector_failure_is_isolated(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     source.connector_key = "does-not-exist"
     await db.commit()
@@ -254,7 +254,7 @@ async def test_connector_failure_is_isolated(
     assert "Unknown connector" in source.error
 
 
-async def test_sync_via_queue(client, auth_headers, profile_ready, seeded_catalog, db, source):
+async def test_sync_via_queue(client, auth_headers, profile_ready, catalog_min, db, source):
     from app.services.job_worker import JobWorker
 
     await _admin(client, auth_headers, db)
@@ -337,7 +337,7 @@ async def test_deprecated_no_merge_tag_survives_remap(db, source):
 
 
 async def test_no_label_matching_regression(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     """Title says 'Software Developer' exactly — but with zero skill
     evidence the posting must NOT map onto the catalog job by label."""
@@ -354,7 +354,7 @@ async def test_no_label_matching_regression(
 
 
 async def test_below_threshold_goes_to_moderation(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     """One weak skill hit → below AUTO_MAP_THRESHOLD → stays unmapped."""
 
@@ -420,7 +420,7 @@ async def test_fit_delta_math(client, auth_headers, profile_ready, seeded_catalo
 
 
 async def test_new_posting_match_alert_and_cooldown(
-    client, auth_headers, profile_ready, seeded_catalog, db, source, kinds
+    client, auth_headers, profile_ready, catalog_min, db, source, kinds
 ):
     await client.put(
         "/api/v1/notifications/rules",
@@ -444,7 +444,7 @@ async def test_new_posting_match_alert_and_cooldown(
 # ---------------------------------------------------------------- expiry
 
 
-async def test_expiry_sweep(client, auth_headers, profile_ready, seeded_catalog, db, source):
+async def test_expiry_sweep(client, auth_headers, profile_ready, catalog_min, db, source):
     await sync_source(db, source)
     posting = (await db.execute(select(JobPosting))).scalars().first()
     posting.expires_at = datetime.now(UTC) - timedelta(days=1)
@@ -460,7 +460,7 @@ async def test_expiry_sweep(client, auth_headers, profile_ready, seeded_catalog,
 
 
 async def test_saved_view_keeps_closed_posting(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     await sync_source(db, source)
     active = (await client.get("/api/v1/postings", headers=auth_headers)).json()
@@ -533,7 +533,7 @@ async def test_posting_skills_projection_is_requirement_ordered(
 
 
 async def test_interaction_state_round_trip(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     await sync_source(db, source)
     listing = (await client.get("/api/v1/postings", headers=auth_headers)).json()
@@ -572,7 +572,7 @@ async def test_interaction_state_round_trip(
 
 
 async def test_apply_writes_pipeline_row_and_first_stage_event(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
+    client, auth_headers, profile_ready, catalog_min, db, source
 ):
     """Plan 113: the apply path owns the pipeline row; the first
     `stage_change` event is written exactly once per real transition."""
