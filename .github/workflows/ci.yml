@@ -127,10 +127,13 @@ jobs:
       - name: Run tests — parallel-safe lane (xdist)
         run: |
           uv run coverage erase
-          # `-n 4` is pinned: GitHub-hosted `ubuntu-latest` is 4 vCPU here, and
-          # raising it needs a re-measure of the serial registry, not just more
-          # cores. The floor is cores, not code.
-          uv run pytest tests -m "not serial" -n 4 --dist loadfile \
+          # `-n 8` is a measured experiment (plan 226 §3.3): four workers on a
+          # GitHub-hosted `ubuntu-latest` deliver only ~1.35x, and the suite is
+          # partly I/O-wait bound, so oversubscribing the runner may overlap
+          # better than it slows down. The 120 s per-test watchdog is the guard
+          # against oversubscription; revert to `-n 4` if a test trips it or the
+          # pass slows down.
+          uv run pytest tests -m "not serial" -n 8 --dist loadfile \
             --cov=app --cov-append --cov-report= --durations=25
       - name: Run tests — serial lane (single process)
         run: uv run pytest tests -m serial --cov=app --cov-append --cov-report=
