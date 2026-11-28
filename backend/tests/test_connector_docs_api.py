@@ -9,6 +9,7 @@ a tree answer with an honest absence page — never a broken surface.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from app.extensions.docs import landing_file, strip_raw_html
@@ -142,16 +143,14 @@ def test_resolve_page_serves_a_noted_sibling(tmp_path: Path) -> None:
     pages later — this is the recorded decision's proof)."""
     from app.extensions.docs import resolve_page
 
-    docs_dir = BUILTIN_ROOT / "rss" / "docs"
+    docs_dir = tmp_path / "rss" / "docs"
+    shutil.copytree(BUILTIN_ROOT / "rss" / "docs", docs_dir)
     tree = json.loads((docs_dir / "docs-tree.json").read_text())
     tree["categories"][0]["items"][0]["locales"] = ["de"]
     (docs_dir / "overview.de.md").write_text("# Übersicht\n\nTest.\n", encoding="utf-8")
-    try:
-        served_file, served_locale = resolve_page(docs_dir, tree, "overview.md", "de")
-        assert served_file == "overview.de.md"
-        assert served_locale == "de"
-    finally:
-        (docs_dir / "overview.de.md").unlink()
+    served_file, served_locale = resolve_page(docs_dir, tree, "overview.md", "de")
+    assert served_file == "overview.de.md"
+    assert served_locale == "de"
 
 
 async def test_documentation_endpoint_reports_what_it_served(client, auth_headers) -> None:
