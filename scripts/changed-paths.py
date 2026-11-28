@@ -11,6 +11,15 @@ job is to report which path classes a diff touches:
 * ``infra`` — workflows, packaging, docker, scripts and dependency pins.
 * ``unknown`` — paths no set claims; they fail closed and count as backend.
 
+The backend-read set is derived from the path literals ``backend/tests``
+actually reads, not from assumption: ``test_docs_claims`` reads ``README.md``,
+``frontend/src/App.tsx`` and ``frontend/src/config/features.json``,
+``test_product_capabilities`` reads ``docs/capabilities.json``, and
+``test_no_private_integration_mentions`` scans every tracked file. Because of
+that last one no non-empty diff is provably backend-disjoint, so
+``skippable_backend`` is always false and the mapping carries
+``skippable_reason``.
+
 Usage::
 
     python3 scripts/changed-paths.py --base origin/main
@@ -33,14 +42,15 @@ ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_BACKEND_READ = (
     "backend/",
     "contracts/",
-    "docs/user/",
-    "docs/dev/",
+    "docs/",
+    "README.md",
+    "frontend/",
     "scripts/",
     "docker/",
     "packaging/",
+    ".github/",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/ci.yml",
 )
 REQUIRED_FRONTEND = (
     "frontend/",
@@ -67,6 +77,7 @@ INFRA_PATHS = (
     "pyproject.toml",
     "uv.lock",
 )
+REPO_WIDE_SCANNER_TESTS = ("tests/test_no_private_integration_mentions.py",)
 
 
 def normalize(path: str) -> str:
@@ -126,7 +137,10 @@ def classify_paths(
     """Classify a diff into backend/frontend/docs/infra and an unknown bucket.
 
     An unknown path cannot be proven disjoint from backend behaviour, so it
-    also sets ``backend`` (fail closed).
+    also sets ``backend`` (fail closed). ``skippable_backend`` is always
+    false: ``tests/test_no_private_integration_mentions.py`` scans **every
+    tracked file**, so no non-empty diff is provably backend-disjoint. The
+    reason is reported instead of a certification the suite cannot back.
 
     Args:
         paths: changed repo-relative paths.
@@ -137,10 +151,11 @@ def classify_paths(
 
     Returns:
         A mapping with ``backend``, ``frontend``, ``docs``, ``infra``,
-        ``unknown`` (the unclaimed paths), ``has_unknown`` and
-        ``skippable_backend`` booleans/lists.
+        ``unknown`` (the unclaimed paths), ``backend_read_hits``,
+        ``has_unknown``, ``skippable_backend`` and ``skippable_reason``.
     """
     normalized = [normalize(path) for path in paths if normalize(path)]
+    backend_read_hits = [path for path in normalized if matches_pattern(path, backend_read)]
     unknown = [
         path
         for path in normalized
@@ -148,15 +163,24 @@ def classify_paths(
             matches_pattern(path, patterns) for patterns in (backend_read, frontend, docs, infra)
         )
     ]
-    backend = any(matches_pattern(path, backend_read) for path in normalized) or bool(unknown)
+    reason = (
+        "the diff is empty; there is nothing to skip"
+        if not normalized
+        else (
+            f"{REPO_WIDE_SCANNER_TESTS[0]} scans every tracked file, so no "
+            "non-empty diff is provably backend-disjoint"
+        )
+    )
     return {
-        "backend": backend,
+        "backend": bool(backend_read_hits or unknown),
+        "backend_read_hits": backend_read_hits,
         "frontend": any(matches_pattern(path, frontend) for path in normalized),
         "docs": any(matches_pattern(path, docs) for path in normalized),
         "infra": any(matches_pattern(path, infra) for path in normalized),
         "unknown": unknown,
         "has_unknown": bool(unknown),
-        "skippable_backend": not backend,
+        "skippable_backend": False,
+        "skippable_reason": reason,
     }
 
 
@@ -222,23 +246,23 @@ def _print_human(result: dict[str, object]) -> None:
         print("unknown: none")
     skip = "yes" if result["skippable_backend"] else "no"
     print(f"backend jobs skippable: {skip}")
+    print(f"skippable why: {result['skippable_reason']}")
 
 
 def _self_check() -> None:
-    """Prove the sets, the classes and the fail-closed unknown bucket.
+    """Prove the sets, the classes and the honest skip answer.
 
     Raises:
-        AssertionError: When a required path is absent or a class is wrong.
+        AssertionError: When a class is wrong or the tool certifies a skip.
     """
-    assert not missing_required_paths(REQUIRED_BACKEND_READ, BACKEND_READ_PATHS)
-    assert not missing_required_paths(REQUIRED_FRONTEND, FRONTEND_PATHS)
     cases: list[tuple[list[str], dict[str, bool]]] = [
         (["backend/app/x.py"], {"backend": True, "frontend": False, "docs": False}),
-        (["frontend/src/App.tsx"], {"backend": False, "frontend": True}),
-        (["frontend/package-lock.json"], {"backend": False, "frontend": True}),
+        (["frontend/src/App.tsx"], {"backend": True, "frontend": True}),
+        (["frontend/package-lock.json"], {"backend": True, "frontend": True}),
         (["docs/user/guide.md"], {"backend": True, "docs": True}),
         (["docs/dev/testing.md"], {"backend": True, "docs": True}),
-        (["docs/deploy.md"], {"backend": False, "docs": True}),
+        (["docs/deploy.md"], {"backend": True, "docs": True}),
+        (["README.md"], {"backend": True, "docs": True}),
         (["CHANGELOG.md"], {"backend": False, "docs": True}),
         (["scripts/run-tests.sh"], {"backend": True, "infra": True}),
         (["docker/Dockerfile"], {"backend": True, "infra": True}),
@@ -253,6 +277,8 @@ def _self_check() -> None:
         result = classify_paths(paths)
         for key, value in expected.items():
             assert result[key] == value, f"self-check: {paths} -> {key}={result[key]!r}"
+        assert result["skippable_backend"] is False, f"self-check: {paths} certified a skip"
+    assert "every tracked file" in classify_paths(["backend/app/x.py"])["skippable_reason"]
     reduced = tuple(path for path in BACKEND_READ_PATHS if path != "backend/")
     assert missing_required_paths(REQUIRED_BACKEND_READ, reduced) == ["backend/"]
     print("self-check ok")

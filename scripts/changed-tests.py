@@ -7,7 +7,8 @@ untracked files (``git status --porcelain``), maps a changed ``backend/app``
 module to the test files whose static imports name that module or any parent
 package, adds changed test files themselves, and always keeps the always-run
 set. A changed module with no importer warns and keeps only the always-run
-set; a full-suite trigger prints its reason and selects every test file.
+set; a path no rule claims warns the same way; a full-suite trigger prints its
+reason and selects every test file.
 
 Usage::
 
@@ -47,13 +48,22 @@ FULL_SUITE_DIRS = (
     "docs/user/",
     "docs/dev/",
     "scripts/",
+    "docker/",
+    "packaging/",
+    "assets/",
 )
 FULL_SUITE_FILES = (
     "backend/pyproject.toml",
+    "pyproject.toml",
     "uv.lock",
     "backend/tests/conftest.py",
     "backend/tests/seed_pack_fixture.py",
     ".github/workflows/ci.yml",
+    "docs/capabilities.json",
+    "docs/docs-tree.json",
+    "README.md",
+    "frontend/src/App.tsx",
+    "frontend/src/config/features.json",
 )
 
 
@@ -428,6 +438,8 @@ def build_plan(
                 warnings.append(f"no importer for {module} (changed {path}); always-run set only")
         elif path.startswith("backend/"):
             warnings.append(f"{path} is an unmapped backend path; always-run set only")
+        else:
+            warnings.append(f"{path} is outside the selection rules; always-run set only")
 
     reasons = []
     if notes:

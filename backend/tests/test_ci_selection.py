@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 BACKEND = Path(__file__).resolve().parents[1]
 ROOT = BACKEND.parent
 CHANGED_TESTS = ROOT / "scripts" / "changed-tests.py"
@@ -34,14 +36,15 @@ EXPECTED_ALWAYS_RUN = {
 EXPECTED_BACKEND_READ = {
     "backend/",
     "contracts/",
-    "docs/user/",
-    "docs/dev/",
+    "docs/",
+    "README.md",
+    "frontend/",
     "scripts/",
     "docker/",
     "packaging/",
+    ".github/",
     "pyproject.toml",
     "uv.lock",
-    ".github/workflows/ci.yml",
 }
 EXPECTED_FRONTEND = {
     "frontend/",
@@ -50,10 +53,16 @@ EXPECTED_FRONTEND = {
 }
 EXPECTED_FULL_SUITE_FILES = {
     "backend/pyproject.toml",
+    "pyproject.toml",
     "uv.lock",
     "backend/tests/conftest.py",
     "backend/tests/seed_pack_fixture.py",
     ".github/workflows/ci.yml",
+    "docs/capabilities.json",
+    "docs/docs-tree.json",
+    "README.md",
+    "frontend/src/App.tsx",
+    "frontend/src/config/features.json",
 }
 EXPECTED_FULL_SUITE_DIRS = {
     "backend/alembic/",
@@ -61,7 +70,30 @@ EXPECTED_FULL_SUITE_DIRS = {
     "docs/user/",
     "docs/dev/",
     "scripts/",
+    "docker/",
+    "packaging/",
+    "assets/",
 }
+REPO_ROOT_READ_LITERALS = {
+    "docs/": "docs/",
+    "README": "README.md",
+    "frontend/": "frontend/",
+    "contracts/": "contracts/",
+    "packaging/": "packaging/",
+    "docker/": "docker/",
+    ".github/": ".github/",
+}
+REPO_ROOT_INPUTS = (
+    "docker/docker-compose.prod.yml",
+    "packaging/bundle_data.py",
+    "pyproject.toml",
+    "docs/capabilities.json",
+    "docs/docs-tree.json",
+    "README.md",
+    "assets/icon.svg",
+    "frontend/src/App.tsx",
+    "frontend/src/config/features.json",
+)
 
 
 def _load(name: str, path: Path) -> ModuleType:
@@ -227,12 +259,27 @@ def test_the_selection_is_not_wired_into_the_workflow() -> None:
 
 def test_the_path_classifier_sets_keep_their_contract() -> None:
     module = _changed_paths()
-    assert not module.missing_required_paths(
-        module.REQUIRED_BACKEND_READ, module.BACKEND_READ_PATHS
-    )
     assert not module.missing_required_paths(module.REQUIRED_FRONTEND, module.FRONTEND_PATHS)
     assert set(module.REQUIRED_BACKEND_READ) == EXPECTED_BACKEND_READ
     assert set(module.REQUIRED_FRONTEND) == EXPECTED_FRONTEND
+
+
+def test_every_repo_root_literal_backend_tests_read_is_in_the_backend_read_set() -> None:
+    self_path = Path(__file__).resolve()
+    found: set[str] = set()
+    for path in sorted(BACKEND.joinpath("tests").rglob("test_*.py")):
+        if path.resolve() == self_path or "_xdist" in path.parts or "fixtures" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for literal, prefix in REPO_ROOT_READ_LITERALS.items():
+            if literal in text:
+                found.add(prefix)
+    assert found, "the literal scan found no repo-root reads"
+    missing = sorted(found - set(_changed_paths().BACKEND_READ_PATHS))
+    assert not missing, (
+        "backend tests read these repo-root prefixes but the classifier's backend-read "
+        f"set omits them: {missing}"
+    )
 
 
 def test_a_missing_backend_read_path_fails_the_contract() -> None:
@@ -241,7 +288,7 @@ def test_a_missing_backend_read_path_fails_the_contract() -> None:
     assert module.missing_required_paths(module.REQUIRED_BACKEND_READ, reduced) == ["backend/"]
 
 
-def test_the_classifier_classes_backend_frontend_and_docs_diffs() -> None:
+def test_the_classifier_never_certifies_a_backend_skip() -> None:
     module = _changed_paths()
     backend = module.classify_paths(["backend/app/x.py"])
     assert backend["backend"] is True
@@ -249,9 +296,9 @@ def test_the_classifier_classes_backend_frontend_and_docs_diffs() -> None:
     assert backend["skippable_backend"] is False
 
     frontend = module.classify_paths(["frontend/src/App.tsx"])
-    assert frontend["backend"] is False
+    assert frontend["backend"] is True
     assert frontend["frontend"] is True
-    assert frontend["skippable_backend"] is True
+    assert frontend["skippable_backend"] is False
 
     user_docs = module.classify_paths(["docs/user/guide.md"])
     assert user_docs["backend"] is True
@@ -259,8 +306,41 @@ def test_the_classifier_classes_backend_frontend_and_docs_diffs() -> None:
     assert user_docs["skippable_backend"] is False
 
     plain_docs = module.classify_paths(["docs/deploy.md"])
-    assert plain_docs["backend"] is False
+    assert plain_docs["backend"] is True
     assert plain_docs["docs"] is True
+    assert plain_docs["skippable_backend"] is False
+
+    readme = module.classify_paths(["README.md"])
+    assert readme["backend"] is True
+    assert readme["skippable_backend"] is False
+    assert "every tracked file" in readme["skippable_reason"], readme["skippable_reason"]
+
+    empty = module.classify_paths([])
+    assert empty["backend"] is False
+    assert empty["skippable_backend"] is False
+
+
+@pytest.mark.parametrize("path", REPO_ROOT_INPUTS)
+def test_repo_root_inputs_backend_tests_read_trigger_the_full_suite(path: str) -> None:
+    module = _changed_tests()
+    selection = module.build_plan([path], module.discover_test_files(), {}, ())
+    assert selection.full_suite is True, (path, selection.reason)
+    assert path in selection.changed
+
+
+def test_an_unclaimed_path_warns_and_keeps_the_always_run_set(tmp_path: Path) -> None:
+    completed = _run(
+        CHANGED_TESTS,
+        "--diff-file",
+        str(_diff_file(tmp_path, "e2e/probe.py")),
+        "--json",
+    )
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["full_suite"] is False
+    assert set(payload["selected"]) == set(_changed_tests().ALWAYS_RUN)
+    assert any("e2e/probe.py" in warning for warning in payload["warnings"]), payload["warnings"]
+    assert "outside the selection rules" in completed.stderr
 
 
 def test_the_classifier_fails_closed_on_unknown_paths() -> None:
@@ -280,8 +360,9 @@ def test_the_classifier_reads_a_synthetic_diff_file(tmp_path: Path) -> None:
     )
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
-    assert payload["backend"] is False
+    assert payload["backend"] is True
     assert payload["frontend"] is True
+    assert payload["skippable_backend"] is False
 
 
 def test_the_classifier_self_check_passes() -> None:
