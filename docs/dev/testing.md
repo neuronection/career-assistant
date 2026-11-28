@@ -7,9 +7,14 @@ commit.
 ## Backend
 
 ```bash
-cd backend && uv run pytest tests -q -n auto     # parallel (default)
-./scripts/run-tests.sh                               # same, via the wrapper
+./scripts/run-tests.sh                               # default: both lanes (parallel-safe, then serial)
+cd backend && uv run pytest tests -q -m "not serial" -n auto   # direct: parallel-safe lane only
 ```
+
+On the SQLite desktop profile a bare `uv run pytest tests -q -n auto` over the
+whole suite trips the `serial` guard — those tests are wall-clock-bound there
+and must not run concurrently. On Postgres the marker is inert, so the whole
+suite may run in the pool.
 
 `.env.test` (loaded by the test config) pins the test environment:
 
@@ -52,26 +57,40 @@ real-Alembic migration tests safe to distribute.
 - **SQLite workers** (the desktop profile) write isolated files and state
   trees under `backend/tests/_xdist/<worker>/` (gitignored).
 - **Two lanes.** `./scripts/run-tests.sh` runs `pytest -m "not serial" -n <workers>`
-  and then `pytest -m serial` in one process; the CI SQLite job does the same
-  two passes. A test is marked `serial` only when it is not parallel-safe on
-  the SQLite desktop profile (a child-process wall-clock barrier, or an
-  asserted elapsed bound), and every marked test needs an entry in
-  `tests/serial_allowlist.json` naming its criterion (`H2`/`H3`) and the
-  `path:line` resource that justifies it — a marker without an entry, and an
-  entry matching nothing on a full run, both fail. The Postgres lane keeps
-  these tests in its parallel pool.
+  and then `pytest -m serial` in one process; the CI SQLite job runs the same
+  two passes at `-n 4 --dist loadfile`, then a partition-integrity step
+  (`--collect-only` ×3 with `-o addopts=""`; the parallel and serial node-id
+  sets must cover the full collection exactly once, and an empty serial
+  selection exits 5), then `coverage report --fail-under=79 --skip-covered`
+  over the combined data (the floor lives only in that step, never inside a
+  selectable pass), then `-m contract`. A test is marked `serial` only when it
+  is not parallel-safe on the SQLite desktop profile (a child-process
+  wall-clock barrier, or an asserted elapsed bound), and every marked test
+  needs an entry in `tests/serial_allowlist.json` naming its criterion
+  (`H2`/`H3`), the live `path:line` resource that justifies it, and why — a
+  marker without an entry, and an entry matching nothing on a full run, both
+  fail. The marker is SQLite-profile-scoped; the Postgres lane keeps these
+  tests in its parallel pool.
+- **The guard is SQLite-only.** Collecting a `serial`-marked test with
+  `-n > 1` on the SQLite profile fails it in `pytest_runtest_setup` with a
+  message naming `-m "not serial"` and the separate serial pass (or
+  `./scripts/run-tests.sh`). `-n 1`/`-n 0` and the Postgres lane never trip it.
 - **The `serial` pass is the final lane.** It fails closed when the
   `not serial` pass left no observations (`tests/_xdist/skip_observations.json`),
   so a partial run must go through `./scripts/run-tests.sh` or pass
   `--no-skip-wall` (which skips the skip-wall completeness half only).
-- `PYTEST_XDIST_WORKERS=N` overrides the worker count; `PYTEST_XDIST=0` opts
-  out of both lanes and uses the plain `neuronection_career_test` database
-  (which needs its one-shot `alembic upgrade head`).
+- `PYTEST_XDIST_WORKERS=N` overrides the worker count (read by
+  `./scripts/run-tests.sh`); `PYTEST_XDIST=0` opts out of both lanes and uses
+  the plain `neuronection_career_test` database (which needs its one-shot
+  `alembic upgrade head`).
 
 ```bash
-cd backend && PYTEST_XDIST=0 uv run pytest tests -q   # serial
-cd backend && PYTEST_XDIST_WORKERS=4 uv run pytest tests -q
+cd backend && PYTEST_XDIST=0 uv run pytest tests -q   # one serial pass (whole suite)
+PYTEST_XDIST_WORKERS=4 ./scripts/run-tests.sh          # four workers, both lanes
 ```
+
+`PYTEST_XDIST_WORKERS` is read by `./scripts/run-tests.sh`, not by pytest; a
+direct SQLite `-n` run needs `-m "not serial"` and its own serial pass.
 
 ### Golden/calibration fixtures and changed-area xdist
 
@@ -182,7 +201,7 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 | Gate | Command | Wall |
 |---|---|---|
 | Backend (Postgres) | `uv run pytest tests -n auto --cov=app --cov-fail-under=79` | coverage 79% |
-| Backend (SQLite profile) | same, with `CAREER_DATABASE_URL=sqlite+aiosqlite:///./neuronection_career_test.db` (serial) | coverage 79% |
+| Backend (SQLite profile) | two passes (`-m "not serial" -n 4 --dist loadfile`, then `-m serial`), a partition-integrity check, and a separate `coverage report --fail-under=79` step over the combined data | coverage 79% (separate step) |
 | Contract (both dialects) | `uv run pytest -m contract` | identity-auth §18 |
 | Types | `uv run mypy` | `[tool.mypy] files` — clean packages only |
 | Type ratchet | `uv run python ../scripts/check-mypy-ratchet.py` | `[tool.career-mypy-ratchet]` pegs |
@@ -190,6 +209,7 @@ gate. The numbers live next to the gate: coverage floors in `ci.yml` +
 | assistant-ui drift | `node scripts/audit-assistant-ui-usage.mjs ./frontend/src` | zero local copies of library components |
 | Dependency audit | `python scripts/check-dependency-audit.py` | reviewed exceptions only |
 | Skip list | enforced by `tests/conftest.py` at session end | `tests/skip_allowlist.json` |
+| Serial registry | enforced at collection and in `pytest_runtest_setup` | `tests/serial_allowlist.json` |
 | i18n catalogs | `python3 scripts/translations/check_translations.py` | `de`/`el` complete; reverse lint + key audit in vitest |
 
 **Up-only.** A coverage floor rises to the measured value; a type peg falls

@@ -113,7 +113,7 @@ family release process).
 
 | Workflow | Purpose |
 |---|---|
-| `ci.yml` | pytest (Postgres + serial SQLite desktop job, both with contract + coverage floors), frontend build + vitest, ruff, mypy + the ratchet, blocking pip-audit/npm audit, the required assistant-ui drift audit (`quality-gates` job), docs-sync, packaging + docker + e2e |
+| `ci.yml` | pytest (Postgres + the two-lane SQLite desktop job: parallel-safe pass, serial pass, node-id partition check, and one coverage floor over the combined data; both lanes run the contract gate), frontend build + vitest, ruff, mypy + the ratchet, blocking pip-audit/npm audit, the required assistant-ui drift audit (`quality-gates` job), docs-sync, packaging + docker + e2e |
 | `release.yml` | Tag-driven packaging and GitHub Release |
 | `ai-alignment.yml` | The AI architecture gate (`scripts/check-ai-alignment.sh`) |
 | `drift-audit.yml` | Weekly assistant-ui drift sweep + vendored-audit-script freshness (the PR gate lives in `ci.yml`) |
