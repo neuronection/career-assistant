@@ -376,12 +376,22 @@ async def test_snapshot_sufficient_sample_shows_band(
 
 
 async def test_quiet_hours_suppress_pings(
-    client, auth_headers, profile_ready, seeded_catalog, db, kinds
+    client, auth_headers, profile_ready, seeded_catalog, db, kinds, monkeypatch
 ):
+    from app.services import notification_channels
     from app.services.catalog.job_service import JobService
     from app.services.notification_service import NotificationService
     from app.services.postings.fit.dimensions import FitResult
     from app.services.postings.fit.service import FitService
+
+    frozen = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
+    emit_clock = notification_channels.within_quiet_hours
+    monkeypatch.setattr(
+        notification_channels,
+        "within_quiet_hours",
+        lambda quiet, now=None: emit_clock(quiet, now=frozen),
+    )
+    monkeypatch.setattr("app.services.notification_service.utcnow", lambda: frozen)
 
     await client.put(
         "/api/v1/notifications/rules",
