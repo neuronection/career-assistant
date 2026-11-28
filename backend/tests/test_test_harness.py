@@ -271,4 +271,9 @@ def test_catalog_min_pack_is_referentially_closed() -> None:
         assert relation["from"] in codes and relation["to"] in codes
     for path in by_type["career_paths"]:
         assert path["job"] in codes
+        for step in path.get("steps") or []:
+            if step.get("family_key"):
+                assert step["family_key"] in families, (path["job"], step)
+            if step.get("skill_key"):
+                assert step["skill_key"] in skills, (path["job"], step)
     assert parsed.digest.startswith("sha256:")

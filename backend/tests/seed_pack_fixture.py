@@ -85,6 +85,10 @@ def _referenced_keys(keys: set[str], rows_by_key: dict[str, dict], field: str) -
 def catalog_min_files() -> dict[str, bytes]:
     """The pack narrowed to a few jobs and everything they reference.
 
+    This is a **content subset**: three jobs and their referential closure,
+    not the published catalog. A test that needs any row outside
+    ``CATALOG_MIN_JOBS`` and its closure must use ``seeded_catalog``.
+
     Tests that only need "a job exists" (and the taxonomy their postings
     resolve against) apply ~30 items instead of the full 190. Job families,
     skills, interest tags, relations and career paths stay referentially
