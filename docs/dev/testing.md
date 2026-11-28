@@ -16,6 +16,44 @@ whole suite trips the `serial` guard — those tests are wall-clock-bound there
 and must not run concurrently. On Postgres the marker is inert, so the whole
 suite may run in the pool.
 
+### Fast iteration (never a gate)
+
+CI and the merge gate always run the full suite; these shortcuts are for the
+loop between commits and are not wired into CI:
+
+```bash
+./scripts/run-tests.sh --changed                # tests importing the changed app modules + always-run set
+./scripts/run-tests.sh --changed origin/main    # diff against an explicit base
+./scripts/run-tests.sh tests/test_jobs.py       # one module
+cd backend && uv run pytest tests -q -m "not serial" -n auto --lf -k "posting or cv"
+```
+
+`--changed` takes `git diff <base>...HEAD` plus uncommitted/untracked files
+and selects:
+
+- test modules whose static imports name a changed `app.*` module **or any
+  parent package below `app`** (`backend/app/a/b.py` matches imports of
+  `app.a.b` and `app.a`; a bare `app` import is not treated as proof that the
+  submodule loads);
+- a changed `backend/tests/test_*.py` itself;
+- the always-run set: `test_quality_gates`, `test_docs_claims`,
+  `test_config_contract`, `test_test_harness`, `test_ci_shards`,
+  `test_ci_selection`, `test_no_private_integration_mentions`.
+
+A changed `backend/alembic/**`, `backend/pyproject.toml`, `uv.lock`,
+`contracts/**`, `docs/user/**`, `docs/dev/**`, `backend/tests/conftest.py`,
+`backend/tests/seed_pack_fixture.py`, `.github/workflows/ci.yml`, any
+`scripts/**` file, any test-support file, or any unmapped backend path prints
+its reason and selects the full suite. A changed app module that no test
+imports prints a warning and keeps the always-run set — selection never
+silently drops a change. Dynamic imports (`importlib`, monkeypatched module
+strings) are not visible to the static scan.
+
+`scripts/changed-paths.py` classifies a diff into backend/frontend/docs/infra
+classes and fails closed on unknown paths. It is **not wired into any
+workflow**: a skipped required check would be a false green, so path-aware CI
+skipping stays a deferred ruleset decision.
+
 `.env.test` (loaded by the test config) pins the test environment:
 
 ```
